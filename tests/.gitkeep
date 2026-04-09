@@ -1,0 +1,5 @@
+# Test directory
+# policy/ - RLS policy tests
+# integration/ - Integration tests
+# components/ - Component tests
+# Step 0.2: Placeholder for Phase 9 implementation

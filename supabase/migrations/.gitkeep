@@ -1,0 +1,17 @@
+# Growa Qatar - Database Migrations
+# Step 0.5: Supabase bootstrap artifacts
+#
+# MIGRATION DISCIPLINE:
+# 1. Every schema change MUST be a migration file
+# 2. Naming: YYYYMMDDHHMMSS_description.sql
+# 3. Never modify migrations that have been applied to staging/production
+# 4. Test migrations locally before applying to staging
+# 5. Review RLS policies in every migration that creates tables
+#
+# Migration order will be established in Phase 1:
+# - 00001_country_instances.sql
+# - 00002_organizations.sql
+# - 00003_profiles_memberships.sql
+# - 00004_role_templates.sql
+# - 00005_invitations.sql
+# - 00006_audit_logs.sql

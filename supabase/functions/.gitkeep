@@ -1,0 +1,14 @@
+# Growa Qatar - Edge Functions
+# Step 0.5: Supabase bootstrap artifacts
+#
+# EDGE FUNCTION DISCIPLINE:
+# 1. Use Edge Functions only for privileged operations
+# 2. Never expose admin actions through direct client writes
+# 3. Always validate authentication and authorization
+# 4. Log audit events for security-sensitive operations
+#
+# Planned functions (Phase 1-2):
+# - invite-user/: Handle secure invitation flow
+# - activate-account/: Handle account activation
+# - change-role/: Handle privileged role changes
+# - audit-log/: Secure audit event recording

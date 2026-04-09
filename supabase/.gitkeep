@@ -1,0 +1,7 @@
+# Supabase project directory
+# config.toml - Supabase configuration
+# migrations/ - SQL migrations
+# seed.sql - Seed data
+# functions/ - Edge Functions
+# types/ - Generated TypeScript types
+# Step 0.2: Placeholder for Step 0.5 implementation
