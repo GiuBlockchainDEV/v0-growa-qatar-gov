@@ -1,7 +1,6 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { ZoomIn, ZoomOut, Target, Layers, Compass } from 'lucide-react'
 
 // Qatar center coordinates
 const QATAR_CENTER = { lat: 25.3548, lng: 51.1839 }
@@ -26,25 +25,21 @@ const FARM_MARKERS: MapMarker[] = [
 
 interface SatelliteMapProps {
   locale?: string
-  fullscreen?: boolean
 }
 
-export function SatelliteMap({ locale = 'en', fullscreen = false }: SatelliteMapProps) {
+export function SatelliteMap({ locale = 'en' }: SatelliteMapProps) {
   const mapRef = useRef<HTMLDivElement>(null)
   const mapInstanceRef = useRef<L.Map | null>(null)
   const [isLoading, setIsLoading] = useState(true)
-  const [activeLayer, setActiveLayer] = useState<'satellite' | 'hybrid'>('satellite')
-  const [currentZoom, setCurrentZoom] = useState(DEFAULT_ZOOM)
 
   useEffect(() => {
-    // Dynamic import of Leaflet to avoid SSR issues
     const initMap = async () => {
       if (!mapRef.current || mapInstanceRef.current) return
 
       const L = (await import('leaflet')).default
       await import('leaflet/dist/leaflet.css')
 
-      // Initialize map
+      // Initialize map - completely clean, no controls
       const map = L.map(mapRef.current, {
         center: [QATAR_CENTER.lat, QATAR_CENTER.lng],
         zoom: DEFAULT_ZOOM,
@@ -53,27 +48,10 @@ export function SatelliteMap({ locale = 'en', fullscreen = false }: SatelliteMap
       })
 
       // ESRI World Imagery (Satellite)
-      const satelliteLayer = L.tileLayer(
+      L.tileLayer(
         'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
-        {
-          maxZoom: 19,
-          attribution: '&copy; Esri'
-        }
-      )
-
-      // ESRI Hybrid (Satellite + Labels)
-      const hybridLayer = L.layerGroup([
-        L.tileLayer(
-          'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
-          { maxZoom: 19 }
-        ),
-        L.tileLayer(
-          'https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}',
-          { maxZoom: 19 }
-        )
-      ])
-
-      satelliteLayer.addTo(map)
+        { maxZoom: 19 }
+      ).addTo(map)
 
       // Custom marker icon
       const createMarkerIcon = (type: string) => {
@@ -88,17 +66,17 @@ export function SatelliteMap({ locale = 'en', fullscreen = false }: SatelliteMap
           className: 'custom-marker',
           html: `
             <div style="
-              width: 28px;
-              height: 28px;
+              width: 24px;
+              height: 24px;
               background: ${color};
               border: 3px solid rgba(255,255,255,0.95);
               border-radius: 50%;
-              box-shadow: 0 2px 12px rgba(0,0,0,0.5), 0 0 20px ${color}40;
+              box-shadow: 0 2px 8px rgba(0,0,0,0.4), 0 0 16px ${color}50;
               cursor: pointer;
             "></div>
           `,
-          iconSize: [28, 28],
-          iconAnchor: [14, 14],
+          iconSize: [24, 24],
+          iconAnchor: [12, 12],
         })
       }
 
@@ -109,29 +87,17 @@ export function SatelliteMap({ locale = 'en', fullscreen = false }: SatelliteMap
         })
           .addTo(map)
           .bindPopup(`
-            <div style="font-family: system-ui; padding: 8px; min-width: 150px;">
-              <strong style="color: #07fc82; font-size: 14px;">${marker.label}</strong>
+            <div style="font-family: system-ui; padding: 8px; min-width: 140px;">
+              <strong style="color: #07fc82; font-size: 13px;">${marker.label}</strong>
               <br/>
-              <span style="font-size: 11px; color: #888; text-transform: uppercase;">Type: ${marker.type}</span>
-              <br/>
-              <span style="font-size: 10px; color: #666;">Lat: ${marker.lat.toFixed(4)}, Lng: ${marker.lng.toFixed(4)}</span>
+              <span style="font-size: 10px; color: #888; text-transform: uppercase;">Type: ${marker.type}</span>
             </div>
           `, {
             className: 'custom-popup'
           })
       })
 
-      // Track zoom changes
-      map.on('zoomend', () => {
-        setCurrentZoom(map.getZoom())
-      })
-
       mapInstanceRef.current = map
-
-      // Store layer references for switching
-      ;(map as any)._satelliteLayer = satelliteLayer
-      ;(map as any)._hybridLayer = hybridLayer
-
       setIsLoading(false)
     }
 
@@ -145,43 +111,9 @@ export function SatelliteMap({ locale = 'en', fullscreen = false }: SatelliteMap
     }
   }, [])
 
-  const handleZoomIn = () => {
-    mapInstanceRef.current?.zoomIn()
-  }
-
-  const handleZoomOut = () => {
-    mapInstanceRef.current?.zoomOut()
-  }
-
-  const handleRecenter = () => {
-    mapInstanceRef.current?.setView([QATAR_CENTER.lat, QATAR_CENTER.lng], DEFAULT_ZOOM, {
-      animate: true,
-      duration: 0.5
-    })
-  }
-
-  const handleToggleLayer = () => {
-    const map = mapInstanceRef.current as any
-    if (!map) return
-
-    if (activeLayer === 'satellite') {
-      map.removeLayer(map._satelliteLayer)
-      map._hybridLayer.addTo(map)
-      setActiveLayer('hybrid')
-    } else {
-      map.removeLayer(map._hybridLayer)
-      map._satelliteLayer.addTo(map)
-      setActiveLayer('satellite')
-    }
-  }
-
-  const containerClass = fullscreen 
-    ? 'absolute inset-0' 
-    : 'relative w-full h-full rounded-lg overflow-hidden border border-border'
-
   return (
-    <div className={containerClass}>
-      {/* Map Container */}
+    <div className="absolute inset-0">
+      {/* Map Container - Full Screen */}
       <div ref={mapRef} className="w-full h-full" />
 
       {/* Loading Overlay */}
@@ -203,100 +135,6 @@ export function SatelliteMap({ locale = 'en', fullscreen = false }: SatelliteMap
         </div>
       )}
 
-      {/* Map Controls - ALWAYS Visible, Right Side, High z-index */}
-      <div className="fixed top-20 right-4 z-[100] flex flex-col gap-2">
-        {/* Zoom Controls */}
-        <div className="flex flex-col rounded-lg overflow-hidden border border-border shadow-lg">
-          <button
-            onClick={handleZoomIn}
-            className="p-3 bg-card/95 backdrop-blur-md hover:bg-secondary transition-colors border-b border-border"
-            title="Zoom In"
-          >
-            <ZoomIn className="h-5 w-5 text-foreground" />
-          </button>
-          <button
-            onClick={handleZoomOut}
-            className="p-3 bg-card/95 backdrop-blur-md hover:bg-secondary transition-colors"
-            title="Zoom Out"
-          >
-            <ZoomOut className="h-5 w-5 text-foreground" />
-          </button>
-        </div>
-
-        {/* Recenter Button */}
-        <button
-          onClick={handleRecenter}
-          className="p-3 rounded-lg bg-card/95 backdrop-blur-md border border-border hover:bg-secondary hover:border-primary/50 transition-all shadow-lg group"
-          title="Recenter on Qatar"
-        >
-          <Target className="h-5 w-5 text-foreground group-hover:text-primary transition-colors" />
-        </button>
-
-        {/* Layer Toggle */}
-        <button
-          onClick={handleToggleLayer}
-          className={`p-3 rounded-lg backdrop-blur-md border transition-all shadow-lg ${
-            activeLayer === 'hybrid' 
-              ? 'bg-primary/20 border-primary text-primary' 
-              : 'bg-card/95 border-border text-foreground hover:bg-secondary'
-          }`}
-          title="Toggle Labels"
-        >
-          <Layers className="h-5 w-5" />
-        </button>
-
-        {/* Compass */}
-        <div className="p-3 rounded-lg bg-card/95 backdrop-blur-md border border-border shadow-lg flex items-center justify-center">
-          <Compass className="h-5 w-5 text-muted-foreground" />
-        </div>
-      </div>
-
-      {/* Map Header - Top Center, Always Visible */}
-      <div className="fixed top-20 left-1/2 -translate-x-1/2 z-[90]">
-        <div className="flex items-center gap-3 px-4 py-2 rounded-full bg-card/90 backdrop-blur-md border border-border shadow-lg">
-          <img 
-            src="https://hebbkx1anhila5yf.public.blob.vercel-storage.com/logo512-dN5LxVKBkzU9yWpc5ROgvoTj7C4wM5.png" 
-            alt="Growa" 
-            className="h-5 w-5"
-          />
-          <span className="text-sm font-semibold text-foreground">
-            {locale === 'ar' ? 'قطر - العمليات الزراعية' : 'Qatar Agricultural Operations'}
-          </span>
-          <div className="h-4 w-px bg-border" />
-          <span className="text-xs text-muted-foreground font-mono">
-            Zoom: {currentZoom}
-          </span>
-        </div>
-      </div>
-
-      {/* Legend - Bottom Right, Always Visible */}
-      <div className="fixed bottom-4 right-4 z-[90]">
-        <div className="flex flex-col gap-2 px-3 py-2 rounded-lg bg-card/90 backdrop-blur-md border border-border shadow-lg">
-          <div className="flex items-center gap-2">
-            <span className="h-3 w-3 rounded-full bg-[#07fc82] shadow-[0_0_8px_#07fc8280]" />
-            <span className="text-xs text-foreground">{locale === 'ar' ? 'مزارع' : 'Farms'}</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="h-3 w-3 rounded-full bg-blue-500 shadow-[0_0_8px_#3B82F680]" />
-            <span className="text-xs text-foreground">{locale === 'ar' ? 'منشآت' : 'Facilities'}</span>
-          </div>
-        </div>
-      </div>
-
-      {/* Layer Badge - Bottom Center, Always Visible */}
-      <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-[90]">
-        <span className="px-3 py-1.5 rounded-full text-xs font-medium bg-card/80 backdrop-blur-md border border-border text-muted-foreground">
-          ESRI World Imagery {activeLayer === 'hybrid' ? '+ Labels' : ''}
-        </span>
-      </div>
-
-      {/* Coordinates Display - Always Visible */}
-      <div className="fixed bottom-14 right-4 z-[90]">
-        <span className="px-2 py-1 rounded text-[10px] font-mono bg-black/50 text-white/70">
-          {QATAR_CENTER.lat.toFixed(4)}°N, {QATAR_CENTER.lng.toFixed(4)}°E
-        </span>
-      </div>
-
       {/* Custom Popup Styles */}
       <style jsx global>{`
         .custom-popup .leaflet-popup-content-wrapper {
@@ -307,7 +145,6 @@ export function SatelliteMap({ locale = 'en', fullscreen = false }: SatelliteMap
         }
         .custom-popup .leaflet-popup-tip {
           background: rgba(12, 12, 14, 0.95);
-          border: 1px solid rgba(255, 255, 255, 0.1);
         }
         .custom-popup .leaflet-popup-close-button {
           color: #888;
