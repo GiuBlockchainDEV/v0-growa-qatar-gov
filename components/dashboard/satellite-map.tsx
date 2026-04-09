@@ -5,7 +5,7 @@ import { Plus, Minus, Crosshair, Layers } from 'lucide-react'
 
 // Qatar center coordinates
 const QATAR_CENTER = { lat: 25.3548, lng: 51.1839 }
-const DEFAULT_ZOOM = 9
+const DEFAULT_ZOOM = 10
 
 interface MapMarker {
   id: string
