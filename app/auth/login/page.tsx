@@ -54,17 +54,18 @@ export default function Page() {
           
           <div className="space-y-6">
             <div className="flex items-center gap-3">
-              <div className="relative h-14 w-14 rounded-xl bg-gradient-to-br from-primary/80 to-primary flex items-center justify-center">
-                <Sprout className="h-7 w-7 text-primary-foreground" />
-                <div className="absolute inset-0 rounded-xl glow-primary opacity-50" />
-              </div>
+              <img 
+                src="https://hebbkx1anhila5yf.public.blob.vercel-storage.com/logo512-dN5LxVKBkzU9yWpc5ROgvoTj7C4wM5.png" 
+                alt="Growa" 
+                className="h-14 w-14 drop-shadow-lg"
+              />
             </div>
             <h1 className="text-4xl font-bold text-foreground tracking-tight">
               GROWA <span className="text-primary">QATAR</span>
             </h1>
             <p className="text-lg text-muted-foreground max-w-md">
               Sovereign Agricultural Operations Platform. 
-              Access real-time monitoring and analytics for Qatar&apos;s agricultural resources.
+              Access real-time monitoring and analytics for Qatar's agricultural resources.
             </p>
             <div className="flex items-center gap-2 pt-4">
               <Activity className="h-4 w-4 text-green-500" />
@@ -82,9 +83,11 @@ export default function Page() {
           <div className="w-full max-w-md">
             {/* Mobile logo */}
             <div className="lg:hidden flex items-center gap-3 mb-8">
-              <div className="relative h-10 w-10 rounded-lg bg-gradient-to-br from-primary/80 to-primary flex items-center justify-center">
-                <Sprout className="h-5 w-5 text-primary-foreground" />
-              </div>
+              <img 
+                src="https://hebbkx1anhila5yf.public.blob.vercel-storage.com/logo512-dN5LxVKBkzU9yWpc5ROgvoTj7C4wM5.png" 
+                alt="Growa" 
+                className="h-10 w-10"
+              />
               <h1 className="text-2xl font-bold text-foreground tracking-tight">
                 GROWA <span className="text-primary">QATAR</span>
               </h1>

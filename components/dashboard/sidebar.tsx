@@ -60,10 +60,11 @@ export function DashboardSidebar() {
       >
         {/* Logo */}
         <div className="flex items-center gap-3 border-b border-sidebar-border px-5 py-5">
-          <div className="relative h-10 w-10 rounded-lg bg-gradient-to-br from-primary/80 to-primary flex items-center justify-center">
-            <Sprout className="h-5 w-5 text-primary-foreground" />
-            <div className="absolute inset-0 rounded-lg glow-primary opacity-50" />
-          </div>
+          <img 
+            src="https://hebbkx1anhila5yf.public.blob.vercel-storage.com/logo512-dN5LxVKBkzU9yWpc5ROgvoTj7C4wM5.png" 
+            alt="Growa" 
+            className="h-10 w-10 drop-shadow-md"
+          />
           <div className="flex flex-col">
             <h1 className="font-bold text-lg text-sidebar-foreground tracking-tight">GROWA</h1>
             <p className="text-[10px] uppercase tracking-widest text-primary font-medium">Qatar Operations</p>

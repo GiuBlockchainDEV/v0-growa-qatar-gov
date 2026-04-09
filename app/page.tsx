@@ -42,11 +42,12 @@ export default function Home() {
         {/* Main content */}
         <div className="text-center space-y-6 max-w-3xl">
           {/* Logo */}
-          <div className="flex items-center justify-center gap-3 mb-4">
-            <div className="relative h-14 w-14 rounded-xl bg-gradient-to-br from-primary/80 to-primary flex items-center justify-center">
-              <Sprout className="h-7 w-7 text-primary-foreground" />
-              <div className="absolute inset-0 rounded-xl glow-primary opacity-50" />
-            </div>
+          <div className="flex items-center justify-center mb-8">
+            <img 
+              src="https://hebbkx1anhila5yf.public.blob.vercel-storage.com/logo512-dN5LxVKBkzU9yWpc5ROgvoTj7C4wM5.png" 
+              alt="Growa Logo" 
+              className="h-20 w-20 drop-shadow-2xl"
+            />
           </div>
 
           <h1 className="text-5xl sm:text-6xl font-bold text-foreground tracking-tight">
