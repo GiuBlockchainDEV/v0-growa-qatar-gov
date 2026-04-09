@@ -78,7 +78,7 @@ export function SatelliteMap({ locale = 'en', fullscreen = false }: SatelliteMap
       // Custom marker icon
       const createMarkerIcon = (type: string) => {
         const colors = {
-          farm: '#1FE169',
+          farm: '#07fc82',
           facility: '#3B82F6',
           sensor: '#F59E0B'
         }
@@ -110,7 +110,7 @@ export function SatelliteMap({ locale = 'en', fullscreen = false }: SatelliteMap
           .addTo(map)
           .bindPopup(`
             <div style="font-family: system-ui; padding: 8px; min-width: 150px;">
-              <strong style="color: #1FE169; font-size: 14px;">${marker.label}</strong>
+              <strong style="color: #07fc82; font-size: 14px;">${marker.label}</strong>
               <br/>
               <span style="font-size: 11px; color: #888; text-transform: uppercase;">Type: ${marker.type}</span>
               <br/>
@@ -203,8 +203,8 @@ export function SatelliteMap({ locale = 'en', fullscreen = false }: SatelliteMap
         </div>
       )}
 
-      {/* Map Controls - Always Visible, Right Side */}
-      <div className="absolute top-4 right-4 z-30 flex flex-col gap-2">
+      {/* Map Controls - ALWAYS Visible, Right Side, High z-index */}
+      <div className="fixed top-20 right-4 z-[100] flex flex-col gap-2">
         {/* Zoom Controls */}
         <div className="flex flex-col rounded-lg overflow-hidden border border-border shadow-lg">
           <button
@@ -251,8 +251,8 @@ export function SatelliteMap({ locale = 'en', fullscreen = false }: SatelliteMap
         </div>
       </div>
 
-      {/* Map Header - Top Center */}
-      <div className="absolute top-4 left-1/2 -translate-x-1/2 z-20">
+      {/* Map Header - Top Center, Always Visible */}
+      <div className="fixed top-20 left-1/2 -translate-x-1/2 z-[90]">
         <div className="flex items-center gap-3 px-4 py-2 rounded-full bg-card/90 backdrop-blur-md border border-border shadow-lg">
           <img 
             src="https://hebbkx1anhila5yf.public.blob.vercel-storage.com/logo512-dN5LxVKBkzU9yWpc5ROgvoTj7C4wM5.png" 
@@ -269,11 +269,11 @@ export function SatelliteMap({ locale = 'en', fullscreen = false }: SatelliteMap
         </div>
       </div>
 
-      {/* Legend - Bottom Right */}
-      <div className="absolute bottom-4 right-4 z-20">
+      {/* Legend - Bottom Right, Always Visible */}
+      <div className="fixed bottom-4 right-4 z-[90]">
         <div className="flex flex-col gap-2 px-3 py-2 rounded-lg bg-card/90 backdrop-blur-md border border-border shadow-lg">
           <div className="flex items-center gap-2">
-            <span className="h-3 w-3 rounded-full bg-[#1FE169] shadow-[0_0_8px_#1FE16980]" />
+            <span className="h-3 w-3 rounded-full bg-[#07fc82] shadow-[0_0_8px_#07fc8280]" />
             <span className="text-xs text-foreground">{locale === 'ar' ? 'مزارع' : 'Farms'}</span>
           </div>
           <div className="flex items-center gap-2">
@@ -283,15 +283,15 @@ export function SatelliteMap({ locale = 'en', fullscreen = false }: SatelliteMap
         </div>
       </div>
 
-      {/* Layer Badge - Bottom Center */}
-      <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-10">
+      {/* Layer Badge - Bottom Center, Always Visible */}
+      <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-[90]">
         <span className="px-3 py-1.5 rounded-full text-xs font-medium bg-card/80 backdrop-blur-md border border-border text-muted-foreground">
           ESRI World Imagery {activeLayer === 'hybrid' ? '+ Labels' : ''}
         </span>
       </div>
 
-      {/* Coordinates Display */}
-      <div className="absolute bottom-14 right-4 z-10">
+      {/* Coordinates Display - Always Visible */}
+      <div className="fixed bottom-14 right-4 z-[90]">
         <span className="px-2 py-1 rounded text-[10px] font-mono bg-black/50 text-white/70">
           {QATAR_CENTER.lat.toFixed(4)}°N, {QATAR_CENTER.lng.toFixed(4)}°E
         </span>
@@ -313,7 +313,7 @@ export function SatelliteMap({ locale = 'en', fullscreen = false }: SatelliteMap
           color: #888;
         }
         .custom-popup .leaflet-popup-close-button:hover {
-          color: #1FE169;
+          color: #07fc82;
         }
       `}</style>
     </div>
