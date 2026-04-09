@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/hooks/use-auth'
 import { DashboardSidebar } from '@/components/dashboard/sidebar'
-import { DashboardTopNav } from '@/components/dashboard/top-nav'
+import { DashboardHeader } from '@/components/dashboard/header'
 
 export default function DashboardLayout({
   children,
@@ -13,7 +13,7 @@ export default function DashboardLayout({
 }) {
   const { user, loading } = useAuth()
   const router = useRouter()
-  const [sidebarOpen, setSidebarOpen] = useState(true)
+  const [sidebarOpen, setSidebarOpen] = useState(false) // Closed by default
 
   useEffect(() => {
     if (!loading && !user) {
@@ -26,7 +26,7 @@ export default function DashboardLayout({
       <div className="flex h-screen items-center justify-center bg-background">
         <div className="flex flex-col items-center gap-4">
           <div className="relative">
-            <div className="h-16 w-16 rounded-full border-3 border-primary/20 border-t-primary animate-spin" />
+            <div className="h-16 w-16 rounded-full border-4 border-[#07fc82]/20 border-t-[#07fc82] animate-spin" />
             <img 
               src="https://hebbkx1anhila5yf.public.blob.vercel-storage.com/logo512-dN5LxVKBkzU9yWpc5ROgvoTj7C4wM5.png" 
               alt="Growa" 
@@ -45,16 +45,22 @@ export default function DashboardLayout({
 
   return (
     <div className="h-screen w-screen overflow-hidden bg-background relative">
-      {/* Full Screen Map Content - Base Layer */}
+      {/* Full Screen Content (Map) - Base Layer */}
       <main className="absolute inset-0">
         {children}
       </main>
 
-      {/* Collapsible Sidebar */}
-      <DashboardSidebar isOpen={sidebarOpen} onToggle={() => setSidebarOpen(!sidebarOpen)} />
+      {/* Header - Always Visible on Top */}
+      <DashboardHeader 
+        onMenuToggle={() => setSidebarOpen(!sidebarOpen)} 
+        menuOpen={sidebarOpen}
+      />
 
-      {/* Top Navigation Bar */}
-      <DashboardTopNav />
+      {/* Sidebar - Slides in from left when open */}
+      <DashboardSidebar 
+        isOpen={sidebarOpen} 
+        onClose={() => setSidebarOpen(false)} 
+      />
     </div>
   )
 }

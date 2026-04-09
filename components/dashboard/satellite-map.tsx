@@ -1,6 +1,7 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, useCallback } from 'react'
+import { Plus, Minus, Crosshair, Layers } from 'lucide-react'
 
 // Qatar center coordinates
 const QATAR_CENTER = { lat: 25.3548, lng: 51.1839 }
@@ -31,6 +32,27 @@ export function SatelliteMap({ locale = 'en' }: SatelliteMapProps) {
   const mapRef = useRef<HTMLDivElement>(null)
   const mapInstanceRef = useRef<L.Map | null>(null)
   const [isLoading, setIsLoading] = useState(true)
+  const [currentZoom, setCurrentZoom] = useState(DEFAULT_ZOOM)
+
+  const handleZoomIn = useCallback(() => {
+    if (mapInstanceRef.current) {
+      mapInstanceRef.current.zoomIn()
+    }
+  }, [])
+
+  const handleZoomOut = useCallback(() => {
+    if (mapInstanceRef.current) {
+      mapInstanceRef.current.zoomOut()
+    }
+  }, [])
+
+  const handleRecenter = useCallback(() => {
+    if (mapInstanceRef.current) {
+      mapInstanceRef.current.flyTo([QATAR_CENTER.lat, QATAR_CENTER.lng], DEFAULT_ZOOM, {
+        duration: 1.5
+      })
+    }
+  }, [])
 
   useEffect(() => {
     const initMap = async () => {
@@ -39,7 +61,7 @@ export function SatelliteMap({ locale = 'en' }: SatelliteMapProps) {
       const L = (await import('leaflet')).default
       await import('leaflet/dist/leaflet.css')
 
-      // Initialize map - completely clean, no controls
+      // Initialize map
       const map = L.map(mapRef.current, {
         center: [QATAR_CENTER.lat, QATAR_CENTER.lng],
         zoom: DEFAULT_ZOOM,
@@ -52,6 +74,11 @@ export function SatelliteMap({ locale = 'en' }: SatelliteMapProps) {
         'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
         { maxZoom: 19 }
       ).addTo(map)
+
+      // Track zoom level
+      map.on('zoomend', () => {
+        setCurrentZoom(map.getZoom())
+      })
 
       // Custom marker icon
       const createMarkerIcon = (type: string) => {
@@ -112,16 +139,56 @@ export function SatelliteMap({ locale = 'en' }: SatelliteMapProps) {
   }, [])
 
   return (
-    <div className="absolute inset-0">
-      {/* Map Container - Full Screen */}
+    <div className="absolute inset-0 pt-16"> {/* pt-16 to account for header */}
+      {/* Map Container */}
       <div ref={mapRef} className="w-full h-full" />
+
+      {/* Map Controls - Bottom Right, Always Visible */}
+      {!isLoading && (
+        <div className="absolute bottom-6 right-6 z-30 flex flex-col gap-2">
+          {/* Zoom In */}
+          <button
+            onClick={handleZoomIn}
+            className="h-10 w-10 flex items-center justify-center rounded-lg bg-[#0c0c0e]/90 border border-white/10 hover:border-[#07fc82]/50 hover:bg-[#0c0c0e] transition-all shadow-lg"
+            title="Zoom In"
+          >
+            <Plus className="h-5 w-5 text-white" />
+          </button>
+
+          {/* Zoom Out */}
+          <button
+            onClick={handleZoomOut}
+            className="h-10 w-10 flex items-center justify-center rounded-lg bg-[#0c0c0e]/90 border border-white/10 hover:border-[#07fc82]/50 hover:bg-[#0c0c0e] transition-all shadow-lg"
+            title="Zoom Out"
+          >
+            <Minus className="h-5 w-5 text-white" />
+          </button>
+
+          {/* Recenter on Qatar */}
+          <button
+            onClick={handleRecenter}
+            className="h-10 w-10 flex items-center justify-center rounded-lg bg-[#0c0c0e]/90 border border-white/10 hover:border-[#07fc82]/50 hover:bg-[#0c0c0e] transition-all shadow-lg"
+            title="Recenter on Qatar"
+          >
+            <Crosshair className="h-5 w-5 text-[#07fc82]" />
+          </button>
+        </div>
+      )}
+
+      {/* Zoom Level Indicator - Bottom Left */}
+      {!isLoading && (
+        <div className="absolute bottom-6 left-6 z-30 px-3 py-1.5 rounded-lg bg-[#0c0c0e]/90 border border-white/10 shadow-lg">
+          <span className="text-xs text-white/60">Zoom: </span>
+          <span className="text-xs text-[#07fc82] font-medium">{currentZoom}</span>
+        </div>
+      )}
 
       {/* Loading Overlay */}
       {isLoading && (
         <div className="absolute inset-0 flex items-center justify-center bg-background z-50">
           <div className="flex flex-col items-center gap-4">
             <div className="relative">
-              <div className="h-16 w-16 rounded-full border-3 border-primary/20 border-t-primary animate-spin" />
+              <div className="h-16 w-16 rounded-full border-4 border-[#07fc82]/20 border-t-[#07fc82] animate-spin" />
               <img 
                 src="https://hebbkx1anhila5yf.public.blob.vercel-storage.com/logo512-dN5LxVKBkzU9yWpc5ROgvoTj7C4wM5.png" 
                 alt="Growa" 
