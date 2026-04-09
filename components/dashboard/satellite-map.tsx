@@ -62,7 +62,7 @@ export function SatelliteMap({ locale = 'en' }: SatelliteMapProps) {
       
       // Check if already initialized by Leaflet (has _leaflet_id on the container)
       if ((mapRef.current as HTMLDivElement & { _leaflet_id?: number })._leaflet_id) {
-        console.log('[v0] Map already initialized, skipping')
+        setIsLoading(false)
         return
       }
 
@@ -152,45 +152,41 @@ export function SatelliteMap({ locale = 'en' }: SatelliteMapProps) {
       {/* Map Container */}
       <div ref={mapRef} className="w-full h-full" />
 
-      {/* Map Controls - Bottom Right, Always Visible */}
-      {!isLoading && (
-        <div className="absolute bottom-6 right-6 z-30 flex flex-col gap-2">
-          {/* Zoom In */}
-          <button
-            onClick={handleZoomIn}
-            className="h-10 w-10 flex items-center justify-center rounded-lg bg-[#0c0c0e]/90 border border-white/10 hover:border-[#07fc82]/50 hover:bg-[#0c0c0e] transition-all shadow-lg"
-            title="Zoom In"
-          >
-            <Plus className="h-5 w-5 text-white" />
-          </button>
+      {/* Map Controls - Bottom Right, ALWAYS Visible */}
+      <div className="absolute bottom-6 right-6 z-[1000] flex flex-col gap-2">
+        {/* Zoom In */}
+        <button
+          onClick={handleZoomIn}
+          className="h-10 w-10 flex items-center justify-center rounded-lg bg-[#0c0c0e]/90 border border-white/10 hover:border-[#07fc82]/50 hover:bg-[#0c0c0e] transition-all shadow-lg"
+          title="Zoom In"
+        >
+          <Plus className="h-5 w-5 text-white" />
+        </button>
 
-          {/* Zoom Out */}
-          <button
-            onClick={handleZoomOut}
-            className="h-10 w-10 flex items-center justify-center rounded-lg bg-[#0c0c0e]/90 border border-white/10 hover:border-[#07fc82]/50 hover:bg-[#0c0c0e] transition-all shadow-lg"
-            title="Zoom Out"
-          >
-            <Minus className="h-5 w-5 text-white" />
-          </button>
+        {/* Zoom Out */}
+        <button
+          onClick={handleZoomOut}
+          className="h-10 w-10 flex items-center justify-center rounded-lg bg-[#0c0c0e]/90 border border-white/10 hover:border-[#07fc82]/50 hover:bg-[#0c0c0e] transition-all shadow-lg"
+          title="Zoom Out"
+        >
+          <Minus className="h-5 w-5 text-white" />
+        </button>
 
-          {/* Recenter on Qatar */}
-          <button
-            onClick={handleRecenter}
-            className="h-10 w-10 flex items-center justify-center rounded-lg bg-[#0c0c0e]/90 border border-white/10 hover:border-[#07fc82]/50 hover:bg-[#0c0c0e] transition-all shadow-lg"
-            title="Recenter on Qatar"
-          >
-            <Crosshair className="h-5 w-5 text-[#07fc82]" />
-          </button>
-        </div>
-      )}
+        {/* Recenter on Qatar */}
+        <button
+          onClick={handleRecenter}
+          className="h-10 w-10 flex items-center justify-center rounded-lg bg-[#0c0c0e]/90 border border-white/10 hover:border-[#07fc82]/50 hover:bg-[#0c0c0e] transition-all shadow-lg"
+          title="Recenter on Qatar"
+        >
+          <Crosshair className="h-5 w-5 text-[#07fc82]" />
+        </button>
+      </div>
 
-      {/* Zoom Level Indicator - Bottom Left */}
-      {!isLoading && (
-        <div className="absolute bottom-6 left-6 z-30 px-3 py-1.5 rounded-lg bg-[#0c0c0e]/90 border border-white/10 shadow-lg">
-          <span className="text-xs text-white/60">Zoom: </span>
-          <span className="text-xs text-[#07fc82] font-medium">{currentZoom}</span>
-        </div>
-      )}
+      {/* Zoom Level Indicator - Bottom Left, ALWAYS Visible */}
+      <div className="absolute bottom-6 left-6 z-[1000] px-3 py-1.5 rounded-lg bg-[#0c0c0e]/90 border border-white/10 shadow-lg">
+        <span className="text-xs text-white/60">Zoom: </span>
+        <span className="text-xs text-[#07fc82] font-medium">{currentZoom}</span>
+      </div>
 
       {/* Loading Overlay */}
       {isLoading && (
