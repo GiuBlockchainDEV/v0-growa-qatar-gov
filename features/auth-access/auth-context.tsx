@@ -15,13 +15,26 @@ export interface AuthContextType {
 export const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const supabase = createClient();
+  const [supabase, setSupabase] = useState<ReturnType<typeof createClient> | null>(null);
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
 
+  // Initialize Supabase client only when env vars are available
+  useEffect(() => {
+    try {
+      const client = createClient();
+      setSupabase(client);
+    } catch (error) {
+      console.error('[v0] Failed to initialize Supabase client:', error);
+      setLoading(false);
+    }
+  }, []);
+
   // Initialize auth state from session
   useEffect(() => {
+    if (!supabase) return;
+
     const initAuth = async () => {
       try {
         const {
@@ -60,6 +73,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [supabase]);
 
   const logout = useCallback(async () => {
+    if (!supabase) throw new Error('Supabase client not initialized');
     try {
       await supabase.auth.signOut();
       setUser(null);
@@ -71,6 +85,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [supabase]);
 
   const refreshUser = useCallback(async () => {
+    if (!supabase) throw new Error('Supabase client not initialized');
     try {
       const {
         data: { user: freshUser },
