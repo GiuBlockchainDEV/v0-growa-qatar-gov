@@ -25,17 +25,24 @@ const ar: Record<string, string> = {
   'common.next': 'التالي',
   'common.previous': 'السابق',
   'common.submit': 'إرسال',
+  'common.or': 'أو',
 
   // App
   'app.name': 'جروا قطر',
   'app.tagline': 'منصة العمليات الزراعية السيادية',
 
-  // Auth (placeholders for Phase 2)
-  'auth.signIn': 'تسجيل الدخول',
-  'auth.signOut': 'تسجيل الخروج',
+  // Auth - Sign In
+  'auth.sign_in': 'تسجيل الدخول',
+  'auth.sign_in_subtitle': 'منصة العمليات الزراعية لدولة قطر',
   'auth.email': 'البريد الإلكتروني',
   'auth.password': 'كلمة المرور',
-  'auth.forgotPassword': 'نسيت كلمة المرور؟',
+  'auth.forgot_password': 'هل نسيت كلمة المرور؟',
+  'auth.have_invitation': 'لدي رمز دعوة',
+  'auth.no_account_contact_admin': 'ليس لديك حساب؟ اتصل بمسؤول المنظمة الخاص بك',
+  'auth.failed_attempts': 'محاولات فاشلة',
+
+  // Auth - General
+  'auth.signOut': 'تسجيل الخروج',
   'auth.resetPassword': 'إعادة تعيين كلمة المرور',
 
   // Navigation

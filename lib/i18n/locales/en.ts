@@ -25,17 +25,24 @@ const en: Record<string, string> = {
   'common.next': 'Next',
   'common.previous': 'Previous',
   'common.submit': 'Submit',
+  'common.or': 'Or',
 
   // App
   'app.name': 'Growa Qatar',
   'app.tagline': 'Sovereign Agricultural Operations Platform',
 
-  // Auth (placeholders for Phase 2)
-  'auth.signIn': 'Sign In',
-  'auth.signOut': 'Sign Out',
+  // Auth - Sign In
+  'auth.sign_in': 'Sign In',
+  'auth.sign_in_subtitle': 'Agricultural Operations Platform for Qatar',
   'auth.email': 'Email',
   'auth.password': 'Password',
-  'auth.forgotPassword': 'Forgot Password?',
+  'auth.forgot_password': 'Forgot Password?',
+  'auth.have_invitation': 'I have an invitation code',
+  'auth.no_account_contact_admin': 'Don\'t have an account? Contact your organization administrator',
+  'auth.failed_attempts': 'Failed Attempts',
+
+  // Auth - General
+  'auth.signOut': 'Sign Out',
   'auth.resetPassword': 'Reset Password',
 
   // Navigation
