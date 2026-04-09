@@ -2,6 +2,7 @@
 
 import { useAuth } from '@/hooks/use-auth'
 import { useI18n } from '@/lib/i18n'
+import { SatelliteMap } from '@/components/dashboard/satellite-map'
 import { 
   Sprout, 
   RefreshCw, 
@@ -129,6 +130,11 @@ export default function DashboardPage() {
             </div>
           )
         })}
+      </div>
+
+      {/* Satellite Map - Central Feature */}
+      <div className="h-[450px] lg:h-[500px]">
+        <SatelliteMap locale={locale} />
       </div>
 
       {/* Main Content Grid */}
