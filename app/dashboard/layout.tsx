@@ -45,10 +45,8 @@ export default function DashboardLayout({
         <DashboardTopNav />
 
         {/* Page Content */}
-        <main className="flex-1 overflow-y-auto">
-          <div className="mx-auto max-w-screen-2xl px-4 py-6 sm:px-6 lg:px-8">
-            {children}
-          </div>
+        <main className="flex-1 overflow-hidden relative">
+          {children}
         </main>
       </div>
     </div>

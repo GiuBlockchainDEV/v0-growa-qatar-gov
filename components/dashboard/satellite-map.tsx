@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { Maximize2, ZoomIn, ZoomOut, Target, Layers } from 'lucide-react'
+import { ZoomIn, ZoomOut, Target, Layers, Compass } from 'lucide-react'
 
 // Qatar center coordinates
 const QATAR_CENTER = { lat: 25.3548, lng: 51.1839 }
@@ -26,13 +26,15 @@ const FARM_MARKERS: MapMarker[] = [
 
 interface SatelliteMapProps {
   locale?: string
+  fullscreen?: boolean
 }
 
-export function SatelliteMap({ locale = 'en' }: SatelliteMapProps) {
+export function SatelliteMap({ locale = 'en', fullscreen = false }: SatelliteMapProps) {
   const mapRef = useRef<HTMLDivElement>(null)
   const mapInstanceRef = useRef<L.Map | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [activeLayer, setActiveLayer] = useState<'satellite' | 'hybrid'>('satellite')
+  const [currentZoom, setCurrentZoom] = useState(DEFAULT_ZOOM)
 
   useEffect(() => {
     // Dynamic import of Leaflet to avoid SSR issues
@@ -55,7 +57,7 @@ export function SatelliteMap({ locale = 'en' }: SatelliteMapProps) {
         'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
         {
           maxZoom: 19,
-          attribution: '&copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community'
+          attribution: '&copy; Esri'
         }
       )
 
@@ -86,16 +88,17 @@ export function SatelliteMap({ locale = 'en' }: SatelliteMapProps) {
           className: 'custom-marker',
           html: `
             <div style="
-              width: 24px;
-              height: 24px;
+              width: 28px;
+              height: 28px;
               background: ${color};
-              border: 3px solid rgba(255,255,255,0.9);
+              border: 3px solid rgba(255,255,255,0.95);
               border-radius: 50%;
-              box-shadow: 0 2px 8px rgba(0,0,0,0.4);
+              box-shadow: 0 2px 12px rgba(0,0,0,0.5), 0 0 20px ${color}40;
+              cursor: pointer;
             "></div>
           `,
-          iconSize: [24, 24],
-          iconAnchor: [12, 12],
+          iconSize: [28, 28],
+          iconAnchor: [14, 14],
         })
       }
 
@@ -106,12 +109,21 @@ export function SatelliteMap({ locale = 'en' }: SatelliteMapProps) {
         })
           .addTo(map)
           .bindPopup(`
-            <div style="font-family: system-ui; padding: 4px;">
-              <strong style="color: #1FE169;">${marker.label}</strong>
+            <div style="font-family: system-ui; padding: 8px; min-width: 150px;">
+              <strong style="color: #1FE169; font-size: 14px;">${marker.label}</strong>
               <br/>
-              <span style="font-size: 12px; color: #888;">Type: ${marker.type}</span>
+              <span style="font-size: 11px; color: #888; text-transform: uppercase;">Type: ${marker.type}</span>
+              <br/>
+              <span style="font-size: 10px; color: #666;">Lat: ${marker.lat.toFixed(4)}, Lng: ${marker.lng.toFixed(4)}</span>
             </div>
-          `)
+          `, {
+            className: 'custom-popup'
+          })
+      })
+
+      // Track zoom changes
+      map.on('zoomend', () => {
+        setCurrentZoom(map.getZoom())
       })
 
       mapInstanceRef.current = map
@@ -142,7 +154,10 @@ export function SatelliteMap({ locale = 'en' }: SatelliteMapProps) {
   }
 
   const handleRecenter = () => {
-    mapInstanceRef.current?.setView([QATAR_CENTER.lat, QATAR_CENTER.lng], DEFAULT_ZOOM)
+    mapInstanceRef.current?.setView([QATAR_CENTER.lat, QATAR_CENTER.lng], DEFAULT_ZOOM, {
+      animate: true,
+      duration: 0.5
+    })
   }
 
   const handleToggleLayer = () => {
@@ -160,92 +175,147 @@ export function SatelliteMap({ locale = 'en' }: SatelliteMapProps) {
     }
   }
 
+  const containerClass = fullscreen 
+    ? 'absolute inset-0' 
+    : 'relative w-full h-full rounded-lg overflow-hidden border border-border'
+
   return (
-    <div className="relative w-full h-full rounded-lg overflow-hidden border border-border bg-card">
+    <div className={containerClass}>
       {/* Map Container */}
-      <div ref={mapRef} className="w-full h-full min-h-[400px]" />
+      <div ref={mapRef} className="w-full h-full" />
 
       {/* Loading Overlay */}
       {isLoading && (
-        <div className="absolute inset-0 flex items-center justify-center bg-card">
-          <div className="flex flex-col items-center gap-3">
-            <div className="h-8 w-8 rounded-full border-2 border-primary/30 border-t-primary animate-spin" />
-            <span className="text-sm text-muted-foreground">
-              {locale === 'ar' ? 'جاري تحميل الخريطة...' : 'Loading satellite imagery...'}
+        <div className="absolute inset-0 flex items-center justify-center bg-background z-50">
+          <div className="flex flex-col items-center gap-4">
+            <div className="relative">
+              <div className="h-16 w-16 rounded-full border-3 border-primary/20 border-t-primary animate-spin" />
+              <img 
+                src="https://hebbkx1anhila5yf.public.blob.vercel-storage.com/logo512-dN5LxVKBkzU9yWpc5ROgvoTj7C4wM5.png" 
+                alt="Growa" 
+                className="absolute inset-0 m-auto h-8 w-8"
+              />
+            </div>
+            <span className="text-sm text-muted-foreground font-medium">
+              {locale === 'ar' ? 'جاري تحميل صور الأقمار الصناعية...' : 'Loading satellite imagery...'}
             </span>
           </div>
         </div>
       )}
 
-      {/* Map Header */}
-      <div className="absolute top-0 left-0 right-0 p-4 bg-gradient-to-b from-black/60 to-transparent pointer-events-none">
-        <div className="flex items-center justify-between">
-          <div>
-            <h3 className="font-semibold text-white text-sm">
-              {locale === 'ar' ? 'خريطة الأقمار الصناعية' : 'Satellite Overview'}
-            </h3>
-            <p className="text-xs text-white/70 mt-0.5">
-              {locale === 'ar' ? 'قطر - العمليات الزراعية' : 'Qatar - Agricultural Operations'}
-            </p>
+      {/* Map Controls - Always Visible, Right Side */}
+      <div className="absolute top-4 right-4 z-30 flex flex-col gap-2">
+        {/* Zoom Controls */}
+        <div className="flex flex-col rounded-lg overflow-hidden border border-border shadow-lg">
+          <button
+            onClick={handleZoomIn}
+            className="p-3 bg-card/95 backdrop-blur-md hover:bg-secondary transition-colors border-b border-border"
+            title="Zoom In"
+          >
+            <ZoomIn className="h-5 w-5 text-foreground" />
+          </button>
+          <button
+            onClick={handleZoomOut}
+            className="p-3 bg-card/95 backdrop-blur-md hover:bg-secondary transition-colors"
+            title="Zoom Out"
+          >
+            <ZoomOut className="h-5 w-5 text-foreground" />
+          </button>
+        </div>
+
+        {/* Recenter Button */}
+        <button
+          onClick={handleRecenter}
+          className="p-3 rounded-lg bg-card/95 backdrop-blur-md border border-border hover:bg-secondary hover:border-primary/50 transition-all shadow-lg group"
+          title="Recenter on Qatar"
+        >
+          <Target className="h-5 w-5 text-foreground group-hover:text-primary transition-colors" />
+        </button>
+
+        {/* Layer Toggle */}
+        <button
+          onClick={handleToggleLayer}
+          className={`p-3 rounded-lg backdrop-blur-md border transition-all shadow-lg ${
+            activeLayer === 'hybrid' 
+              ? 'bg-primary/20 border-primary text-primary' 
+              : 'bg-card/95 border-border text-foreground hover:bg-secondary'
+          }`}
+          title="Toggle Labels"
+        >
+          <Layers className="h-5 w-5" />
+        </button>
+
+        {/* Compass */}
+        <div className="p-3 rounded-lg bg-card/95 backdrop-blur-md border border-border shadow-lg flex items-center justify-center">
+          <Compass className="h-5 w-5 text-muted-foreground" />
+        </div>
+      </div>
+
+      {/* Map Header - Top Center */}
+      <div className="absolute top-4 left-1/2 -translate-x-1/2 z-20">
+        <div className="flex items-center gap-3 px-4 py-2 rounded-full bg-card/90 backdrop-blur-md border border-border shadow-lg">
+          <img 
+            src="https://hebbkx1anhila5yf.public.blob.vercel-storage.com/logo512-dN5LxVKBkzU9yWpc5ROgvoTj7C4wM5.png" 
+            alt="Growa" 
+            className="h-5 w-5"
+          />
+          <span className="text-sm font-semibold text-foreground">
+            {locale === 'ar' ? 'قطر - العمليات الزراعية' : 'Qatar Agricultural Operations'}
+          </span>
+          <div className="h-4 w-px bg-border" />
+          <span className="text-xs text-muted-foreground font-mono">
+            Zoom: {currentZoom}
+          </span>
+        </div>
+      </div>
+
+      {/* Legend - Bottom Right */}
+      <div className="absolute bottom-4 right-4 z-20">
+        <div className="flex flex-col gap-2 px-3 py-2 rounded-lg bg-card/90 backdrop-blur-md border border-border shadow-lg">
+          <div className="flex items-center gap-2">
+            <span className="h-3 w-3 rounded-full bg-[#1FE169] shadow-[0_0_8px_#1FE16980]" />
+            <span className="text-xs text-foreground">{locale === 'ar' ? 'مزارع' : 'Farms'}</span>
           </div>
-          <div className="flex items-center gap-2 text-white/70 text-xs pointer-events-auto">
-            <span className="flex items-center gap-1.5">
-              <span className="h-2 w-2 rounded-full bg-primary" />
-              {locale === 'ar' ? 'مزارع' : 'Farms'}
-            </span>
-            <span className="flex items-center gap-1.5">
-              <span className="h-2 w-2 rounded-full bg-blue-500" />
-              {locale === 'ar' ? 'منشآت' : 'Facilities'}
-            </span>
+          <div className="flex items-center gap-2">
+            <span className="h-3 w-3 rounded-full bg-blue-500 shadow-[0_0_8px_#3B82F680]" />
+            <span className="text-xs text-foreground">{locale === 'ar' ? 'منشآت' : 'Facilities'}</span>
           </div>
         </div>
       </div>
 
-      {/* Map Controls */}
-      <div className="absolute top-20 right-4 flex flex-col gap-2">
-        <button
-          onClick={handleZoomIn}
-          className="p-2 rounded-lg bg-card/90 backdrop-blur border border-border hover:bg-secondary transition-colors"
-          title="Zoom In"
-        >
-          <ZoomIn className="h-4 w-4 text-foreground" />
-        </button>
-        <button
-          onClick={handleZoomOut}
-          className="p-2 rounded-lg bg-card/90 backdrop-blur border border-border hover:bg-secondary transition-colors"
-          title="Zoom Out"
-        >
-          <ZoomOut className="h-4 w-4 text-foreground" />
-        </button>
-        <button
-          onClick={handleRecenter}
-          className="p-2 rounded-lg bg-card/90 backdrop-blur border border-border hover:bg-secondary transition-colors"
-          title="Recenter on Qatar"
-        >
-          <Target className="h-4 w-4 text-foreground" />
-        </button>
-        <button
-          onClick={handleToggleLayer}
-          className="p-2 rounded-lg bg-card/90 backdrop-blur border border-border hover:bg-secondary transition-colors"
-          title="Toggle Labels"
-        >
-          <Layers className="h-4 w-4 text-foreground" />
-        </button>
-      </div>
-
-      {/* Active Layer Badge */}
-      <div className="absolute bottom-4 left-4">
-        <span className="px-2 py-1 rounded text-xs font-medium bg-card/90 backdrop-blur border border-border text-foreground">
-          ESRI {activeLayer === 'satellite' ? 'Satellite' : 'Hybrid'}
+      {/* Layer Badge - Bottom Center */}
+      <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-10">
+        <span className="px-3 py-1.5 rounded-full text-xs font-medium bg-card/80 backdrop-blur-md border border-border text-muted-foreground">
+          ESRI World Imagery {activeLayer === 'hybrid' ? '+ Labels' : ''}
         </span>
       </div>
 
-      {/* Attribution */}
-      <div className="absolute bottom-4 right-4">
-        <span className="text-[10px] text-white/50 bg-black/30 px-1.5 py-0.5 rounded">
-          Imagery &copy; ESRI
+      {/* Coordinates Display */}
+      <div className="absolute bottom-14 right-4 z-10">
+        <span className="px-2 py-1 rounded text-[10px] font-mono bg-black/50 text-white/70">
+          {QATAR_CENTER.lat.toFixed(4)}°N, {QATAR_CENTER.lng.toFixed(4)}°E
         </span>
       </div>
+
+      {/* Custom Popup Styles */}
+      <style jsx global>{`
+        .custom-popup .leaflet-popup-content-wrapper {
+          background: rgba(12, 12, 14, 0.95);
+          border: 1px solid rgba(255, 255, 255, 0.1);
+          border-radius: 8px;
+          box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+        }
+        .custom-popup .leaflet-popup-tip {
+          background: rgba(12, 12, 14, 0.95);
+          border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        .custom-popup .leaflet-popup-close-button {
+          color: #888;
+        }
+        .custom-popup .leaflet-popup-close-button:hover {
+          color: #1FE169;
+        }
+      `}</style>
     </div>
   )
 }
