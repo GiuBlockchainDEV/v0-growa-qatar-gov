@@ -1,13 +1,11 @@
 'use client'
 
-import { useAuth } from '@/hooks/use-auth'
 import { useI18n } from '@/lib/i18n'
 import { UserMenu } from './user-menu'
 import { LanguageToggle } from '@/components/language-toggle'
 import { Bell, Search } from 'lucide-react'
 
 export function DashboardTopNav() {
-  const { user, loading } = useAuth()
   const { t } = useI18n()
 
   return (
@@ -37,7 +35,7 @@ export function DashboardTopNav() {
           <LanguageToggle />
 
           {/* User Menu */}
-          {!loading && user && <UserMenu user={user} />}
+          <UserMenu />
         </div>
       </div>
     </header>

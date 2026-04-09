@@ -1,31 +1,14 @@
 'use client'
 
-import { useAuth } from '@/hooks/use-auth'
 import { useI18n } from '@/lib/i18n'
 import { useRouter } from 'next/navigation'
 import { useState } from 'react'
 import { User, LogOut, Settings } from 'lucide-react'
-import type { User as SupabaseUser } from '@supabase/supabase-js'
 
-interface UserMenuProps {
-  user: SupabaseUser
-}
-
-export function UserMenu({ user }: UserMenuProps) {
+export function UserMenu() {
   const [isOpen, setIsOpen] = useState(false)
-  const { logout } = useAuth()
   const router = useRouter()
-  const { t } = useI18n()
-
-  const handleLogout = async () => {
-    try {
-      await logout()
-      setIsOpen(false)
-      router.push('/auth/sign-in')
-    } catch (error) {
-      console.error('[v0] Logout error:', error)
-    }
-  }
+  const { t, locale } = useI18n()
 
   return (
     <div className="relative">
@@ -38,7 +21,7 @@ export function UserMenu({ user }: UserMenuProps) {
           <User className="h-4 w-4 text-primary" />
         </div>
         <span className="hidden sm:inline text-sm font-medium text-foreground truncate max-w-[120px]">
-          {user.email?.split('@')[0]}
+          {locale === 'ar' ? 'ضيف' : 'Guest'}
         </span>
       </button>
 
@@ -48,10 +31,10 @@ export function UserMenu({ user }: UserMenuProps) {
           {/* User Info */}
           <div className="border-b border-border px-4 py-3">
             <p className="text-xs font-medium text-muted-foreground uppercase">
-              Account
+              {locale === 'ar' ? 'الحساب' : 'Account'}
             </p>
             <p className="mt-1 text-sm font-medium text-foreground truncate">
-              {user.email}
+              {locale === 'ar' ? 'غير متصل' : 'Not connected'}
             </p>
           </div>
 
@@ -65,11 +48,11 @@ export function UserMenu({ user }: UserMenuProps) {
               className="w-full flex items-center gap-3 rounded-lg px-3 py-2 text-sm hover:bg-muted transition-colors text-foreground"
             >
               <Settings className="h-4 w-4" />
-              Settings
+              {locale === 'ar' ? 'الإعدادات' : 'Settings'}
             </button>
             <button
-              onClick={handleLogout}
-              className="w-full flex items-center gap-3 rounded-lg px-3 py-2 text-sm hover:bg-muted transition-colors text-foreground"
+              disabled
+              className="w-full flex items-center gap-3 rounded-lg px-3 py-2 text-sm text-muted-foreground cursor-not-allowed"
             >
               <LogOut className="h-4 w-4" />
               {t('auth.signOut')}

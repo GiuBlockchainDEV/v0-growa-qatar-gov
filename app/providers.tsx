@@ -11,7 +11,6 @@
 import { type ReactNode } from 'react'
 import { I18nProvider, getPreferredLocale } from '@/lib/i18n'
 import { ThemeProvider } from '@/components/theme-provider'
-import { AuthProvider } from '@/features/auth-access'
 
 interface ProvidersProps {
   children: ReactNode
@@ -28,11 +27,9 @@ export function Providers({ children }: ProvidersProps) {
       enableSystem
       disableTransitionOnChange
     >
-      <AuthProvider>
-        <I18nProvider initialLocale={initialLocale}>
-          {children}
-        </I18nProvider>
-      </AuthProvider>
+      <I18nProvider initialLocale={initialLocale}>
+        {children}
+      </I18nProvider>
     </ThemeProvider>
   )
 }
