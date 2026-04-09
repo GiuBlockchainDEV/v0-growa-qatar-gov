@@ -31,6 +31,7 @@ interface SatelliteMapProps {
 export function SatelliteMap({ locale = 'en' }: SatelliteMapProps) {
   const mapRef = useRef<HTMLDivElement>(null)
   const mapInstanceRef = useRef<L.Map | null>(null)
+  const initRef = useRef(false)
   const [isLoading, setIsLoading] = useState(true)
   const [currentZoom, setCurrentZoom] = useState(DEFAULT_ZOOM)
 
@@ -56,7 +57,9 @@ export function SatelliteMap({ locale = 'en' }: SatelliteMapProps) {
 
   useEffect(() => {
     const initMap = async () => {
-      if (!mapRef.current || mapInstanceRef.current) return
+      // Prevent double initialization in React Strict Mode
+      if (!mapRef.current || initRef.current) return
+      initRef.current = true
 
       const L = (await import('leaflet')).default
       await import('leaflet/dist/leaflet.css')
@@ -131,10 +134,7 @@ export function SatelliteMap({ locale = 'en' }: SatelliteMapProps) {
     initMap()
 
     return () => {
-      if (mapInstanceRef.current) {
-        mapInstanceRef.current.remove()
-        mapInstanceRef.current = null
-      }
+      // Cleanup on unmount
     }
   }, [])
 
