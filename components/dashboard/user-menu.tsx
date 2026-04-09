@@ -1,14 +1,27 @@
 'use client'
 
-import { useI18n } from '@/lib/i18n'
 import { useRouter } from 'next/navigation'
+import { useAuth } from '@/hooks/use-auth'
+import { useI18n } from '@/lib/i18n'
 import { useState } from 'react'
-import { User, LogOut, Settings } from 'lucide-react'
+import { LogOut, Settings } from 'lucide-react'
 
 export function UserMenu() {
   const [isOpen, setIsOpen] = useState(false)
+  const { user, logout } = useAuth()
   const router = useRouter()
-  const { t, locale } = useI18n()
+  const { locale } = useI18n()
+
+  const handleLogout = async () => {
+    try {
+      await logout()
+      router.push('/auth/login')
+    } catch (error) {
+      console.error('[v0] Logout failed:', error)
+    }
+  }
+
+  const userInitial = user?.email?.[0]?.toUpperCase() || '?'
 
   return (
     <div className="relative">
@@ -17,11 +30,11 @@ export function UserMenu() {
         onClick={() => setIsOpen(!isOpen)}
         className="flex items-center gap-2 rounded-lg p-2 hover:bg-muted transition-colors"
       >
-        <div className="h-8 w-8 rounded-full bg-primary/20 flex items-center justify-center">
-          <User className="h-4 w-4 text-primary" />
+        <div className="h-8 w-8 rounded-full bg-primary/20 flex items-center justify-center text-xs font-bold">
+          {userInitial}
         </div>
         <span className="hidden sm:inline text-sm font-medium text-foreground truncate max-w-[120px]">
-          {locale === 'ar' ? 'ضيف' : 'Guest'}
+          {user?.email?.split('@')[0] || 'User'}
         </span>
       </button>
 
@@ -34,7 +47,7 @@ export function UserMenu() {
               {locale === 'ar' ? 'الحساب' : 'Account'}
             </p>
             <p className="mt-1 text-sm font-medium text-foreground truncate">
-              {locale === 'ar' ? 'غير متصل' : 'Not connected'}
+              {user?.email}
             </p>
           </div>
 
@@ -51,11 +64,11 @@ export function UserMenu() {
               {locale === 'ar' ? 'الإعدادات' : 'Settings'}
             </button>
             <button
-              disabled
-              className="w-full flex items-center gap-3 rounded-lg px-3 py-2 text-sm text-muted-foreground cursor-not-allowed"
+              onClick={handleLogout}
+              className="w-full flex items-center gap-3 rounded-lg px-3 py-2 text-sm hover:bg-muted transition-colors text-red-600"
             >
               <LogOut className="h-4 w-4" />
-              {t('auth.signOut')}
+              {locale === 'ar' ? 'تسجيل الخروج' : 'Sign Out'}
             </button>
           </div>
         </div>

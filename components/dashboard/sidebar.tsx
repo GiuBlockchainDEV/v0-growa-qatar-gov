@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { useState } from 'react'
 import { useI18n } from '@/lib/i18n'
+import { useOrganization } from '@/hooks/use-organization'
 import { cn } from '@/lib/utils'
 import { ChevronDown, Menu, X } from 'lucide-react'
 
@@ -19,6 +20,7 @@ const navigationItems = [
 export function DashboardSidebar() {
   const [isOpen, setIsOpen] = useState(false)
   const { t, direction } = useI18n()
+  const { organization, loading } = useOrganization()
 
   return (
     <>
@@ -53,7 +55,9 @@ export function DashboardSidebar() {
         {/* Organization Selector */}
         <div className="border-b border-border px-4 py-3">
           <button className="w-full flex items-center justify-between gap-2 rounded-lg border border-border bg-muted/50 px-3 py-2 text-sm hover:bg-muted">
-            <span className="truncate text-left font-medium">Ministry of Municipality</span>
+            <span className="truncate text-left font-medium">
+              {loading ? 'Loading...' : organization?.name || 'Select Organization'}
+            </span>
             <ChevronDown className="h-4 w-4 flex-shrink-0" />
           </button>
         </div>
