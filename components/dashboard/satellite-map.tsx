@@ -31,7 +31,6 @@ interface SatelliteMapProps {
 export function SatelliteMap({ locale = 'en' }: SatelliteMapProps) {
   const mapRef = useRef<HTMLDivElement>(null)
   const mapInstanceRef = useRef<L.Map | null>(null)
-  const initRef = useRef(false)
   const [isLoading, setIsLoading] = useState(true)
   const [currentZoom, setCurrentZoom] = useState(DEFAULT_ZOOM)
 
@@ -56,16 +55,22 @@ export function SatelliteMap({ locale = 'en' }: SatelliteMapProps) {
   }, [])
 
   useEffect(() => {
+    let map: L.Map | null = null
+    
     const initMap = async () => {
-      // Prevent double initialization in React Strict Mode
-      if (!mapRef.current || initRef.current) return
-      initRef.current = true
+      if (!mapRef.current) return
+      
+      // Check if already initialized by Leaflet (has _leaflet_id on the container)
+      if ((mapRef.current as HTMLDivElement & { _leaflet_id?: number })._leaflet_id) {
+        console.log('[v0] Map already initialized, skipping')
+        return
+      }
 
       const L = (await import('leaflet')).default
       await import('leaflet/dist/leaflet.css')
 
       // Initialize map
-      const map = L.map(mapRef.current, {
+      map = L.map(mapRef.current, {
         center: [QATAR_CENTER.lat, QATAR_CENTER.lng],
         zoom: DEFAULT_ZOOM,
         zoomControl: false,
@@ -134,7 +139,11 @@ export function SatelliteMap({ locale = 'en' }: SatelliteMapProps) {
     initMap()
 
     return () => {
-      // Cleanup on unmount
+      // Cleanup on unmount - properly remove map
+      if (map) {
+        map.remove()
+        mapInstanceRef.current = null
+      }
     }
   }, [])
 
