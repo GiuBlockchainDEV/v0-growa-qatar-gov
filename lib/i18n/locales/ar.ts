@@ -78,6 +78,44 @@ const ar: Record<string, string> = {
   'language.english': 'الإنجليزية',
   'language.arabic': 'العربية',
   'language.switch': 'تغيير اللغة',
+
+  // Operations - Farms
+  'operations.farms': 'المزارع',
+  'operations.farms_description': 'إدارة جميع المزارع في المنظمة',
+  'operations.add_farm': 'إضافة مزرعة',
+  'operations.create_farm': 'إضافة مزرعة جديدة',
+  'operations.farm_name_en': 'اسم المزرعة (الإنجليزية)',
+  'operations.farm_name_ar': 'اسم المزرعة (العربية)',
+  'operations.farm_location': 'الموقع',
+  'operations.farm_type': 'نوع المزرعة',
+  'operations.farm_size': 'الحجم (هكتار)',
+  'operations.farm_status': 'الحالة',
+  'operations.farm_type_crop': 'محاصيل',
+  'operations.farm_type_livestock': 'ماشية',
+  'operations.farm_type_aquaculture': 'استزراع سمكي',
+  'operations.status_active': 'نشط',
+  'operations.status_inactive': 'غير نشط',
+  'operations.status_maintenance': 'صيانة',
+  'operations.no_farms': 'لا توجد مزارع بعد',
+  'operations.create_first_farm': 'إنشاء أول مزرعة',
+
+  // Operations - Cycles
+  'operations.cycles': 'دورات الإنتاج',
+  'operations.cycles_description': 'تتبع دورات النمو والتربية',
+
+  // Operations - Inventory
+  'operations.inventory': 'المخزون',
+  'operations.inventory_description': 'إدارة المدخلات والموارد',
+
+  // Operations - General
+  'operations.create': 'إنشاء',
+  'operations.edit': 'تعديل',
+  'operations.delete': 'حذف',
+  'operations.actions': 'الإجراءات',
+  'operations.save': 'حفظ',
+  'operations.cancel': 'إلغاء',
+  'operations.deleting': 'جاري الحذف...',
+  'operations.confirm_delete': 'هل أنت متأكد؟',
 }
 
 export default ar

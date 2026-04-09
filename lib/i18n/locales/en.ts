@@ -78,6 +78,44 @@ const en: Record<string, string> = {
   'language.english': 'English',
   'language.arabic': 'Arabic',
   'language.switch': 'Switch Language',
+
+  // Operations - Farms
+  'operations.farms': 'Farms',
+  'operations.farms_description': 'Manage all farms in your organization',
+  'operations.add_farm': 'Add Farm',
+  'operations.create_farm': 'Add New Farm',
+  'operations.farm_name_en': 'Farm Name (English)',
+  'operations.farm_name_ar': 'Farm Name (Arabic)',
+  'operations.farm_location': 'Location',
+  'operations.farm_type': 'Farm Type',
+  'operations.farm_size': 'Size (Hectares)',
+  'operations.farm_status': 'Status',
+  'operations.farm_type_crop': 'Crop',
+  'operations.farm_type_livestock': 'Livestock',
+  'operations.farm_type_aquaculture': 'Aquaculture',
+  'operations.status_active': 'Active',
+  'operations.status_inactive': 'Inactive',
+  'operations.status_maintenance': 'Maintenance',
+  'operations.no_farms': 'No farms yet',
+  'operations.create_first_farm': 'Create your first farm',
+
+  // Operations - Cycles
+  'operations.cycles': 'Production Cycles',
+  'operations.cycles_description': 'Track growing and breeding cycles',
+
+  // Operations - Inventory
+  'operations.inventory': 'Inventory',
+  'operations.inventory_description': 'Manage inputs and resources',
+
+  // Operations - General
+  'operations.create': 'Create',
+  'operations.edit': 'Edit',
+  'operations.delete': 'Delete',
+  'operations.actions': 'Actions',
+  'operations.save': 'Save',
+  'operations.cancel': 'Cancel',
+  'operations.deleting': 'Deleting...',
+  'operations.confirm_delete': 'Are you sure?',
 }
 
 export default en
