@@ -26,7 +26,7 @@ INSERT INTO branding_configs (
   '00000000-0000-0000-0000-000000000001'::uuid,
   'https://example.com/logo.png',
   '#1F2937',
-  '#10B981',
+  '#07f880',
   'Segoe UI, Tahoma, Geneva, Verdana, sans-serif',
   NOW(),
   NOW()
