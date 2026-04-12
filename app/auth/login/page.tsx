@@ -68,8 +68,8 @@ export default function Page() {
               Access real-time monitoring and analytics for Qatar's agricultural resources.
             </p>
             <div className="flex items-center gap-2 pt-4">
-              <Activity className="h-4 w-4 text-green-500" />
-              <span className="text-sm text-green-500 font-medium">System Operational</span>
+              <Activity className="h-4 w-4 text-primary" />
+              <span className="text-sm text-primary font-medium">System Operational</span>
             </div>
           </div>
           

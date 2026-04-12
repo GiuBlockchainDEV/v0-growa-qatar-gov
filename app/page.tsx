@@ -34,9 +34,9 @@ export default function Home() {
 
       <div className="relative z-10 flex flex-col items-center justify-center min-h-screen px-4 py-16">
         {/* Status badge */}
-        <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-green-500/10 border border-green-500/20 mb-8">
-          <Activity className="h-3.5 w-3.5 text-green-500" />
-          <span className="text-xs font-medium text-green-500">System Operational</span>
+        <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-primary/10 border border-primary/20 mb-8">
+          <Activity className="h-3.5 w-3.5 text-primary" />
+          <span className="text-xs font-medium text-primary">System Operational</span>
         </div>
 
         {/* Main content */}

@@ -205,7 +205,7 @@ export default function Page() {
                 </Button>
 
                 <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                  <Activity className="h-3.5 w-3.5 text-green-500" />
+                  <Activity className="h-3.5 w-3.5 text-primary" />
                   <span>Your data is secured with enterprise-grade encryption</span>
                 </div>
               </form>
