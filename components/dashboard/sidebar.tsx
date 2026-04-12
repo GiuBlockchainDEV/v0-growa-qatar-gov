@@ -2,12 +2,9 @@
 
 import Link from 'next/link'
 import { usePathname, useSearchParams } from 'next/navigation'
-import { useEffect, useState } from 'react'
 import { useI18n } from '@/lib/i18n'
-import { useOrganization } from '@/hooks/use-organization'
 import { cn } from '@/lib/utils'
 import { 
-  ChevronDown, 
   Building2,
   Share2,
   Settings,
@@ -15,7 +12,6 @@ import {
   PanelLeftOpen,
   PanelRightOpen
 } from 'lucide-react'
-import { usePermissions } from '@/hooks/use-permissions'
 import { useRoleNavigation, getIconComponent } from '@/hooks/use-role-navigation'
 import { ViewAsSelector } from './view-as-selector'
 
@@ -44,19 +40,17 @@ export function DashboardSidebar({
   onToggleRightDrawer,
 }: DashboardSidebarProps) {
   const { locale } = useI18n()
-  const { organization, loading } = useOrganization()
-  const { getUserRole } = usePermissions()
-  const { primaryItems, secondaryItems, menuItems, isLoading: navLoading, isMinistryWorkspace } =
+  const {
+    primaryItems,
+    secondaryItems,
+    menuItems,
+    isLoading: navLoading,
+    isMinistryWorkspace,
+    effectiveRole,
+  } =
     useRoleNavigation()
   const pathname = usePathname()
   const searchParams = useSearchParams()
-  const [userRole, setUserRole] = useState<string | null>(null)
-
-  useEffect(() => {
-    if (organization?.id) {
-      getUserRole(organization.id).then(setUserRole)
-    }
-  }, [organization?.id, getUserRole])
 
   const isActive = (href: string) => {
     if (href === '/dashboard') return pathname === '/dashboard'
@@ -71,10 +65,10 @@ export function DashboardSidebar({
     ? secondaryItems
     : menuItems.filter((item) => ['settings', 'support'].includes(item.key))
 
-  const isAdminRole = userRole && [
+  const isAdminRole = effectiveRole && [
     'admin', 'super_admin', 'ministry_admin', 'ministry_super_admin', 
     'hassad_admin', 'qdb_admin', 'farm_company_admin'
-  ].includes(userRole)
+  ].includes(effectiveRole)
 
   return (
     <>
@@ -93,19 +87,10 @@ export function DashboardSidebar({
           isOpen ? 'translate-x-0' : '-translate-x-full'
         )}
       >
-        {/* Organization Selector */}
-        <div className="border-b border-white/5 px-4 py-4">
-          <button className="w-full flex items-center justify-between gap-2 rounded-lg border border-white/10 bg-white/5 px-3 py-2.5 text-sm hover:bg-white/10 hover:border-[#07f880]/30 transition-all group">
-            <div className="flex items-center gap-2">
-              <Building2 className="h-4 w-4 text-[#07f880]" />
-              <span className="truncate text-left font-medium text-white">
-                {loading ? 'Loading...' : organization?.name || 'Select Organization'}
-              </span>
-            </div>
-            <ChevronDown className="h-4 w-4 flex-shrink-0 text-white/50 group-hover:text-[#07f880] transition-colors" />
-          </button>
-          {isMinistryWorkspace && (
-            <div className="mt-3 grid grid-cols-2 gap-2">
+        {/* Workspace controls */}
+        {isMinistryWorkspace && (
+          <div className="border-b border-white/5 px-4 py-4">
+            <div className="grid grid-cols-2 gap-2">
               <button
                 type="button"
                 onClick={onToggleContextualPanel}
@@ -133,8 +118,8 @@ export function DashboardSidebar({
                 {locale === 'ar' ? 'درج العمليات' : 'Ops Drawer'}
               </button>
             </div>
-          )}
-        </div>
+          </div>
+        )}
 
         {/* Navigation */}
         <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-1">

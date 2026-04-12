@@ -169,7 +169,14 @@ function toLayerVisibilityFallback(
 
 function splitNavigationSections(items: MenuItem[]) {
   const settingsAndSupport = items.filter((item) => ['settings', 'support'].includes(item.key))
-  const main = items.filter((item) => !['settings', 'support'].includes(item.key))
+  const main = items
+    .filter((item) => !['settings', 'support'].includes(item.key))
+    .map((item) => ({
+      ...item,
+      // Keep legacy/fallback items on an existing route to avoid 404s
+      // when route pages are not implemented yet.
+      path: item.path.startsWith('/dashboard?module=') ? item.path : `/dashboard?module=${item.key}`,
+    }))
   const primary = main.slice(0, 8).map((item) => ({ ...item, section: 'primary' as const }))
   const secondary = [...main.slice(8), ...settingsAndSupport].map((item) => ({
     ...item,
