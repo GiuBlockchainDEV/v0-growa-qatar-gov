@@ -104,16 +104,17 @@ const roleMapping: Record<string, string> = {
 }
 
 export function useRoleNavigation() {
-  const { user, organization, userRole } = useAuth()
+  const { user, userRole } = useAuth()
   const [navigation, setNavigation] = useState<RoleNavigation | null>(null)
   const [menuItems, setMenuItems] = useState<MenuItem[]>(defaultNavigation)
   const [landingPage, setLandingPage] = useState('/dashboard')
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [effectiveRole, setEffectiveRole] = useState<string | null>(null)
 
   useEffect(() => {
     async function fetchNavigation() {
-      if (!userRole) {
+      if (!user) {
         setIsLoading(false)
         return
       }
@@ -122,8 +123,27 @@ export function useRoleNavigation() {
         setIsLoading(true)
         const supabase = createClient()
 
+        // First, get effective role (may be impersonated for @growa.ai users)
+        let currentRole = userRole
+
+        // Check if user is growa.ai admin and has impersonation
+        const isGrowaAdmin = user.email?.endsWith('@growa.ai')
+        if (isGrowaAdmin) {
+          const { data: effectiveRoleData } = await supabase.rpc('get_effective_role')
+          if (effectiveRoleData?.[0]?.role_name) {
+            currentRole = effectiveRoleData[0].role_name
+          }
+        }
+
+        if (!currentRole) {
+          setIsLoading(false)
+          return
+        }
+
+        setEffectiveRole(currentRole)
+
         // Map legacy role to new role if needed
-        const mappedRole = roleMapping[userRole] || userRole
+        const mappedRole = roleMapping[currentRole] || currentRole
 
         // Fetch navigation for user's role
         const { data, error: fetchError } = await supabase
@@ -160,7 +180,7 @@ export function useRoleNavigation() {
     }
 
     fetchNavigation()
-  }, [userRole])
+  }, [user, userRole])
 
   return {
     navigation,
@@ -168,6 +188,7 @@ export function useRoleNavigation() {
     landingPage,
     isLoading,
     error,
+    effectiveRole,
     getIconComponent,
   }
 }

@@ -15,6 +15,7 @@ import {
 } from 'lucide-react'
 import { usePermissions } from '@/hooks/use-permissions'
 import { useRoleNavigation, getIconComponent } from '@/hooks/use-role-navigation'
+import { ViewAsSelector } from './view-as-selector'
 
 // Admin items are always the same
 const adminItems = [
@@ -178,6 +179,11 @@ export function DashboardSidebar({ isOpen, onClose }: DashboardSidebarProps) {
             })}
           </div>
         )}
+
+        {/* View As Selector (only for @growa.ai users) */}
+        <div className="border-t border-white/5 px-4 py-3">
+          <ViewAsSelector />
+        </div>
 
         {/* Footer */}
         <div className="border-t border-white/5 px-4 py-4">
