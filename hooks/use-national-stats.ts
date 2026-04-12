@@ -210,14 +210,14 @@ export function useNationalStats() {
         // Fetch KPIs from farms table
         const { data: farmsData, error: farmsError } = await supabase
           .from('farms')
-          .select('id, name, location, total_area_hectares, status, created_at')
+          .select('id, name_en, name_ar, location, size_hectares, status, created_at')
 
         if (farmsError) throw farmsError
 
         // Calculate real KPIs from farm data
         if (farmsData && farmsData.length > 0) {
           const totalFarms = farmsData.length
-          const totalArea = farmsData.reduce((sum, f) => sum + (f.total_area_hectares || 0), 0)
+          const totalArea = farmsData.reduce((sum, f) => sum + (f.size_hectares || 0), 0)
           
           setKpis(prev => ({
             ...prev,
@@ -229,7 +229,7 @@ export function useNationalStats() {
         // Fetch active alerts
         const { data: alertsData, error: alertsError } = await supabase
           .from('alerts')
-          .select('*, farms(name, location)')
+          .select('*, farms(name_en, name_ar, location)')
           .eq('status', 'active')
           .order('severity', { ascending: false })
           .limit(10)
@@ -241,7 +241,7 @@ export function useNationalStats() {
             title: a.title,
             description: a.description,
             location: a.farms?.location || 'Unknown',
-            farm_name: a.farms?.name,
+            farm_name: a.farms?.name_en || a.farms?.name_ar,
             created_at: a.created_at,
             affected_area: a.affected_area,
           }))
@@ -253,7 +253,7 @@ export function useNationalStats() {
         // Fetch compliance data - inspections
         const { data: inspectionsData } = await supabase
           .from('inspections')
-          .select('id, result, score, created_at, farms(name)')
+          .select('id, result, score, created_at, farms(name_en, name_ar)')
           .order('created_at', { ascending: false })
           .limit(20)
 
@@ -273,7 +273,7 @@ export function useNationalStats() {
             passRate,
             recentInspections: inspectionsData.slice(0, 4).map(i => ({
               id: i.id,
-              farm_name: i.farms?.name || 'Unknown',
+              farm_name: i.farms?.name_en || i.farms?.name_ar || 'Unknown',
               date: i.created_at.split('T')[0],
               result: i.result as 'pass' | 'fail' | 'pending',
               score: i.score,
