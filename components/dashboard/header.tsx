@@ -21,10 +21,10 @@ export function DashboardHeader({ onMenuToggle, menuOpen }: DashboardHeaderProps
           {/* Menu Toggle Button */}
           <button
             onClick={onMenuToggle}
-            className="flex items-center justify-center h-10 w-10 rounded-lg border border-white/10 bg-white/5 hover:bg-white/10 hover:border-[#07fc82]/50 transition-all"
+            className="flex items-center justify-center h-10 w-10 rounded-lg border border-white/10 bg-white/5 hover:bg-white/10 hover:border-[#07f880]/50 transition-all"
             title={menuOpen ? 'Close Menu' : 'Open Menu'}
           >
-            <PanelLeft className={`h-5 w-5 transition-colors ${menuOpen ? 'text-[#07fc82]' : 'text-white/70'}`} />
+            <PanelLeft className={`h-5 w-5 transition-colors ${menuOpen ? 'text-[#07f880]' : 'text-white/70'}`} />
           </button>
 
           {/* Logo */}
