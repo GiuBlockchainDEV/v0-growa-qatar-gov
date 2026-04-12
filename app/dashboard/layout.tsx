@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { Suspense, useEffect, useMemo, useState } from 'react'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { useAuth } from '@/hooks/use-auth'
 import { DashboardSidebar } from '@/components/dashboard/sidebar'
@@ -9,7 +9,7 @@ import { useRoleNavigation } from '@/hooks/use-role-navigation'
 import { SatelliteMap } from '@/components/dashboard/satellite-map'
 import { Activity } from 'lucide-react'
 
-export default function DashboardLayout({
+function DashboardShell({
   children,
 }: {
   children: React.ReactNode
@@ -173,5 +173,30 @@ export default function DashboardLayout({
         onToggleRightDrawer={() => setRightDrawerOpen((prev) => !prev)}
       />
     </div>
+  )
+}
+
+function DashboardLayoutFallback() {
+  return (
+    <div className="flex h-screen items-center justify-center bg-background">
+      <div className="flex flex-col items-center gap-4">
+        <div className="relative">
+          <div className="h-12 w-12 rounded-full border-4 border-[#07f880]/20 border-t-[#07f880] animate-spin" />
+        </div>
+        <span className="text-sm text-muted-foreground font-medium">Loading workspace...</span>
+      </div>
+    </div>
+  )
+}
+
+export default function DashboardLayout({
+  children,
+}: {
+  children: React.ReactNode
+}) {
+  return (
+    <Suspense fallback={<DashboardLayoutFallback />}>
+      <DashboardShell>{children}</DashboardShell>
+    </Suspense>
   )
 }
