@@ -203,7 +203,7 @@ export function useRoleNavigation() {
 
   useEffect(() => {
     async function fetchNavigation() {
-      if (!user || !organization?.id) {
+      if (!user) {
         setIsLoading(false)
         return
       }
@@ -212,16 +212,22 @@ export function useRoleNavigation() {
         setIsLoading(true)
         const supabase = createClient()
 
-        // Get effective role in current organization (supports impersonation overrides)
-        let currentRole = await getUserRole(organization.id)
+        // Resolve role with multiple fallbacks to avoid default-nav for all users:
+        // 1) org-scoped role, 2) effective-role RPC, 3) auth metadata role
+        let currentRole: string | null = organization?.id ? await getUserRole(organization.id) : null
 
-        // Check if user is growa.ai admin and has impersonation
-        const isGrowaAdmin = user.email?.endsWith('@growa.ai')
-        if (isGrowaAdmin) {
+        if (!currentRole) {
           const { data: effectiveRoleData } = await supabase.rpc('get_effective_role')
           if (effectiveRoleData?.[0]?.role_name) {
             currentRole = effectiveRoleData[0].role_name
           }
+        }
+
+        if (!currentRole) {
+          const metadataRole =
+            user.user_metadata?.role ||
+            user.app_metadata?.role
+          currentRole = typeof metadataRole === 'string' ? metadataRole : null
         }
 
         if (!currentRole) {
@@ -236,10 +242,34 @@ export function useRoleNavigation() {
         const mappedProfile = ministryProfileByRole[mappedRole] || null
 
         if (mappedProfile) {
-          const orgType = await getUserOrgType(organization.id)
-          const permissions = (await getPermissions(organization.id)) as Partial<
-            Record<PermissionFlag, boolean>
-          >
+          const orgType = organization?.id
+            ? await getUserOrgType(organization.id)
+            : 'government'
+          const permissions: Partial<Record<PermissionFlag, boolean>> = organization?.id
+            ? ((await getPermissions(organization.id)) as Partial<Record<PermissionFlag, boolean>>)
+            : mappedProfile === 'ministry_admin'
+              ? {
+                  canView: true,
+                  canEdit: true,
+                  canManageUsers: true,
+                  canDeleteOrganization: false,
+                  canShareData: true,
+                  canViewRegulatory: true,
+                  canViewCommercial: true,
+                  canViewFinance: true,
+                  canViewTechnical: true,
+                }
+              : {
+                  canView: true,
+                  canEdit: false,
+                  canManageUsers: false,
+                  canDeleteOrganization: false,
+                  canShareData: false,
+                  canViewRegulatory: true,
+                  canViewCommercial: true,
+                  canViewFinance: false,
+                  canViewTechnical: false,
+                }
           const fallbackLayerVisibility = toLayerVisibilityFallback(permissions)
 
           const resolvedLayerVisibility = await Promise.all(
