@@ -55,10 +55,10 @@ export function SatelliteMap({ locale = 'en' }: SatelliteMapProps) {
   }, [])
 
   useEffect(() => {
-    let map: L.Map | null = null
+    let isMounted = true
     
     const initMap = async () => {
-      if (!mapRef.current) return
+      if (!mapRef.current || mapInstanceRef.current) return
       
       // Check if already initialized by Leaflet (has _leaflet_id on the container)
       if ((mapRef.current as HTMLDivElement & { _leaflet_id?: number })._leaflet_id) {
@@ -69,13 +69,18 @@ export function SatelliteMap({ locale = 'en' }: SatelliteMapProps) {
       const L = (await import('leaflet')).default
       await import('leaflet/dist/leaflet.css')
 
+      // Double check we're still mounted and not already initialized
+      if (!isMounted || !mapRef.current || mapInstanceRef.current) return
+
       // Initialize map
-      map = L.map(mapRef.current, {
+      const map = L.map(mapRef.current, {
         center: [QATAR_CENTER.lat, QATAR_CENTER.lng],
         zoom: DEFAULT_ZOOM,
         zoomControl: false,
         attributionControl: false,
       })
+      
+      mapInstanceRef.current = map
 
       // ESRI World Imagery (Satellite)
       L.tileLayer(
@@ -132,16 +137,16 @@ export function SatelliteMap({ locale = 'en' }: SatelliteMapProps) {
           })
       })
 
-      mapInstanceRef.current = map
       setIsLoading(false)
     }
 
     initMap()
 
     return () => {
+      isMounted = false
       // Cleanup on unmount - properly remove map
-      if (map) {
-        map.remove()
+      if (mapInstanceRef.current) {
+        mapInstanceRef.current.remove()
         mapInstanceRef.current = null
       }
     }
