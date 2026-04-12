@@ -16,8 +16,11 @@ export async function updateSession(request: NextRequest) {
     process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ||
     process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY
 
+  const hasPlaceholderConfig =
+    supabaseUrl === 'https://placeholder.supabase.co' || supabaseAnonKey === 'placeholder-anon-key'
+
   // Avoid breaking all routes if preview env vars are missing/misnamed.
-  if (!supabaseUrl || !supabaseAnonKey) {
+  if (!supabaseUrl || !supabaseAnonKey || hasPlaceholderConfig) {
     if (!hasWarnedMissingProxyEnv) {
       hasWarnedMissingProxyEnv = true
       console.warn(

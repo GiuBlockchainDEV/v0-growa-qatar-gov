@@ -1,17 +1,17 @@
 import { createBrowserClient } from '@supabase/ssr'
 
-const FALLBACK_SUPABASE_URL = 'https://placeholder.supabase.co'
-const FALLBACK_SUPABASE_ANON_KEY = 'placeholder-anon-key'
+const DEFAULT_SUPABASE_URL = 'https://qczaynvalytoqesfwdue.supabase.co'
+const DEFAULT_SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_QGFiYo2eeyHi4KzBnUBHFQ_smp9qEi6'
 
 let hasWarnedMissingEnv = false
 
 export function createClient() {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || FALLBACK_SUPABASE_URL
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || DEFAULT_SUPABASE_URL
   const supabaseAnonKey =
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
     process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ||
     process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY ||
-    FALLBACK_SUPABASE_ANON_KEY
+    DEFAULT_SUPABASE_PUBLISHABLE_KEY
 
   if (
     !hasWarnedMissingEnv &&
@@ -22,7 +22,7 @@ export function createClient() {
   ) {
     hasWarnedMissingEnv = true
     console.warn(
-      '[supabase] Missing NEXT_PUBLIC_SUPABASE_URL or anon key; using placeholder client to avoid build-time crash.'
+      '[supabase] Missing Supabase env vars; using embedded project public config.'
     )
   }
 

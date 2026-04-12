@@ -125,7 +125,7 @@ export default function Page() {
                     <Label htmlFor="password" className="text-sm font-medium text-foreground">
                       Password
                     </Label>
-                    <Link href="/auth/reset-password" className="text-xs text-primary hover:text-primary/80 transition-colors">
+                    <Link href="/auth/error" className="text-xs text-primary hover:text-primary/80 transition-colors">
                       Forgot password?
                     </Link>
                   </div>
