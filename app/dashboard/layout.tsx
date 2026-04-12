@@ -5,6 +5,10 @@ import { useRouter } from 'next/navigation'
 import { useAuth } from '@/hooks/use-auth'
 import { DashboardSidebar } from '@/components/dashboard/sidebar'
 import { DashboardHeader } from '@/components/dashboard/header'
+import { DetailDrawer } from '@/components/dashboard/detail-drawer'
+import { DrawerProvider } from '@/contexts/drawer-context'
+import { MapLayerProvider } from '@/contexts/map-layer-context'
+import { MapLayerControl } from '@/components/dashboard/map-layer-control'
 
 export default function DashboardLayout({
   children,
@@ -44,23 +48,33 @@ export default function DashboardLayout({
   }
 
   return (
-    <div className="h-screen w-screen overflow-hidden bg-background relative">
-      {/* Full Screen Content (Map) - Base Layer */}
-      <main className="absolute inset-0">
-        {children}
-      </main>
+    <DrawerProvider>
+      <MapLayerProvider>
+        <div className="h-screen w-screen overflow-hidden bg-background relative">
+          {/* Full Screen Content (Map) - Base Layer */}
+          <main className="absolute inset-0">
+            {children}
+          </main>
 
-      {/* Header - Always Visible on Top */}
-      <DashboardHeader 
-        onMenuToggle={() => setSidebarOpen(!sidebarOpen)} 
-        menuOpen={sidebarOpen}
-      />
+          {/* Header - Always Visible on Top */}
+          <DashboardHeader 
+            onMenuToggle={() => setSidebarOpen(!sidebarOpen)} 
+            menuOpen={sidebarOpen}
+          />
 
-      {/* Sidebar - Slides in from left when open */}
-      <DashboardSidebar 
-        isOpen={sidebarOpen} 
-        onClose={() => setSidebarOpen(false)} 
-      />
-    </div>
+          {/* Sidebar - Slides in from left when open */}
+          <DashboardSidebar 
+            isOpen={sidebarOpen} 
+            onClose={() => setSidebarOpen(false)} 
+          />
+
+          {/* Map Layer Control - Top right */}
+          <MapLayerControl />
+
+          {/* Detail Drawer - Slides in from right */}
+          <DetailDrawer />
+        </div>
+      </MapLayerProvider>
+    </DrawerProvider>
   )
 }

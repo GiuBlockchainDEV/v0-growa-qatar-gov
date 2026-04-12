@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useI18n } from '@/lib/i18n'
 import { useOrganization } from '@/hooks/use-organization'
+import { useDrawer } from '@/contexts/drawer-context'
 import { Button } from '@/components/ui/button'
 import { Plus, Search, Filter, Sprout, MapPin, Maximize2, MoreVertical } from 'lucide-react'
 
@@ -19,6 +20,7 @@ interface Farm {
 export default function FarmsPage() {
   const { locale } = useI18n()
   const { organization, loading: orgLoading } = useOrganization()
+  const { openDrawer } = useDrawer()
   const [farms, setFarms] = useState<Farm[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -183,7 +185,16 @@ export default function FarmsPage() {
               </thead>
               <tbody className="divide-y divide-border">
                 {farms.map((farm) => (
-                  <tr key={farm.id} className="hover:bg-secondary/30 transition-colors">
+                  <tr 
+                    key={farm.id} 
+                    className="hover:bg-secondary/30 transition-colors cursor-pointer"
+                    onClick={() => openDrawer({
+                      id: farm.id,
+                      type: 'farm',
+                      name: locale === 'ar' ? farm.name_ar : farm.name_en,
+                      data: farm,
+                    })}
+                  >
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-3">
                         <div className="h-9 w-9 rounded-lg bg-primary/10 flex items-center justify-center text-primary">
