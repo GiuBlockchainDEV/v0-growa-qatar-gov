@@ -43,6 +43,12 @@ export function getDeploymentConfig(): DeploymentConfig {
     throw new Error(`Invalid NEXT_PUBLIC_DEPLOYMENT_ENV: ${env}`)
   }
 
+  const supabaseKey =
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
+    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ||
+    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY ||
+    ''
+
   return {
     env,
     country: {
@@ -51,7 +57,7 @@ export function getDeploymentConfig(): DeploymentConfig {
     },
     supabase: {
       url: process.env.NEXT_PUBLIC_SUPABASE_URL || '',
-      anonKey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '',
+      anonKey: supabaseKey,
     },
     i18n: {
       defaultLocale: process.env.NEXT_PUBLIC_DEFAULT_LOCALE || 'en',
@@ -87,11 +93,14 @@ export function isDevelopment(): boolean {
  */
 export function validateSupabaseConfig(): void {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL
-  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+  const anonKey =
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
+    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ||
+    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY
 
   if (!url || !anonKey) {
     throw new Error(
-      'Missing Supabase configuration. Ensure NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY are set.'
+      'Missing Supabase configuration. Ensure NEXT_PUBLIC_SUPABASE_URL and one of NEXT_PUBLIC_SUPABASE_ANON_KEY or NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY is set.'
     )
   }
 }
