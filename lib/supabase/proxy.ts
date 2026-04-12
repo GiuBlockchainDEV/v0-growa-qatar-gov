@@ -2,6 +2,8 @@ import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
 let hasWarnedMissingProxyEnv = false
+const DEFAULT_SUPABASE_URL = 'https://qczaynvalytoqesfwdue.supabase.co'
+const DEFAULT_SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_QGFiYo2eeyHi4KzBnUBHFQ_smp9qEi6'
 
 export async function updateSession(request: NextRequest) {
   let supabaseResponse = NextResponse.next({
@@ -10,17 +12,15 @@ export async function updateSession(request: NextRequest) {
 
   // With Fluid compute, don't put this client in a global environment
   // variable. Always create a new one on each request.
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || DEFAULT_SUPABASE_URL
   const supabaseAnonKey =
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
     process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ||
-    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY
-
-  const hasPlaceholderConfig =
-    supabaseUrl === 'https://placeholder.supabase.co' || supabaseAnonKey === 'placeholder-anon-key'
+    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY ||
+    DEFAULT_SUPABASE_PUBLISHABLE_KEY
 
   // Avoid breaking all routes if preview env vars are missing/misnamed.
-  if (!supabaseUrl || !supabaseAnonKey || hasPlaceholderConfig) {
+  if (!supabaseUrl || !supabaseAnonKey) {
     if (!hasWarnedMissingProxyEnv) {
       hasWarnedMissingProxyEnv = true
       console.warn(

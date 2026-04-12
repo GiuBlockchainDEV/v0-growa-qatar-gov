@@ -341,6 +341,15 @@ const MODULE_REGISTRY: Record<string, ModuleDefinition> = {
         { key: 'program-reports', label: 'Program Reports' },
         { key: 'export-center', label: 'Export Center' },
       ],
+      byRole: {
+        ministry_inspector: [
+          { key: 'inspection-reports', label: 'Inspection Reports' },
+          { key: 'regional-summary', label: 'Regional Summary' },
+          { key: 'non-conformity-summary', label: 'Non-Conformity Summary' },
+          { key: 'closure-metrics', label: 'Closure Metrics' },
+          { key: 'export', label: 'Export' },
+        ],
+      },
     },
   },
   'compliance-cases': {
@@ -469,7 +478,19 @@ const MODULE_REGISTRY: Record<string, ModuleDefinition> = {
       requiredPermissions: ['canView'],
     },
     submenu: {
-      default: [],
+      default: [
+        { key: 'help-center', label: 'Help Center' },
+        { key: 'tickets', label: 'Tickets' },
+        { key: 'knowledge-base', label: 'Knowledge Base' },
+        { key: 'contact-support', label: 'Contact Support' },
+      ],
+      byRole: {
+        ministry_inspector: [
+          { key: 'help', label: 'Help' },
+          { key: 'technical-issues', label: 'Technical Issues' },
+          { key: 'case-support', label: 'Case Support' },
+        ],
+      },
     },
   },
   settings: {
@@ -485,7 +506,21 @@ const MODULE_REGISTRY: Record<string, ModuleDefinition> = {
       requiredPermissions: ['canView'],
     },
     submenu: {
-      default: [],
+      default: [
+        { key: 'workspace-settings', label: 'Workspace Settings' },
+        { key: 'notification-rules', label: 'Notification Rules' },
+        { key: 'saved-views', label: 'Saved Views' },
+        { key: 'access-preferences', label: 'Access Preferences' },
+        { key: 'language-region', label: 'Language & Region' },
+      ],
+      byRole: {
+        ministry_inspector: [
+          { key: 'notification-rules', label: 'Notification Rules' },
+          { key: 'route-preferences', label: 'Route Preferences' },
+          { key: 'language', label: 'Language' },
+          { key: 'workspace-settings', label: 'Workspace Settings' },
+        ],
+      },
     },
   },
 }
