@@ -31,8 +31,9 @@ const navigationItems = [
 ]
 
 const adminItems = [
-  { href: '/dashboard/settings', label: 'Settings', labelAr: 'الإعدادات', icon: Settings },
+  { href: '/dashboard/settings/organizations', label: 'Organizations', labelAr: 'المنظمات', icon: Building2 },
   { href: '/dashboard/settings/data-sharing', label: 'Data Sharing', labelAr: 'مشاركة البيانات', icon: Share2 },
+  { href: '/dashboard/settings', label: 'Settings', labelAr: 'الإعدادات', icon: Settings },
 ]
 
 interface DashboardSidebarProps {
@@ -114,8 +115,8 @@ export function DashboardSidebar({ isOpen, onClose }: DashboardSidebarProps) {
             )
           })}
 
-          {/* Admin Items */}
-          {(userRole === 'admin' || userRole === 'super_admin') && adminItems.length > 0 && (
+          {/* Admin Items - Show for all admin-level roles */}
+          {userRole && ['admin', 'super_admin', 'ministry_admin', 'ministry_super_admin', 'hassad_admin', 'qdb_admin', 'farm_company_admin'].includes(userRole) && (
             <>
               <p className="px-3 mt-6 mb-3 text-[10px] uppercase tracking-widest text-white/40 font-semibold">
                 {locale === 'ar' ? 'الإدارة' : 'Administration'}
