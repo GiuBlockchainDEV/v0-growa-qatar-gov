@@ -1,6 +1,6 @@
 'use client'
 
-import { Harvest, Target, TrendingUp, AlertTriangle } from 'lucide-react'
+import { Wheat, Target, TrendingUp, AlertTriangle } from 'lucide-react'
 import { Card } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -17,7 +17,7 @@ export function ProductionProgramsSummary() {
 
       <Card className="p-4 bg-white/5 border-white/10">
         <div className="flex items-start gap-3 mb-3">
-          <Harvest className="h-5 w-5 text-yellow-600 flex-shrink-0 mt-0.5" />
+          <Wheat className="h-5 w-5 text-yellow-600 flex-shrink-0 mt-0.5" />
           <div>
             <p className="text-sm font-medium text-white">Production Outlook</p>
             <p className="text-xs text-white/50 mt-0.5">Estimated yield for next 30 days</p>
