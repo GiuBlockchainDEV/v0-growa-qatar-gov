@@ -4,6 +4,7 @@ import { useI18n } from '@/lib/i18n'
 import { UserMenu } from './user-menu'
 import { LanguageToggle } from '@/components/language-toggle'
 import { Bell, Search, Command, Activity, PanelLeft, Globe } from 'lucide-react'
+import { useRoleNavigation } from '@/hooks/use-role-navigation'
 
 interface DashboardHeaderProps {
   onMenuToggle: () => void
@@ -12,6 +13,15 @@ interface DashboardHeaderProps {
 
 export function DashboardHeader({ onMenuToggle, menuOpen }: DashboardHeaderProps) {
   const { locale } = useI18n()
+  const { effectiveRole, roleProfile, isLoading: roleLoading } = useRoleNavigation()
+
+  const activeRoleLabel = (() => {
+    const roleKey = roleProfile || effectiveRole
+    if (!roleKey) return locale === 'ar' ? 'دور غير محدد' : 'Role Unresolved'
+    return roleKey
+      .replace(/_/g, ' ')
+      .replace(/\b\w/g, (char) => char.toUpperCase())
+  })()
 
   return (
     <header className="fixed top-0 left-0 right-0 z-50 h-16 bg-[#0c0c0e]/95 backdrop-blur-xl border-b border-white/5">
@@ -61,6 +71,17 @@ export function DashboardHeader({ onMenuToggle, menuOpen }: DashboardHeaderProps
 
         {/* Right - Status, Notifications, Language, User */}
         <div className="flex items-center gap-2">
+          {/* Active Role Badge */}
+          <div className="hidden lg:flex items-center gap-2 px-3 py-1.5 rounded-full border border-white/10 bg-white/5">
+            <Globe className="h-3.5 w-3.5 text-white/60" />
+            <span className="text-[11px] text-white/55 uppercase tracking-wider">
+              {locale === 'ar' ? 'الدور' : 'Role'}
+            </span>
+            <span className="text-xs font-medium text-white">
+              {roleLoading ? (locale === 'ar' ? 'جار التحميل...' : 'Loading...') : activeRoleLabel}
+            </span>
+          </div>
+
           {/* Online Status */}
           <div className="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-full border border-[#07f880]/30 bg-[#07f880]/10">
             <Activity className="h-3.5 w-3.5 text-[#07f880]" />
