@@ -292,10 +292,12 @@ export function useNationalStats() {
 
     fetchNationalStats()
 
-    // Set up real-time subscriptions for alerts
+    // Set up real-time subscriptions for alerts with unique channel name
     const supabase = createClient()
-    const alertsChannel = supabase
-      .channel('alerts-changes')
+    const channelName = `alerts-changes-${Date.now()}`
+    const alertsChannel = supabase.channel(channelName)
+    
+    alertsChannel
       .on('postgres_changes', { event: '*', schema: 'public', table: 'alerts' }, () => {
         // Refetch alerts on change
         fetchNationalStats()
@@ -303,7 +305,7 @@ export function useNationalStats() {
       .subscribe()
 
     return () => {
-      supabase.removeChannel(alertsChannel)
+      alertsChannel.unsubscribe()
     }
   }, [])
 
