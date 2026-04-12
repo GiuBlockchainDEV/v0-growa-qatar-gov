@@ -3,6 +3,9 @@
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useAuth } from '@/hooks/use-auth'
+import { useOrganization } from '@/hooks/use-organization'
+import { usePermissions } from '@/hooks/use-permissions'
+import { useGovernance } from '@/hooks/use-governance'
 import {
   Globe, Map, Layers, Sprout, Activity, AlertTriangle, CheckCircle,
   Users, Target, BarChart3, HelpCircle, Settings, LayoutDashboard,
@@ -11,6 +14,14 @@ import {
   DollarSign, Droplets, Wifi, Home, ToggleRight, Clock,
   Terminal, Cpu, Zap, Wrench, BookOpen, Lightbulb, type LucideIcon
 } from 'lucide-react'
+import {
+  buildRoleNavigation,
+  type MinistryRoleProfile,
+  type PermissionFlag,
+  type ResolvedModuleDefinition,
+  type SharedLayer,
+  type VisibilityLevel,
+} from '@/lib/navigation/module-registry'
 
 // Custom Harvest icon since it doesn't exist in lucide
 const Harvest = Sprout
@@ -20,6 +31,17 @@ export interface MenuItem {
   label: string
   path: string
   icon: string
+  backendRoute?: string
+  section?: 'primary' | 'secondary'
+  purpose?: string
+  defaultContent?: string
+  allowedActions?: string[]
+  visibilityScope?: {
+    allowedOrgTypes: string[] | '*'
+    requiredPermissions: string[]
+    requiredLayerVisibility?: Partial<Record<SharedLayer, VisibilityLevel[]>>
+  }
+  submenu?: Array<{ key: string; label: string }>
 }
 
 export interface RoleNavigation {
@@ -29,6 +51,10 @@ export interface RoleNavigation {
   landing_page: string
   menu_items: MenuItem[]
   description: string
+  primary_items?: MenuItem[]
+  secondary_items?: MenuItem[]
+  role_profile?: MinistryRoleProfile | null
+  source?: 'registry' | 'database' | 'fallback'
 }
 
 // Map icon names to actual Lucide components
@@ -92,7 +118,7 @@ const roleMapping: Record<string, string> = {
   'super_admin': 'ministry_admin',
   'admin': 'ministry_admin',
   'ministry_super_admin': 'ministry_admin',
-  'ministry_officer': 'ministry_inspector',
+  'ministry_officer': 'ministry_officer',
   'supply_chain_officer': 'sourcing_manager',
   'hassad_admin': 'sourcing_manager',
   'credit_analyst': 'finance_officer',
@@ -103,18 +129,74 @@ const roleMapping: Record<string, string> = {
   'member': 'operator',
 }
 
+const ministryProfileByRole: Record<string, MinistryRoleProfile> = {
+  ministry_admin: 'ministry_admin',
+  ministry_super_admin: 'ministry_admin',
+  ministry_officer: 'ministry_inspector',
+}
+
+const SHARED_LAYERS: SharedLayer[] = ['regulatory', 'commercial', 'finance', 'technical_support']
+
+function toMenuItem(
+  moduleDefinition: ResolvedModuleDefinition,
+  section: 'primary' | 'secondary'
+): MenuItem {
+  return {
+    key: moduleDefinition.id,
+    label: moduleDefinition.label,
+    path: moduleDefinition.href,
+    icon: moduleDefinition.icon,
+    backendRoute: moduleDefinition.backendRoute,
+    section,
+    purpose: moduleDefinition.purpose,
+    defaultContent: moduleDefinition.defaultContent,
+    allowedActions: moduleDefinition.allowedActions,
+    visibilityScope: moduleDefinition.visibilityScope,
+    submenu: moduleDefinition.submenu,
+  }
+}
+
+function toLayerVisibilityFallback(
+  permissions: Partial<Record<PermissionFlag, boolean>>
+): Partial<Record<SharedLayer, VisibilityLevel>> {
+  return {
+    regulatory: permissions.canViewRegulatory ? 'FULL' : 'NO',
+    commercial: permissions.canViewCommercial ? 'FULL' : 'NO',
+    finance: permissions.canViewFinance ? 'FULL' : 'NO',
+    technical_support: permissions.canViewTechnical ? 'FULL' : 'NO',
+  }
+}
+
+function splitNavigationSections(items: MenuItem[]) {
+  const settingsAndSupport = items.filter((item) => ['settings', 'support'].includes(item.key))
+  const main = items.filter((item) => !['settings', 'support'].includes(item.key))
+  const primary = main.slice(0, 8).map((item) => ({ ...item, section: 'primary' as const }))
+  const secondary = [...main.slice(8), ...settingsAndSupport].map((item) => ({
+    ...item,
+    section: 'secondary' as const,
+  }))
+  return { primary, secondary }
+}
+
 export function useRoleNavigation() {
-  const { user, userRole } = useAuth()
+  const { user } = useAuth()
+  const { organization } = useOrganization()
+  const { getUserRole, getUserOrgType, getPermissions } = usePermissions()
+  const { getUserVisibility } = useGovernance()
   const [navigation, setNavigation] = useState<RoleNavigation | null>(null)
+  const [primaryItems, setPrimaryItems] = useState<MenuItem[]>(defaultNavigation.slice(0, 6))
+  const [secondaryItems, setSecondaryItems] = useState<MenuItem[]>(defaultNavigation.slice(6))
   const [menuItems, setMenuItems] = useState<MenuItem[]>(defaultNavigation)
   const [landingPage, setLandingPage] = useState('/dashboard')
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [effectiveRole, setEffectiveRole] = useState<string | null>(null)
+  const [roleProfile, setRoleProfile] = useState<MinistryRoleProfile | null>(null)
+  const [source, setSource] = useState<'registry' | 'database' | 'fallback'>('fallback')
 
   useEffect(() => {
     async function fetchNavigation() {
-      if (!user) {
+      if (!user || !organization?.id) {
         setIsLoading(false)
         return
       }
@@ -123,8 +205,8 @@ export function useRoleNavigation() {
         setIsLoading(true)
         const supabase = createClient()
 
-        // First, get effective role (may be impersonated for @growa.ai users)
-        let currentRole = userRole
+        // Get effective role in current organization (supports impersonation overrides)
+        let currentRole = await getUserRole(organization.id)
 
         // Check if user is growa.ai admin and has impersonation
         const isGrowaAdmin = user.email?.endsWith('@growa.ai')
@@ -142,8 +224,66 @@ export function useRoleNavigation() {
 
         setEffectiveRole(currentRole)
 
-        // Map legacy role to new role if needed
+        // Map legacy role to role registry namespace if needed
         const mappedRole = roleMapping[currentRole] || currentRole
+        const mappedProfile = ministryProfileByRole[mappedRole] || null
+
+        if (mappedProfile) {
+          const orgType = await getUserOrgType(organization.id)
+          const permissions = (await getPermissions(organization.id)) as Partial<
+            Record<PermissionFlag, boolean>
+          >
+          const fallbackLayerVisibility = toLayerVisibilityFallback(permissions)
+
+          const resolvedLayerVisibility = await Promise.all(
+            SHARED_LAYERS.map(async (layer) => {
+              try {
+                const value = await getUserVisibility(user.id, layer)
+                return [layer, value as VisibilityLevel] as const
+              } catch {
+                return [layer, fallbackLayerVisibility[layer] || 'NO'] as const
+              }
+            })
+          )
+
+          const visibilityByLayer: Partial<Record<SharedLayer, VisibilityLevel>> = {
+            ...fallbackLayerVisibility,
+            ...Object.fromEntries(resolvedLayerVisibility),
+          }
+
+          const resolvedNavigation = buildRoleNavigation(mappedProfile, {
+            orgType: orgType as Parameters<typeof buildRoleNavigation>[1]['orgType'],
+            permissions,
+            visibilityByLayer,
+          })
+
+          const resolvedPrimary = resolvedNavigation.primary.map((item) => toMenuItem(item, 'primary'))
+          const resolvedSecondary = resolvedNavigation.secondary.map((item) =>
+            toMenuItem(item, 'secondary')
+          )
+          const resolvedMenuItems = [...resolvedPrimary, ...resolvedSecondary]
+
+          setNavigation({
+            id: mappedProfile,
+            role_name: mappedRole,
+            display_name:
+              mappedProfile === 'ministry_admin' ? 'Ministry Admin Workspace' : 'Ministry Inspector Workspace',
+            landing_page: resolvedNavigation.landingPage,
+            menu_items: resolvedMenuItems,
+            primary_items: resolvedPrimary,
+            secondary_items: resolvedSecondary,
+            role_profile: mappedProfile,
+            source: 'registry',
+            description: 'Route-first map-centric sovereign workspace',
+          })
+          setPrimaryItems(resolvedPrimary)
+          setSecondaryItems(resolvedSecondary)
+          setMenuItems(resolvedMenuItems)
+          setLandingPage(resolvedNavigation.landingPage)
+          setRoleProfile(mappedProfile)
+          setSource('registry')
+          return
+        }
 
         // Fetch navigation for user's role
         const { data, error: fetchError } = await supabase
@@ -155,40 +295,76 @@ export function useRoleNavigation() {
         if (fetchError) {
           // If no specific navigation found, use default
           if (fetchError.code === 'PGRST116') {
-            setMenuItems(defaultNavigation)
+            const { primary, secondary } = splitNavigationSections(defaultNavigation)
+            setPrimaryItems(primary)
+            setSecondaryItems(secondary)
+            setMenuItems([...primary, ...secondary])
             setLandingPage('/dashboard')
+            setRoleProfile(null)
+            setSource('fallback')
           } else {
             throw fetchError
           }
         } else if (data) {
-          setNavigation(data)
           // Parse menu_items if it's a string
           const items = typeof data.menu_items === 'string' 
             ? JSON.parse(data.menu_items) 
             : data.menu_items
-          setMenuItems(items)
-          setLandingPage(data.landing_page)
+          const { primary, secondary } = splitNavigationSections(items)
+          const merged = [...primary, ...secondary]
+
+          setNavigation({
+            ...data,
+            menu_items: merged,
+            primary_items: primary,
+            secondary_items: secondary,
+            role_profile: null,
+            source: 'database',
+          })
+          setPrimaryItems(primary)
+          setSecondaryItems(secondary)
+          setMenuItems(merged)
+          setLandingPage(data.landing_page || '/dashboard')
+          setRoleProfile(null)
+          setSource('database')
         }
       } catch (err) {
         console.error('Error fetching role navigation:', err)
         setError(err instanceof Error ? err.message : 'Failed to fetch navigation')
         // Fallback to default navigation
-        setMenuItems(defaultNavigation)
+        const { primary, secondary } = splitNavigationSections(defaultNavigation)
+        setPrimaryItems(primary)
+        setSecondaryItems(secondary)
+        setMenuItems([...primary, ...secondary])
+        setRoleProfile(null)
+        setSource('fallback')
       } finally {
         setIsLoading(false)
       }
     }
 
     fetchNavigation()
-  }, [user, userRole])
+  }, [
+    user,
+    organization?.id,
+    getPermissions,
+    getUserOrgType,
+    getUserRole,
+    getUserVisibility,
+  ])
 
   return {
     navigation,
+    primaryItems,
+    secondaryItems,
     menuItems,
     landingPage,
     isLoading,
     error,
     effectiveRole,
+    roleProfile,
+    source,
+    isMinistryWorkspace: roleProfile !== null,
     getIconComponent,
   }
 }

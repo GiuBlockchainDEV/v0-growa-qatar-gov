@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { usePathname } from 'next/navigation'
+import { usePathname, useSearchParams } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import { useI18n } from '@/lib/i18n'
 import { useOrganization } from '@/hooks/use-organization'
@@ -11,7 +11,9 @@ import {
   Building2,
   Share2,
   Settings,
-  HelpCircle
+  HelpCircle,
+  PanelLeftOpen,
+  PanelRightOpen
 } from 'lucide-react'
 import { usePermissions } from '@/hooks/use-permissions'
 import { useRoleNavigation, getIconComponent } from '@/hooks/use-role-navigation'
@@ -27,14 +29,27 @@ const adminItems = [
 interface DashboardSidebarProps {
   isOpen: boolean
   onClose: () => void
+  contextualPanelOpen?: boolean
+  rightDrawerOpen?: boolean
+  onToggleContextualPanel?: () => void
+  onToggleRightDrawer?: () => void
 }
 
-export function DashboardSidebar({ isOpen, onClose }: DashboardSidebarProps) {
+export function DashboardSidebar({
+  isOpen,
+  onClose,
+  contextualPanelOpen = true,
+  rightDrawerOpen = false,
+  onToggleContextualPanel,
+  onToggleRightDrawer,
+}: DashboardSidebarProps) {
   const { locale } = useI18n()
   const { organization, loading } = useOrganization()
   const { getUserRole } = usePermissions()
-  const { menuItems, isLoading: navLoading } = useRoleNavigation()
+  const { primaryItems, secondaryItems, menuItems, isLoading: navLoading, isMinistryWorkspace } =
+    useRoleNavigation()
   const pathname = usePathname()
+  const searchParams = useSearchParams()
   const [userRole, setUserRole] = useState<string | null>(null)
 
   useEffect(() => {
@@ -48,13 +63,13 @@ export function DashboardSidebar({ isOpen, onClose }: DashboardSidebarProps) {
     return pathname.startsWith(href)
   }
 
-  // Separate settings/support from main navigation
-  const mainNavItems = menuItems.filter(item => 
-    !['settings', 'support'].includes(item.key)
-  )
-  const bottomNavItems = menuItems.filter(item => 
-    ['settings', 'support'].includes(item.key)
-  )
+  const activeModule = searchParams.get('module')
+  const mainNavItems = primaryItems.length > 0
+    ? primaryItems
+    : menuItems.filter((item) => !['settings', 'support'].includes(item.key))
+  const moreNavItems = secondaryItems.length > 0
+    ? secondaryItems
+    : menuItems.filter((item) => ['settings', 'support'].includes(item.key))
 
   const isAdminRole = userRole && [
     'admin', 'super_admin', 'ministry_admin', 'ministry_super_admin', 
@@ -89,6 +104,36 @@ export function DashboardSidebar({ isOpen, onClose }: DashboardSidebarProps) {
             </div>
             <ChevronDown className="h-4 w-4 flex-shrink-0 text-white/50 group-hover:text-[#07f880] transition-colors" />
           </button>
+          {isMinistryWorkspace && (
+            <div className="mt-3 grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={onToggleContextualPanel}
+                className={cn(
+                  'flex items-center justify-center gap-1 rounded-md border px-2 py-1.5 text-[11px] transition-all',
+                  contextualPanelOpen
+                    ? 'border-[#07f880]/30 bg-[#07f880]/10 text-[#07f880]'
+                    : 'border-white/10 bg-white/5 text-white/60 hover:text-white'
+                )}
+              >
+                <PanelLeftOpen className="h-3.5 w-3.5" />
+                {locale === 'ar' ? 'لوحة السياق' : 'Context'}
+              </button>
+              <button
+                type="button"
+                onClick={onToggleRightDrawer}
+                className={cn(
+                  'flex items-center justify-center gap-1 rounded-md border px-2 py-1.5 text-[11px] transition-all',
+                  rightDrawerOpen
+                    ? 'border-[#07f880]/30 bg-[#07f880]/10 text-[#07f880]'
+                    : 'border-white/10 bg-white/5 text-white/60 hover:text-white'
+                )}
+              >
+                <PanelRightOpen className="h-3.5 w-3.5" />
+                {locale === 'ar' ? 'درج العمليات' : 'Ops Drawer'}
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Navigation */}
@@ -104,7 +149,7 @@ export function DashboardSidebar({ isOpen, onClose }: DashboardSidebarProps) {
           ) : (
             mainNavItems.map((item) => {
               const Icon = getIconComponent(item.icon)
-              const active = isActive(item.path)
+              const active = activeModule ? activeModule === item.key : isActive(item.path)
               return (
                 <Link
                   key={item.key}
@@ -124,8 +169,36 @@ export function DashboardSidebar({ isOpen, onClose }: DashboardSidebarProps) {
             })
           )}
 
-          {/* Admin Items - Show for all admin-level roles */}
-          {isAdminRole && (
+          {moreNavItems.length > 0 && (
+            <>
+              <p className="px-3 mt-5 mb-2 text-[10px] uppercase tracking-widest text-white/35 font-semibold">
+                {locale === 'ar' ? 'المزيد' : 'More'}
+              </p>
+              {moreNavItems.map((item) => {
+                const Icon = getIconComponent(item.icon)
+                const active = activeModule ? activeModule === item.key : isActive(item.path)
+                return (
+                  <Link
+                    key={item.key}
+                    href={item.path}
+                    onClick={onClose}
+                    className={cn(
+                      'flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all',
+                      active
+                        ? 'bg-[#07f880]/10 text-[#07f880] border border-[#07f880]/20'
+                        : 'text-white/60 hover:bg-white/5 hover:text-white border border-transparent'
+                    )}
+                  >
+                    <Icon className={cn('h-4 w-4', active ? 'text-[#07f880]' : '')} />
+                    <span>{item.label}</span>
+                  </Link>
+                )
+              })}
+            </>
+          )}
+
+          {/* Admin Items - Show for non-ministry admin roles */}
+          {isAdminRole && !isMinistryWorkspace && (
             <>
               <p className="px-3 mt-6 mb-3 text-[10px] uppercase tracking-widest text-white/40 font-semibold">
                 {locale === 'ar' ? 'الإدارة' : 'Administration'}
@@ -153,32 +226,6 @@ export function DashboardSidebar({ isOpen, onClose }: DashboardSidebarProps) {
             </>
           )}
         </nav>
-
-        {/* Bottom Navigation (Support & Settings for non-admin) */}
-        {bottomNavItems.length > 0 && !isAdminRole && (
-          <div className="border-t border-white/5 px-3 py-3 space-y-1">
-            {bottomNavItems.map((item) => {
-              const Icon = getIconComponent(item.icon)
-              const active = isActive(item.path)
-              return (
-                <Link
-                  key={item.key}
-                  href={item.path}
-                  onClick={onClose}
-                  className={cn(
-                    'flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-all',
-                    active
-                      ? 'bg-[#07f880]/10 text-[#07f880] border border-[#07f880]/20'
-                      : 'text-white/60 hover:bg-white/5 hover:text-white border border-transparent'
-                  )}
-                >
-                  <Icon className={cn('h-4 w-4', active ? 'text-[#07f880]' : '')} />
-                  <span>{item.label}</span>
-                </Link>
-              )
-            })}
-          </div>
-        )}
 
         {/* View As Selector (only for @growa.ai users) */}
         <div className="border-t border-white/5 px-4 py-3">
