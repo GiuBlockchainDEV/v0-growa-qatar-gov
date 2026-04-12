@@ -8,28 +8,15 @@ import { useOrganization } from '@/hooks/use-organization'
 import { cn } from '@/lib/utils'
 import { 
   ChevronDown, 
-  LayoutDashboard, 
-  Sprout, 
-  RefreshCw, 
-  Package, 
-  BarChart3, 
-  Users, 
-  Settings,
   Building2,
   Share2,
-  X
+  Settings,
+  HelpCircle
 } from 'lucide-react'
 import { usePermissions } from '@/hooks/use-permissions'
+import { useRoleNavigation, getIconComponent } from '@/hooks/use-role-navigation'
 
-const navigationItems = [
-  { href: '/dashboard', label: 'Overview', labelAr: 'نظرة عامة', icon: LayoutDashboard },
-  { href: '/dashboard/farms', label: 'Farms', labelAr: 'المزارع', icon: Sprout },
-  { href: '/dashboard/cycles', label: 'Production', labelAr: 'الإنتاج', icon: RefreshCw },
-  { href: '/dashboard/inventory', label: 'Inventory', labelAr: 'المخزون', icon: Package },
-  { href: '/dashboard/analytics', label: 'Analytics', labelAr: 'التحليلات', icon: BarChart3 },
-  { href: '/dashboard/team', label: 'Team', labelAr: 'الفريق', icon: Users },
-]
-
+// Admin items are always the same
 const adminItems = [
   { href: '/dashboard/settings/organizations', label: 'Organizations', labelAr: 'المنظمات', icon: Building2 },
   { href: '/dashboard/settings/data-sharing', label: 'Data Sharing', labelAr: 'مشاركة البيانات', icon: Share2 },
@@ -45,6 +32,7 @@ export function DashboardSidebar({ isOpen, onClose }: DashboardSidebarProps) {
   const { locale } = useI18n()
   const { organization, loading } = useOrganization()
   const { getUserRole } = usePermissions()
+  const { menuItems, isLoading: navLoading } = useRoleNavigation()
   const pathname = usePathname()
   const [userRole, setUserRole] = useState<string | null>(null)
 
@@ -59,6 +47,19 @@ export function DashboardSidebar({ isOpen, onClose }: DashboardSidebarProps) {
     return pathname.startsWith(href)
   }
 
+  // Separate settings/support from main navigation
+  const mainNavItems = menuItems.filter(item => 
+    !['settings', 'support'].includes(item.key)
+  )
+  const bottomNavItems = menuItems.filter(item => 
+    ['settings', 'support'].includes(item.key)
+  )
+
+  const isAdminRole = userRole && [
+    'admin', 'super_admin', 'ministry_admin', 'ministry_super_admin', 
+    'hassad_admin', 'qdb_admin', 'farm_company_admin'
+  ].includes(userRole)
+
   return (
     <>
       {/* Overlay */}
@@ -72,13 +73,13 @@ export function DashboardSidebar({ isOpen, onClose }: DashboardSidebarProps) {
       {/* Sidebar Panel */}
       <aside
         className={cn(
-          'fixed top-16 left-0 bottom-0 z-[2100] w-64 bg-[#0c0c0e]/98 backdrop-blur-xl border-r border-white/5 transition-transform duration-300 ease-in-out',
+          'fixed top-16 left-0 bottom-0 z-[2100] w-64 bg-[#0c0c0e]/98 backdrop-blur-xl border-r border-white/5 transition-transform duration-300 ease-in-out flex flex-col',
           isOpen ? 'translate-x-0' : '-translate-x-full'
         )}
       >
         {/* Organization Selector */}
         <div className="border-b border-white/5 px-4 py-4">
-          <button             className="w-full flex items-center justify-between gap-2 rounded-lg border border-white/10 bg-white/5 px-3 py-2.5 text-sm hover:bg-white/10 hover:border-[#07f880]/30 transition-all group">
+          <button className="w-full flex items-center justify-between gap-2 rounded-lg border border-white/10 bg-white/5 px-3 py-2.5 text-sm hover:bg-white/10 hover:border-[#07f880]/30 transition-all group">
             <div className="flex items-center gap-2">
               <Building2 className="h-4 w-4 text-[#07f880]" />
               <span className="truncate text-left font-medium text-white">
@@ -94,29 +95,36 @@ export function DashboardSidebar({ isOpen, onClose }: DashboardSidebarProps) {
           <p className="px-3 mb-3 text-[10px] uppercase tracking-widest text-white/40 font-semibold">
             {locale === 'ar' ? 'التنقل' : 'Navigation'}
           </p>
-          {navigationItems.map((item) => {
-            const Icon = item.icon
-            const active = isActive(item.href)
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                onClick={onClose}
-                className={cn(
-                  'flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all',
-                  active
-                    ? 'bg-[#07f880]/10 text-[#07f880] border border-[#07f880]/20'
-                    : 'text-white/60 hover:bg-white/5 hover:text-white border border-transparent'
-                )}
-              >
-                    <Icon className={cn('h-4 w-4', active ? 'text-[#07f880]' : '')} />
-                <span>{locale === 'ar' ? item.labelAr : item.label}</span>
-              </Link>
-            )
-          })}
+          
+          {navLoading ? (
+            <div className="px-3 py-2">
+              <div className="h-4 w-24 bg-white/10 rounded animate-pulse" />
+            </div>
+          ) : (
+            mainNavItems.map((item) => {
+              const Icon = getIconComponent(item.icon)
+              const active = isActive(item.path)
+              return (
+                <Link
+                  key={item.key}
+                  href={item.path}
+                  onClick={onClose}
+                  className={cn(
+                    'flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all',
+                    active
+                      ? 'bg-[#07f880]/10 text-[#07f880] border border-[#07f880]/20'
+                      : 'text-white/60 hover:bg-white/5 hover:text-white border border-transparent'
+                  )}
+                >
+                  <Icon className={cn('h-4 w-4', active ? 'text-[#07f880]' : '')} />
+                  <span>{item.label}</span>
+                </Link>
+              )
+            })
+          )}
 
           {/* Admin Items - Show for all admin-level roles */}
-          {userRole && ['admin', 'super_admin', 'ministry_admin', 'ministry_super_admin', 'hassad_admin', 'qdb_admin', 'farm_company_admin'].includes(userRole) && (
+          {isAdminRole && (
             <>
               <p className="px-3 mt-6 mb-3 text-[10px] uppercase tracking-widest text-white/40 font-semibold">
                 {locale === 'ar' ? 'الإدارة' : 'Administration'}
@@ -136,7 +144,7 @@ export function DashboardSidebar({ isOpen, onClose }: DashboardSidebarProps) {
                         : 'text-white/60 hover:bg-white/5 hover:text-white border border-transparent'
                     )}
                   >
-                <Icon className={cn('h-4 w-4', active ? 'text-[#07f880]' : '')} />
+                    <Icon className={cn('h-4 w-4', active ? 'text-[#07f880]' : '')} />
                     <span>{locale === 'ar' ? item.labelAr : item.label}</span>
                   </Link>
                 )
@@ -144,6 +152,32 @@ export function DashboardSidebar({ isOpen, onClose }: DashboardSidebarProps) {
             </>
           )}
         </nav>
+
+        {/* Bottom Navigation (Support & Settings for non-admin) */}
+        {bottomNavItems.length > 0 && !isAdminRole && (
+          <div className="border-t border-white/5 px-3 py-3 space-y-1">
+            {bottomNavItems.map((item) => {
+              const Icon = getIconComponent(item.icon)
+              const active = isActive(item.path)
+              return (
+                <Link
+                  key={item.key}
+                  href={item.path}
+                  onClick={onClose}
+                  className={cn(
+                    'flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-all',
+                    active
+                      ? 'bg-[#07f880]/10 text-[#07f880] border border-[#07f880]/20'
+                      : 'text-white/60 hover:bg-white/5 hover:text-white border border-transparent'
+                  )}
+                >
+                  <Icon className={cn('h-4 w-4', active ? 'text-[#07f880]' : '')} />
+                  <span>{item.label}</span>
+                </Link>
+              )
+            })}
+          </div>
+        )}
 
         {/* Footer */}
         <div className="border-t border-white/5 px-4 py-4">
