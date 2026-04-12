@@ -56,7 +56,7 @@ export default function OrganizationsPage() {
     switch (type) {
       case 'government_master': return <Shield className="h-5 w-5 text-red-500" />
       case 'government': return <Building2 className="h-5 w-5 text-orange-500" />
-      case 'farm_company': return <Users className="h-5 w-5 text-[#07fc82]" />
+      case 'farm_company': return <Users className="h-5 w-5 text-[#07f880]" />
       default: return <Building2 className="h-5 w-5 text-blue-500" />
     }
   }
@@ -75,7 +75,7 @@ export default function OrganizationsPage() {
     switch (type) {
       case 'government_master': return 'bg-red-500/10 text-red-400 border-red-500/20'
       case 'government': return 'bg-orange-500/10 text-orange-400 border-orange-500/20'
-      case 'farm_company': return 'bg-[#07fc82]/10 text-[#07fc82] border-[#07fc82]/20'
+      case 'farm_company': return 'bg-[#07f880]/10 text-[#07f880] border-[#07f880]/20'
       default: return 'bg-blue-500/10 text-blue-400 border-blue-500/20'
     }
   }
@@ -104,7 +104,7 @@ export default function OrganizationsPage() {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-foreground flex items-center gap-3">
-          <Building2 className="h-6 w-6 text-[#07fc82]" />
+          <Building2 className="h-6 w-6 text-[#07f880]" />
           Organizations
         </h1>
         <p className="mt-1 text-sm text-muted-foreground">
@@ -193,8 +193,8 @@ export default function OrganizationsPage() {
       </div>
 
       {/* Data Isolation Notice */}
-      <div className="rounded-lg border border-[#07fc82]/20 bg-[#07fc82]/5 p-4">
-        <h3 className="font-semibold text-[#07fc82] mb-2">Data Isolation & Privacy</h3>
+          <div className="rounded-lg border border-[#07f880]/20 bg-[#07f880]/5 p-4">
+            <h3 className="font-semibold text-[#07f880] mb-2">Data Isolation & Privacy</h3>
         <p className="text-sm text-white/70">
           Each organization maintains isolated data by default. Data can only be shared with the 
           Ministry of Municipality when explicitly approved by the owning organization through 

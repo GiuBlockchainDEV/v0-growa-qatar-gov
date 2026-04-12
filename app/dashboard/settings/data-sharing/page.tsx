@@ -49,7 +49,7 @@ export default function DataSharingPage() {
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-3">
-        <Share2 className="h-6 w-6 text-[#07fc82]" />
+        <Share2 className="h-6 w-6 text-[#07f880]" />
         <h1 className="text-2xl font-bold text-foreground">Data Sharing</h1>
       </div>
 
@@ -107,13 +107,13 @@ export default function DataSharingPage() {
                     getDataSharing(organization.id).then(setSharings)
                   })
                 }
-                className="w-full flex items-center justify-between p-3 rounded-lg border border-white/10 hover:border-[#07fc82]/50 hover:bg-[#07fc82]/5 transition-colors text-left"
+                className="w-full flex items-center justify-between p-3 rounded-lg border border-white/10 hover:border-[#07f880]/50 hover:bg-[#07f880]/5 transition-colors text-left"
               >
                 <div>
                   <p className="font-medium text-foreground">{org.name}</p>
                   <p className="text-xs text-muted-foreground">{org.type}</p>
                 </div>
-                <Unlock className="h-4 w-4 text-[#07fc82]" />
+                <Unlock className="h-4 w-4 text-[#07f880]" />
               </button>
             ))}
           </div>

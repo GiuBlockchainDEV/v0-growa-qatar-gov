@@ -91,7 +91,7 @@ export function SatelliteMap({ locale = 'en' }: SatelliteMapProps) {
       // Custom marker icon
       const createMarkerIcon = (type: string) => {
         const colors = {
-          farm: '#07fc82',
+          farm: '#07f880',
           facility: '#3B82F6',
           sensor: '#F59E0B'
         }
@@ -123,7 +123,7 @@ export function SatelliteMap({ locale = 'en' }: SatelliteMapProps) {
           .addTo(map)
           .bindPopup(`
             <div style="font-family: system-ui; padding: 8px; min-width: 140px;">
-              <strong style="color: #07fc82; font-size: 13px;">${marker.label}</strong>
+              <strong style="color: #07f880; font-size: 13px;">${marker.label}</strong>
               <br/>
               <span style="font-size: 10px; color: #888; text-transform: uppercase;">Type: ${marker.type}</span>
             </div>
@@ -157,7 +157,7 @@ export function SatelliteMap({ locale = 'en' }: SatelliteMapProps) {
         {/* Zoom In */}
         <button
           onClick={handleZoomIn}
-          className="h-10 w-10 flex items-center justify-center rounded-lg bg-[#0c0c0e]/90 border border-white/10 hover:border-[#07fc82]/50 hover:bg-[#0c0c0e] transition-all shadow-lg"
+          className="h-10 w-10 flex items-center justify-center rounded-lg bg-[#0c0c0e]/90 border border-white/10 hover:border-[#07f880]/50 hover:bg-[#0c0c0e] transition-all shadow-lg"
           title="Zoom In"
         >
           <Plus className="h-5 w-5 text-white" />
@@ -166,7 +166,7 @@ export function SatelliteMap({ locale = 'en' }: SatelliteMapProps) {
         {/* Zoom Out */}
         <button
           onClick={handleZoomOut}
-          className="h-10 w-10 flex items-center justify-center rounded-lg bg-[#0c0c0e]/90 border border-white/10 hover:border-[#07fc82]/50 hover:bg-[#0c0c0e] transition-all shadow-lg"
+          className="h-10 w-10 flex items-center justify-center rounded-lg bg-[#0c0c0e]/90 border border-white/10 hover:border-[#07f880]/50 hover:bg-[#0c0c0e] transition-all shadow-lg"
           title="Zoom Out"
         >
           <Minus className="h-5 w-5 text-white" />
@@ -175,17 +175,17 @@ export function SatelliteMap({ locale = 'en' }: SatelliteMapProps) {
         {/* Recenter on Qatar */}
         <button
           onClick={handleRecenter}
-          className="h-10 w-10 flex items-center justify-center rounded-lg bg-[#0c0c0e]/90 border border-white/10 hover:border-[#07fc82]/50 hover:bg-[#0c0c0e] transition-all shadow-lg"
+          className="h-10 w-10 flex items-center justify-center rounded-lg bg-[#0c0c0e]/90 border border-white/10 hover:border-[#07f880]/50 hover:bg-[#0c0c0e] transition-all shadow-lg"
           title="Recenter on Qatar"
         >
-          <Crosshair className="h-5 w-5 text-[#07fc82]" />
+          <Crosshair className="h-5 w-5 text-[#07f880]" />
         </button>
       </div>
 
       {/* Zoom Level Indicator - Bottom Left, ALWAYS Visible */}
       <div className="absolute bottom-6 left-6 z-[1000] px-3 py-1.5 rounded-lg bg-[#0c0c0e]/90 border border-white/10 shadow-lg">
         <span className="text-xs text-white/60">Zoom: </span>
-        <span className="text-xs text-[#07fc82] font-medium">{currentZoom}</span>
+        <span className="text-xs text-[#07f880] font-medium">{currentZoom}</span>
       </div>
 
       {/* Loading Overlay */}
@@ -193,7 +193,7 @@ export function SatelliteMap({ locale = 'en' }: SatelliteMapProps) {
         <div className="absolute inset-0 flex items-center justify-center bg-background z-50">
           <div className="flex flex-col items-center gap-4">
             <div className="relative">
-              <div className="h-16 w-16 rounded-full border-4 border-[#07fc82]/20 border-t-[#07fc82] animate-spin" />
+              <div className="h-16 w-16 rounded-full border-4 border-[#07f880]/20 border-t-[#07f880] animate-spin" />
               <img 
                 src="https://hebbkx1anhila5yf.public.blob.vercel-storage.com/logo512-dN5LxVKBkzU9yWpc5ROgvoTj7C4wM5.png" 
                 alt="Growa" 
@@ -222,7 +222,7 @@ export function SatelliteMap({ locale = 'en' }: SatelliteMapProps) {
           color: #888;
         }
         .custom-popup .leaflet-popup-close-button:hover {
-          color: #07fc82;
+          color: #07f880;
         }
       `}</style>
     </div>

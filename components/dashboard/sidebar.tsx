@@ -78,14 +78,14 @@ export function DashboardSidebar({ isOpen, onClose }: DashboardSidebarProps) {
       >
         {/* Organization Selector */}
         <div className="border-b border-white/5 px-4 py-4">
-          <button className="w-full flex items-center justify-between gap-2 rounded-lg border border-white/10 bg-white/5 px-3 py-2.5 text-sm hover:bg-white/10 hover:border-[#07fc82]/30 transition-all group">
+          <button             className="w-full flex items-center justify-between gap-2 rounded-lg border border-white/10 bg-white/5 px-3 py-2.5 text-sm hover:bg-white/10 hover:border-[#07f880]/30 transition-all group">
             <div className="flex items-center gap-2">
-              <Building2 className="h-4 w-4 text-[#07fc82]" />
+              <Building2 className="h-4 w-4 text-[#07f880]" />
               <span className="truncate text-left font-medium text-white">
                 {loading ? 'Loading...' : organization?.name || 'Select Organization'}
               </span>
             </div>
-            <ChevronDown className="h-4 w-4 flex-shrink-0 text-white/50 group-hover:text-[#07fc82] transition-colors" />
+            <ChevronDown className="h-4 w-4 flex-shrink-0 text-white/50 group-hover:text-[#07f880] transition-colors" />
           </button>
         </div>
 
@@ -105,11 +105,11 @@ export function DashboardSidebar({ isOpen, onClose }: DashboardSidebarProps) {
                 className={cn(
                   'flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all',
                   active
-                    ? 'bg-[#07fc82]/10 text-[#07fc82] border border-[#07fc82]/20'
+                    ? 'bg-[#07f880]/10 text-[#07f880] border border-[#07f880]/20'
                     : 'text-white/60 hover:bg-white/5 hover:text-white border border-transparent'
                 )}
               >
-                <Icon className={cn('h-4 w-4', active ? 'text-[#07fc82]' : '')} />
+                    <Icon className={cn('h-4 w-4', active ? 'text-[#07f880]' : '')} />
                 <span>{locale === 'ar' ? item.labelAr : item.label}</span>
               </Link>
             )
@@ -132,11 +132,11 @@ export function DashboardSidebar({ isOpen, onClose }: DashboardSidebarProps) {
                     className={cn(
                       'flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all',
                       active
-                        ? 'bg-[#07fc82]/10 text-[#07fc82] border border-[#07fc82]/20'
+                        ? 'bg-[#07f880]/10 text-[#07f880] border border-[#07f880]/20'
                         : 'text-white/60 hover:bg-white/5 hover:text-white border border-transparent'
                     )}
                   >
-                    <Icon className={cn('h-4 w-4', active ? 'text-[#07fc82]' : '')} />
+                <Icon className={cn('h-4 w-4', active ? 'text-[#07f880]' : '')} />
                     <span>{locale === 'ar' ? item.labelAr : item.label}</span>
                   </Link>
                 )
@@ -151,8 +151,8 @@ export function DashboardSidebar({ isOpen, onClose }: DashboardSidebarProps) {
             <p className="text-xs font-semibold text-white">Growa Qatar</p>
             <p className="text-[10px] text-white/40 mt-0.5">v0.1.0 - Sovereign Platform</p>
             <div className="flex items-center gap-1.5 mt-2">
-              <div className="h-1.5 w-1.5 rounded-full bg-[#07fc82] animate-pulse" />
-              <span className="text-[10px] text-[#07fc82] font-medium">System Online</span>
+              <div className="h-1.5 w-1.5 rounded-full bg-[#07f880] animate-pulse" />
+              <span className="text-[10px] text-[#07f880] font-medium">System Online</span>
             </div>
           </div>
         </div>

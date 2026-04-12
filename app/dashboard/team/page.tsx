@@ -52,7 +52,7 @@ export default function TeamPage() {
       case 'admin':
         return <Shield {...iconProps} className="h-4 w-4 text-orange-500" />
       case 'editor':
-        return <Edit3 {...iconProps} className="h-4 w-4 text-[#07fc82]" />
+        return <Edit3 {...iconProps} className="h-4 w-4 text-[#07f880]" />
       case 'viewer':
         return <Eye {...iconProps} className="h-4 w-4 text-blue-500" />
       default:
@@ -67,7 +67,7 @@ export default function TeamPage() {
       case 'admin':
         return 'bg-orange-500/10 text-orange-400 border-orange-500/20'
       case 'editor':
-        return 'bg-[#07fc82]/10 text-[#07fc82] border-[#07fc82]/20'
+        return 'bg-[#07f880]/10 text-[#07f880] border-[#07f880]/20'
       case 'viewer':
         return 'bg-blue-500/10 text-blue-400 border-blue-500/20'
       default:
@@ -79,11 +79,11 @@ export default function TeamPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <Users className="h-6 w-6 text-[#07fc82]" />
+          <Users className="h-6 w-6 text-[#07f880]" />
           <h1 className="text-2xl font-bold text-foreground">Team Members</h1>
         </div>
         {canManageUsers && (
-          <button className="flex items-center gap-2 px-4 py-2 rounded-lg bg-[#07fc82]/10 text-[#07fc82] hover:bg-[#07fc82]/20 transition-colors border border-[#07fc82]/20">
+          <button className="flex items-center gap-2 px-4 py-2 rounded-lg bg-[#07f880]/10 text-[#07f880] hover:bg-[#07f880]/20 transition-colors border border-[#07f880]/20">
             <Plus className="h-4 w-4" />
             Invite Member
           </button>
@@ -98,8 +98,8 @@ export default function TeamPage() {
               className="flex items-center justify-between p-4 hover:bg-white/[0.02] transition-colors"
             >
               <div className="flex items-center gap-4 flex-1">
-                <div className="h-10 w-10 rounded-full bg-[#07fc82]/20 flex items-center justify-center">
-                  <span className="text-sm font-bold text-[#07fc82]">
+                <div className="h-10 w-10 rounded-full bg-[#07f880]/20 flex items-center justify-center">
+                  <span className="text-sm font-bold text-[#07f880]">
                     {member.first_name?.[0]}{member.last_name?.[0]}
                   </span>
                 </div>
