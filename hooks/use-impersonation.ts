@@ -111,18 +111,27 @@ export function useImpersonation() {
 
         const roleData = effectiveRole?.[0]
         const isImpersonating = Boolean(roleData?.is_impersonating)
+        const metadataRole =
+          typeof user.user_metadata?.role === 'string'
+            ? user.user_metadata.role
+            : typeof user.app_metadata?.role === 'string'
+              ? user.app_metadata.role
+              : null
+
+        // In normal mode, NEVER fallback to rpc role/org payload because that can be
+        // a default/effective profile unrelated to the admin's own account context.
         const resolvedRole = isImpersonating
           ? roleData?.role_name || null
-          : baselineMembership?.role || roleData?.role_name || null
+          : baselineMembership?.role || metadataRole
         const resolvedOrgId = isImpersonating
           ? roleData?.org_id || null
-          : baselineOrg?.id || roleData?.org_id || null
+          : baselineOrg?.id || null
         const resolvedOrgName = isImpersonating
           ? roleData?.org_name || null
-          : baselineOrg?.name || roleData?.org_name || null
+          : baselineOrg?.name || null
         const resolvedOrgType = isImpersonating
           ? roleData?.org_type || null
-          : baselineOrg?.type || roleData?.org_type || null
+          : baselineOrg?.type || null
 
         setState({
           isGrowaAdmin: true,

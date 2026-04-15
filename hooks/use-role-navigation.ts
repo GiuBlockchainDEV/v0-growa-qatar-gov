@@ -237,8 +237,19 @@ export function useRoleNavigation() {
 
         setEffectiveRole(currentRole)
 
+        // If a growa.ai admin is not impersonating, keep a normal user fallback
+        // so the app does not force a ministry menu by default.
+        const isGrowaAdmin = user.email?.endsWith('@growa.ai') || false
+        const { data: effectiveRoleData } = await supabase.rpc('get_effective_role')
+        const isImpersonating = Boolean(effectiveRoleData?.[0]?.is_impersonating)
+
+        const normalizedCurrentRole =
+          isGrowaAdmin && !isImpersonating && currentRole === 'ministry_admin'
+            ? 'viewer'
+            : currentRole
+
         // Map legacy role to role registry namespace if needed
-        const mappedRole = roleMapping[currentRole] || currentRole
+        const mappedRole = roleMapping[normalizedCurrentRole] || normalizedCurrentRole
         const mappedProfile = ministryProfileByRole[mappedRole] || null
 
         if (mappedProfile) {
