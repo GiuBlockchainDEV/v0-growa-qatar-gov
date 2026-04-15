@@ -100,6 +100,8 @@ export default function SupplyOverviewPage() {
   const supabase = createClient()
   const { organization } = useOrganization()
   const { effectiveRole } = useRoleNavigation()
+  const [resolvedOrgId, setResolvedOrgId] = useState<string | null>(organization?.id || null)
+  const [resolvedOrgName, setResolvedOrgName] = useState<string | null>(organization?.name || null)
   const [snapshot, setSnapshot] = useState<SupplySnapshot | null>(null)
   const [flows, setFlows] = useState<SupplyFlow[]>([])
   const [actions, setActions] = useState<SupplyAction[]>([])
@@ -112,8 +114,41 @@ export default function SupplyOverviewPage() {
   }, [effectiveRole])
 
   useEffect(() => {
+    const resolveOrganizationContext = async () => {
+      if (organization?.id) {
+        setResolvedOrgId(organization.id)
+        setResolvedOrgName(organization.name)
+        return
+      }
+
+      const { data: authData } = await supabase.auth.getUser()
+      const user = authData.user
+      if (!user?.email?.endsWith('@growa.ai')) {
+        setResolvedOrgId(null)
+        setResolvedOrgName(null)
+        return
+      }
+
+      const { data: roleData } = await supabase.rpc('get_effective_role')
+      const role = roleData?.[0] as
+        | { is_impersonating?: boolean; org_id?: string; org_name?: string }
+        | undefined
+
+      if (role?.is_impersonating && role?.org_id) {
+        setResolvedOrgId(role.org_id)
+        setResolvedOrgName(role.org_name || null)
+      } else {
+        setResolvedOrgId(null)
+        setResolvedOrgName(null)
+      }
+    }
+
+    resolveOrganizationContext()
+  }, [organization?.id, organization?.name, supabase])
+
+  useEffect(() => {
     const loadSupplyOverview = async () => {
-      if (!organization?.id) {
+      if (!resolvedOrgId) {
         setSnapshot(null)
         setFlows([])
         setActions([])
@@ -130,20 +165,20 @@ export default function SupplyOverviewPage() {
           .select(
             'available_contract_volume_tons, available_contract_volume_delta_pct, in_transit_tons, in_transit_delta_pct, at_risk_deliveries_count, at_risk_deliveries_delta_count, avg_lead_time_days, avg_lead_time_delta_days'
           )
-          .eq('organization_id', organization.id)
+          .eq('organization_id', resolvedOrgId)
           .order('snapshot_date', { ascending: false })
           .limit(1)
           .maybeSingle(),
         supabase
           .from('supply_flows')
           .select('id, flow_code, commodity, origin_label, destination_label, status, eta_label')
-          .eq('organization_id', organization.id)
+          .eq('organization_id', resolvedOrgId)
           .eq('is_active', true)
           .order('priority', { ascending: true }),
         supabase
           .from('supply_action_queue')
           .select('id, action_text')
-          .eq('organization_id', organization.id)
+          .eq('organization_id', resolvedOrgId)
           .eq('is_open', true)
           .order('priority', { ascending: true }),
       ])
@@ -166,7 +201,7 @@ export default function SupplyOverviewPage() {
     }
 
     loadSupplyOverview()
-  }, [organization?.id, supabase])
+  }, [resolvedOrgId, supabase])
 
   return (
     <div className="space-y-6 p-4 pt-20 md:p-6 md:pt-20">
@@ -179,7 +214,7 @@ export default function SupplyOverviewPage() {
             </p>
           </div>
           <div className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-white/80">
-            {organization?.name || 'No Organization'} • {roleLabel}
+            {resolvedOrgName || organization?.name || 'No Organization'} • {roleLabel}
           </div>
         </div>
       </div>
