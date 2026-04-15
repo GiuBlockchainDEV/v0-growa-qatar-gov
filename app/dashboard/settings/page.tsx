@@ -16,16 +16,27 @@ const ROLE_OPTIONS = [
 ] as const
 
 type AssignableRole = (typeof ROLE_OPTIONS)[number]['value']
-type OrgOption = { id: string; name: string; slug: string }
+type OrganizationType = 'government_master' | 'government' | 'farm_company' | 'public' | 'private'
+type OrgOption = { id: string; name: string; slug: string; organizationType: OrganizationType | null }
+type FarmOption = { id: string; organizationId: string; name: string }
 type ProfileRecord = Record<string, unknown>
 type InviteRequest = {
   id: string
   organizationId: string
+  requestedFarmId: string | null
   requestedRole: string
   status: string
   createdAt: string
   note: string | null
 }
+
+const ORGANIZATION_TYPE_OPTIONS: Array<{ value: OrganizationType; label: string }> = [
+  { value: 'private', label: 'Private' },
+  { value: 'public', label: 'Public' },
+  { value: 'farm_company', label: 'Farm Company' },
+  { value: 'government', label: 'Government' },
+  { value: 'government_master', label: 'Government Master' },
+]
 
 const SELECT_STYLE = { backgroundColor: '#0f1115', color: '#f8fafc' }
 const OPTION_STYLE = { backgroundColor: '#0f1115', color: '#f8fafc' }
@@ -67,60 +78,138 @@ export default function SettingsPage() {
   const [languageChoice, setLanguageChoice] = useState<Locale>(locale)
   const [profileRecord, setProfileRecord] = useState<ProfileRecord | null>(null)
   const [availableOrganizations, setAvailableOrganizations] = useState<OrgOption[]>([])
+  const [availableFarms, setAvailableFarms] = useState<FarmOption[]>([])
   const [sentInviteRequests, setSentInviteRequests] = useState<InviteRequest[]>([])
   const [inviteRequestOrgId, setInviteRequestOrgId] = useState('')
+  const [inviteRequestFarmId, setInviteRequestFarmId] = useState('')
   const [inviteRequestMessage, setInviteRequestMessage] = useState('')
+  const [createOrgName, setCreateOrgName] = useState('')
+  const [createOrgSlug, setCreateOrgSlug] = useState('')
+  const [createOrgDescription, setCreateOrgDescription] = useState('')
+  const [createOrgType, setCreateOrgType] = useState<OrganizationType>('private')
   const [message, setMessage] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [isDeletingRequest, setIsDeletingRequest] = useState(false)
+  const [isCreatingOrganization, setIsCreatingOrganization] = useState(false)
   const inviteRequestInFlightRef = useRef(false)
 
-  const loadSentInviteRequests = async (userId: string) => {
+  const loadOrganizationOptions = async () => {
     const firstAttempt = await supabase
-      .from('organization_invite_requests')
-      .select('id, target_organization_id, requested_role, status, created_at, note')
-      .eq('requester_user_id', userId)
-      .order('created_at', { ascending: false })
+      .from('organizations')
+      .select('id, name, slug, organization_type')
+      .order('name', { ascending: true })
 
     if (!firstAttempt.error) {
       const rows = (firstAttempt.data || []).map((row: any) => ({
         id: row.id,
-        organizationId: row.target_organization_id,
-        requestedRole: row.requested_role,
-        status: String(row.status || '').toLowerCase(),
-        createdAt: row.created_at,
-        note: row.note ?? null,
+        name: row.name,
+        slug: row.slug,
+        organizationType: (row.organization_type || null) as OrganizationType | null,
       }))
-      setSentInviteRequests(rows)
-      return
+      setAvailableOrganizations(rows)
+      return rows
     }
 
     if (!isMissingColumnError(firstAttempt.error.message)) {
-      console.error('[settings] Unable to load invite requests', firstAttempt.error)
-      setSentInviteRequests([])
-      return
+      console.error('[settings] Unable to load organizations', firstAttempt.error)
+      setAvailableOrganizations([])
+      return []
     }
 
     const secondAttempt = await supabase
-      .from('organization_invite_requests')
-      .select('id, organization_id, requested_role, status, created_at, note')
-      .eq('requester_user_id', userId)
-      .order('created_at', { ascending: false })
+      .from('organizations')
+      .select('id, name, slug')
+      .order('name', { ascending: true })
 
     if (!secondAttempt.error) {
       const rows = (secondAttempt.data || []).map((row: any) => ({
         id: row.id,
-        organizationId: row.organization_id,
+        name: row.name,
+        slug: row.slug,
+        organizationType: null,
+      }))
+      setAvailableOrganizations(rows)
+      return rows
+    }
+
+    console.error('[settings] Unable to load organizations', secondAttempt.error)
+    setAvailableOrganizations([])
+    return []
+  }
+
+  const loadFarmsForOrganization = async (organizationId: string) => {
+    const { data, error: farmsError } = await supabase
+      .from('farms')
+      .select('*')
+      .eq('organization_id', organizationId)
+
+    if (farmsError) {
+      console.error('[settings] Unable to load farms for organization', farmsError)
+      setAvailableFarms([])
+      return
+    }
+
+    const farms = (data || []).map((row: any) => ({
+      id: row.id,
+      organizationId: row.organization_id,
+      name: row.name_en || row.name || row.code || row.id,
+    }))
+    setAvailableFarms(farms)
+  }
+
+  const loadSentInviteRequests = async (userId: string) => {
+    const mapRows = (rows: any[], organizationKey: 'target_organization_id' | 'organization_id') =>
+      rows.map((row: any) => ({
+        id: row.id,
+        organizationId: row[organizationKey],
+        requestedFarmId: row.requested_farm_id || null,
         requestedRole: row.requested_role,
         status: String(row.status || '').toLowerCase(),
         createdAt: row.created_at,
         note: row.note ?? null,
       }))
-      setSentInviteRequests(rows)
-      return
+
+    const attempts: Array<{
+      select: string
+      organizationKey: 'target_organization_id' | 'organization_id'
+    }> = [
+      {
+        select: 'id, target_organization_id, requested_farm_id, requested_role, status, created_at, note',
+        organizationKey: 'target_organization_id',
+      },
+      {
+        select: 'id, target_organization_id, requested_role, status, created_at, note',
+        organizationKey: 'target_organization_id',
+      },
+      {
+        select: 'id, organization_id, requested_farm_id, requested_role, status, created_at, note',
+        organizationKey: 'organization_id',
+      },
+      {
+        select: 'id, organization_id, requested_role, status, created_at, note',
+        organizationKey: 'organization_id',
+      },
+    ]
+
+    for (const attempt of attempts) {
+      const result = await supabase
+        .from('organization_invite_requests')
+        .select(attempt.select)
+        .eq('requester_user_id', userId)
+        .order('created_at', { ascending: false })
+
+      if (!result.error) {
+        setSentInviteRequests(mapRows(result.data || [], attempt.organizationKey))
+        return
+      }
+
+      if (!isMissingColumnError(result.error.message)) {
+        console.error('[settings] Unable to load invite requests', result.error)
+        setSentInviteRequests([])
+        return
+      }
     }
 
-    console.error('[settings] Unable to load invite requests', secondAttempt.error)
     setSentInviteRequests([])
   }
 
@@ -138,16 +227,15 @@ export default function SettingsPage() {
           ? supabase.from('profiles').select('*').eq('id', userId).maybeSingle()
           : Promise.resolve({ data: null, error: null })
 
-        const [role, team, profileData, organizationsData] = await Promise.all([
+        const [role, team, profileData] = await Promise.all([
           rolePromise,
           teamPromise,
           profilePromise,
-          supabase.from('organizations').select('id, name, slug').order('name', { ascending: true }),
         ])
 
         setCurrentRole(role)
         setMembers(team)
-        setAvailableOrganizations(organizationsData.data || [])
+        await loadOrganizationOptions()
 
         const row = (profileData.data as ProfileRecord | null) || null
         setProfileRecord(row)
@@ -358,6 +446,53 @@ export default function SettingsPage() {
     setSavingPreferences(false)
   }
 
+  const handleCreateOrganization = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (isCreatingOrganization) return
+
+    const normalizedName = createOrgName.trim()
+    const normalizedSlug = createOrgSlug.trim().toLowerCase().replace(/\s+/g, '-')
+    if (!normalizedName || !normalizedSlug) {
+      setError('Organization name and slug are required.')
+      return
+    }
+
+    setIsCreatingOrganization(true)
+    setError(null)
+    setMessage(null)
+
+    const { data, error: createError } = await supabase.rpc('create_organization_with_owner', {
+      org_name: normalizedName,
+      org_slug: normalizedSlug,
+      org_description: createOrgDescription.trim() || null,
+      org_type: createOrgType,
+    })
+
+    if (createError) {
+      setError(`Unable to create organization: ${createError.message}`)
+      setIsCreatingOrganization(false)
+      return
+    }
+
+    await loadOrganizationOptions()
+    setCreateOrgName('')
+    setCreateOrgSlug('')
+    setCreateOrgDescription('')
+    setCreateOrgType('private')
+
+    const createdId =
+      Array.isArray(data) && data.length > 0
+        ? data[0]?.organization_id || data[0]?.id || null
+        : (data as { organization_id?: string } | null)?.organization_id || null
+
+    setMessage(
+      createdId
+        ? 'Organization created successfully. You are now owner of the new organization.'
+        : 'Organization created successfully. You are now owner.'
+    )
+    setIsCreatingOrganization(false)
+  }
+
   const handleInviteRequest = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!inviteRequestOrgId || saving || inviteRequestInFlightRef.current) return
@@ -378,6 +513,11 @@ export default function SettingsPage() {
       if (hasPendingInviteRequest) {
         setError('You can only keep one pending invitation request at a time.')
         await loadSentInviteRequests(user.id)
+        return
+      }
+
+      if (inviteRequiresFarmSelection && !inviteRequestFarmId) {
+        setError('For farm company organizations you must select the target farm.')
         return
       }
 
@@ -404,6 +544,7 @@ export default function SettingsPage() {
         requester_user_id: user.id,
         requester_email: user.email,
         requested_role: 'member',
+        ...(inviteRequestFarmId ? { requested_farm_id: inviteRequestFarmId } : {}),
         note: inviteRequestMessage || null,
         status: 'pending',
       }
@@ -431,12 +572,18 @@ export default function SettingsPage() {
         ) {
           setError('You can only keep one pending invitation request at a time.')
           await loadSentInviteRequests(user.id)
+        } else if (
+          normalizedMessage.includes('requested_farm_id') &&
+          normalizedMessage.includes('column')
+        ) {
+          setError('Farm-level association requests require the latest database migration.')
         } else {
           setError(`Unable to submit invite request: ${reqError.message}`)
         }
       } else {
         setMessage('Invitation request submitted successfully.')
         setInviteRequestOrgId('')
+        setInviteRequestFarmId('')
         setInviteRequestMessage('')
         await loadSentInviteRequests(user.id)
       }
@@ -485,11 +632,33 @@ export default function SettingsPage() {
     }
     return map
   }, [availableOrganizations])
+  const farmNameById = useMemo(() => {
+    const map = new Map<string, string>()
+    for (const farm of availableFarms) {
+      map.set(farm.id, farm.name)
+    }
+    return map
+  }, [availableFarms])
+  const selectedInviteOrganization = useMemo(
+    () => availableOrganizations.find((org) => org.id === inviteRequestOrgId) || null,
+    [availableOrganizations, inviteRequestOrgId]
+  )
+  const inviteRequiresFarmSelection = selectedInviteOrganization?.organizationType === 'farm_company'
   const hasPendingInviteRequest = useMemo(
     () =>
       sentInviteRequests.some((request) => String(request.status).toLowerCase().trim() === 'pending'),
     [sentInviteRequests]
   )
+
+  useEffect(() => {
+    if (!inviteRequiresFarmSelection || !inviteRequestOrgId) {
+      setAvailableFarms([])
+      setInviteRequestFarmId('')
+      return
+    }
+
+    loadFarmsForOrganization(inviteRequestOrgId)
+  }, [inviteRequiresFarmSelection, inviteRequestOrgId])
 
   const handleRoleChange = async (memberId: string, role: AssignableRole) => {
     if (!organization?.id) return
@@ -739,41 +908,132 @@ export default function SettingsPage() {
       </div>
 
       <div className="rounded-lg border border-white/10 bg-card p-4 space-y-3">
-        <h2 className="font-semibold text-foreground">Request Organization Invitation</h2>
+        <h2 className="font-semibold text-foreground">Create Organization</h2>
         <p className="text-sm text-muted-foreground">
-          If you are not yet part of an organization, submit a request and administrators can approve your access.
+          Create a new organization and automatically become its owner.
         </p>
-        <form onSubmit={handleInviteRequest} className="grid grid-cols-1 md:grid-cols-[1fr_2fr_auto] gap-2">
+        <form onSubmit={handleCreateOrganization} className="grid grid-cols-1 md:grid-cols-2 gap-2">
+          <input
+            type="text"
+            value={createOrgName}
+            onChange={(e) => setCreateOrgName(e.target.value)}
+            placeholder="Organization name"
+            className="h-10 rounded-lg border border-white/10 bg-white/5 px-3 text-sm text-white placeholder-white/40 focus:border-[#07f880]/40 focus:outline-none"
+            required
+          />
+          <input
+            type="text"
+            value={createOrgSlug}
+            onChange={(e) => setCreateOrgSlug(e.target.value)}
+            placeholder="organization-slug"
+            className="h-10 rounded-lg border border-white/10 bg-white/5 px-3 text-sm text-white placeholder-white/40 focus:border-[#07f880]/40 focus:outline-none"
+            required
+          />
           <select
-            value={inviteRequestOrgId}
-            onChange={(e) => setInviteRequestOrgId(e.target.value)}
+            value={createOrgType}
+            onChange={(e) => setCreateOrgType(e.target.value as OrganizationType)}
             className={`h-10 ${SELECT_CLASS}`}
             style={SELECT_STYLE}
-            required
           >
-            <option value="" style={OPTION_STYLE}>
-              Select organization
-            </option>
-            {availableOrganizations.map((org) => (
-              <option key={org.id} value={org.id} style={OPTION_STYLE}>
-                {org.name} ({org.slug})
+            {ORGANIZATION_TYPE_OPTIONS.map((option) => (
+              <option key={option.value} value={option.value} style={OPTION_STYLE}>
+                {option.label}
               </option>
             ))}
           </select>
           <input
             type="text"
-            value={inviteRequestMessage}
-            onChange={(e) => setInviteRequestMessage(e.target.value)}
-            placeholder="Optional note"
+            value={createOrgDescription}
+            onChange={(e) => setCreateOrgDescription(e.target.value)}
+            placeholder="Optional description"
             className="h-10 rounded-lg border border-white/10 bg-white/5 px-3 text-sm text-white placeholder-white/40 focus:border-[#07f880]/40 focus:outline-none"
           />
-          <button
-            type="submit"
-            disabled={saving || hasPendingInviteRequest}
-            className="h-10 rounded-lg border border-[#07f880]/30 bg-[#07f880]/10 px-4 text-sm font-medium text-[#07f880] hover:bg-[#07f880]/20 disabled:opacity-50"
-          >
-            {hasPendingInviteRequest ? 'Pending Request Exists' : 'Request Invite'}
-          </button>
+          <div className="md:col-span-2">
+            <button
+              type="submit"
+              disabled={isCreatingOrganization}
+              className="h-10 rounded-lg border border-[#07f880]/30 bg-[#07f880]/10 px-4 text-sm font-medium text-[#07f880] hover:bg-[#07f880]/20 disabled:opacity-50"
+            >
+              {isCreatingOrganization ? 'Creating...' : 'Create Organization & Become Owner'}
+            </button>
+          </div>
+        </form>
+      </div>
+
+      <div className="rounded-lg border border-white/10 bg-card p-4 space-y-3">
+        <h2 className="font-semibold text-foreground">Request Organization Invitation</h2>
+        <p className="text-sm text-muted-foreground">
+          If you are not yet part of an organization, submit a request and administrators can approve your access.
+        </p>
+        <form onSubmit={handleInviteRequest} className="space-y-2">
+          <div className="grid grid-cols-1 md:grid-cols-[1fr_2fr_auto] gap-2">
+            <select
+              value={inviteRequestOrgId}
+              onChange={(e) => {
+                setInviteRequestOrgId(e.target.value)
+                setInviteRequestFarmId('')
+              }}
+              className={`h-10 ${SELECT_CLASS}`}
+              style={SELECT_STYLE}
+              required
+            >
+              <option value="" style={OPTION_STYLE}>
+                Select organization
+              </option>
+              {availableOrganizations.map((org) => (
+                <option key={org.id} value={org.id} style={OPTION_STYLE}>
+                  {org.name} ({org.slug})
+                </option>
+              ))}
+            </select>
+            <input
+              type="text"
+              value={inviteRequestMessage}
+              onChange={(e) => setInviteRequestMessage(e.target.value)}
+              placeholder="Optional note"
+              className="h-10 rounded-lg border border-white/10 bg-white/5 px-3 text-sm text-white placeholder-white/40 focus:border-[#07f880]/40 focus:outline-none"
+            />
+            <button
+              type="submit"
+              disabled={saving || hasPendingInviteRequest || (inviteRequiresFarmSelection && !inviteRequestFarmId)}
+              className="h-10 rounded-lg border border-[#07f880]/30 bg-[#07f880]/10 px-4 text-sm font-medium text-[#07f880] hover:bg-[#07f880]/20 disabled:opacity-50"
+            >
+              {hasPendingInviteRequest ? 'Pending Request Exists' : 'Request Invite'}
+            </button>
+          </div>
+
+          {inviteRequiresFarmSelection && (
+            <div className="grid grid-cols-1 md:grid-cols-[1fr] gap-2">
+              <select
+                value={inviteRequestFarmId}
+                onChange={(e) => setInviteRequestFarmId(e.target.value)}
+                className={`h-10 ${SELECT_CLASS}`}
+                style={SELECT_STYLE}
+                required
+              >
+                <option value="" style={OPTION_STYLE}>
+                  Select farm (required for farm company)
+                </option>
+                {availableFarms.map((farm) => (
+                  <option key={farm.id} value={farm.id} style={OPTION_STYLE}>
+                    {farm.name}
+                  </option>
+                ))}
+              </select>
+              {availableFarms.length === 0 && (
+                <p className="text-xs text-amber-300">
+                  No farms found for this farm company. Association request requires a farm selection.
+                </p>
+              )}
+            </div>
+          )}
+
+          {!inviteRequiresFarmSelection && selectedInviteOrganization && (
+            <p className="text-xs text-white/60">
+              Selected organization type:{' '}
+              <span className="text-white/80">{selectedInviteOrganization.organizationType || 'unknown'}</span>
+            </p>
+          )}
         </form>
         {hasPendingInviteRequest && (
           <p className="text-xs text-amber-300">
@@ -789,6 +1049,7 @@ export default function SettingsPage() {
                   Organization
                 </th>
                 <th className="text-left px-3 py-2 text-xs uppercase tracking-wide text-white/50">Role</th>
+                <th className="text-left px-3 py-2 text-xs uppercase tracking-wide text-white/50">Farm</th>
                 <th className="text-left px-3 py-2 text-xs uppercase tracking-wide text-white/50">Status</th>
                 <th className="text-left px-3 py-2 text-xs uppercase tracking-wide text-white/50">Created</th>
                 <th className="text-right px-3 py-2 text-xs uppercase tracking-wide text-white/50">
@@ -803,6 +1064,9 @@ export default function SettingsPage() {
                     {organizationNameById.get(request.organizationId) || request.organizationId}
                   </td>
                   <td className="px-3 py-2 text-white/80 capitalize">{request.requestedRole}</td>
+                  <td className="px-3 py-2 text-white/70">
+                    {request.requestedFarmId ? farmNameById.get(request.requestedFarmId) || request.requestedFarmId : '-'}
+                  </td>
                   <td className="px-3 py-2">
                     <span
                       className={`inline-flex rounded-full px-2 py-0.5 text-xs capitalize ${
@@ -833,7 +1097,7 @@ export default function SettingsPage() {
               ))}
               {sentInviteRequests.length === 0 && (
                 <tr>
-                  <td colSpan={5} className="px-3 py-4 text-center text-sm text-muted-foreground">
+                  <td colSpan={6} className="px-3 py-4 text-center text-sm text-muted-foreground">
                     No invitation requests sent yet.
                   </td>
                 </tr>
