@@ -72,6 +72,7 @@ export default function SettingsPage() {
   const [inviteRequestMessage, setInviteRequestMessage] = useState('')
   const [message, setMessage] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [isDeletingRequest, setIsDeletingRequest] = useState(false)
 
   const loadSentInviteRequests = async (userId: string) => {
     const firstAttempt = await supabase
@@ -152,16 +153,9 @@ export default function SettingsPage() {
 
         if (row) {
           const rowPrefs =
-            (typeof row.notification_preferences === 'object' &&
-            row.notification_preferences !== null
+            typeof row.notification_preferences === 'object' && row.notification_preferences !== null
               ? (row.notification_preferences as Record<string, unknown>)
-              : null) ||
-            (typeof row.metadata === 'object' &&
-            row.metadata !== null &&
-            typeof (row.metadata as Record<string, unknown>).notification_preferences === 'object'
-              ? ((row.metadata as Record<string, unknown>)
-                  .notification_preferences as Record<string, unknown>)
-              : null)
+              : null
 
           const nextNotificationEmail =
             typeof rowPrefs?.email === 'boolean'
@@ -188,12 +182,7 @@ export default function SettingsPage() {
 
           const preferredLocale =
             (typeof row.preferred_locale === 'string' ? row.preferred_locale : null) ||
-            (typeof row.locale === 'string' ? row.locale : null) ||
-            (typeof row.metadata === 'object' &&
-            row.metadata !== null &&
-            typeof (row.metadata as Record<string, unknown>).preferred_locale === 'string'
-              ? ((row.metadata as Record<string, unknown>).preferred_locale as string)
-              : null)
+            (typeof row.locale === 'string' ? row.locale : null)
 
           if (preferredLocale === 'ar' || preferredLocale === 'en') {
             setLanguageChoice(preferredLocale)
@@ -306,55 +295,62 @@ export default function SettingsPage() {
       })
     }
 
-    if (hasColumn(profileRecord, 'metadata')) {
-      const metadata =
-        typeof profileRecord?.metadata === 'object' && profileRecord?.metadata !== null
-          ? (profileRecord.metadata as Record<string, unknown>)
-          : {}
-      payloads.push({
-        metadata: {
-          ...metadata,
-          locale: languageChoice,
-          notification_preferences: {
-            email: notificationEmail,
-            inApp: notificationInApp,
-            criticalOnly: notificationCriticalOnly,
-          },
-        },
-        ...localePatch,
-        ...withUpdatedAt,
-      })
-    }
-
     if (payloads.length === 0) {
-      payloads.push({
-        metadata: {
-          locale: languageChoice,
-          notification_preferences: {
-            email: notificationEmail,
-            inApp: notificationInApp,
-            criticalOnly: notificationCriticalOnly,
-          },
-        },
-      })
+      if (typeof window !== 'undefined') {
+        localStorage.setItem(
+          'growa-settings-preferences',
+          JSON.stringify({
+            locale: languageChoice,
+            notification_preferences: {
+              email: notificationEmail,
+              inApp: notificationInApp,
+              criticalOnly: notificationCriticalOnly,
+            },
+          })
+        )
+      }
+      setLocale(languageChoice)
+      setMessage('Preferences saved locally (profile columns not available).')
+      setSavingPreferences(false)
+      return
     }
 
     let saved = false
     let lastErrorMessage = 'Unknown error'
+    let allErrorsAreMissingColumns = true
 
     for (const payload of payloads) {
       const { error: saveError } = await supabase.from('profiles').update(payload).eq('id', userId)
       if (!saveError) {
         saved = true
+        setProfileRecord((prev) => (prev ? { ...prev, ...payload } : prev))
         break
       }
       lastErrorMessage = saveError.message
       if (!isMissingColumnError(saveError.message)) {
+        allErrorsAreMissingColumns = false
         break
       }
     }
 
     if (!saved) {
+      if (allErrorsAreMissingColumns && typeof window !== 'undefined') {
+        localStorage.setItem(
+          'growa-settings-preferences',
+          JSON.stringify({
+            locale: languageChoice,
+            notification_preferences: {
+              email: notificationEmail,
+              inApp: notificationInApp,
+              criticalOnly: notificationCriticalOnly,
+            },
+          })
+        )
+        setLocale(languageChoice)
+        setMessage('Preferences saved locally (profile schema still updating).')
+        setSavingPreferences(false)
+        return
+      }
       setError(`Unable to save preferences: ${lastErrorMessage}`)
       setSavingPreferences(false)
       return
@@ -377,6 +373,19 @@ export default function SettingsPage() {
     const user = authData.user
     if (!user?.id || !user.email) {
       setError('You must be authenticated to request an invitation.')
+      setSaving(false)
+      return
+    }
+
+    const pendingCheck = await supabase
+      .from('organization_invite_requests')
+      .select('id')
+      .eq('requester_user_id', user.id)
+      .eq('status', 'pending')
+      .limit(1)
+
+    if (!pendingCheck.error && (pendingCheck.data?.length || 0) > 0) {
+      setError('You already have a pending request. Delete it before creating a new one.')
       setSaving(false)
       return
     }
@@ -415,6 +424,38 @@ export default function SettingsPage() {
     setSaving(false)
   }
 
+  const handleDeleteInviteRequest = async (requestId: string) => {
+    if (!confirm('Delete this invite request?')) return
+
+    setIsDeletingRequest(true)
+    setError(null)
+    setMessage(null)
+
+    const { data: authData } = await supabase.auth.getUser()
+    const userId = authData.user?.id
+    if (!userId) {
+      setError('You must be authenticated to delete invite requests.')
+      setIsDeletingRequest(false)
+      return
+    }
+
+    const { error: deleteError } = await supabase
+      .from('organization_invite_requests')
+      .delete()
+      .eq('id', requestId)
+      .eq('requester_user_id', userId)
+
+    if (deleteError) {
+      setError(`Unable to delete invite request: ${deleteError.message}`)
+      setIsDeletingRequest(false)
+      return
+    }
+
+    setMessage('Invite request deleted.')
+    await loadSentInviteRequests(userId)
+    setIsDeletingRequest(false)
+  }
+
   const organizationNameById = useMemo(() => {
     const map = new Map<string, string>()
     for (const org of availableOrganizations) {
@@ -422,6 +463,10 @@ export default function SettingsPage() {
     }
     return map
   }, [availableOrganizations])
+  const hasPendingInviteRequest = useMemo(
+    () => sentInviteRequests.some((request) => request.status === 'pending'),
+    [sentInviteRequests]
+  )
 
   const handleRoleChange = async (memberId: string, role: AssignableRole) => {
     if (!organization?.id) return
@@ -701,12 +746,17 @@ export default function SettingsPage() {
           />
           <button
             type="submit"
-            disabled={saving}
+            disabled={saving || hasPendingInviteRequest}
             className="h-10 rounded-lg border border-[#07f880]/30 bg-[#07f880]/10 px-4 text-sm font-medium text-[#07f880] hover:bg-[#07f880]/20 disabled:opacity-50"
           >
-            Request Invite
+            {hasPendingInviteRequest ? 'Pending Request Exists' : 'Request Invite'}
           </button>
         </form>
+        {hasPendingInviteRequest && (
+          <p className="text-xs text-amber-300">
+            You can only keep one pending invitation request at a time.
+          </p>
+        )}
 
         <div className="rounded-lg border border-white/10 overflow-hidden mt-2">
           <table className="w-full text-sm">
@@ -718,6 +768,9 @@ export default function SettingsPage() {
                 <th className="text-left px-3 py-2 text-xs uppercase tracking-wide text-white/50">Role</th>
                 <th className="text-left px-3 py-2 text-xs uppercase tracking-wide text-white/50">Status</th>
                 <th className="text-left px-3 py-2 text-xs uppercase tracking-wide text-white/50">Created</th>
+                <th className="text-right px-3 py-2 text-xs uppercase tracking-wide text-white/50">
+                  Actions
+                </th>
               </tr>
             </thead>
             <tbody>
@@ -743,11 +796,21 @@ export default function SettingsPage() {
                   <td className="px-3 py-2 text-white/60">
                     {request.createdAt ? new Date(request.createdAt).toLocaleDateString() : '-'}
                   </td>
+                  <td className="px-3 py-2 text-right">
+                    <button
+                      type="button"
+                      onClick={() => handleDeleteInviteRequest(request.id)}
+                      disabled={isDeletingRequest}
+                      className="text-xs text-red-300 hover:text-red-200 disabled:opacity-50"
+                    >
+                      Delete
+                    </button>
+                  </td>
                 </tr>
               ))}
               {sentInviteRequests.length === 0 && (
                 <tr>
-                  <td colSpan={4} className="px-3 py-4 text-center text-sm text-muted-foreground">
+                  <td colSpan={5} className="px-3 py-4 text-center text-sm text-muted-foreground">
                     No invitation requests sent yet.
                   </td>
                 </tr>
