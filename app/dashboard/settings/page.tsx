@@ -18,6 +18,14 @@ const ROLE_OPTIONS = [
 type AssignableRole = (typeof ROLE_OPTIONS)[number]['value']
 type OrgOption = { id: string; name: string; slug: string }
 type ProfileRecord = Record<string, unknown>
+type InviteRequest = {
+  id: string
+  organizationId: string
+  requestedRole: string
+  status: string
+  createdAt: string
+  note: string | null
+}
 
 const SELECT_STYLE = { backgroundColor: '#0f1115', color: '#f8fafc' }
 const OPTION_STYLE = { backgroundColor: '#0f1115', color: '#f8fafc' }
@@ -59,10 +67,60 @@ export default function SettingsPage() {
   const [languageChoice, setLanguageChoice] = useState<Locale>(locale)
   const [profileRecord, setProfileRecord] = useState<ProfileRecord | null>(null)
   const [availableOrganizations, setAvailableOrganizations] = useState<OrgOption[]>([])
+  const [sentInviteRequests, setSentInviteRequests] = useState<InviteRequest[]>([])
   const [inviteRequestOrgId, setInviteRequestOrgId] = useState('')
   const [inviteRequestMessage, setInviteRequestMessage] = useState('')
   const [message, setMessage] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+
+  const loadSentInviteRequests = async (userId: string) => {
+    const firstAttempt = await supabase
+      .from('organization_invite_requests')
+      .select('id, target_organization_id, requested_role, status, created_at, note')
+      .eq('requester_user_id', userId)
+      .order('created_at', { ascending: false })
+
+    if (!firstAttempt.error) {
+      const rows = (firstAttempt.data || []).map((row: any) => ({
+        id: row.id,
+        organizationId: row.target_organization_id,
+        requestedRole: row.requested_role,
+        status: row.status,
+        createdAt: row.created_at,
+        note: row.note ?? null,
+      }))
+      setSentInviteRequests(rows)
+      return
+    }
+
+    if (!isMissingColumnError(firstAttempt.error.message)) {
+      console.error('[settings] Unable to load invite requests', firstAttempt.error)
+      setSentInviteRequests([])
+      return
+    }
+
+    const secondAttempt = await supabase
+      .from('organization_invite_requests')
+      .select('id, organization_id, requested_role, status, created_at, note')
+      .eq('requester_user_id', userId)
+      .order('created_at', { ascending: false })
+
+    if (!secondAttempt.error) {
+      const rows = (secondAttempt.data || []).map((row: any) => ({
+        id: row.id,
+        organizationId: row.organization_id,
+        requestedRole: row.requested_role,
+        status: row.status,
+        createdAt: row.created_at,
+        note: row.note ?? null,
+      }))
+      setSentInviteRequests(rows)
+      return
+    }
+
+    console.error('[settings] Unable to load invite requests', secondAttempt.error)
+    setSentInviteRequests([])
+  }
 
   useEffect(() => {
     const load = async () => {
@@ -142,6 +200,12 @@ export default function SettingsPage() {
             setLocale(preferredLocale)
           }
         }
+
+        if (userId) {
+          await loadSentInviteRequests(userId)
+        } else {
+          setSentInviteRequests([])
+        }
       } catch (loadError) {
         console.error('[settings] Failed to load settings data', loadError)
         setError('Unable to load settings data.')
@@ -202,6 +266,13 @@ export default function SettingsPage() {
 
     const updatedAt = new Date().toISOString()
     const payloads: Record<string, unknown>[] = []
+    const withUpdatedAt = hasColumn(profileRecord, 'updated_at') ? { updated_at: updatedAt } : {}
+    const localePatch =
+      hasColumn(profileRecord, 'locale')
+        ? { locale: languageChoice }
+        : hasColumn(profileRecord, 'preferred_locale')
+          ? { preferred_locale: languageChoice }
+          : {}
 
     if (hasColumn(profileRecord, 'notification_preferences')) {
       payloads.push({
@@ -210,8 +281,8 @@ export default function SettingsPage() {
           inApp: notificationInApp,
           criticalOnly: notificationCriticalOnly,
         },
-        ...(hasColumn(profileRecord, 'preferred_locale') ? { preferred_locale: languageChoice } : {}),
-        updated_at: updatedAt,
+        ...localePatch,
+        ...withUpdatedAt,
       })
     }
 
@@ -230,8 +301,8 @@ export default function SettingsPage() {
         ...(hasColumn(profileRecord, 'notifications_critical_only')
           ? { notifications_critical_only: notificationCriticalOnly }
           : {}),
-        ...(hasColumn(profileRecord, 'preferred_locale') ? { preferred_locale: languageChoice } : {}),
-        updated_at: updatedAt,
+        ...localePatch,
+        ...withUpdatedAt,
       })
     }
 
@@ -243,27 +314,29 @@ export default function SettingsPage() {
       payloads.push({
         metadata: {
           ...metadata,
-          preferred_locale: languageChoice,
+          locale: languageChoice,
           notification_preferences: {
             email: notificationEmail,
             inApp: notificationInApp,
             criticalOnly: notificationCriticalOnly,
           },
         },
-        ...(hasColumn(profileRecord, 'preferred_locale') ? { preferred_locale: languageChoice } : {}),
-        updated_at: updatedAt,
-      })
-    }
-
-    if (hasColumn(profileRecord, 'preferred_locale')) {
-      payloads.push({
-        preferred_locale: languageChoice,
-        updated_at: updatedAt,
+        ...localePatch,
+        ...withUpdatedAt,
       })
     }
 
     if (payloads.length === 0) {
-      payloads.push({ preferred_locale: languageChoice, updated_at: updatedAt })
+      payloads.push({
+        metadata: {
+          locale: languageChoice,
+          notification_preferences: {
+            email: notificationEmail,
+            inApp: notificationInApp,
+            criticalOnly: notificationCriticalOnly,
+          },
+        },
+      })
     }
 
     let saved = false
@@ -337,9 +410,18 @@ export default function SettingsPage() {
       setMessage('Invitation request submitted successfully.')
       setInviteRequestOrgId('')
       setInviteRequestMessage('')
+      await loadSentInviteRequests(user.id)
     }
     setSaving(false)
   }
+
+  const organizationNameById = useMemo(() => {
+    const map = new Map<string, string>()
+    for (const org of availableOrganizations) {
+      map.set(org.id, org.name)
+    }
+    return map
+  }, [availableOrganizations])
 
   const handleRoleChange = async (memberId: string, role: AssignableRole) => {
     if (!organization?.id) return
@@ -625,6 +707,54 @@ export default function SettingsPage() {
             Request Invite
           </button>
         </form>
+
+        <div className="rounded-lg border border-white/10 overflow-hidden mt-2">
+          <table className="w-full text-sm">
+            <thead className="bg-white/5 border-b border-white/10">
+              <tr>
+                <th className="text-left px-3 py-2 text-xs uppercase tracking-wide text-white/50">
+                  Organization
+                </th>
+                <th className="text-left px-3 py-2 text-xs uppercase tracking-wide text-white/50">Role</th>
+                <th className="text-left px-3 py-2 text-xs uppercase tracking-wide text-white/50">Status</th>
+                <th className="text-left px-3 py-2 text-xs uppercase tracking-wide text-white/50">Created</th>
+              </tr>
+            </thead>
+            <tbody>
+              {sentInviteRequests.map((request) => (
+                <tr key={request.id} className="border-b border-white/5">
+                  <td className="px-3 py-2 text-foreground">
+                    {organizationNameById.get(request.organizationId) || request.organizationId}
+                  </td>
+                  <td className="px-3 py-2 text-white/80 capitalize">{request.requestedRole}</td>
+                  <td className="px-3 py-2">
+                    <span
+                      className={`inline-flex rounded-full px-2 py-0.5 text-xs capitalize ${
+                        request.status === 'approved'
+                          ? 'bg-[#07f880]/15 text-[#07f880]'
+                          : request.status === 'rejected'
+                            ? 'bg-red-500/15 text-red-300'
+                            : 'bg-white/10 text-white/80'
+                      }`}
+                    >
+                      {request.status}
+                    </span>
+                  </td>
+                  <td className="px-3 py-2 text-white/60">
+                    {request.createdAt ? new Date(request.createdAt).toLocaleDateString() : '-'}
+                  </td>
+                </tr>
+              ))}
+              {sentInviteRequests.length === 0 && (
+                <tr>
+                  <td colSpan={4} className="px-3 py-4 text-center text-sm text-muted-foreground">
+                    No invitation requests sent yet.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
 
       <div className="flex justify-end gap-2">
