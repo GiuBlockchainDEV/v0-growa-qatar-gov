@@ -8,7 +8,7 @@ import type { OrgType, SharedLayer, VisibilityLevel } from './use-governance'
 // All possible roles across organization types
 export type UserRole = 
   // Legacy roles
-  | 'viewer' | 'editor' | 'admin' | 'super_admin' | 'member'
+  | 'viewer' | 'editor' | 'admin' | 'super_admin' | 'member' | 'owner'
   // Ministry roles
   | 'ministry_officer' | 'ministry_admin' | 'ministry_super_admin'
   // Hassad roles
@@ -52,6 +52,10 @@ const ROLE_PERMISSIONS: Record<string, UserPermissions> = {
   member: {
     canView: true, canEdit: false, canManageUsers: false, canDeleteOrganization: false,
     canShareData: false, canViewRegulatory: false, canViewCommercial: false, canViewFinance: false, canViewTechnical: false,
+  },
+  owner: {
+    canView: true, canEdit: true, canManageUsers: true, canDeleteOrganization: false,
+    canShareData: true, canViewRegulatory: false, canViewCommercial: false, canViewFinance: false, canViewTechnical: false,
   },
 
   // Ministry roles - Full access to all layers
@@ -188,7 +192,7 @@ export function usePermissions() {
       if (!role) return false
       
       const adminRoles = [
-        'admin', 'super_admin',
+        'owner', 'admin', 'super_admin',
         'ministry_admin', 'ministry_super_admin',
         'hassad_admin', 'qdb_admin', 'farm_company_admin'
       ]
@@ -205,6 +209,7 @@ export function usePermissions() {
       admin: 'Administrator',
       super_admin: 'Super Administrator',
       member: 'Member',
+      owner: 'Owner',
       ministry_officer: 'Ministry Officer',
       ministry_admin: 'Ministry Administrator',
       ministry_super_admin: 'Ministry Super Admin',
