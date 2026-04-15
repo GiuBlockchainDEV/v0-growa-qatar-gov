@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import {
   AlertTriangle,
   ArrowUpRight,
@@ -10,66 +10,35 @@ import {
   ShoppingBasket,
   Truck,
 } from 'lucide-react'
+import { createClient } from '@/lib/supabase/client'
 import { useOrganization } from '@/hooks/use-organization'
 import { useRoleNavigation } from '@/hooks/use-role-navigation'
 
-const SUMMARY_CARDS = [
-  {
-    title: 'Available Contract Volume',
-    value: '12,450 t',
-    delta: '+8.4%',
-    icon: Boxes,
-    tone: 'text-[#07f880]',
-  },
-  {
-    title: 'In Transit',
-    value: '2,140 t',
-    delta: '+3.1%',
-    icon: Truck,
-    tone: 'text-sky-300',
-  },
-  {
-    title: 'At Risk Deliveries',
-    value: '7 lots',
-    delta: '+2',
-    icon: AlertTriangle,
-    tone: 'text-amber-300',
-  },
-  {
-    title: 'Avg. Lead Time',
-    value: '4.6 days',
-    delta: '-0.4d',
-    icon: Clock3,
-    tone: 'text-violet-300',
-  },
-]
+type SupplySnapshot = {
+  available_contract_volume_tons: number
+  available_contract_volume_delta_pct: number
+  in_transit_tons: number
+  in_transit_delta_pct: number
+  at_risk_deliveries_count: number
+  at_risk_deliveries_delta_count: number
+  avg_lead_time_days: number
+  avg_lead_time_delta_days: number
+}
 
-const PRIORITY_FLOWS = [
-  {
-    id: 'HF-1021',
-    commodity: 'Fresh Tomatoes',
-    origin: 'Northern Farm Cluster',
-    destination: 'Doha Distribution Hub',
-    status: 'on-track',
-    eta: 'Tomorrow 08:30',
-  },
-  {
-    id: 'HF-1044',
-    commodity: 'Poultry Feed',
-    origin: 'Industrial Feed Mill',
-    destination: 'Al Wakra Poultry Network',
-    status: 'watch',
-    eta: 'Today 22:10',
-  },
-  {
-    id: 'HF-1098',
-    commodity: 'Greenhouse Cucumbers',
-    origin: 'Umm Salal Controlled Farms',
-    destination: 'West Bay Retail Chain',
-    status: 'risk',
-    eta: 'Delayed +9h',
-  },
-]
+type SupplyFlow = {
+  id: string
+  flow_code: string
+  commodity: string
+  origin_label: string
+  destination_label: string
+  status: 'on-track' | 'watch' | 'risk'
+  eta_label: string
+}
+
+type SupplyAction = {
+  id: string
+  action_text: string
+}
 
 const statusClasses: Record<string, string> = {
   'on-track': 'bg-[#07f880]/15 text-[#07f880]',
@@ -77,14 +46,127 @@ const statusClasses: Record<string, string> = {
   risk: 'bg-red-500/15 text-red-300',
 }
 
+const metricCards = [
+  {
+    key: 'available_contract_volume_tons',
+    deltaKey: 'available_contract_volume_delta_pct',
+    title: 'Available Contract Volume',
+    icon: Boxes,
+    tone: 'text-[#07f880]',
+    suffix: 't',
+    deltaSuffix: '%',
+  },
+  {
+    key: 'in_transit_tons',
+    deltaKey: 'in_transit_delta_pct',
+    title: 'In Transit',
+    icon: Truck,
+    tone: 'text-sky-300',
+    suffix: 't',
+    deltaSuffix: '%',
+  },
+  {
+    key: 'at_risk_deliveries_count',
+    deltaKey: 'at_risk_deliveries_delta_count',
+    title: 'At Risk Deliveries',
+    icon: AlertTriangle,
+    tone: 'text-amber-300',
+    suffix: 'lots',
+    deltaSuffix: '',
+  },
+  {
+    key: 'avg_lead_time_days',
+    deltaKey: 'avg_lead_time_delta_days',
+    title: 'Avg. Lead Time',
+    icon: Clock3,
+    tone: 'text-violet-300',
+    suffix: 'days',
+    deltaSuffix: 'd',
+  },
+] as const
+
+function formatValue(value: number | null, suffix: string) {
+  if (value === null || Number.isNaN(value)) return '--'
+  return `${new Intl.NumberFormat('en-US', { maximumFractionDigits: 1 }).format(value)} ${suffix}`.trim()
+}
+
+function formatDelta(value: number | null, suffix: string) {
+  if (value === null || Number.isNaN(value)) return '--'
+  const sign = value > 0 ? '+' : ''
+  return `${sign}${new Intl.NumberFormat('en-US', { maximumFractionDigits: 1 }).format(value)}${suffix}`
+}
+
 export default function SupplyOverviewPage() {
+  const supabase = createClient()
   const { organization } = useOrganization()
   const { effectiveRole } = useRoleNavigation()
+  const [snapshot, setSnapshot] = useState<SupplySnapshot | null>(null)
+  const [flows, setFlows] = useState<SupplyFlow[]>([])
+  const [actions, setActions] = useState<SupplyAction[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
   const roleLabel = useMemo(() => {
     if (!effectiveRole) return 'Unassigned'
     return effectiveRole.replace(/_/g, ' ')
   }, [effectiveRole])
+
+  useEffect(() => {
+    const loadSupplyOverview = async () => {
+      if (!organization?.id) {
+        setSnapshot(null)
+        setFlows([])
+        setActions([])
+        setLoading(false)
+        return
+      }
+
+      setLoading(true)
+      setError(null)
+
+      const [snapshotResult, flowsResult, actionsResult] = await Promise.all([
+        supabase
+          .from('supply_overview_snapshots')
+          .select(
+            'available_contract_volume_tons, available_contract_volume_delta_pct, in_transit_tons, in_transit_delta_pct, at_risk_deliveries_count, at_risk_deliveries_delta_count, avg_lead_time_days, avg_lead_time_delta_days'
+          )
+          .eq('organization_id', organization.id)
+          .order('snapshot_date', { ascending: false })
+          .limit(1)
+          .maybeSingle(),
+        supabase
+          .from('supply_flows')
+          .select('id, flow_code, commodity, origin_label, destination_label, status, eta_label')
+          .eq('organization_id', organization.id)
+          .eq('is_active', true)
+          .order('priority', { ascending: true }),
+        supabase
+          .from('supply_action_queue')
+          .select('id, action_text')
+          .eq('organization_id', organization.id)
+          .eq('is_open', true)
+          .order('priority', { ascending: true }),
+      ])
+
+      if (snapshotResult.error || flowsResult.error || actionsResult.error) {
+        const firstError =
+          snapshotResult.error?.message || flowsResult.error?.message || actionsResult.error?.message
+        setError(firstError || 'Unable to load supply overview data.')
+        setSnapshot(null)
+        setFlows([])
+        setActions([])
+        setLoading(false)
+        return
+      }
+
+      setSnapshot((snapshotResult.data as SupplySnapshot | null) || null)
+      setFlows((flowsResult.data as SupplyFlow[]) || [])
+      setActions((actionsResult.data as SupplyAction[]) || [])
+      setLoading(false)
+    }
+
+    loadSupplyOverview()
+  }, [organization?.id, supabase])
 
   return (
     <div className="space-y-6 p-4 md:p-6">
@@ -102,17 +184,29 @@ export default function SupplyOverviewPage() {
         </div>
       </div>
 
+      {error && (
+        <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-4 text-sm text-red-200">
+          Failed to load supply overview: {error}
+        </div>
+      )}
+
       <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
-        {SUMMARY_CARDS.map((card) => {
+        {metricCards.map((card) => {
           const Icon = card.icon
+          const metricValue = snapshot ? (snapshot[card.key] as number) : null
+          const metricDelta = snapshot ? (snapshot[card.deltaKey] as number) : null
           return (
             <div key={card.title} className="rounded-xl border border-white/10 bg-white/[0.03] p-4">
               <div className="flex items-start justify-between">
                 <p className="text-xs uppercase tracking-wide text-white/50">{card.title}</p>
                 <Icon className={`h-4 w-4 ${card.tone}`} />
               </div>
-              <p className="mt-3 text-2xl font-semibold text-white">{card.value}</p>
-              <p className={`mt-1 text-xs ${card.tone}`}>{card.delta}</p>
+              <p className="mt-3 text-2xl font-semibold text-white">
+                {loading ? '...' : formatValue(metricValue, card.suffix)}
+              </p>
+              <p className={`mt-1 text-xs ${card.tone}`}>
+                {loading ? '...' : formatDelta(metricDelta, card.deltaSuffix)}
+              </p>
             </div>
           )
         })}
@@ -139,15 +233,16 @@ export default function SupplyOverviewPage() {
                 </tr>
               </thead>
               <tbody>
-                {PRIORITY_FLOWS.map((flow) => (
+                {!loading &&
+                  flows.map((flow) => (
                   <tr key={flow.id} className="border-t border-white/5">
-                    <td className="px-3 py-2 text-white">{flow.id}</td>
+                    <td className="px-3 py-2 text-white">{flow.flow_code}</td>
                     <td className="px-3 py-2 text-white/85">{flow.commodity}</td>
                     <td className="px-3 py-2 text-white/70">
-                      {flow.origin} <ArrowUpRight className="mx-1 inline h-3 w-3 text-white/35" />
-                      {flow.destination}
+                      {flow.origin_label} <ArrowUpRight className="mx-1 inline h-3 w-3 text-white/35" />
+                      {flow.destination_label}
                     </td>
-                    <td className="px-3 py-2 text-white/70">{flow.eta}</td>
+                    <td className="px-3 py-2 text-white/70">{flow.eta_label}</td>
                     <td className="px-3 py-2">
                       <span
                         className={`inline-flex rounded-full px-2 py-0.5 text-xs capitalize ${
@@ -159,6 +254,13 @@ export default function SupplyOverviewPage() {
                     </td>
                   </tr>
                 ))}
+                {!loading && flows.length === 0 && (
+                  <tr className="border-t border-white/5">
+                    <td colSpan={5} className="px-3 py-6 text-center text-sm text-white/50">
+                      No active supply flows found.
+                    </td>
+                  </tr>
+                )}
               </tbody>
             </table>
           </div>
@@ -171,9 +273,11 @@ export default function SupplyOverviewPage() {
               <h3 className="text-sm font-semibold text-white">Action Queue</h3>
             </div>
             <ul className="space-y-2 text-sm text-white/75">
-              <li>• Validate delayed greenhouse corridor dispatches</li>
-              <li>• Re-route poultry feed lots to south corridor</li>
-              <li>• Confirm customs slot for imported grain shipment</li>
+              {!loading &&
+                actions.map((action) => (
+                  <li key={action.id}>• {action.action_text}</li>
+                ))}
+              {!loading && actions.length === 0 && <li>• No open operational actions.</li>}
             </ul>
           </div>
 
