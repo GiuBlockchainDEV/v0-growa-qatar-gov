@@ -8,9 +8,7 @@ import {
   Building2,
   Share2,
   Settings,
-  HelpCircle,
-  PanelLeftOpen,
-  PanelRightOpen
+  HelpCircle
 } from 'lucide-react'
 import { useRoleNavigation, getIconComponent } from '@/hooks/use-role-navigation'
 import { ViewAsSelector } from './view-as-selector'
@@ -25,19 +23,11 @@ const adminItems = [
 interface DashboardSidebarProps {
   isOpen: boolean
   onClose: () => void
-  contextualPanelOpen?: boolean
-  rightDrawerOpen?: boolean
-  onToggleContextualPanel?: () => void
-  onToggleRightDrawer?: () => void
 }
 
 export function DashboardSidebar({
   isOpen,
   onClose,
-  contextualPanelOpen = true,
-  rightDrawerOpen = false,
-  onToggleContextualPanel,
-  onToggleRightDrawer,
 }: DashboardSidebarProps) {
   const { locale } = useI18n()
   const {
@@ -87,40 +77,6 @@ export function DashboardSidebar({
           isOpen ? 'translate-x-0' : '-translate-x-full'
         )}
       >
-        {/* Workspace controls */}
-        {isMinistryWorkspace && (
-          <div className="border-b border-white/5 px-4 py-4">
-            <div className="grid grid-cols-2 gap-2">
-              <button
-                type="button"
-                onClick={onToggleContextualPanel}
-                className={cn(
-                  'flex items-center justify-center gap-1 rounded-md border px-2 py-1.5 text-[11px] transition-all',
-                  contextualPanelOpen
-                    ? 'border-[#07f880]/30 bg-[#07f880]/10 text-[#07f880]'
-                    : 'border-white/10 bg-white/5 text-white/60 hover:text-white'
-                )}
-              >
-                <PanelLeftOpen className="h-3.5 w-3.5" />
-                {locale === 'ar' ? 'لوحة السياق' : 'Context'}
-              </button>
-              <button
-                type="button"
-                onClick={onToggleRightDrawer}
-                className={cn(
-                  'flex items-center justify-center gap-1 rounded-md border px-2 py-1.5 text-[11px] transition-all',
-                  rightDrawerOpen
-                    ? 'border-[#07f880]/30 bg-[#07f880]/10 text-[#07f880]'
-                    : 'border-white/10 bg-white/5 text-white/60 hover:text-white'
-                )}
-              >
-                <PanelRightOpen className="h-3.5 w-3.5" />
-                {locale === 'ar' ? 'درج العمليات' : 'Ops Drawer'}
-              </button>
-            </div>
-          </div>
-        )}
-
         {/* Navigation */}
         <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-1">
           <p className="px-3 mb-3 text-[10px] uppercase tracking-widest text-white/40 font-semibold">
