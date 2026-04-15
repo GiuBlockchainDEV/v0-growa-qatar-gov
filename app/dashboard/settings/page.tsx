@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useLocale, type Locale } from '@/lib/i18n'
 import { createClient } from '@/lib/supabase/client'
 import { useOrganization } from '@/hooks/use-organization'
@@ -73,6 +73,7 @@ export default function SettingsPage() {
   const [message, setMessage] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [isDeletingRequest, setIsDeletingRequest] = useState(false)
+  const inviteRequestInFlightRef = useRef(false)
 
   const loadSentInviteRequests = async (userId: string) => {
     const firstAttempt = await supabase
@@ -86,7 +87,7 @@ export default function SettingsPage() {
         id: row.id,
         organizationId: row.target_organization_id,
         requestedRole: row.requested_role,
-        status: row.status,
+        status: String(row.status || '').toLowerCase(),
         createdAt: row.created_at,
         note: row.note ?? null,
       }))
@@ -111,7 +112,7 @@ export default function SettingsPage() {
         id: row.id,
         organizationId: row.organization_id,
         requestedRole: row.requested_role,
-        status: row.status,
+        status: String(row.status || '').toLowerCase(),
         createdAt: row.created_at,
         note: row.note ?? null,
       }))
@@ -247,181 +248,202 @@ export default function SettingsPage() {
 
     const { data: authData } = await supabase.auth.getUser()
     const userId = authData.user?.id
+    const userEmail = authData.user?.email || null
     if (!userId) {
       setError('Unable to save preferences: no authenticated user.')
       setSavingPreferences(false)
       return
     }
 
-    const updatedAt = new Date().toISOString()
-    const payloads: Record<string, unknown>[] = []
-    const withUpdatedAt = hasColumn(profileRecord, 'updated_at') ? { updated_at: updatedAt } : {}
-    const localePatch =
-      hasColumn(profileRecord, 'locale')
-        ? { locale: languageChoice }
-        : hasColumn(profileRecord, 'preferred_locale')
-          ? { preferred_locale: languageChoice }
-          : {}
+    let workingProfileRecord = profileRecord
+    if (!workingProfileRecord) {
+      const profileSeed: Record<string, unknown> = { id: userId }
+      if (userEmail) profileSeed.email = userEmail
+      const { error: profileSeedError } = await supabase
+        .from('profiles')
+        .upsert(profileSeed, { onConflict: 'id' })
+      if (profileSeedError && !isMissingColumnError(profileSeedError.message)) {
+        setError(`Unable to save preferences: ${profileSeedError.message}`)
+        setSavingPreferences(false)
+        return
+      }
+      const { data: reloadedProfile } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', userId)
+        .maybeSingle()
+      workingProfileRecord = (reloadedProfile as ProfileRecord | null) || null
+      setProfileRecord(workingProfileRecord)
+    }
 
-    if (hasColumn(profileRecord, 'notification_preferences')) {
-      payloads.push({
+    const updatedAt = new Date().toISOString()
+    const withUpdatedAt = hasColumn(workingProfileRecord, 'updated_at') ? { updated_at: updatedAt } : {}
+    const preferencePayloadCandidates: Record<string, unknown>[] = [
+      {
         notification_preferences: {
           email: notificationEmail,
           inApp: notificationInApp,
           criticalOnly: notificationCriticalOnly,
         },
-        ...localePatch,
         ...withUpdatedAt,
-      })
-    }
-
-    if (
-      hasColumn(profileRecord, 'notifications_email') ||
-      hasColumn(profileRecord, 'notifications_inapp') ||
-      hasColumn(profileRecord, 'notifications_critical_only')
-    ) {
-      payloads.push({
-        ...(hasColumn(profileRecord, 'notifications_email')
-          ? { notifications_email: notificationEmail }
-          : {}),
-        ...(hasColumn(profileRecord, 'notifications_inapp')
-          ? { notifications_inapp: notificationInApp }
-          : {}),
-        ...(hasColumn(profileRecord, 'notifications_critical_only')
-          ? { notifications_critical_only: notificationCriticalOnly }
-          : {}),
-        ...localePatch,
+      },
+      {
+        notifications_email: notificationEmail,
+        notifications_inapp: notificationInApp,
+        notifications_critical_only: notificationCriticalOnly,
         ...withUpdatedAt,
-      })
-    }
+      },
+    ]
+    const localePayloadCandidates: Record<string, unknown>[] = [
+      { locale: languageChoice, ...withUpdatedAt },
+      { preferred_locale: languageChoice, ...withUpdatedAt },
+    ]
 
-    if (payloads.length === 0) {
-      if (typeof window !== 'undefined') {
-        localStorage.setItem(
-          'growa-settings-preferences',
-          JSON.stringify({
-            locale: languageChoice,
-            notification_preferences: {
-              email: notificationEmail,
-              inApp: notificationInApp,
-              criticalOnly: notificationCriticalOnly,
-            },
-          })
-        )
+    const tryPayload = async (payload: Record<string, unknown>) => {
+      const { data, error: updateError } = await supabase
+        .from('profiles')
+        .update(payload)
+        .eq('id', userId)
+        .select('id')
+      if (updateError) {
+        return { ok: false, missingColumn: isMissingColumnError(updateError.message), message: updateError.message }
       }
-      setLocale(languageChoice)
-      setMessage('Preferences saved locally (profile columns not available).')
-      setSavingPreferences(false)
-      return
+      if (!data || data.length === 0) {
+        return { ok: false, missingColumn: false, message: 'Profile row not found for current user.' }
+      }
+      setProfileRecord((prev) => ({ ...(prev || {}), ...payload }))
+      return { ok: true, missingColumn: false, message: '' }
     }
 
-    let saved = false
+    let preferencesSaved = false
+    let localeSaved = false
     let lastErrorMessage = 'Unknown error'
-    let allErrorsAreMissingColumns = true
 
-    for (const payload of payloads) {
-      const { error: saveError } = await supabase.from('profiles').update(payload).eq('id', userId)
-      if (!saveError) {
-        saved = true
-        setProfileRecord((prev) => (prev ? { ...prev, ...payload } : prev))
+    for (const payload of preferencePayloadCandidates) {
+      const result = await tryPayload(payload)
+      if (result.ok) {
+        preferencesSaved = true
         break
       }
-      lastErrorMessage = saveError.message
-      if (!isMissingColumnError(saveError.message)) {
-        allErrorsAreMissingColumns = false
+      lastErrorMessage = result.message
+      if (!result.missingColumn) {
         break
       }
     }
 
-    if (!saved) {
-      if (allErrorsAreMissingColumns && typeof window !== 'undefined') {
-        localStorage.setItem(
-          'growa-settings-preferences',
-          JSON.stringify({
-            locale: languageChoice,
-            notification_preferences: {
-              email: notificationEmail,
-              inApp: notificationInApp,
-              criticalOnly: notificationCriticalOnly,
-            },
-          })
-        )
-        setLocale(languageChoice)
-        setMessage('Preferences saved locally (profile schema still updating).')
-        setSavingPreferences(false)
-        return
+    for (const payload of localePayloadCandidates) {
+      const result = await tryPayload(payload)
+      if (result.ok) {
+        localeSaved = true
+        break
       }
+      lastErrorMessage = result.message
+      if (!result.missingColumn) {
+        break
+      }
+    }
+
+    if (!preferencesSaved && !localeSaved) {
       setError(`Unable to save preferences: ${lastErrorMessage}`)
       setSavingPreferences(false)
       return
     }
 
     setLocale(languageChoice)
-    setMessage('Preferences saved successfully.')
+    setMessage(
+      preferencesSaved
+        ? 'Preferences saved successfully.'
+        : 'Language saved successfully. Notification columns are not available in profile schema.'
+    )
     setSavingPreferences(false)
   }
 
   const handleInviteRequest = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!inviteRequestOrgId) return
+    if (!inviteRequestOrgId || saving || inviteRequestInFlightRef.current) return
 
+    inviteRequestInFlightRef.current = true
     setSaving(true)
     setError(null)
     setMessage(null)
 
-    const { data: authData } = await supabase.auth.getUser()
-    const user = authData.user
-    if (!user?.id || !user.email) {
-      setError('You must be authenticated to request an invitation.')
-      setSaving(false)
-      return
-    }
+    try {
+      const { data: authData } = await supabase.auth.getUser()
+      const user = authData.user
+      if (!user?.id || !user.email) {
+        setError('You must be authenticated to request an invitation.')
+        return
+      }
 
-    const pendingCheck = await supabase
-      .from('organization_invite_requests')
-      .select('id')
-      .eq('requester_user_id', user.id)
-      .eq('status', 'pending')
-      .limit(1)
+      if (hasPendingInviteRequest) {
+        setError('You can only keep one pending invitation request at a time.')
+        await loadSentInviteRequests(user.id)
+        return
+      }
 
-    if (!pendingCheck.error && (pendingCheck.data?.length || 0) > 0) {
-      setError('You already have a pending request. Delete it before creating a new one.')
-      setSaving(false)
-      return
-    }
+      const pendingCheck = await supabase
+        .from('organization_invite_requests')
+        .select('id')
+        .eq('requester_user_id', user.id)
+        .ilike('status', 'pending')
+        .limit(1)
 
-    let reqError: { message: string } | null = null
-    const basePayload = {
-      requester_user_id: user.id,
-      requester_email: user.email,
-      requested_role: 'member',
-      note: inviteRequestMessage || null,
-      status: 'pending',
-    }
+      if (pendingCheck.error) {
+        setError(`Unable to verify existing pending requests: ${pendingCheck.error.message}`)
+        return
+      }
 
-    const firstAttempt = await supabase.from('organization_invite_requests').insert({
-      ...basePayload,
-      target_organization_id: inviteRequestOrgId,
-    })
-    reqError = firstAttempt.error
+      if ((pendingCheck.data?.length || 0) > 0) {
+        setError('You already have a pending request. Delete it before creating a new one.')
+        await loadSentInviteRequests(user.id)
+        return
+      }
 
-    if (reqError && isMissingColumnError(reqError.message)) {
-      const secondAttempt = await supabase.from('organization_invite_requests').insert({
+      let reqError: { message: string } | null = null
+      const basePayload = {
+        requester_user_id: user.id,
+        requester_email: user.email,
+        requested_role: 'member',
+        note: inviteRequestMessage || null,
+        status: 'pending',
+      }
+
+      const firstAttempt = await supabase.from('organization_invite_requests').insert({
         ...basePayload,
-        organization_id: inviteRequestOrgId,
+        target_organization_id: inviteRequestOrgId,
       })
-      reqError = secondAttempt.error
-    }
+      reqError = firstAttempt.error
 
-    if (reqError) {
-      setError(`Unable to submit invite request: ${reqError.message}`)
-    } else {
-      setMessage('Invitation request submitted successfully.')
-      setInviteRequestOrgId('')
-      setInviteRequestMessage('')
-      await loadSentInviteRequests(user.id)
+      if (reqError && isMissingColumnError(reqError.message)) {
+        const secondAttempt = await supabase.from('organization_invite_requests').insert({
+          ...basePayload,
+          organization_id: inviteRequestOrgId,
+        })
+        reqError = secondAttempt.error
+      }
+
+      if (reqError) {
+        const normalizedMessage = reqError.message.toLowerCase()
+        if (
+          normalizedMessage.includes('one pending') ||
+          normalizedMessage.includes('duplicate key') ||
+          normalizedMessage.includes('already exists')
+        ) {
+          setError('You can only keep one pending invitation request at a time.')
+          await loadSentInviteRequests(user.id)
+        } else {
+          setError(`Unable to submit invite request: ${reqError.message}`)
+        }
+      } else {
+        setMessage('Invitation request submitted successfully.')
+        setInviteRequestOrgId('')
+        setInviteRequestMessage('')
+        await loadSentInviteRequests(user.id)
+      }
+    } finally {
+      setSaving(false)
+      inviteRequestInFlightRef.current = false
     }
-    setSaving(false)
   }
 
   const handleDeleteInviteRequest = async (requestId: string) => {
@@ -464,7 +486,8 @@ export default function SettingsPage() {
     return map
   }, [availableOrganizations])
   const hasPendingInviteRequest = useMemo(
-    () => sentInviteRequests.some((request) => request.status === 'pending'),
+    () =>
+      sentInviteRequests.some((request) => String(request.status).toLowerCase().trim() === 'pending'),
     [sentInviteRequests]
   )
 
