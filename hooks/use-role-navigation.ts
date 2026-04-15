@@ -154,10 +154,16 @@ const HASSAD_SUPPLY_OVERVIEW_ITEM: MenuItem = {
 
 function ensureHassadSupplyOverview(items: MenuItem[]): MenuItem[] {
   const normalized = items.map((item) => {
+    const normalizedLabel = item.label?.trim().toLowerCase()
+    const normalizedKey = item.key?.trim().toLowerCase()
+    const normalizedPath = item.path?.trim().toLowerCase()
     const pointsToSupplyOverview =
       item.key === 'supply-overview' ||
+      normalizedKey === 'supply_overview' ||
+      normalizedLabel === 'supply overview' ||
       item.path === '/dashboard/supply-overview' ||
-      item.path === '/dashboard?module=supply-overview'
+      item.path === '/dashboard?module=supply-overview' ||
+      normalizedPath === '/dashboard?module=supply_overview'
 
     if (!pointsToSupplyOverview) return item
 
@@ -170,10 +176,34 @@ function ensureHassadSupplyOverview(items: MenuItem[]): MenuItem[] {
     }
   })
 
-  const hasSupplyOverview = normalized.some((item) => item.key === 'supply-overview')
-  if (hasSupplyOverview) return normalized
+  const deduped: MenuItem[] = []
+  let hasSupplyOverview = false
+  for (const item of normalized) {
+    const isSupplyOverview =
+      item.key === 'supply-overview' ||
+      item.path === '/dashboard/supply-overview' ||
+      item.path === '/dashboard?module=supply-overview'
 
-  return [HASSAD_SUPPLY_OVERVIEW_ITEM, ...normalized]
+    if (isSupplyOverview) {
+      if (hasSupplyOverview) continue
+      hasSupplyOverview = true
+      deduped.push({
+        ...HASSAD_SUPPLY_OVERVIEW_ITEM,
+        ...item,
+        key: 'supply-overview',
+        path: '/dashboard/supply-overview',
+      })
+      continue
+    }
+
+    deduped.push(item)
+  }
+
+  if (!hasSupplyOverview) {
+    deduped.unshift(HASSAD_SUPPLY_OVERVIEW_ITEM)
+  }
+
+  return deduped
 }
 
 function toMenuItem(
