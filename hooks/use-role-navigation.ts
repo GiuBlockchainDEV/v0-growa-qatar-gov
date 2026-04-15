@@ -113,6 +113,13 @@ const defaultNavigation: MenuItem[] = [
   { key: 'settings', label: 'Settings', path: '/dashboard/settings', icon: 'Settings' },
 ]
 
+// Minimal navigation for users without organization/role assignment.
+const unassignedNavigation: MenuItem[] = [
+  { key: 'live-map', label: 'Live Map', path: '/dashboard?module=live-map', icon: 'Map' },
+  { key: 'support', label: 'Support', path: '/dashboard?module=support', icon: 'HelpCircle' },
+  { key: 'settings', label: 'Settings', path: '/dashboard/settings', icon: 'Settings' },
+]
+
 // Role mapping for legacy roles to new roles
 const roleMapping: Record<string, string> = {
   'super_admin': 'ministry_admin',
@@ -224,44 +231,54 @@ export function useRoleNavigation() {
         setIsLoading(true)
         const supabase = createClient()
 
-        // Resolve role with multiple fallbacks to avoid default-nav for all users:
-        // 1) org-scoped role, 2) effective-role RPC, 3) auth metadata role
+        // Resolve role without over-assigning menus:
+        // - org role is the baseline
+        // - growa.ai can use RPC role only while impersonating
+        // - metadata fallback is accepted only when org exists
+        const isGrowaAdmin = user.email?.endsWith('@growa.ai') || false
         let currentRole: string | null = organization?.id ? await getUserRole(organization.id) : null
 
-        if (!currentRole) {
+        if (isGrowaAdmin) {
           const { data: effectiveRoleData } = await supabase.rpc('get_effective_role')
-          if (effectiveRoleData?.[0]?.role_name) {
-            currentRole = effectiveRoleData[0].role_name
+          const roleData = effectiveRoleData?.[0]
+          if (roleData?.is_impersonating && roleData?.role_name) {
+            currentRole = roleData.role_name
           }
         }
 
-        if (!currentRole) {
-          const metadataRole =
-            user.user_metadata?.role ||
-            user.app_metadata?.role
+        if (!currentRole && organization?.id) {
+          const metadataRole = user.user_metadata?.role || user.app_metadata?.role
           currentRole = typeof metadataRole === 'string' ? metadataRole : null
         }
 
         if (!currentRole) {
-          setIsLoading(false)
+          const { primary, secondary } = splitNavigationSections(unassignedNavigation)
+          setNavigation({
+            id: 'unassigned',
+            role_name: 'unassigned',
+            display_name: 'Unassigned User',
+            landing_page: '/dashboard?module=live-map',
+            menu_items: [...primary, ...secondary],
+            primary_items: primary,
+            secondary_items: secondary,
+            role_profile: null,
+            source: 'fallback',
+            description: 'Minimal navigation until role assignment',
+          })
+          setPrimaryItems(primary)
+          setSecondaryItems(secondary)
+          setMenuItems([...primary, ...secondary])
+          setLandingPage('/dashboard?module=live-map')
+          setEffectiveRole(null)
+          setRoleProfile(null)
+          setSource('fallback')
           return
         }
 
         setEffectiveRole(currentRole)
 
-        // If a growa.ai admin is not impersonating, keep a normal user fallback
-        // so the app does not force a ministry menu by default.
-        const isGrowaAdmin = user.email?.endsWith('@growa.ai') || false
-        const { data: effectiveRoleData } = await supabase.rpc('get_effective_role')
-        const isImpersonating = Boolean(effectiveRoleData?.[0]?.is_impersonating)
-
-        const normalizedCurrentRole =
-          isGrowaAdmin && !isImpersonating && currentRole === 'ministry_admin'
-            ? 'viewer'
-            : currentRole
-
         // Map legacy role to role registry namespace if needed
-        const mappedRole = roleMapping[normalizedCurrentRole] || normalizedCurrentRole
+        const mappedRole = roleMapping[currentRole] || currentRole
         const mappedProfile = ministryProfileByRole[mappedRole] || null
 
         if (mappedProfile) {
