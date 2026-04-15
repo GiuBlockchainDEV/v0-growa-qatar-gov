@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useImpersonation } from '@/hooks/use-impersonation'
 import { 
   Eye, 
@@ -42,6 +42,7 @@ export function ViewAsSelector() {
   const {
     isGrowaAdmin,
     isImpersonating,
+    viewMode,
     currentRole,
     currentOrgName,
     currentOrgType,
@@ -53,6 +54,7 @@ export function ViewAsSelector() {
   } = useImpersonation()
 
   const [isOpen, setIsOpen] = useState(false)
+  const [mode, setMode] = useState<'normal' | 'impersonation'>('normal')
   const [selectedOrgId, setSelectedOrgId] = useState<string | null>(null)
   const [selectedRole, setSelectedRole] = useState<string | null>(null)
   const [step, setStep] = useState<'org' | 'role'>('org')
@@ -82,6 +84,10 @@ export function ViewAsSelector() {
 
   const handleClear = async () => {
     await clearImpersonation()
+    setMode('normal')
+    setStep('org')
+    setSelectedOrgId(null)
+    setSelectedRole(null)
     setIsOpen(false)
   }
 
@@ -96,6 +102,11 @@ export function ViewAsSelector() {
   }, {} as Record<string, typeof organizations>)
 
   const OrgIcon = currentOrgType ? ORG_TYPE_ICONS[currentOrgType] || Building2 : Building2
+
+  // Keep local mode in sync with effective backend impersonation state
+  useEffect(() => {
+    setMode(viewMode)
+  }, [viewMode])
 
   return (
     <div className="relative">
@@ -126,13 +137,13 @@ export function ViewAsSelector() {
               'text-xs font-medium',
               isImpersonating ? 'text-amber-400' : 'text-primary'
             )}>
-              {isImpersonating ? 'Viewing As' : 'Current View'}
+              {isImpersonating ? 'View Mode: Impersonated' : 'View Mode: Normal'}
             </span>
             {isImpersonating && (
               <AlertTriangle className="h-3 w-3 text-amber-400" />
             )}
           </div>
-          <p className="text-sm text-white truncate">{currentOrgName || 'Select Organization'}</p>
+          <p className="text-sm text-white truncate">{currentOrgName || 'Normal User'}</p>
           <p className="text-xs text-white/50 truncate capitalize">
             {currentRole?.replace(/_/g, ' ') || 'No role'}
           </p>
@@ -150,7 +161,7 @@ export function ViewAsSelector() {
           <div className="p-3 border-b border-white/10">
             <div className="flex items-center justify-between">
               <h3 className="text-sm font-semibold text-white">
-                {step === 'org' ? 'Select Organization' : 'Select Role'}
+                {step === 'org' ? 'Select View Mode' : 'Select Role'}
               </h3>
               {step === 'role' && (
                 <button
@@ -164,7 +175,40 @@ export function ViewAsSelector() {
                 </button>
               )}
             </div>
-            {isImpersonating && step === 'org' && (
+            {step === 'org' && (
+              <div className="mt-2 grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={async () => {
+                    await handleClear()
+                  }}
+                  className={cn(
+                    'px-3 py-2 rounded-lg border text-xs transition-colors',
+                    !isImpersonating
+                      ? 'border-primary/40 bg-primary/10 text-primary'
+                      : 'border-white/10 bg-white/5 text-white/70 hover:text-white'
+                  )}
+                >
+                  Normal User
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMode('impersonation')
+                    setStep('org')
+                  }}
+                  className={cn(
+                    'px-3 py-2 rounded-lg border text-xs transition-colors',
+                    isImpersonating || mode === 'impersonation'
+                      ? 'border-amber-500/40 bg-amber-500/10 text-amber-400'
+                      : 'border-white/10 bg-white/5 text-white/70 hover:text-white'
+                  )}
+                >
+                  View As Role
+                </button>
+              </div>
+            )}
+            {isImpersonating && step === 'org' && mode === 'impersonation' && (
               <button
                 onClick={handleClear}
                 disabled={loading}
@@ -188,6 +232,12 @@ export function ViewAsSelector() {
             ) : step === 'org' ? (
               // Organization Selection
               <div className="space-y-3">
+                {mode === 'normal' ? (
+                  <div className="px-3 py-6 text-center text-sm text-white/60">
+                    Normal mode active. Select <span className="text-primary">View As Role</span> to impersonate.
+                  </div>
+                ) : (
+                  <>
                 {Object.entries(groupedOrgs).map(([type, orgs]) => {
                   const TypeIcon = ORG_TYPE_ICONS[type] || Building2
                   return (
@@ -218,6 +268,8 @@ export function ViewAsSelector() {
                     </div>
                   )
                 })}
+                  </>
+                )}
               </div>
             ) : (
               // Role Selection

@@ -84,6 +84,23 @@ export function useImpersonation() {
       const isGrowaAdmin = user.email?.endsWith('@growa.ai') || false
 
       if (isGrowaAdmin) {
+        // Baseline "normal user" role/org from memberships.
+        // This is the default mode unless an explicit impersonation is active.
+        const { data: memberships } = await supabase
+          .from('user_organization_members')
+          .select(`
+            role,
+            organization:organizations(id, name, type)
+          `)
+          .eq('user_id', user.id)
+          .limit(1)
+
+        const baselineMembership = memberships?.[0] as {
+          role?: string | null
+          organization?: { id?: string; name?: string; type?: string } | null
+        } | undefined
+        const baselineOrg = baselineMembership?.organization || null
+
         // Get effective role (may be impersonated)
         const { data: effectiveRole, error: roleError } = await supabase
           .rpc('get_effective_role')
@@ -93,14 +110,27 @@ export function useImpersonation() {
         }
 
         const roleData = effectiveRole?.[0]
+        const isImpersonating = Boolean(roleData?.is_impersonating)
+        const resolvedRole = isImpersonating
+          ? roleData?.role_name || null
+          : baselineMembership?.role || roleData?.role_name || null
+        const resolvedOrgId = isImpersonating
+          ? roleData?.org_id || null
+          : baselineOrg?.id || roleData?.org_id || null
+        const resolvedOrgName = isImpersonating
+          ? roleData?.org_name || null
+          : baselineOrg?.name || roleData?.org_name || null
+        const resolvedOrgType = isImpersonating
+          ? roleData?.org_type || null
+          : baselineOrg?.type || roleData?.org_type || null
 
         setState({
           isGrowaAdmin: true,
-          isImpersonating: roleData?.is_impersonating || false,
-          currentRole: roleData?.role_name || 'ministry_admin',
-          currentOrgId: roleData?.org_id || null,
-          currentOrgName: roleData?.org_name || 'Ministry of Municipality',
-          currentOrgType: roleData?.org_type || 'government_master',
+          isImpersonating,
+          currentRole: resolvedRole,
+          currentOrgId: resolvedOrgId,
+          currentOrgName: resolvedOrgName,
+          currentOrgType: resolvedOrgType,
         })
 
         // Fetch all organizations for the picker
@@ -217,6 +247,7 @@ export function useImpersonation() {
 
   return {
     ...state,
+    viewMode: state.isImpersonating ? 'impersonation' as const : 'normal' as const,
     organizations,
     loading,
     error,
