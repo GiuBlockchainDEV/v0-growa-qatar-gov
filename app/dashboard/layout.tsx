@@ -57,11 +57,16 @@ function DashboardShell({
     return null
   }
 
+  const activeModule = searchParams.get('module')
+  const shouldRenderMapSurface =
+    pathname === '/dashboard' &&
+    (!activeModule || ['live-map', 'map', 'national-map', 'inspection-map'].includes(activeModule))
+
   return (
     <div className="h-screen w-screen overflow-hidden bg-background relative">
       {/* Base content surface: map-first for ministry workspace */}
       <main className="absolute inset-0">
-        {isMinistryWorkspace && pathname === '/dashboard' ? <SatelliteMap /> : children}
+        {isMinistryWorkspace && shouldRenderMapSurface ? <SatelliteMap /> : children}
       </main>
 
       {/* Header - Always Visible on Top */}
