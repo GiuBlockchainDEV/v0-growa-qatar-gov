@@ -1,5 +1,28 @@
 -- Supply overview tables and Hassad Food seed data
 
+-- Backward-compatible guard:
+-- Some environments may not have applied 00014 yet.
+ALTER TABLE public.organizations
+  ADD COLUMN IF NOT EXISTS organization_type TEXT;
+
+UPDATE public.organizations
+SET organization_type = 'private'
+WHERE organization_type IS NULL;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_constraint
+    WHERE conname = 'organizations_organization_type_check'
+  ) THEN
+    ALTER TABLE public.organizations
+      ADD CONSTRAINT organizations_organization_type_check
+      CHECK (organization_type IN ('government_master', 'government', 'farm_company', 'public', 'private'));
+  END IF;
+END
+$$;
+
 CREATE TABLE IF NOT EXISTS public.supply_overview_snapshots (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   organization_id UUID NOT NULL REFERENCES public.organizations(id) ON DELETE CASCADE,
