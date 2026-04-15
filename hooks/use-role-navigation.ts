@@ -143,6 +143,38 @@ const ministryProfileByRole: Record<string, MinistryRoleProfile> = {
 }
 
 const SHARED_LAYERS: SharedLayer[] = ['regulatory', 'commercial', 'finance', 'technical_support']
+const HASSAD_SUPPLY_ROLE = 'sourcing_manager'
+
+const HASSAD_SUPPLY_OVERVIEW_ITEM: MenuItem = {
+  key: 'supply-overview',
+  label: 'Supply Overview',
+  path: '/dashboard/supply-overview',
+  icon: 'ShoppingCart',
+}
+
+function ensureHassadSupplyOverview(items: MenuItem[]): MenuItem[] {
+  const normalized = items.map((item) => {
+    const pointsToSupplyOverview =
+      item.key === 'supply-overview' ||
+      item.path === '/dashboard/supply-overview' ||
+      item.path === '/dashboard?module=supply-overview'
+
+    if (!pointsToSupplyOverview) return item
+
+    return {
+      ...item,
+      key: 'supply-overview',
+      label: item.label || HASSAD_SUPPLY_OVERVIEW_ITEM.label,
+      path: '/dashboard/supply-overview',
+      icon: item.icon || HASSAD_SUPPLY_OVERVIEW_ITEM.icon,
+    }
+  })
+
+  const hasSupplyOverview = normalized.some((item) => item.key === 'supply-overview')
+  if (hasSupplyOverview) return normalized
+
+  return [HASSAD_SUPPLY_OVERVIEW_ITEM, ...normalized]
+}
 
 function toMenuItem(
   moduleDefinition: ResolvedModuleDefinition,
@@ -178,10 +210,13 @@ function splitNavigationSections(items: MenuItem[]) {
   const normalizeItemPath = (item: MenuItem): string => {
     if (item.key === 'support') return '/dashboard/support'
     if (item.key === 'settings') return '/dashboard/settings'
+    if (item.key === 'supply-overview') return '/dashboard/supply-overview'
+    if (item.path === '/dashboard?module=supply-overview') return '/dashboard/supply-overview'
     if (item.path.startsWith('/dashboard?module=')) return item.path
     if (item.path === '/dashboard') return item.path
     if (item.path.startsWith('/dashboard/settings')) return item.path
     if (item.path.startsWith('/dashboard/support')) return item.path
+    if (item.path.startsWith('/dashboard/supply-overview')) return item.path
     if (item.path.startsWith('/dashboard')) return `/dashboard?module=${item.key}`
     return item.path
   }
@@ -375,11 +410,15 @@ export function useRoleNavigation() {
         if (fetchError) {
           // If no specific navigation found, use default
           if (fetchError.code === 'PGRST116') {
-            const { primary, secondary } = splitNavigationSections(defaultNavigation)
+            const fallbackItems =
+              mappedRole === HASSAD_SUPPLY_ROLE
+                ? ensureHassadSupplyOverview(defaultNavigation)
+                : defaultNavigation
+            const { primary, secondary } = splitNavigationSections(fallbackItems)
             setPrimaryItems(primary)
             setSecondaryItems(secondary)
             setMenuItems([...primary, ...secondary])
-            setLandingPage('/dashboard')
+            setLandingPage(mappedRole === HASSAD_SUPPLY_ROLE ? '/dashboard/supply-overview' : '/dashboard')
             setRoleProfile(null)
             setSource('fallback')
           } else {
@@ -387,10 +426,12 @@ export function useRoleNavigation() {
           }
         } else if (data) {
           // Parse menu_items if it's a string
-          const items = typeof data.menu_items === 'string' 
-            ? JSON.parse(data.menu_items) 
+          const items = typeof data.menu_items === 'string'
+            ? JSON.parse(data.menu_items)
             : data.menu_items
-          const { primary, secondary } = splitNavigationSections(items)
+          const roleAwareItems =
+            mappedRole === HASSAD_SUPPLY_ROLE ? ensureHassadSupplyOverview(items) : items
+          const { primary, secondary } = splitNavigationSections(roleAwareItems)
           const merged = [...primary, ...secondary]
 
           setNavigation({
@@ -411,13 +452,20 @@ export function useRoleNavigation() {
               ? '/dashboard/support'
               : dbLandingPage === '/dashboard?module=settings'
                 ? '/dashboard/settings'
+                : dbLandingPage === '/dashboard?module=supply-overview'
+                  ? '/dashboard/supply-overview'
                 : dbLandingPage.startsWith('/dashboard?module=')
               ? dbLandingPage
               : dbLandingPage.startsWith('/dashboard/settings') ||
-                dbLandingPage.startsWith('/dashboard/support')
+                dbLandingPage.startsWith('/dashboard/support') ||
+                dbLandingPage.startsWith('/dashboard/supply-overview')
                 ? dbLandingPage
                 : merged[0]?.path || '/dashboard')
-          setLandingPage(normalizedLandingPage)
+          setLandingPage(
+            mappedRole === HASSAD_SUPPLY_ROLE && normalizedLandingPage === '/dashboard'
+              ? '/dashboard/supply-overview'
+              : normalizedLandingPage
+          )
           setRoleProfile(null)
           setSource('database')
         }
