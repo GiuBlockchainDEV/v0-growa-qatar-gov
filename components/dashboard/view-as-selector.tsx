@@ -59,9 +59,6 @@ export function ViewAsSelector() {
   const [selectedRole, setSelectedRole] = useState<string | null>(null)
   const [step, setStep] = useState<'org' | 'role'>('org')
 
-  // Only show for growa.ai admins
-  if (!isGrowaAdmin) return null
-
   const handleOrgSelect = (orgId: string, orgType: string) => {
     setSelectedOrgId(orgId)
     const roles = getRolesForOrgType(orgType)
@@ -107,6 +104,9 @@ export function ViewAsSelector() {
   useEffect(() => {
     setMode(viewMode)
   }, [viewMode])
+
+  // Only show for growa.ai admins
+  if (!isGrowaAdmin) return null
 
   return (
     <div className="relative">
