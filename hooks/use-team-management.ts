@@ -39,7 +39,7 @@ export function useTeamManagement() {
         `
         )
         .eq('organization_id', organizationId)
-        .order('joined_at', { ascending: false })
+        .order('created_at', { ascending: false })
 
       if (error) {
         console.error('[v0] Error fetching team members:', error)

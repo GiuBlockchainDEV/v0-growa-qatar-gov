@@ -116,7 +116,7 @@ const defaultNavigation: MenuItem[] = [
 // Minimal navigation for users without organization/role assignment.
 const unassignedNavigation: MenuItem[] = [
   { key: 'live-map', label: 'Live Map', path: '/dashboard?module=live-map', icon: 'Map' },
-  { key: 'support', label: 'Support', path: '/dashboard?module=support', icon: 'HelpCircle' },
+  { key: 'support', label: 'Support', path: '/dashboard/support', icon: 'HelpCircle' },
   { key: 'settings', label: 'Settings', path: '/dashboard/settings', icon: 'Settings' },
 ]
 
@@ -176,9 +176,12 @@ function toLayerVisibilityFallback(
 
 function splitNavigationSections(items: MenuItem[]) {
   const normalizeItemPath = (item: MenuItem): string => {
+    if (item.key === 'support') return '/dashboard/support'
+    if (item.key === 'settings') return '/dashboard/settings'
     if (item.path.startsWith('/dashboard?module=')) return item.path
     if (item.path === '/dashboard') return item.path
     if (item.path.startsWith('/dashboard/settings')) return item.path
+    if (item.path.startsWith('/dashboard/support')) return item.path
     if (item.path.startsWith('/dashboard')) return `/dashboard?module=${item.key}`
     return item.path
   }
@@ -404,9 +407,14 @@ export function useRoleNavigation() {
           const dbLandingPage = typeof data.landing_page === 'string' ? data.landing_page : '/dashboard'
           const normalizedLandingPage =
             merged.find((item) => item.path === dbLandingPage)?.path ||
-            (dbLandingPage.startsWith('/dashboard?module=')
+            (dbLandingPage === '/dashboard?module=support'
+              ? '/dashboard/support'
+              : dbLandingPage === '/dashboard?module=settings'
+                ? '/dashboard/settings'
+                : dbLandingPage.startsWith('/dashboard?module=')
               ? dbLandingPage
-              : dbLandingPage.startsWith('/dashboard/settings')
+              : dbLandingPage.startsWith('/dashboard/settings') ||
+                dbLandingPage.startsWith('/dashboard/support')
                 ? dbLandingPage
                 : merged[0]?.path || '/dashboard')
           setLandingPage(normalizedLandingPage)
