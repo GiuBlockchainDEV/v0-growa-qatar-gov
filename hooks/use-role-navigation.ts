@@ -168,6 +168,14 @@ function toLayerVisibilityFallback(
 }
 
 function splitNavigationSections(items: MenuItem[]) {
+  const normalizeItemPath = (item: MenuItem): string => {
+    if (item.path.startsWith('/dashboard?module=')) return item.path
+    if (item.path === '/dashboard') return item.path
+    if (item.path.startsWith('/dashboard/settings')) return item.path
+    if (item.path.startsWith('/dashboard')) return `/dashboard?module=${item.key}`
+    return item.path
+  }
+
   const settingsAndSupport = items.filter((item) => ['settings', 'support'].includes(item.key))
   const main = items
     .filter((item) => !['settings', 'support'].includes(item.key))
@@ -175,10 +183,14 @@ function splitNavigationSections(items: MenuItem[]) {
       ...item,
       // Keep legacy/fallback items on an existing route to avoid 404s
       // when route pages are not implemented yet.
-      path: item.path.startsWith('/dashboard?module=') ? item.path : `/dashboard?module=${item.key}`,
+      path: normalizeItemPath(item),
     }))
+  const normalizedSettingsAndSupport = settingsAndSupport.map((item) => ({
+    ...item,
+    path: normalizeItemPath(item),
+  }))
   const primary = main.slice(0, 8).map((item) => ({ ...item, section: 'primary' as const }))
-  const secondary = [...main.slice(8), ...settingsAndSupport].map((item) => ({
+  const secondary = [...main.slice(8), ...normalizedSettingsAndSupport].map((item) => ({
     ...item,
     section: 'secondary' as const,
   }))
@@ -372,7 +384,15 @@ export function useRoleNavigation() {
           setPrimaryItems(primary)
           setSecondaryItems(secondary)
           setMenuItems(merged)
-          setLandingPage(data.landing_page || '/dashboard')
+          const dbLandingPage = typeof data.landing_page === 'string' ? data.landing_page : '/dashboard'
+          const normalizedLandingPage =
+            merged.find((item) => item.path === dbLandingPage)?.path ||
+            (dbLandingPage.startsWith('/dashboard?module=')
+              ? dbLandingPage
+              : dbLandingPage.startsWith('/dashboard/settings')
+                ? dbLandingPage
+                : merged[0]?.path || '/dashboard')
+          setLandingPage(normalizedLandingPage)
           setRoleProfile(null)
           setSource('database')
         }
