@@ -9,6 +9,8 @@ export interface Organization {
   name: string
   slug: string
   description: string | null
+  type?: string | null
+  organization_type?: string | null
 }
 
 export function useOrganization() {
@@ -26,6 +28,30 @@ export function useOrganization() {
 
     const fetchOrganizations = async () => {
       try {
+        const isGrowaAdmin = user.email?.endsWith('@growa.ai') || false
+
+        // In impersonation mode, organization context comes from effective role RPC.
+        // This keeps dashboard modules (e.g. Supply Overview) scoped to impersonated org.
+        if (isGrowaAdmin) {
+          const { data: effectiveRoleData } = await supabase.rpc('get_effective_role')
+          const roleData = effectiveRoleData?.[0]
+
+          if (roleData?.is_impersonating && roleData?.org_id) {
+            const { data: impersonatedOrg, error: impersonatedOrgError } = await supabase
+              .from('organizations')
+              .select('*')
+              .eq('id', roleData.org_id)
+              .maybeSingle()
+
+            if (!impersonatedOrgError && impersonatedOrg) {
+              setOrganizations([impersonatedOrg as Organization])
+              setOrganization(impersonatedOrg as Organization)
+              setLoading(false)
+              return
+            }
+          }
+        }
+
         // Get organizations where user is a member
         const { data: memberships, error: memberError } = await supabase
           .from('user_organization_members')
