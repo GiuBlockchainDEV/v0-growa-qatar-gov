@@ -14,6 +14,13 @@ const ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
   'contact-support': LifeBuoy,
 }
 
+const DEFAULT_SUPPORT_SECTIONS = [
+  { key: 'help-center', label: 'Help Center' },
+  { key: 'tickets', label: 'Tickets' },
+  { key: 'knowledge-base', label: 'Knowledge Base' },
+  { key: 'contact-support', label: 'Contact Support' },
+]
+
 export default function SupportPage() {
   const { menuItems, roleProfile } = useRoleNavigation()
 
@@ -22,7 +29,10 @@ export default function SupportPage() {
     [menuItems]
   )
 
-  const supportSections = supportModule?.submenu || []
+  const supportSections =
+    supportModule?.submenu && supportModule.submenu.length > 0
+      ? supportModule.submenu
+      : DEFAULT_SUPPORT_SECTIONS
 
   return (
     <div className="space-y-6">
@@ -59,6 +69,14 @@ export default function SupportPage() {
             </div>
           )
         })}
+      </div>
+
+      <div className="rounded-lg border border-white/10 bg-white/[0.03] p-4">
+        <h3 className="text-sm font-semibold text-foreground">How this support workspace works</h3>
+        <p className="mt-2 text-sm text-muted-foreground">
+          Each section opens role-aware support flows. If your organization does not yet have dedicated support
+          workflows configured, these default sections are shown to keep Support operational.
+        </p>
       </div>
     </div>
   )

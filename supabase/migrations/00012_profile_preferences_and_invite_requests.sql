@@ -1,7 +1,10 @@
 -- Persist user preferences and organization invite requests
 
 ALTER TABLE public.profiles
-  ADD COLUMN IF NOT EXISTS notification_preferences JSONB DEFAULT '{"email": true, "inApp": true, "criticalOnly": false}'::jsonb;
+  ADD COLUMN IF NOT EXISTS notification_preferences JSONB DEFAULT '{"email": true, "inApp": true, "criticalOnly": false}'::jsonb,
+  ADD COLUMN IF NOT EXISTS notifications_email BOOLEAN DEFAULT TRUE,
+  ADD COLUMN IF NOT EXISTS notifications_inapp BOOLEAN DEFAULT TRUE,
+  ADD COLUMN IF NOT EXISTS notifications_critical_only BOOLEAN DEFAULT FALSE;
 
 CREATE TABLE IF NOT EXISTS public.organization_invite_requests (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),

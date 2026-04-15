@@ -17,6 +17,26 @@ const ROLE_OPTIONS = [
 
 type AssignableRole = (typeof ROLE_OPTIONS)[number]['value']
 type OrgOption = { id: string; name: string; slug: string }
+type ProfileRecord = Record<string, unknown>
+
+const SELECT_STYLE = { backgroundColor: '#0f1115', color: '#f8fafc' }
+const OPTION_STYLE = { backgroundColor: '#0f1115', color: '#f8fafc' }
+const SELECT_CLASS =
+  'rounded-lg border border-white/10 bg-white/5 px-3 text-sm text-white focus:border-[#07f880]/40 focus:outline-none'
+
+function hasColumn(row: ProfileRecord | null, key: string) {
+  return Boolean(row && Object.prototype.hasOwnProperty.call(row, key))
+}
+
+function isMissingColumnError(message: string) {
+  const normalized = message.toLowerCase()
+  return (
+    normalized.includes('could not find') ||
+    normalized.includes('schema cache') ||
+    normalized.includes('column') ||
+    normalized.includes('does not exist')
+  )
+}
 
 export default function SettingsPage() {
   const supabase = createClient()
@@ -37,6 +57,7 @@ export default function SettingsPage() {
   const [notificationInApp, setNotificationInApp] = useState(true)
   const [notificationCriticalOnly, setNotificationCriticalOnly] = useState(false)
   const [languageChoice, setLanguageChoice] = useState<Locale>(locale)
+  const [profileRecord, setProfileRecord] = useState<ProfileRecord | null>(null)
   const [availableOrganizations, setAvailableOrganizations] = useState<OrgOption[]>([])
   const [inviteRequestOrgId, setInviteRequestOrgId] = useState('')
   const [inviteRequestMessage, setInviteRequestMessage] = useState('')
@@ -47,39 +68,90 @@ export default function SettingsPage() {
     const load = async () => {
       setLoading(true)
       setError(null)
-      const rolePromise = organization?.id ? getUserRole(organization.id) : Promise.resolve(null)
-      const teamPromise = organization?.id ? getTeamMembers(organization.id) : Promise.resolve([])
-      const [role, team, profileData, organizationsData] = await Promise.all([
-        rolePromise,
-        teamPromise,
-        supabase
-          .from('profiles')
-          .select('notification_preferences, preferred_locale')
-          .single(),
-        supabase.from('organizations').select('id, name, slug').order('name', { ascending: true }),
-      ])
-      setCurrentRole(role)
-      setMembers(team)
-      setAvailableOrganizations(organizationsData.data || [])
-      if (profileData.data) {
-        const prefs = profileData.data.notification_preferences as
-          | { email?: boolean; inApp?: boolean; criticalOnly?: boolean }
-          | null
-        if (prefs) {
-          setNotificationEmail(Boolean(prefs.email))
-          setNotificationInApp(Boolean(prefs.inApp))
-          setNotificationCriticalOnly(Boolean(prefs.criticalOnly))
+      try {
+        const { data: authData } = await supabase.auth.getUser()
+        const userId = authData.user?.id
+
+        const rolePromise = organization?.id ? getUserRole(organization.id) : Promise.resolve(null)
+        const teamPromise = organization?.id ? getTeamMembers(organization.id) : Promise.resolve([])
+        const profilePromise = userId
+          ? supabase.from('profiles').select('*').eq('id', userId).maybeSingle()
+          : Promise.resolve({ data: null, error: null })
+
+        const [role, team, profileData, organizationsData] = await Promise.all([
+          rolePromise,
+          teamPromise,
+          profilePromise,
+          supabase.from('organizations').select('id, name, slug').order('name', { ascending: true }),
+        ])
+
+        setCurrentRole(role)
+        setMembers(team)
+        setAvailableOrganizations(organizationsData.data || [])
+
+        const row = (profileData.data as ProfileRecord | null) || null
+        setProfileRecord(row)
+
+        if (row) {
+          const rowPrefs =
+            (typeof row.notification_preferences === 'object' &&
+            row.notification_preferences !== null
+              ? (row.notification_preferences as Record<string, unknown>)
+              : null) ||
+            (typeof row.metadata === 'object' &&
+            row.metadata !== null &&
+            typeof (row.metadata as Record<string, unknown>).notification_preferences === 'object'
+              ? ((row.metadata as Record<string, unknown>)
+                  .notification_preferences as Record<string, unknown>)
+              : null)
+
+          const nextNotificationEmail =
+            typeof rowPrefs?.email === 'boolean'
+              ? rowPrefs.email
+              : typeof row.notifications_email === 'boolean'
+                ? row.notifications_email
+                : true
+          const nextNotificationInApp =
+            typeof rowPrefs?.inApp === 'boolean'
+              ? rowPrefs.inApp
+              : typeof row.notifications_inapp === 'boolean'
+                ? row.notifications_inapp
+                : true
+          const nextNotificationCriticalOnly =
+            typeof rowPrefs?.criticalOnly === 'boolean'
+              ? rowPrefs.criticalOnly
+              : typeof row.notifications_critical_only === 'boolean'
+                ? row.notifications_critical_only
+                : false
+
+          setNotificationEmail(nextNotificationEmail)
+          setNotificationInApp(nextNotificationInApp)
+          setNotificationCriticalOnly(nextNotificationCriticalOnly)
+
+          const preferredLocale =
+            (typeof row.preferred_locale === 'string' ? row.preferred_locale : null) ||
+            (typeof row.locale === 'string' ? row.locale : null) ||
+            (typeof row.metadata === 'object' &&
+            row.metadata !== null &&
+            typeof (row.metadata as Record<string, unknown>).preferred_locale === 'string'
+              ? ((row.metadata as Record<string, unknown>).preferred_locale as string)
+              : null)
+
+          if (preferredLocale === 'ar' || preferredLocale === 'en') {
+            setLanguageChoice(preferredLocale)
+            setLocale(preferredLocale)
+          }
         }
-        if (profileData.data.preferred_locale === 'ar' || profileData.data.preferred_locale === 'en') {
-          setLanguageChoice(profileData.data.preferred_locale)
-          setLocale(profileData.data.preferred_locale)
-        }
+      } catch (loadError) {
+        console.error('[settings] Failed to load settings data', loadError)
+        setError('Unable to load settings data.')
+      } finally {
+        setLoading(false)
       }
-      setLoading(false)
     }
 
     load()
-  }, [organization?.id, getUserRole, getTeamMembers, setLocale, supabase])
+  }, [organization?.id, getUserRole, getTeamMembers, setLocale])
 
   const canManageUsers = currentRole === 'owner' || currentRole === 'admin' || currentRole === 'super_admin'
   const supportItem = menuItems.find((item) => item.key === 'support')
@@ -120,16 +192,6 @@ export default function SettingsPage() {
     setError(null)
     setMessage(null)
 
-    const payload = {
-      notification_preferences: {
-        email: notificationEmail,
-        inApp: notificationInApp,
-        criticalOnly: notificationCriticalOnly,
-      },
-      preferred_locale: languageChoice,
-      updated_at: new Date().toISOString(),
-    }
-
     const { data: authData } = await supabase.auth.getUser()
     const userId = authData.user?.id
     if (!userId) {
@@ -138,9 +200,89 @@ export default function SettingsPage() {
       return
     }
 
-    const { error: saveError } = await supabase.from('profiles').update(payload).eq('id', userId)
-    if (saveError) {
-      setError(`Unable to save preferences: ${saveError.message}`)
+    const updatedAt = new Date().toISOString()
+    const payloads: Record<string, unknown>[] = []
+
+    if (hasColumn(profileRecord, 'notification_preferences')) {
+      payloads.push({
+        notification_preferences: {
+          email: notificationEmail,
+          inApp: notificationInApp,
+          criticalOnly: notificationCriticalOnly,
+        },
+        ...(hasColumn(profileRecord, 'preferred_locale') ? { preferred_locale: languageChoice } : {}),
+        updated_at: updatedAt,
+      })
+    }
+
+    if (
+      hasColumn(profileRecord, 'notifications_email') ||
+      hasColumn(profileRecord, 'notifications_inapp') ||
+      hasColumn(profileRecord, 'notifications_critical_only')
+    ) {
+      payloads.push({
+        ...(hasColumn(profileRecord, 'notifications_email')
+          ? { notifications_email: notificationEmail }
+          : {}),
+        ...(hasColumn(profileRecord, 'notifications_inapp')
+          ? { notifications_inapp: notificationInApp }
+          : {}),
+        ...(hasColumn(profileRecord, 'notifications_critical_only')
+          ? { notifications_critical_only: notificationCriticalOnly }
+          : {}),
+        ...(hasColumn(profileRecord, 'preferred_locale') ? { preferred_locale: languageChoice } : {}),
+        updated_at: updatedAt,
+      })
+    }
+
+    if (hasColumn(profileRecord, 'metadata')) {
+      const metadata =
+        typeof profileRecord?.metadata === 'object' && profileRecord?.metadata !== null
+          ? (profileRecord.metadata as Record<string, unknown>)
+          : {}
+      payloads.push({
+        metadata: {
+          ...metadata,
+          preferred_locale: languageChoice,
+          notification_preferences: {
+            email: notificationEmail,
+            inApp: notificationInApp,
+            criticalOnly: notificationCriticalOnly,
+          },
+        },
+        ...(hasColumn(profileRecord, 'preferred_locale') ? { preferred_locale: languageChoice } : {}),
+        updated_at: updatedAt,
+      })
+    }
+
+    if (hasColumn(profileRecord, 'preferred_locale')) {
+      payloads.push({
+        preferred_locale: languageChoice,
+        updated_at: updatedAt,
+      })
+    }
+
+    if (payloads.length === 0) {
+      payloads.push({ preferred_locale: languageChoice, updated_at: updatedAt })
+    }
+
+    let saved = false
+    let lastErrorMessage = 'Unknown error'
+
+    for (const payload of payloads) {
+      const { error: saveError } = await supabase.from('profiles').update(payload).eq('id', userId)
+      if (!saveError) {
+        saved = true
+        break
+      }
+      lastErrorMessage = saveError.message
+      if (!isMissingColumnError(saveError.message)) {
+        break
+      }
+    }
+
+    if (!saved) {
+      setError(`Unable to save preferences: ${lastErrorMessage}`)
       setSavingPreferences(false)
       return
     }
@@ -166,14 +308,28 @@ export default function SettingsPage() {
       return
     }
 
-    const { error: reqError } = await supabase.from('organization_invite_requests').insert({
+    let reqError: { message: string } | null = null
+    const basePayload = {
       requester_user_id: user.id,
       requester_email: user.email,
-      target_organization_id: inviteRequestOrgId,
       requested_role: 'member',
       note: inviteRequestMessage || null,
       status: 'pending',
+    }
+
+    const firstAttempt = await supabase.from('organization_invite_requests').insert({
+      ...basePayload,
+      target_organization_id: inviteRequestOrgId,
     })
+    reqError = firstAttempt.error
+
+    if (reqError && isMissingColumnError(reqError.message)) {
+      const secondAttempt = await supabase.from('organization_invite_requests').insert({
+        ...basePayload,
+        organization_id: inviteRequestOrgId,
+      })
+      reqError = secondAttempt.error
+    }
 
     if (reqError) {
       setError(`Unable to submit invite request: ${reqError.message}`)
@@ -279,10 +435,11 @@ export default function SettingsPage() {
             <select
               value={inviteRole}
               onChange={(e) => setInviteRole(e.target.value as AssignableRole)}
-              className="h-10 rounded-lg border border-white/10 bg-white/5 px-3 text-sm text-white focus:border-[#07f880]/40 focus:outline-none"
+              className={`h-10 ${SELECT_CLASS}`}
+              style={SELECT_STYLE}
             >
               {ROLE_OPTIONS.map((role) => (
-                <option key={role.value} value={role.value}>
+                <option key={role.value} value={role.value} style={OPTION_STYLE}>
                   {role.label}
                 </option>
               ))}
@@ -328,9 +485,15 @@ export default function SettingsPage() {
                         value={member.role}
                         onChange={(e) => handleRoleChange(member.id, e.target.value as AssignableRole)}
                         className="h-8 rounded-md border border-white/10 bg-white/5 px-2 text-xs text-white focus:border-[#07f880]/40 focus:outline-none"
+                        style={SELECT_STYLE}
                       >
+                        {!ROLE_OPTIONS.some((role) => role.value === member.role) && (
+                          <option value={member.role} style={OPTION_STYLE}>
+                            {String(member.role)}
+                          </option>
+                        )}
                         {ROLE_OPTIONS.map((role) => (
-                          <option key={role.value} value={role.value}>
+                          <option key={role.value} value={role.value} style={OPTION_STYLE}>
                             {role.label}
                           </option>
                         ))}
@@ -409,10 +572,15 @@ export default function SettingsPage() {
           <select
             value={languageChoice}
             onChange={(e) => setLanguageChoice(e.target.value as Locale)}
-            className="h-10 w-full rounded-lg border border-white/10 bg-white/5 px-3 text-sm text-white focus:border-[#07f880]/40 focus:outline-none"
+            className={`h-10 w-full ${SELECT_CLASS}`}
+            style={SELECT_STYLE}
           >
-            <option value="en">English</option>
-            <option value="ar">Arabic</option>
+            <option value="en" style={OPTION_STYLE}>
+              English
+            </option>
+            <option value="ar" style={OPTION_STYLE}>
+              Arabic
+            </option>
           </select>
           <p className="text-xs text-muted-foreground">
             The selected language is applied immediately after saving.
@@ -429,12 +597,15 @@ export default function SettingsPage() {
           <select
             value={inviteRequestOrgId}
             onChange={(e) => setInviteRequestOrgId(e.target.value)}
-            className="h-10 rounded-lg border border-white/10 bg-white/5 px-3 text-sm text-white placeholder-white/40 focus:border-[#07f880]/40 focus:outline-none"
+            className={`h-10 ${SELECT_CLASS}`}
+            style={SELECT_STYLE}
             required
           >
-            <option value="">Select organization</option>
+            <option value="" style={OPTION_STYLE}>
+              Select organization
+            </option>
             {availableOrganizations.map((org) => (
-              <option key={org.id} value={org.id}>
+              <option key={org.id} value={org.id} style={OPTION_STYLE}>
                 {org.name} ({org.slug})
               </option>
             ))}
