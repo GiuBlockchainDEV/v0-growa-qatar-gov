@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useI18n } from '@/lib/i18n'
 import { useOrganization } from '@/hooks/use-organization'
+import { DashboardState } from '@/components/dashboard/dashboard-state'
 import { Button } from '@/components/ui/button'
 import { Plus, Search, Filter, Sprout, MapPin, Maximize2, MoreVertical } from 'lucide-react'
 
@@ -123,41 +124,45 @@ export default function FarmsPage() {
       {/* Content */}
       <div className="rounded-lg border border-border bg-card overflow-hidden">
         {loading || orgLoading ? (
-          <div className="p-16 text-center">
-            <div className="inline-flex flex-col items-center gap-4">
-              <div className="h-10 w-10 rounded-full border-2 border-primary/30 border-t-primary animate-spin" />
-              <p className="text-sm text-muted-foreground">
-                {locale === 'ar' ? 'جاري تحميل المزارع...' : 'Loading farms...'}
-              </p>
-            </div>
+          <div className="p-8">
+            <DashboardState
+              variant="loading"
+              title={locale === 'ar' ? 'جاري تحميل المزارع' : 'Loading farms'}
+              description={
+                locale === 'ar'
+                  ? 'جارٍ جلب بيانات المزارع الخاصة بالمؤسسة الحالية.'
+                  : 'Fetching farms for the active organization.'
+              }
+              className="py-10"
+            />
           </div>
         ) : error ? (
-          <div className="p-16 text-center">
-            <div className="rounded-lg bg-red-500/10 border border-red-500/20 px-6 py-4 inline-block">
-              <p className="text-sm text-red-400">{error}</p>
-            </div>
+          <div className="p-8">
+            <DashboardState
+              variant="error"
+              title={locale === 'ar' ? 'تعذر تحميل المزارع' : 'Unable to load farms'}
+              description={error}
+              className="py-10"
+            />
           </div>
         ) : farms.length === 0 ? (
-          <div className="p-16 text-center">
-            <div className="inline-flex flex-col items-center gap-4">
-              <div className="rounded-xl bg-primary/10 p-4">
-                <Sprout className="h-8 w-8 text-primary" />
-              </div>
-              <div>
-                <p className="text-lg font-semibold text-foreground mb-1">
-                  {locale === 'ar' ? 'لا توجد مزارع بعد' : 'No farms yet'}
-                </p>
-                <p className="text-sm text-muted-foreground mb-4">
-                  {locale === 'ar' 
-                    ? 'أضف أول مزرعة لبدء تتبع العمليات' 
-                    : 'Add your first farm to start tracking operations'}
-                </p>
-              </div>
-              <Button className="bg-primary hover:bg-primary/90 text-primary-foreground">
-                <Plus className="h-4 w-4 mr-2" />
-                {locale === 'ar' ? 'إنشاء أول مزرعة' : 'Create First Farm'}
-              </Button>
-            </div>
+          <div className="p-8">
+            <DashboardState
+              variant="empty"
+              title={locale === 'ar' ? 'لا توجد مزارع بعد' : 'No farms yet'}
+              description={
+                locale === 'ar'
+                  ? 'أضف أول مزرعة لبدء تتبع العمليات.'
+                  : 'Add your first farm to start tracking operations.'
+              }
+              className="py-10"
+              action={
+                <Button className="bg-primary hover:bg-primary/90 text-primary-foreground">
+                  <Plus className="h-4 w-4 mr-2" />
+                  {locale === 'ar' ? 'إنشاء أول مزرعة' : 'Create First Farm'}
+                </Button>
+              }
+            />
           </div>
         ) : (
           <div className="overflow-x-auto">

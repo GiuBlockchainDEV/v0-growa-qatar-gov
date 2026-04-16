@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { useGovernance, SHARED_LAYERS } from '@/hooks/use-governance'
 import { usePermissions } from '@/hooks/use-permissions'
 import { useOrganization } from '@/hooks/use-organization'
+import { DashboardState } from '@/components/dashboard/dashboard-state'
 import { Building2, Shield, ShoppingCart, DollarSign, Wrench, Users, ChevronRight } from 'lucide-react'
 
 interface Organization {
@@ -59,20 +60,21 @@ export default function OrganizationsPage() {
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center min-h-[60vh]">
-        <div className="text-muted-foreground">Loading organizations...</div>
-      </div>
+      <DashboardState
+        variant="loading"
+        title="Loading organizations"
+        description="Resolving governance scope and organization hierarchy."
+      />
     )
   }
 
   if (!organization) {
     return (
-      <div className="space-y-6">
-        <h1 className="text-2xl font-bold text-foreground">Organizations</h1>
-        <div className="rounded-lg border border-white/10 bg-card p-4 text-sm text-muted-foreground">
-          No active organization context found.
-        </div>
-      </div>
+      <DashboardState
+        variant="notice"
+        title="Organization context required"
+        description="No active organization context found. Join or create an organization to access governance pages."
+      />
     )
   }
 
@@ -142,11 +144,7 @@ export default function OrganizationsPage() {
         </p>
       </div>
 
-      {error && (
-        <div className="rounded-lg border border-red-500/20 bg-red-500/10 p-3 text-sm text-red-300">
-          {error}
-        </div>
-      )}
+      {error && <DashboardState variant="error" description={error} className="py-6" />}
 
       {/* Organization Hierarchy */}
       <div className="rounded-lg border border-white/5 overflow-hidden">
@@ -158,6 +156,16 @@ export default function OrganizationsPage() {
         </div>
 
         <div className="divide-y divide-white/5">
+          {organizations.length === 0 && (
+            <div className="p-5">
+              <DashboardState
+                variant="empty"
+                title="No organizations found"
+                description="No top-level organizations are visible for the current governance context."
+                className="py-8"
+              />
+            </div>
+          )}
           {organizations.map((org) => (
             <div
               key={org.id}

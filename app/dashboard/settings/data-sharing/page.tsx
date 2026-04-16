@@ -5,6 +5,7 @@ import { useOrganization } from '@/hooks/use-organization'
 import { useDataSharing } from '@/hooks/use-data-sharing'
 import { useDataAccess } from '@/hooks/use-data-access'
 import { resolveOrganizationType } from '@/lib/supabase/schema-compat'
+import { DashboardState } from '@/components/dashboard/dashboard-state'
 import { Share2, Unlock, Trash2 } from 'lucide-react'
 
 export default function DataSharingPage() {
@@ -49,16 +50,22 @@ export default function DataSharingPage() {
 
   if (!canManageSharing()) {
     return (
-      <div className="space-y-6">
-        <div className="rounded-lg border border-red-500/20 bg-red-500/10 p-4">
-          <p className="text-sm text-red-400">Solo le organizzazioni governative possono gestire la condivisione dati.</p>
-        </div>
-      </div>
+      <DashboardState
+        variant="notice"
+        title="Access restricted"
+        description="Only government organizations can manage data sharing."
+      />
     )
   }
 
   if (isLoading) {
-    return <div className="text-muted-foreground">Caricamento...</div>
+    return (
+      <DashboardState
+        variant="loading"
+        title="Loading data sharing"
+        description="Fetching current sharing policies and eligible organizations."
+      />
+    )
   }
 
   return (
@@ -74,15 +81,20 @@ export default function DataSharingPage() {
         </div>
       )}
 
-      {/* Condivisioni attive */}
+      {/* Active sharing policies */}
       <div className="rounded-lg border border-white/5">
         <div className="border-b border-white/5 px-5 py-4">
-          <h2 className="font-semibold text-foreground">Condivisioni Attive</h2>
+          <h2 className="font-semibold text-foreground">Active Shares</h2>
         </div>
 
         {sharings.length === 0 ? (
-          <div className="px-5 py-8 text-center text-muted-foreground">
-            Nessuna condivisione dati attiva
+          <div className="px-5 py-6">
+            <DashboardState
+              variant="empty"
+              title="No active shares"
+              description="No active data sharing rules exist for this organization yet."
+              className="py-8"
+            />
           </div>
         ) : (
           <div className="divide-y divide-white/5">
@@ -91,12 +103,12 @@ export default function DataSharingPage() {
                 <div>
                   <p className="font-medium text-foreground">{sharing.resource_type}</p>
                   <p className="text-sm text-muted-foreground">
-                    Condiviso con: {sharing.shared_with_organization_id}
+                    Shared with: {sharing.shared_with_organization_id}
                   </p>
                 </div>
                 <button
                   onClick={() => {
-                    if (confirm('Rimuovere questa condivisione?')) {
+                    if (confirm('Remove this sharing rule?')) {
                       removeSharing(sharing.id).then((ok) => {
                         if (!ok) {
                           setError('Unable to remove sharing.')
@@ -116,13 +128,13 @@ export default function DataSharingPage() {
         )}
       </div>
 
-      {/* Aggiungi nuova condivisione */}
+      {/* Add a new share */}
       {shareableOrgs.length > 0 && (
         <div className="rounded-lg border border-white/5 p-5">
-          <h3 className="font-semibold text-foreground mb-4">Aggiungi Condivisione</h3>
+          <h3 className="font-semibold text-foreground mb-4">Add Sharing Rule</h3>
           <div className="space-y-3">
             <div className="text-sm text-muted-foreground mb-3">
-              Puoi condividere i tuoi dati con le seguenti organizzazioni:
+              You can share your data with the following organizations:
             </div>
             {shareableOrgs.map((org) => (
               <button

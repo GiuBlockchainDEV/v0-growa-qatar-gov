@@ -5,6 +5,7 @@ import { useAuth } from '@/hooks/use-auth'
 import { useOrganization } from '@/hooks/use-organization'
 import { useTeamManagement } from '@/hooks/use-team-management'
 import { usePermissions } from '@/hooks/use-permissions'
+import { DashboardState } from '@/components/dashboard/dashboard-state'
 import { Users, Plus, Trash2, Shield, Eye, Edit3 } from 'lucide-react'
 
 export default function TeamPage() {
@@ -41,9 +42,11 @@ export default function TeamPage() {
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center min-h-[60vh]">
-        <div className="text-muted-foreground">Loading team members...</div>
-      </div>
+      <DashboardState
+        variant="loading"
+        title="Loading team members"
+        description="Fetching members and role context for the active organization."
+      />
     )
   }
 
@@ -88,10 +91,12 @@ export default function TeamPage() {
   return (
     <div className="space-y-6">
       {!organization?.id && (
-        <div className="rounded-lg border border-white/10 bg-white/[0.03] p-4 text-sm text-muted-foreground">
-          You are not assigned to an organization yet. Team management becomes available after organization
-          assignment.
-        </div>
+        <DashboardState
+          variant="notice"
+          title="No organization assigned"
+          description="Team management becomes available after organization assignment."
+          className="py-7"
+        />
       )}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
@@ -109,8 +114,13 @@ export default function TeamPage() {
       <div className="rounded-lg border border-white/5 overflow-hidden">
         <div className="divide-y divide-white/5">
           {members.length === 0 && (
-            <div className="p-6 text-center text-sm text-muted-foreground">
-              No team members available for the current organization.
+            <div className="p-5">
+              <DashboardState
+                variant="empty"
+                title="No team members"
+                description="No team members are available for the current organization."
+                className="py-7"
+              />
             </div>
           )}
           {members.map((member) => (
