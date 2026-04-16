@@ -1,11 +1,12 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { useI18n } from '@/lib/i18n'
 import { useOrganization } from '@/hooks/use-organization'
 import { DashboardState } from '@/components/dashboard/dashboard-state'
 import { Button } from '@/components/ui/button'
-import { Plus, Search, Filter, Sprout, MapPin, Maximize2, MoreVertical } from 'lucide-react'
+import { Plus, Search, Filter, Sprout, MapPin, Maximize2, Navigation } from 'lucide-react'
 
 interface Farm {
   id: string
@@ -19,6 +20,7 @@ interface Farm {
 
 export default function FarmsPage() {
   const { locale } = useI18n()
+  const router = useRouter()
   const { organization, loading: orgLoading } = useOrganization()
   const [farms, setFarms] = useState<Farm[]>([])
   const [loading, setLoading] = useState(true)
@@ -81,6 +83,25 @@ export default function FarmsPage() {
       default:
         return <Sprout className="h-4 w-4" />
     }
+  }
+
+  const normalizedSearch = searchQuery.trim().toLowerCase()
+  const filteredFarms = useMemo(() => {
+    if (!normalizedSearch) return farms
+    return farms.filter((farm) =>
+      [farm.name_en, farm.name_ar, farm.location]
+        .filter(Boolean)
+        .some((value) => value.toLowerCase().includes(normalizedSearch))
+    )
+  }, [farms, normalizedSearch])
+
+  const openFarmOnLiveMap = (farm: Farm) => {
+    const params = new URLSearchParams({
+      module: 'live-map',
+      farmId: farm.id,
+      zoom: '16',
+    })
+    router.push(`/dashboard?${params.toString()}`)
   }
 
   return (
@@ -190,7 +211,7 @@ export default function FarmsPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
-                {farms.map((farm) => (
+                {filteredFarms.map((farm) => (
                   <tr key={farm.id} className="hover:bg-secondary/30 transition-colors">
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-3">
@@ -231,12 +252,27 @@ export default function FarmsPage() {
                       </span>
                     </td>
                     <td className="px-6 py-4 text-right">
-                      <Button variant="ghost" size="sm" className="h-8 w-8 p-0 hover:bg-secondary">
-                        <MoreVertical className="h-4 w-4 text-muted-foreground" />
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="border-border hover:border-primary/40 hover:bg-secondary"
+                        onClick={() => openFarmOnLiveMap(farm)}
+                      >
+                        <Navigation className="h-3.5 w-3.5 mr-1.5" />
+                        {locale === 'ar' ? 'الخريطة' : 'Live Map'}
                       </Button>
                     </td>
                   </tr>
                 ))}
+                {filteredFarms.length === 0 && (
+                  <tr>
+                    <td colSpan={6} className="px-6 py-8 text-center text-sm text-muted-foreground">
+                      {locale === 'ar'
+                        ? 'لا توجد نتائج مطابقة للبحث.'
+                        : 'No farms match your search.'}
+                    </td>
+                  </tr>
+                )}
               </tbody>
             </table>
           </div>
@@ -248,8 +284,8 @@ export default function FarmsPage() {
         <div className="flex items-center justify-between text-xs text-muted-foreground">
           <span>
             {locale === 'ar' 
-              ? `عرض ${farms.length} مزرعة` 
-              : `Showing ${farms.length} farms`}
+              ? `عرض ${filteredFarms.length} من ${farms.length} مزرعة` 
+              : `Showing ${filteredFarms.length} of ${farms.length} farms`}
           </span>
           <span>
             {locale === 'ar' ? 'آخر تحديث: الآن' : 'Last updated: Just now'}

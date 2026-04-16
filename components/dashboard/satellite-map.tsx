@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState, useCallback } from 'react'
+import { useEffect, useRef, useState, useCallback, useMemo } from 'react'
 import { Plus, Minus, Crosshair, Layers } from 'lucide-react'
 
 // Qatar center coordinates
@@ -15,6 +15,14 @@ interface MapMarker {
   type: 'farm' | 'facility' | 'sensor'
 }
 
+interface FarmApiRow {
+  id?: string
+  name_en?: string
+  name_ar?: string
+  name?: string
+  location?: string | null
+}
+
 // Sample farm locations in Qatar
 const FARM_MARKERS: MapMarker[] = [
   { id: '1', lat: 25.6842, lng: 51.4975, label: 'Al Khor Date Farm', type: 'farm' },
@@ -26,13 +34,84 @@ const FARM_MARKERS: MapMarker[] = [
 
 interface SatelliteMapProps {
   locale?: string
+  targetFarmId?: string | null
+  targetZoom?: number
 }
 
-export function SatelliteMap({ locale = 'en' }: SatelliteMapProps) {
+function hashToRange(input: string, min: number, max: number) {
+  let hash = 0
+  for (let i = 0; i < input.length; i += 1) {
+    hash = (hash * 31 + input.charCodeAt(i)) % 100000
+  }
+  const normalized = hash / 100000
+  return min + normalized * (max - min)
+}
+
+function estimateFarmCoordinates(farmId: string, location?: string | null) {
+  const locationKey = (location || '').toLowerCase()
+  const cityBias: Record<string, { lat: number; lng: number }> = {
+    'al khor': { lat: 25.6839, lng: 51.5058 },
+    'al rayyan': { lat: 25.2919, lng: 51.4244 },
+    'umm salal': { lat: 25.4167, lng: 51.4065 },
+    'al daayen': { lat: 25.4476, lng: 51.5254 },
+    'al wakrah': { lat: 25.1682, lng: 51.6034 },
+    'madinat ash shamal': { lat: 26.1293, lng: 51.2068 },
+  }
+
+  const matchedCity = Object.entries(cityBias).find(([city]) => locationKey.includes(city))
+  const base = matchedCity?.[1] || QATAR_CENTER
+  const latOffset = hashToRange(`${farmId}-lat`, -0.035, 0.035)
+  const lngOffset = hashToRange(`${farmId}-lng`, -0.05, 0.05)
+
+  return {
+    lat: base.lat + latOffset,
+    lng: base.lng + lngOffset,
+  }
+}
+
+export function SatelliteMap({
+  locale = 'en',
+  targetFarmId = null,
+  targetZoom = 16,
+}: SatelliteMapProps) {
   const mapRef = useRef<HTMLDivElement>(null)
   const mapInstanceRef = useRef<L.Map | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [currentZoom, setCurrentZoom] = useState(DEFAULT_ZOOM)
+  const [farmRows, setFarmRows] = useState<FarmApiRow[]>([])
+  const [farmLoadError, setFarmLoadError] = useState<string | null>(null)
+
+  const dynamicFarmMarkers = useMemo<MapMarker[]>(() => {
+    return farmRows
+      .map((farm) => {
+        if (!farm.id) return null
+        const coordinates = estimateFarmCoordinates(farm.id, farm.location || null)
+        const label =
+          (locale === 'ar' && farm.name_ar) ||
+          farm.name_en ||
+          farm.name ||
+          `Farm ${farm.id.slice(0, 8)}`
+
+        return {
+          id: farm.id,
+          lat: coordinates.lat,
+          lng: coordinates.lng,
+          label,
+          type: 'farm' as const,
+        }
+      })
+      .filter((marker): marker is MapMarker => Boolean(marker))
+  }, [farmRows, locale])
+
+  const mapMarkers = useMemo<MapMarker[]>(
+    () => (dynamicFarmMarkers.length > 0 ? dynamicFarmMarkers : FARM_MARKERS),
+    [dynamicFarmMarkers]
+  )
+
+  const targetFarmMarker = useMemo(
+    () => (targetFarmId ? mapMarkers.find((marker) => marker.id === targetFarmId) || null : null),
+    [mapMarkers, targetFarmId]
+  )
 
   const handleZoomIn = useCallback(() => {
     if (mapInstanceRef.current) {
@@ -48,9 +127,40 @@ export function SatelliteMap({ locale = 'en' }: SatelliteMapProps) {
 
   const handleRecenter = useCallback(() => {
     if (mapInstanceRef.current) {
-      mapInstanceRef.current.flyTo([QATAR_CENTER.lat, QATAR_CENTER.lng], DEFAULT_ZOOM, {
+      const recenterLat = targetFarmMarker?.lat ?? QATAR_CENTER.lat
+      const recenterLng = targetFarmMarker?.lng ?? QATAR_CENTER.lng
+      const recenterZoom = targetFarmMarker ? targetZoom : DEFAULT_ZOOM
+      mapInstanceRef.current.flyTo([recenterLat, recenterLng], recenterZoom, {
         duration: 1.5
       })
+    }
+  }, [targetFarmMarker, targetZoom])
+
+  useEffect(() => {
+    let cancelled = false
+
+    async function loadFarms() {
+      try {
+        setFarmLoadError(null)
+        const response = await fetch('/api/operations/farms', { cache: 'no-store' })
+        const payload = await response.json()
+        if (!response.ok) {
+          throw new Error(payload?.error || 'Unable to load farms for map markers.')
+        }
+        if (!cancelled) {
+          setFarmRows(Array.isArray(payload) ? (payload as FarmApiRow[]) : [])
+        }
+      } catch (error) {
+        if (!cancelled) {
+          setFarmLoadError(error instanceof Error ? error.message : 'Failed to load farms for map.')
+          setFarmRows([])
+        }
+      }
+    }
+
+    loadFarms()
+    return () => {
+      cancelled = true
     }
   }, [])
 
@@ -116,7 +226,7 @@ export function SatelliteMap({ locale = 'en' }: SatelliteMapProps) {
       }
 
       // Add markers
-      FARM_MARKERS.forEach((marker) => {
+      mapMarkers.forEach((marker) => {
         L.marker([marker.lat, marker.lng], {
           icon: createMarkerIcon(marker.type)
         })
@@ -145,7 +255,15 @@ export function SatelliteMap({ locale = 'en' }: SatelliteMapProps) {
         mapInstanceRef.current = null
       }
     }
-  }, [])
+  }, [mapMarkers])
+
+  useEffect(() => {
+    if (!mapInstanceRef.current) return
+    if (!targetFarmMarker) return
+    mapInstanceRef.current.flyTo([targetFarmMarker.lat, targetFarmMarker.lng], targetZoom, {
+      duration: 1.2,
+    })
+  }, [targetFarmMarker, targetZoom])
 
   return (
     <div className="absolute inset-0 pt-16"> {/* pt-16 to account for header */}
@@ -183,9 +301,21 @@ export function SatelliteMap({ locale = 'en' }: SatelliteMapProps) {
       </div>
 
       {/* Zoom Level Indicator - Bottom Left, ALWAYS Visible */}
-      <div className="absolute bottom-6 left-6 z-[1000] px-3 py-1.5 rounded-lg bg-[#0c0c0e]/90 border border-white/10 shadow-lg">
-        <span className="text-xs text-white/60">Zoom: </span>
-        <span className="text-xs text-[#07f880] font-medium">{currentZoom}</span>
+      <div className="absolute bottom-6 left-6 z-[1000] rounded-lg border border-white/10 bg-[#0c0c0e]/90 px-3 py-1.5 shadow-lg">
+        <div>
+          <span className="text-xs text-white/60">Zoom: </span>
+          <span className="text-xs font-medium text-[#07f880]">{currentZoom}</span>
+        </div>
+        {targetFarmMarker && (
+          <div className="text-[11px] text-white/75">
+            Focus: <span className="text-[#07f880]">{targetFarmMarker.label}</span>
+          </div>
+        )}
+        {farmLoadError && (
+          <div className="max-w-56 text-[11px] text-amber-300">
+            Farm markers fallback enabled.
+          </div>
+        )}
       </div>
 
       {/* Loading Overlay */}

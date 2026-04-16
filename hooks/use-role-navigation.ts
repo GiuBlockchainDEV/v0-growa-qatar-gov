@@ -162,6 +162,13 @@ const FARM_LOGBOOK_ITEM: MenuItem = {
   icon: 'BookOpen',
 }
 
+const FARM_COMPANY_LIVE_MAP_ITEM: MenuItem = {
+  key: 'live-map',
+  label: 'Live Map',
+  path: '/dashboard?module=live-map',
+  icon: 'Map',
+}
+
 function isFarmLogbookRole(
   role: string | null | undefined,
   orgType: string | null | undefined
@@ -172,6 +179,13 @@ function isFarmLogbookRole(
   }
   // "operator" can exist in non-farm contexts; only show logbook when org is farm_company.
   return role === 'operator' && orgType === 'farm_company'
+}
+
+function isFarmCompanyOperationalRole(
+  role: string | null | undefined,
+  orgType: string | null | undefined
+) {
+  return Boolean(role) && orgType === 'farm_company'
 }
 
 function ensureHassadSupplyOverview(items: MenuItem[]): MenuItem[] {
@@ -282,12 +296,72 @@ function ensureFarmLogbook(items: MenuItem[]): MenuItem[] {
   return deduped
 }
 
+function ensureFarmCompanyLiveMap(items: MenuItem[]): MenuItem[] {
+  const normalized = items.map((item) => {
+    const normalizedLabel = item.label?.trim().toLowerCase()
+    const normalizedKey = item.key?.trim().toLowerCase()
+    const normalizedPath = item.path?.trim().toLowerCase()
+    const pointsToFieldOperations =
+      normalizedKey === 'field-operations' ||
+      normalizedKey === 'field_operations' ||
+      normalizedLabel === 'field operations' ||
+      normalizedPath === '/dashboard?module=field-operations' ||
+      normalizedPath === '/dashboard?module=field_operations' ||
+      normalizedPath === '/dashboard/field-operations'
+    const pointsToLiveMap =
+      normalizedKey === 'live-map' ||
+      normalizedKey === 'live_map' ||
+      normalizedLabel === 'live map' ||
+      normalizedPath === '/dashboard?module=live-map' ||
+      normalizedPath === '/dashboard/live-map'
+
+    if (!pointsToFieldOperations && !pointsToLiveMap) {
+      return item
+    }
+
+    return {
+      ...item,
+      key: 'live-map',
+      label: FARM_COMPANY_LIVE_MAP_ITEM.label,
+      path: FARM_COMPANY_LIVE_MAP_ITEM.path,
+      icon: FARM_COMPANY_LIVE_MAP_ITEM.icon,
+    }
+  })
+
+  const deduped: MenuItem[] = []
+  let hasLiveMap = false
+  for (const item of normalized) {
+    const isLiveMap = item.key === 'live-map' || item.path === '/dashboard?module=live-map'
+    if (isLiveMap) {
+      if (hasLiveMap) continue
+      hasLiveMap = true
+      deduped.push({
+        ...FARM_COMPANY_LIVE_MAP_ITEM,
+        ...item,
+        key: 'live-map',
+        path: '/dashboard?module=live-map',
+      })
+      continue
+    }
+    deduped.push(item)
+  }
+
+  if (!hasLiveMap) {
+    deduped.unshift(FARM_COMPANY_LIVE_MAP_ITEM)
+  }
+
+  return deduped
+}
+
 function applyRoleSpecificMenuItems(
   items: MenuItem[],
   role: string | null | undefined,
   orgType: string | null | undefined
 ): MenuItem[] {
   let enriched = items
+  if (isFarmCompanyOperationalRole(role, orgType)) {
+    enriched = ensureFarmCompanyLiveMap(enriched)
+  }
   if (role === HASSAD_SUPPLY_ROLE) {
     enriched = ensureHassadSupplyOverview(enriched)
   }
@@ -345,9 +419,11 @@ function splitNavigationSections(items: MenuItem[] = []) {
     return item.path
   }
 
-  const settingsAndSupport = items.filter((item) => ['settings', 'support'].includes(item.key))
+  const settingsAndSupport = items.filter((item) =>
+    ['settings', 'support', 'field-logbook'].includes(item.key)
+  )
   const main = items
-    .filter((item) => !['settings', 'support'].includes(item.key))
+    .filter((item) => !['settings', 'support', 'field-logbook'].includes(item.key))
     .map((item) => ({
       ...item,
       // Keep legacy/fallback items on an existing route to avoid 404s
