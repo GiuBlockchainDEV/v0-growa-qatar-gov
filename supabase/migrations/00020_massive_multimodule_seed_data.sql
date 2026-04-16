@@ -8,6 +8,7 @@ DECLARE
   v_users_count INT := 0;
   v_org_count INT := 0;
   v_primary_user UUID;
+  v_audit_resource_id_is_uuid BOOLEAN := FALSE;
 BEGIN
   -- ---------------------------------------------------------------------------
   -- Seed organizations across all supported types.
@@ -671,56 +672,144 @@ BEGIN
   -- ---------------------------------------------------------------------------
   -- Seeded audit event history with deterministic resource ids.
   -- ---------------------------------------------------------------------------
-  INSERT INTO public.audit_logs (
-    user_id,
-    organization_id,
-    action,
-    resource_type,
-    resource_id,
-    changes,
-    created_at
-  )
-  SELECT
-    u.id,
-    o.id,
-    CASE (g.seq % 6)
-      WHEN 0 THEN 'member.assigned'
-      WHEN 1 THEN 'invite.requested'
-      WHEN 2 THEN 'supply.snapshot.refreshed'
-      WHEN 3 THEN 'farm.status.updated'
-      WHEN 4 THEN 'policy.reviewed'
-      ELSE 'delegation.created'
-    END,
-    CASE (g.seq % 5)
-      WHEN 0 THEN 'organization'
-      WHEN 1 THEN 'membership'
-      WHEN 2 THEN 'supply_flow'
-      WHEN 3 THEN 'farm'
-      ELSE 'access_policy'
-    END,
-    'seed-event-' || LPAD(g.seq::TEXT, 4, '0'),
-    jsonb_build_object(
-      'seed_batch', '00020',
-      'sequence', g.seq,
-      'impact_level', CASE WHEN g.seq % 9 = 0 THEN 'high' WHEN g.seq % 3 = 0 THEN 'medium' ELSE 'low' END
-    ),
-    NOW() - (g.seq * INTERVAL '90 minutes')
-  FROM generate_series(1, 420) AS g(seq)
-  JOIN tmp_org_map o
-    ON o.org_rank = ((g.seq - 1) % v_org_count) + 1
-  LEFT JOIN tmp_seed_users u
-    ON u.user_rank = ((g.seq - 1) % GREATEST(v_users_count, 1)) + 1
-  WHERE NOT EXISTS (
+  IF EXISTS (
     SELECT 1
-    FROM public.audit_logs a
-    WHERE a.resource_type = CASE (g.seq % 5)
-      WHEN 0 THEN 'organization'
-      WHEN 1 THEN 'membership'
-      WHEN 2 THEN 'supply_flow'
-      WHEN 3 THEN 'farm'
-      ELSE 'access_policy'
-    END
-      AND a.resource_id = 'seed-event-' || LPAD(g.seq::TEXT, 4, '0')
-  );
+    FROM information_schema.tables
+    WHERE table_schema = 'public'
+      AND table_name = 'audit_logs'
+  ) THEN
+    SELECT EXISTS (
+      SELECT 1
+      FROM information_schema.columns
+      WHERE table_schema = 'public'
+        AND table_name = 'audit_logs'
+        AND column_name = 'resource_id'
+        AND data_type = 'uuid'
+    )
+    INTO v_audit_resource_id_is_uuid;
+
+    BEGIN
+      IF v_audit_resource_id_is_uuid THEN
+        INSERT INTO public.audit_logs (
+          user_id,
+          organization_id,
+          action,
+          resource_type,
+          resource_id,
+          changes,
+          created_at
+        )
+        SELECT
+          u.id,
+          o.id,
+          CASE (g.seq % 6)
+            WHEN 0 THEN 'member.assigned'
+            WHEN 1 THEN 'invite.requested'
+            WHEN 2 THEN 'supply.snapshot.refreshed'
+            WHEN 3 THEN 'farm.status.updated'
+            WHEN 4 THEN 'policy.reviewed'
+            ELSE 'delegation.created'
+          END,
+          CASE (g.seq % 5)
+            WHEN 0 THEN 'organization'
+            WHEN 1 THEN 'membership'
+            WHEN 2 THEN 'supply_flow'
+            WHEN 3 THEN 'farm'
+            ELSE 'access_policy'
+          END,
+          (
+            SUBSTRING(md5('seed-event-' || LPAD(g.seq::TEXT, 4, '0')), 1, 8) || '-' ||
+            SUBSTRING(md5('seed-event-' || LPAD(g.seq::TEXT, 4, '0')), 9, 4) || '-' ||
+            SUBSTRING(md5('seed-event-' || LPAD(g.seq::TEXT, 4, '0')), 13, 4) || '-' ||
+            SUBSTRING(md5('seed-event-' || LPAD(g.seq::TEXT, 4, '0')), 17, 4) || '-' ||
+            SUBSTRING(md5('seed-event-' || LPAD(g.seq::TEXT, 4, '0')), 21, 12)
+          )::uuid,
+          jsonb_build_object(
+            'seed_batch', '00020',
+            'sequence', g.seq,
+            'impact_level', CASE WHEN g.seq % 9 = 0 THEN 'high' WHEN g.seq % 3 = 0 THEN 'medium' ELSE 'low' END
+          ),
+          NOW() - (g.seq * INTERVAL '90 minutes')
+        FROM generate_series(1, 420) AS g(seq)
+        JOIN tmp_org_map o
+          ON o.org_rank = ((g.seq - 1) % v_org_count) + 1
+        LEFT JOIN tmp_seed_users u
+          ON u.user_rank = ((g.seq - 1) % GREATEST(v_users_count, 1)) + 1
+        WHERE NOT EXISTS (
+          SELECT 1
+          FROM public.audit_logs a
+          WHERE a.resource_type::TEXT = CASE (g.seq % 5)
+            WHEN 0 THEN 'organization'
+            WHEN 1 THEN 'membership'
+            WHEN 2 THEN 'supply_flow'
+            WHEN 3 THEN 'farm'
+            ELSE 'access_policy'
+          END
+            AND a.resource_id = (
+              SUBSTRING(md5('seed-event-' || LPAD(g.seq::TEXT, 4, '0')), 1, 8) || '-' ||
+              SUBSTRING(md5('seed-event-' || LPAD(g.seq::TEXT, 4, '0')), 9, 4) || '-' ||
+              SUBSTRING(md5('seed-event-' || LPAD(g.seq::TEXT, 4, '0')), 13, 4) || '-' ||
+              SUBSTRING(md5('seed-event-' || LPAD(g.seq::TEXT, 4, '0')), 17, 4) || '-' ||
+              SUBSTRING(md5('seed-event-' || LPAD(g.seq::TEXT, 4, '0')), 21, 12)
+            )::uuid
+        );
+      ELSE
+        INSERT INTO public.audit_logs (
+          user_id,
+          organization_id,
+          action,
+          resource_type,
+          resource_id,
+          changes,
+          created_at
+        )
+        SELECT
+          u.id,
+          o.id,
+          CASE (g.seq % 6)
+            WHEN 0 THEN 'member.assigned'
+            WHEN 1 THEN 'invite.requested'
+            WHEN 2 THEN 'supply.snapshot.refreshed'
+            WHEN 3 THEN 'farm.status.updated'
+            WHEN 4 THEN 'policy.reviewed'
+            ELSE 'delegation.created'
+          END,
+          CASE (g.seq % 5)
+            WHEN 0 THEN 'organization'
+            WHEN 1 THEN 'membership'
+            WHEN 2 THEN 'supply_flow'
+            WHEN 3 THEN 'farm'
+            ELSE 'access_policy'
+          END,
+          'seed-event-' || LPAD(g.seq::TEXT, 4, '0'),
+          jsonb_build_object(
+            'seed_batch', '00020',
+            'sequence', g.seq,
+            'impact_level', CASE WHEN g.seq % 9 = 0 THEN 'high' WHEN g.seq % 3 = 0 THEN 'medium' ELSE 'low' END
+          ),
+          NOW() - (g.seq * INTERVAL '90 minutes')
+        FROM generate_series(1, 420) AS g(seq)
+        JOIN tmp_org_map o
+          ON o.org_rank = ((g.seq - 1) % v_org_count) + 1
+        LEFT JOIN tmp_seed_users u
+          ON u.user_rank = ((g.seq - 1) % GREATEST(v_users_count, 1)) + 1
+        WHERE NOT EXISTS (
+          SELECT 1
+          FROM public.audit_logs a
+          WHERE a.resource_type::TEXT = CASE (g.seq % 5)
+            WHEN 0 THEN 'organization'
+            WHEN 1 THEN 'membership'
+            WHEN 2 THEN 'supply_flow'
+            WHEN 3 THEN 'farm'
+            ELSE 'access_policy'
+          END
+            AND a.resource_id::TEXT = 'seed-event-' || LPAD(g.seq::TEXT, 4, '0')
+        );
+      END IF;
+    EXCEPTION
+      WHEN undefined_column OR undefined_table OR invalid_text_representation OR datatype_mismatch THEN
+        RAISE NOTICE 'Skipping audit_logs seed due to schema mismatch: %', SQLERRM;
+    END;
+  END IF;
 END
 $$;
