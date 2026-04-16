@@ -295,8 +295,10 @@ export function useRoleNavigation() {
         return
       }
 
+      let mappedRoleForFallback: string | null = null
       try {
         setIsLoading(true)
+        setError(null)
         const supabase = createClient()
 
         // Resolve role without over-assigning menus:
@@ -365,6 +367,7 @@ export function useRoleNavigation() {
 
         // Map legacy role to role registry namespace if needed
         const mappedRole = roleMapping[currentRole] || currentRole
+        mappedRoleForFallback = mappedRole
         const mappedProfile = ministryProfileByRole[mappedRole] || null
 
         if (mappedProfile) {
@@ -463,10 +466,25 @@ export function useRoleNavigation() {
                 ? ensureHassadSupplyOverview(defaultNavigation)
                 : defaultNavigation
             const { primary, secondary } = splitNavigationSections(fallbackItems)
+            const resolvedLandingPage =
+              mappedRole === HASSAD_SUPPLY_ROLE ? '/dashboard/supply-overview' : '/dashboard'
+            const merged = [...primary, ...secondary]
+            setNavigation({
+              id: `fallback-${mappedRole}`,
+              role_name: mappedRole,
+              display_name: mappedRole.replace(/_/g, ' '),
+              landing_page: resolvedLandingPage,
+              menu_items: merged,
+              primary_items: primary,
+              secondary_items: secondary,
+              role_profile: null,
+              source: 'fallback',
+              description: 'Fallback navigation when role-specific menu is unavailable.',
+            })
             setPrimaryItems(primary)
             setSecondaryItems(secondary)
-            setMenuItems([...primary, ...secondary])
-            setLandingPage(mappedRole === HASSAD_SUPPLY_ROLE ? '/dashboard/supply-overview' : '/dashboard')
+            setMenuItems(merged)
+            setLandingPage(resolvedLandingPage)
             setRoleProfile(null)
             setSource('fallback')
           } else {
@@ -521,10 +539,30 @@ export function useRoleNavigation() {
         console.error('Error fetching role navigation:', err)
         setError(err instanceof Error ? err.message : 'Failed to fetch navigation')
         // Fallback to default navigation
-        const { primary, secondary } = splitNavigationSections(defaultNavigation)
+        const fallbackRole = mappedRoleForFallback || effectiveRole
+        const fallbackItems = fallbackRole === HASSAD_SUPPLY_ROLE
+          ? ensureHassadSupplyOverview(defaultNavigation)
+          : defaultNavigation
+        const { primary, secondary } = splitNavigationSections(fallbackItems)
+        const merged = [...primary, ...secondary]
+        const resolvedLandingPage =
+          fallbackRole === HASSAD_SUPPLY_ROLE ? '/dashboard/supply-overview' : '/dashboard'
+        setNavigation({
+          id: 'fallback-default',
+          role_name: fallbackRole || 'viewer',
+          display_name: fallbackRole ? fallbackRole.replace(/_/g, ' ') : 'Viewer',
+          landing_page: resolvedLandingPage,
+          menu_items: merged,
+          primary_items: primary,
+          secondary_items: secondary,
+          role_profile: null,
+          source: 'fallback',
+          description: 'Default fallback navigation due to loading error.',
+        })
         setPrimaryItems(primary)
         setSecondaryItems(secondary)
-        setMenuItems([...primary, ...secondary])
+        setMenuItems(merged)
+        setLandingPage(resolvedLandingPage)
         setRoleProfile(null)
         setSource('fallback')
       } finally {

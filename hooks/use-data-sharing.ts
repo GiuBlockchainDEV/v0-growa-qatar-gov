@@ -18,6 +18,16 @@ export function useDataSharing() {
   const [isLoading, setIsLoading] = useState(false)
   const supabase = createClient()
 
+  const isMissingColumnError = (message: string) => {
+    const normalized = message.toLowerCase()
+    return (
+      normalized.includes('column') ||
+      normalized.includes('schema cache') ||
+      normalized.includes('does not exist') ||
+      normalized.includes('could not find')
+    )
+  }
+
   /**
    * Ottiene le condivisioni dati per un'organizzazione
    */
@@ -99,16 +109,30 @@ export function useDataSharing() {
   const getShareableOrganizations = useCallback(
     async (currentOrgType: string) => {
       try {
-        const query = supabase.from('organizations').select('id, name, type')
+        const primaryQuery = supabase.from('organizations').select('id, name, type')
 
         // Se sei government_master, puoi condividere con other government orgs
         if (currentOrgType === 'government_master') {
-          return query.eq('type', 'government')
+          const result = await primaryQuery.eq('type', 'government')
+          if (!result.error) return result
+          if (!isMissingColumnError(result.error.message)) return result
+
+          return supabase
+            .from('organizations')
+            .select('id, name, organization_type')
+            .eq('organization_type', 'government')
         }
 
         // Se sei government, puoi condividere col ministero
         if (currentOrgType === 'government') {
-          return query.eq('type', 'government_master')
+          const result = await primaryQuery.eq('type', 'government_master')
+          if (!result.error) return result
+          if (!isMissingColumnError(result.error.message)) return result
+
+          return supabase
+            .from('organizations')
+            .select('id, name, organization_type')
+            .eq('organization_type', 'government_master')
         }
 
         // Le private org non possono condividere

@@ -19,7 +19,12 @@ export default function TeamPage() {
 
   useEffect(() => {
     const loadData = async () => {
-      if (!organization?.id) return
+      if (!organization?.id) {
+        setMembers([])
+        setUserRole(null)
+        setIsLoading(false)
+        return
+      }
 
       const [fetchedMembers, role] = await Promise.all([
         getTeamMembers(organization.id),
@@ -42,7 +47,8 @@ export default function TeamPage() {
     )
   }
 
-  const canManageUsers = userRole === 'admin' || userRole === 'super_admin'
+  const canManageUsers =
+    userRole === 'owner' || userRole === 'admin' || userRole === 'super_admin' || userRole === 'farm_company_admin'
 
   const getRoleIcon = (role: string) => {
     const iconProps = { className: 'h-4 w-4' }
@@ -51,6 +57,8 @@ export default function TeamPage() {
         return <Shield {...iconProps} className="h-4 w-4 text-red-500" />
       case 'admin':
         return <Shield {...iconProps} className="h-4 w-4 text-orange-500" />
+      case 'owner':
+        return <Shield {...iconProps} className="h-4 w-4 text-[#07f880]" />
       case 'editor':
         return <Edit3 {...iconProps} className="h-4 w-4 text-[#07f880]" />
       case 'viewer':
@@ -66,6 +74,8 @@ export default function TeamPage() {
         return 'bg-red-500/10 text-red-400 border-red-500/20'
       case 'admin':
         return 'bg-orange-500/10 text-orange-400 border-orange-500/20'
+      case 'owner':
+        return 'bg-[#07f880]/10 text-[#07f880] border-[#07f880]/20'
       case 'editor':
         return 'bg-[#07f880]/10 text-[#07f880] border-[#07f880]/20'
       case 'viewer':
@@ -77,6 +87,12 @@ export default function TeamPage() {
 
   return (
     <div className="space-y-6">
+      {!organization?.id && (
+        <div className="rounded-lg border border-white/10 bg-white/[0.03] p-4 text-sm text-muted-foreground">
+          You are not assigned to an organization yet. Team management becomes available after organization
+          assignment.
+        </div>
+      )}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           <Users className="h-6 w-6 text-[#07f880]" />
@@ -92,6 +108,11 @@ export default function TeamPage() {
 
       <div className="rounded-lg border border-white/5 overflow-hidden">
         <div className="divide-y divide-white/5">
+          {members.length === 0 && (
+            <div className="p-6 text-center text-sm text-muted-foreground">
+              No team members available for the current organization.
+            </div>
+          )}
           {members.map((member) => (
             <div
               key={member.id}
@@ -100,12 +121,13 @@ export default function TeamPage() {
               <div className="flex items-center gap-4 flex-1">
                 <div className="h-10 w-10 rounded-full bg-[#07f880]/20 flex items-center justify-center">
                   <span className="text-sm font-bold text-[#07f880]">
-                    {member.first_name?.[0]}{member.last_name?.[0]}
+                    {(member.first_name?.[0] || member.email?.[0] || '?').toUpperCase()}
+                    {(member.last_name?.[0] || '').toUpperCase()}
                   </span>
                 </div>
                 <div>
                   <p className="font-medium text-foreground">
-                    {member.first_name} {member.last_name}
+                    {[member.first_name, member.last_name].filter(Boolean).join(' ') || member.email || member.user_id}
                   </p>
                   <p className="text-sm text-muted-foreground">{member.email}</p>
                 </div>
@@ -119,8 +141,8 @@ export default function TeamPage() {
 
                 <div className="text-xs text-muted-foreground">
                   {member.status === 'invited'
-                    ? `Invited ${new Date(member.invited_at).toLocaleDateString()}`
-                    : `Joined ${new Date(member.joined_at).toLocaleDateString()}`}
+                    ? `Invited ${member.invited_at ? new Date(member.invited_at).toLocaleDateString() : '-'}`
+                    : `Joined ${member.joined_at ? new Date(member.joined_at).toLocaleDateString() : '-'}`}
                 </div>
 
                 {canManageUsers && member.user_id !== user?.id && (

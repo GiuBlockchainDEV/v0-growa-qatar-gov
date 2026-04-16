@@ -28,9 +28,12 @@ export default function FarmsPage() {
     const fetchFarms = async () => {
       try {
         setLoading(true)
+        setError(null)
         const response = await fetch('/api/operations/farms')
-        if (!response.ok) throw new Error('Failed to fetch farms')
         const data = await response.json()
+        if (!response.ok) {
+          throw new Error(data?.error || 'Failed to fetch farms')
+        }
         setFarms(data)
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to load farms')

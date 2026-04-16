@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { useOrganization } from '@/hooks/use-organization'
 import { useDataSharing } from '@/hooks/use-data-sharing'
 import { useDataAccess } from '@/hooks/use-data-access'
-import { Share2, Lock, Unlock, Trash2 } from 'lucide-react'
+import { Share2, Unlock, Trash2 } from 'lucide-react'
 
 export default function DataSharingPage() {
   const { organization } = useOrganization()
@@ -14,23 +14,36 @@ export default function DataSharingPage() {
   const [sharings, setSharings] = useState<any[]>([])
   const [shareableOrgs, setShareableOrgs] = useState<any[]>([])
   const [isLoading, setIsLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     const loadData = async () => {
-      if (!organization?.id) return
+      if (!organization?.id) {
+        setIsLoading(false)
+        return
+      }
 
-      const [data, orgs] = await Promise.all([
-        getDataSharing(organization.id),
-        getShareableOrganizations(organization.type),
-      ])
+      setIsLoading(true)
+      setError(null)
 
-      setSharings(data)
-      setShareableOrgs(orgs?.data || [])
-      setIsLoading(false)
+      try {
+        const [data, orgs] = await Promise.all([
+          getDataSharing(organization.id),
+          getShareableOrganizations(organization.type || organization.organization_type || 'private'),
+        ])
+
+        setSharings(data)
+        setShareableOrgs(orgs?.data || [])
+      } catch (loadError) {
+        console.error('[data-sharing] load failed', loadError)
+        setError('Unable to load data sharing settings.')
+      } finally {
+        setIsLoading(false)
+      }
     }
 
     loadData()
-  }, [organization?.id, organization?.type, getDataSharing, getShareableOrganizations])
+  }, [organization?.id, organization?.type, organization?.organization_type, getDataSharing, getShareableOrganizations])
 
   if (!canManageSharing()) {
     return (
@@ -52,6 +65,12 @@ export default function DataSharingPage() {
         <Share2 className="h-6 w-6 text-[#07f880]" />
         <h1 className="text-2xl font-bold text-foreground">Data Sharing</h1>
       </div>
+
+      {error && (
+        <div className="rounded-lg border border-red-500/20 bg-red-500/10 p-4">
+          <p className="text-sm text-red-300">{error}</p>
+        </div>
+      )}
 
       {/* Condivisioni attive */}
       <div className="rounded-lg border border-white/5">
@@ -76,8 +95,12 @@ export default function DataSharingPage() {
                 <button
                   onClick={() => {
                     if (confirm('Rimuovere questa condivisione?')) {
-                      removeSharing(sharing.id).then(() => {
-                        setSharings(sharings.filter((s) => s.id !== sharing.id))
+                      removeSharing(sharing.id).then((ok) => {
+                        if (!ok) {
+                          setError('Unable to remove sharing.')
+                          return
+                        }
+                        setSharings((prev) => prev.filter((s) => s.id !== sharing.id))
                       })
                     }
                   }}
@@ -104,7 +127,9 @@ export default function DataSharingPage() {
                 key={org.id}
                 onClick={() =>
                   createSharing(organization.id, org.id, 'all').then(() => {
-                    getDataSharing(organization.id).then(setSharings)
+                    getDataSharing(organization.id).then((rows) => {
+                      setSharings(rows)
+                    })
                   })
                 }
                 className="w-full flex items-center justify-between p-3 rounded-lg border border-white/10 hover:border-[#07f880]/50 hover:bg-[#07f880]/5 transition-colors text-left"

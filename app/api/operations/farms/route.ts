@@ -1,7 +1,17 @@
 import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
 
-export async function GET(request: Request) {
+function isMissingColumnError(message: string) {
+  const normalized = message.toLowerCase()
+  return (
+    normalized.includes('column') ||
+    normalized.includes('schema cache') ||
+    normalized.includes('does not exist') ||
+    normalized.includes('could not find')
+  )
+}
+
+export async function GET(_request: Request) {
   const supabase = await createClient()
   
   // Get current user
@@ -12,16 +22,41 @@ export async function GET(request: Request) {
   }
 
   // Get farms for user's organizations
-  const { data: farms, error } = await supabase
+  const firstAttempt = await supabase
     .from('farms')
     .select('*')
     .order('created_at', { ascending: false })
 
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 })
+  if (!firstAttempt.error) {
+    return NextResponse.json(firstAttempt.data || [])
   }
 
-  return NextResponse.json(farms || [])
+  if (!isMissingColumnError(firstAttempt.error.message)) {
+    return NextResponse.json({ error: firstAttempt.error.message }, { status: 500 })
+  }
+
+  const secondAttempt = await supabase
+    .from('farms')
+    .select('*')
+    .order('updated_at', { ascending: false })
+
+  if (!secondAttempt.error) {
+    return NextResponse.json(secondAttempt.data || [])
+  }
+
+  if (!isMissingColumnError(secondAttempt.error.message)) {
+    return NextResponse.json({ error: secondAttempt.error.message }, { status: 500 })
+  }
+
+  const thirdAttempt = await supabase
+    .from('farms')
+    .select('*')
+
+  if (thirdAttempt.error) {
+    return NextResponse.json({ error: thirdAttempt.error.message }, { status: 500 })
+  }
+
+  return NextResponse.json(thirdAttempt.data || [])
 }
 
 export async function POST(request: Request) {
@@ -37,8 +72,8 @@ export async function POST(request: Request) {
   const body = await request.json()
   const { name_en, name_ar, location, type, size_hectares, organization_id } = body
 
-  // Insert new farm
-  const { data: farm, error } = await supabase
+  // Insert new farm with schema-compatible fallback (created_by optional).
+  const firstAttempt = await supabase
     .from('farms')
     .insert({
       name_en,
@@ -52,9 +87,30 @@ export async function POST(request: Request) {
     .select()
     .single()
 
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 })
+  if (!firstAttempt.error) {
+    return NextResponse.json(firstAttempt.data, { status: 201 })
   }
 
-  return NextResponse.json(farm, { status: 201 })
+  if (!isMissingColumnError(firstAttempt.error.message)) {
+    return NextResponse.json({ error: firstAttempt.error.message }, { status: 500 })
+  }
+
+  const secondAttempt = await supabase
+    .from('farms')
+    .insert({
+      name_en,
+      name_ar,
+      location,
+      type,
+      size_hectares,
+      organization_id,
+    })
+    .select()
+    .single()
+
+  if (secondAttempt.error) {
+    return NextResponse.json({ error: secondAttempt.error.message }, { status: 500 })
+  }
+
+  return NextResponse.json(secondAttempt.data, { status: 201 })
 }

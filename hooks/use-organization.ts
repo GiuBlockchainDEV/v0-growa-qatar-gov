@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useAuth } from './use-auth'
 import { createClient } from '@/lib/supabase/client'
 
@@ -18,10 +18,12 @@ export function useOrganization() {
   const [organization, setOrganization] = useState<Organization | null>(null)
   const [organizations, setOrganizations] = useState<Organization[]>([])
   const [loading, setLoading] = useState(true)
-  const supabase = createClient()
+  const supabase = useMemo(() => createClient(), [])
 
   useEffect(() => {
     if (!user) {
+      setOrganization(null)
+      setOrganizations([])
       setLoading(false)
       return
     }
@@ -76,6 +78,8 @@ export function useOrganization() {
         if (memberError) throw memberError
 
         if (!memberships || memberships.length === 0) {
+          setOrganization(null)
+          setOrganizations([])
           setLoading(false)
           return
         }
@@ -92,9 +96,13 @@ export function useOrganization() {
         setOrganizations(orgs || [])
         if (orgs && orgs.length > 0) {
           setOrganization(orgs[0])
+        } else {
+          setOrganization(null)
         }
       } catch (error) {
         console.error('[v0] Error fetching organizations:', error)
+        setOrganization(null)
+        setOrganizations([])
       } finally {
         setLoading(false)
       }

@@ -23,19 +23,35 @@ export default function OrganizationsPage() {
   const [organizations, setOrganizations] = useState<Organization[]>([])
   const [userOrgType, setUserOrgType] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     const loadData = async () => {
-      if (!organization?.id) return
+      if (!organization?.id) {
+        setOrganizations([])
+        setUserOrgType(null)
+        setIsLoading(false)
+        return
+      }
 
-      const [orgs, orgType] = await Promise.all([
-        getTopLevelOrganizations(),
-        getUserOrgType(organization.id),
-      ])
+      setIsLoading(true)
+      setError(null)
+      try {
+        const [orgs, orgType] = await Promise.all([
+          getTopLevelOrganizations(),
+          getUserOrgType(organization.id),
+        ])
 
-      setOrganizations(orgs)
-      setUserOrgType(orgType)
-      setIsLoading(false)
+        setOrganizations(orgs)
+        setUserOrgType(orgType)
+      } catch (loadError) {
+        console.error('[organizations-settings] Failed to load organization governance data', loadError)
+        setOrganizations([])
+        setUserOrgType(null)
+        setError('Unable to load organization governance data.')
+      } finally {
+        setIsLoading(false)
+      }
     }
 
     loadData()
@@ -45,6 +61,17 @@ export default function OrganizationsPage() {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
         <div className="text-muted-foreground">Loading organizations...</div>
+      </div>
+    )
+  }
+
+  if (!organization) {
+    return (
+      <div className="space-y-6">
+        <h1 className="text-2xl font-bold text-foreground">Organizations</h1>
+        <div className="rounded-lg border border-white/10 bg-card p-4 text-sm text-muted-foreground">
+          No active organization context found.
+        </div>
       </div>
     )
   }
@@ -114,6 +141,12 @@ export default function OrganizationsPage() {
           }
         </p>
       </div>
+
+      {error && (
+        <div className="rounded-lg border border-red-500/20 bg-red-500/10 p-3 text-sm text-red-300">
+          {error}
+        </div>
+      )}
 
       {/* Organization Hierarchy */}
       <div className="rounded-lg border border-white/5 overflow-hidden">

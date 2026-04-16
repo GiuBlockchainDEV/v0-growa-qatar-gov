@@ -113,18 +113,28 @@ export function useGovernance() {
 
   // Get organization type
   const getOrgType = useCallback(async (orgId: string): Promise<OrgType | null> => {
-    const { data, error } = await supabase
+    const primary = await supabase
+      .from('organizations')
+      .select('type, organization_type')
+      .eq('id', orgId)
+      .maybeSingle()
+
+    if (!primary.error && primary.data) {
+      return (primary.data.type || primary.data.organization_type || null) as OrgType | null
+    }
+
+    const fallback = await supabase
       .from('organizations')
       .select('type')
       .eq('id', orgId)
-      .single()
+      .maybeSingle()
 
-    if (error) {
-      console.error('Error getting org type:', error)
+    if (fallback.error) {
+      console.error('Error getting org type:', fallback.error)
       return null
     }
 
-    return data?.type as OrgType
+    return (fallback.data?.type || null) as OrgType | null
   }, [supabase])
 
   // Get roles available for an organization type
@@ -134,18 +144,40 @@ export function useGovernance() {
 
   // Get all top-level organizations (tier 1)
   const getTopLevelOrganizations = useCallback(async () => {
-    const { data, error } = await supabase
+    const primary = await supabase
       .from('organizations')
       .select('*')
       .eq('tier', 1)
       .order('name')
 
-    if (error) {
-      console.error('Error getting top-level orgs:', error)
+    if (!primary.error) {
+      return primary.data || []
+    }
+
+    const message = primary.error.message.toLowerCase()
+    const isTierMissing =
+      message.includes('column') ||
+      message.includes('schema cache') ||
+      message.includes('does not exist') ||
+      message.includes('could not find')
+
+    if (!isTierMissing) {
+      console.error('Error getting top-level orgs:', primary.error)
       return []
     }
 
-    return data || []
+    const fallback = await supabase
+      .from('organizations')
+      .select('*')
+      .order('name')
+      .limit(50)
+
+    if (fallback.error) {
+      console.error('Error getting top-level orgs (fallback):', fallback.error)
+      return []
+    }
+
+    return fallback.data || []
   }, [supabase])
 
   // Delegate role to another user

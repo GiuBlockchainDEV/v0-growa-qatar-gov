@@ -142,12 +142,12 @@ export function usePermissions() {
     async (organizationId: string): Promise<OrgType | null> => {
       const { data, error } = await supabase
         .from('organizations')
-        .select('type')
+        .select('type, organization_type')
         .eq('id', organizationId)
         .single()
 
       if (error) return null
-      return data?.type as OrgType
+      return (data?.type || data?.organization_type || null) as OrgType | null
     },
     [supabase]
   )

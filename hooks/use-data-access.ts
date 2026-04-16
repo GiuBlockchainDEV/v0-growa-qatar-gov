@@ -17,21 +17,24 @@ export function useDataAccess() {
     (targetOrgType: OrganizationType, isShared: boolean) => {
       if (!organization) return false
 
+      const orgType = organization.type || organization.organization_type
+      if (!orgType) return false
+
       // Se è la stessa organizzazione
-      if (organization.type === targetOrgType) return true
+      if (orgType === targetOrgType) return true
 
       // Ministero vede tutto ciò che è condiviso
-      if (organization.type === 'government_master' && isShared) {
+      if (orgType === 'government_master' && isShared) {
         return true
       }
 
       // Organizzazioni governative vedono solo i loro dati
-      if (organization.type === 'government') {
+      if (orgType === 'government') {
         return isShared
       }
 
       // Organizzazioni private vedono solo i loro dati
-      if (organization.type === 'private') {
+      if (orgType === 'private') {
         return false
       }
 
@@ -47,7 +50,10 @@ export function useDataAccess() {
     (farms: any[], sharedFarms: any[] = []) => {
       if (!organization) return []
 
-      if (organization.type === 'government_master') {
+      const orgType = organization.type || organization.organization_type
+      if (!orgType) return []
+
+      if (orgType === 'government_master') {
         // Il ministero vede i propri farm + quelli condivisi
         return [
           ...farms.filter((f) => f.organization_id === organization.id),
@@ -55,7 +61,7 @@ export function useDataAccess() {
         ]
       }
 
-      if (organization.type === 'government') {
+      if (orgType === 'government') {
         // Le org governative vedono solo i propri farm + condivisi con loro
         return [
           ...farms.filter((f) => f.organization_id === organization.id),
@@ -74,7 +80,8 @@ export function useDataAccess() {
    */
   const canManageSharing = useCallback((): boolean => {
     if (!organization) return false
-    return organization.type === 'government' || organization.type === 'government_master'
+    const orgType = organization.type || organization.organization_type
+    return orgType === 'government' || orgType === 'government_master'
   }, [organization])
 
   return {
