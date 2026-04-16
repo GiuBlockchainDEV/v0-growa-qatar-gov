@@ -33,8 +33,23 @@ export function useOrganization() {
         // In impersonation mode, organization context comes from effective role RPC.
         // This keeps dashboard modules (e.g. Supply Overview) scoped to impersonated org.
         if (isGrowaAdmin) {
+          let roleData: any = null
           const { data: effectiveRoleData } = await supabase.rpc('get_effective_role')
-          const roleData = effectiveRoleData?.[0]
+          roleData = effectiveRoleData?.[0] || null
+
+          if (!roleData?.is_impersonating) {
+            const { data: impersonationState } = await supabase
+              .from('user_impersonation_state')
+              .select('org_id, is_impersonating')
+              .eq('user_id', user.id)
+              .maybeSingle()
+            if (impersonationState?.is_impersonating && impersonationState?.org_id) {
+              roleData = {
+                org_id: impersonationState.org_id,
+                is_impersonating: true,
+              }
+            }
+          }
 
           if (roleData?.is_impersonating && roleData?.org_id) {
             const { data: impersonatedOrg, error: impersonatedOrgError } = await supabase

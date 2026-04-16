@@ -307,8 +307,26 @@ export function useRoleNavigation() {
         let currentRole: string | null = organization?.id ? await getUserRole(organization.id) : null
 
         if (isGrowaAdmin) {
+          let roleData: any = null
           const { data: effectiveRoleData } = await supabase.rpc('get_effective_role')
-          const roleData = effectiveRoleData?.[0]
+          roleData = effectiveRoleData?.[0] || null
+
+          // Fallback to persisted impersonation state if RPC output is empty.
+          if (!roleData?.is_impersonating) {
+            const { data: impersonationState } = await supabase
+              .from('user_impersonation_state')
+              .select('role_name, org_id, is_impersonating')
+              .eq('user_id', user.id)
+              .maybeSingle()
+            if (impersonationState?.is_impersonating) {
+              roleData = {
+                role_name: impersonationState.role_name,
+                org_id: impersonationState.org_id,
+                is_impersonating: true,
+              }
+            }
+          }
+
           if (roleData?.is_impersonating && roleData?.role_name) {
             currentRole = roleData.role_name
           }
