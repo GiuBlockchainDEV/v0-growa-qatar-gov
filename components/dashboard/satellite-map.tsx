@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState, useCallback, useMemo } from 'react'
-import { Plus, Minus, Crosshair, Layers } from 'lucide-react'
+import { Plus, Minus, Crosshair } from 'lucide-react'
 
 // Qatar center coordinates
 const QATAR_CENTER = { lat: 25.3548, lng: 51.1839 }
@@ -36,6 +36,15 @@ interface SatelliteMapProps {
   locale?: string
   targetFarmId?: string | null
   targetZoom?: number
+}
+
+interface MapController {
+  zoomIn: () => void
+  zoomOut: () => void
+  flyTo: (coords: [number, number], zoom: number, options?: { duration?: number }) => void
+  getZoom: () => number
+  on: (event: string, handler: () => void) => void
+  remove: () => void
 }
 
 function hashToRange(input: string, min: number, max: number) {
@@ -75,32 +84,34 @@ export function SatelliteMap({
   targetZoom = 16,
 }: SatelliteMapProps) {
   const mapRef = useRef<HTMLDivElement>(null)
-  const mapInstanceRef = useRef<L.Map | null>(null)
+  const mapInstanceRef = useRef<MapController | null>(null)
+  const leafletRef = useRef<any>(null)
+  const markerInstancesRef = useRef<any[]>([])
   const [isLoading, setIsLoading] = useState(true)
+  const [mapReady, setMapReady] = useState(false)
   const [currentZoom, setCurrentZoom] = useState(DEFAULT_ZOOM)
   const [farmRows, setFarmRows] = useState<FarmApiRow[]>([])
   const [farmLoadError, setFarmLoadError] = useState<string | null>(null)
 
   const dynamicFarmMarkers = useMemo<MapMarker[]>(() => {
-    return farmRows
-      .map((farm) => {
-        if (!farm.id) return null
-        const coordinates = estimateFarmCoordinates(farm.id, farm.location || null)
-        const label =
-          (locale === 'ar' && farm.name_ar) ||
-          farm.name_en ||
-          farm.name ||
-          `Farm ${farm.id.slice(0, 8)}`
-
-        return {
-          id: farm.id,
-          lat: coordinates.lat,
-          lng: coordinates.lng,
-          label,
-          type: 'farm' as const,
-        }
+    const markers: MapMarker[] = []
+    for (const farm of farmRows) {
+      if (!farm.id) continue
+      const coordinates = estimateFarmCoordinates(farm.id, farm.location || null)
+      const label =
+        (locale === 'ar' && farm.name_ar) ||
+        farm.name_en ||
+        farm.name ||
+        `Farm ${farm.id.slice(0, 8)}`
+      markers.push({
+        id: farm.id,
+        lat: coordinates.lat,
+        lng: coordinates.lng,
+        label,
+        type: 'farm',
       })
-      .filter((marker): marker is MapMarker => Boolean(marker))
+    }
+    return markers
   }, [farmRows, locale])
 
   const mapMarkers = useMemo<MapMarker[]>(
@@ -165,19 +176,21 @@ export function SatelliteMap({
   }, [])
 
   useEffect(() => {
-    let map: L.Map | null = null
-    
+    let map: MapController | null = null
+
     const initMap = async () => {
       if (!mapRef.current) return
-      
+
       // Check if already initialized by Leaflet (has _leaflet_id on the container)
       if ((mapRef.current as HTMLDivElement & { _leaflet_id?: number })._leaflet_id) {
         setIsLoading(false)
+        setMapReady(true)
         return
       }
 
-      const L = (await import('leaflet')).default
+      const L = (await import('leaflet')).default as any
       await import('leaflet/dist/leaflet.css')
+      leafletRef.current = L
 
       // Initialize map
       map = L.map(mapRef.current, {
@@ -198,64 +211,78 @@ export function SatelliteMap({
         setCurrentZoom(map.getZoom())
       })
 
-      // Custom marker icon
-      const createMarkerIcon = (type: string) => {
-        const colors = {
-          farm: '#07f880',
-          facility: '#3B82F6',
-          sensor: '#F59E0B'
-        }
-        const color = colors[type as keyof typeof colors] || colors.farm
-
-        return L.divIcon({
-          className: 'custom-marker',
-          html: `
-            <div style="
-              width: 24px;
-              height: 24px;
-              background: ${color};
-              border: 3px solid rgba(255,255,255,0.95);
-              border-radius: 50%;
-              box-shadow: 0 2px 8px rgba(0,0,0,0.4), 0 0 16px ${color}50;
-              cursor: pointer;
-            "></div>
-          `,
-          iconSize: [24, 24],
-          iconAnchor: [12, 12],
-        })
-      }
-
-      // Add markers
-      mapMarkers.forEach((marker) => {
-        L.marker([marker.lat, marker.lng], {
-          icon: createMarkerIcon(marker.type)
-        })
-          .addTo(map)
-          .bindPopup(`
-            <div style="font-family: system-ui; padding: 8px; min-width: 140px;">
-              <strong style="color: #07f880; font-size: 13px;">${marker.label}</strong>
-              <br/>
-              <span style="font-size: 10px; color: #888; text-transform: uppercase;">Type: ${marker.type}</span>
-            </div>
-          `, {
-            className: 'custom-popup'
-          })
-      })
-
       mapInstanceRef.current = map
       setIsLoading(false)
+      setMapReady(true)
     }
 
     initMap()
 
     return () => {
+      markerInstancesRef.current.forEach((marker) => marker.remove?.())
+      markerInstancesRef.current = []
       // Cleanup on unmount - properly remove map
       if (map) {
         map.remove()
         mapInstanceRef.current = null
       }
+      leafletRef.current = null
+      setMapReady(false)
     }
-  }, [mapMarkers])
+  }, [])
+
+  useEffect(() => {
+    if (!mapReady || !mapInstanceRef.current || !leafletRef.current) return
+
+    const L = leafletRef.current
+    const map = mapInstanceRef.current
+
+    const createMarkerIcon = (type: MapMarker['type']) => {
+      const colors = {
+        farm: '#07f880',
+        facility: '#3B82F6',
+        sensor: '#F59E0B',
+      }
+      const color = colors[type] || colors.farm
+
+      return L.divIcon({
+        className: 'custom-marker',
+        html: `
+          <div style="
+            width: 24px;
+            height: 24px;
+            background: ${color};
+            border: 3px solid rgba(255,255,255,0.95);
+            border-radius: 50%;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.4), 0 0 16px ${color}50;
+            cursor: pointer;
+          "></div>
+        `,
+        iconSize: [24, 24],
+        iconAnchor: [12, 12],
+      })
+    }
+
+    markerInstancesRef.current.forEach((marker) => marker.remove?.())
+    markerInstancesRef.current = mapMarkers.map((marker) =>
+      L.marker([marker.lat, marker.lng], {
+        icon: createMarkerIcon(marker.type),
+      })
+        .addTo(map)
+        .bindPopup(
+          `
+            <div style="font-family: system-ui; padding: 8px; min-width: 140px;">
+              <strong style="color: #07f880; font-size: 13px;">${marker.label}</strong>
+              <br/>
+              <span style="font-size: 10px; color: #888; text-transform: uppercase;">Type: ${marker.type}</span>
+            </div>
+          `,
+          {
+            className: 'custom-popup',
+          }
+        )
+    )
+  }, [mapMarkers, mapReady])
 
   useEffect(() => {
     if (!mapInstanceRef.current) return
