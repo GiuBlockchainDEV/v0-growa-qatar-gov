@@ -2,10 +2,12 @@
 
 import { useEffect, useRef, useState, useCallback, useMemo } from 'react'
 import { Plus, Minus, Crosshair } from 'lucide-react'
+import { useOrganization } from '@/hooks/use-organization'
 
 // Qatar center coordinates
 const QATAR_CENTER = { lat: 25.3548, lng: 51.1839 }
 const DEFAULT_ZOOM = 10
+const DEFAULT_FARM_FOCUS_ZOOM = 17
 
 interface MapMarker {
   id: string
@@ -81,8 +83,9 @@ function estimateFarmCoordinates(farmId: string, location?: string | null) {
 export function SatelliteMap({
   locale = 'en',
   targetFarmId = null,
-  targetZoom = 16,
+  targetZoom,
 }: SatelliteMapProps) {
+  const { organization } = useOrganization()
   const mapRef = useRef<HTMLDivElement>(null)
   const mapInstanceRef = useRef<MapController | null>(null)
   const leafletRef = useRef<any>(null)
@@ -92,6 +95,14 @@ export function SatelliteMap({
   const [currentZoom, setCurrentZoom] = useState(DEFAULT_ZOOM)
   const [farmRows, setFarmRows] = useState<FarmApiRow[]>([])
   const [farmLoadError, setFarmLoadError] = useState<string | null>(null)
+  const organizationType = (
+    organization?.organization_type ||
+    organization?.type ||
+    ''
+  )
+    .toString()
+    .toLowerCase()
+  const isFarmCompanyContext = organizationType === 'farm_company'
 
   const dynamicFarmMarkers = useMemo<MapMarker[]>(() => {
     const markers: MapMarker[] = []
@@ -120,9 +131,24 @@ export function SatelliteMap({
   )
 
   const targetFarmMarker = useMemo(
-    () => (targetFarmId ? mapMarkers.find((marker) => marker.id === targetFarmId) || null : null),
-    [mapMarkers, targetFarmId]
+    () =>
+      targetFarmId
+        ? dynamicFarmMarkers.find((marker) => marker.id === targetFarmId) ||
+          mapMarkers.find((marker) => marker.id === targetFarmId) ||
+          null
+        : null,
+    [dynamicFarmMarkers, mapMarkers, targetFarmId]
   )
+
+  const resolvedFarmFocusMarker = useMemo(() => {
+    if (targetFarmMarker) return targetFarmMarker
+    if (!isFarmCompanyContext) return null
+    return dynamicFarmMarkers[0] || null
+  }, [targetFarmMarker, isFarmCompanyContext, dynamicFarmMarkers])
+
+  const resolvedFarmFocusZoom = resolvedFarmFocusMarker
+    ? targetZoom ?? DEFAULT_FARM_FOCUS_ZOOM
+    : DEFAULT_ZOOM
 
   const handleZoomIn = useCallback(() => {
     if (mapInstanceRef.current) {
@@ -138,14 +164,14 @@ export function SatelliteMap({
 
   const handleRecenter = useCallback(() => {
     if (mapInstanceRef.current) {
-      const recenterLat = targetFarmMarker?.lat ?? QATAR_CENTER.lat
-      const recenterLng = targetFarmMarker?.lng ?? QATAR_CENTER.lng
-      const recenterZoom = targetFarmMarker ? targetZoom : DEFAULT_ZOOM
+      const recenterLat = resolvedFarmFocusMarker?.lat ?? QATAR_CENTER.lat
+      const recenterLng = resolvedFarmFocusMarker?.lng ?? QATAR_CENTER.lng
+      const recenterZoom = resolvedFarmFocusMarker ? resolvedFarmFocusZoom : DEFAULT_ZOOM
       mapInstanceRef.current.flyTo([recenterLat, recenterLng], recenterZoom, {
         duration: 1.5
       })
     }
-  }, [targetFarmMarker, targetZoom])
+  }, [resolvedFarmFocusMarker, resolvedFarmFocusZoom])
 
   useEffect(() => {
     let cancelled = false
@@ -286,11 +312,15 @@ export function SatelliteMap({
 
   useEffect(() => {
     if (!mapInstanceRef.current) return
-    if (!targetFarmMarker) return
-    mapInstanceRef.current.flyTo([targetFarmMarker.lat, targetFarmMarker.lng], targetZoom, {
+    if (!resolvedFarmFocusMarker) return
+    mapInstanceRef.current.flyTo(
+      [resolvedFarmFocusMarker.lat, resolvedFarmFocusMarker.lng],
+      resolvedFarmFocusZoom,
+      {
       duration: 1.2,
-    })
-  }, [targetFarmMarker, targetZoom])
+      }
+    )
+  }, [resolvedFarmFocusMarker, resolvedFarmFocusZoom])
 
   return (
     <div className="absolute inset-0 pt-16"> {/* pt-16 to account for header */}
@@ -333,9 +363,9 @@ export function SatelliteMap({
           <span className="text-xs text-white/60">Zoom: </span>
           <span className="text-xs font-medium text-[#07f880]">{currentZoom}</span>
         </div>
-        {targetFarmMarker && (
+        {resolvedFarmFocusMarker && (
           <div className="text-[11px] text-white/75">
-            Focus: <span className="text-[#07f880]">{targetFarmMarker.label}</span>
+            Focus: <span className="text-[#07f880]">{resolvedFarmFocusMarker.label}</span>
           </div>
         )}
         {farmLoadError && (

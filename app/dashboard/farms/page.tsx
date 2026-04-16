@@ -99,7 +99,7 @@ export default function FarmsPage() {
     const params = new URLSearchParams({
       module: 'live-map',
       farmId: farm.id,
-      zoom: '16',
+      zoom: '17',
     })
     router.push(`/dashboard?${params.toString()}`)
   }

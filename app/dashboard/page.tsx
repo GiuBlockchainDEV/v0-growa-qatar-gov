@@ -10,11 +10,12 @@ export default function DashboardPage() {
   const searchParams = useSearchParams()
   const module = searchParams.get('module')
   const targetFarmId = searchParams.get('farmId')
-  const requestedZoom = Number(searchParams.get('zoom'))
+  const zoomParam = searchParams.get('zoom')
+  const requestedZoom = zoomParam ? Number(zoomParam) : Number.NaN
   const targetZoom =
     Number.isFinite(requestedZoom) && requestedZoom >= 3 && requestedZoom <= 19
       ? requestedZoom
-      : 16
+      : undefined
 
   const mapModules = new Set(['live-map', 'map', 'national-map', 'inspection-map'])
 
