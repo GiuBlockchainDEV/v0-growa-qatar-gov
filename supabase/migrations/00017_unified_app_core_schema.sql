@@ -439,6 +439,7 @@ BEGIN
 END;
 $$;
 
+DROP FUNCTION IF EXISTS public.set_impersonation(TEXT, UUID);
 CREATE OR REPLACE FUNCTION public.set_impersonation(p_role TEXT, p_org_id UUID)
 RETURNS VOID
 LANGUAGE plpgsql
@@ -468,6 +469,7 @@ BEGIN
 END;
 $$;
 
+DROP FUNCTION IF EXISTS public.clear_impersonation();
 CREATE OR REPLACE FUNCTION public.clear_impersonation()
 RETURNS VOID
 LANGUAGE plpgsql
