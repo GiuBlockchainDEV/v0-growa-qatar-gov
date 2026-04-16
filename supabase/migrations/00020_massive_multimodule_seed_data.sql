@@ -280,50 +280,110 @@ BEGIN
   -- ---------------------------------------------------------------------------
   -- Farms for farm_company organizations (requires at least one user).
   -- ---------------------------------------------------------------------------
-  IF v_primary_user IS NOT NULL THEN
-    INSERT INTO public.farms (
-      organization_id,
-      name_en,
-      name_ar,
-      location,
-      type,
-      size_hectares,
-      status,
-      created_by
-    )
-    SELECT
-      o.id,
-      INITCAP(REPLACE(o.slug, '-', ' ')) || ' Farm ' || g.farm_no,
-      'مزرعة ' || g.farm_no || ' - ' || INITCAP(REPLACE(o.slug, '-', ' ')),
-      CASE (g.farm_no % 6)
-        WHEN 0 THEN 'Al Khor'
-        WHEN 1 THEN 'Al Rayyan'
-        WHEN 2 THEN 'Umm Salal'
-        WHEN 3 THEN 'Al Daayen'
-        WHEN 4 THEN 'Al Wakrah'
-        ELSE 'Madinat ash Shamal'
-      END,
-      CASE ((g.farm_no + o.org_rank) % 3)
-        WHEN 0 THEN 'crop'
-        WHEN 1 THEN 'livestock'
-        ELSE 'aquaculture'
-      END,
-      ROUND((20 + o.org_rank * 5 + g.farm_no * 2.5)::NUMERIC, 2),
-      CASE ((g.farm_no + o.org_rank) % 5)
-        WHEN 0 THEN 'maintenance'
-        WHEN 1 THEN 'inactive'
-        ELSE 'active'
-      END,
-      v_primary_user
-    FROM tmp_org_map o
-    CROSS JOIN generate_series(1, 18) AS g(farm_no)
-    WHERE o.organization_type = 'farm_company'
-      AND NOT EXISTS (
+  IF v_primary_user IS NOT NULL AND EXISTS (
+    SELECT 1
+    FROM information_schema.tables
+    WHERE table_schema = 'public'
+      AND table_name = 'farms'
+  ) THEN
+    BEGIN
+      IF EXISTS (
         SELECT 1
-        FROM public.farms f
-        WHERE f.organization_id = o.id
-          AND f.name_en = INITCAP(REPLACE(o.slug, '-', ' ')) || ' Farm ' || g.farm_no
-      );
+        FROM information_schema.columns
+        WHERE table_schema = 'public'
+          AND table_name = 'farms'
+          AND column_name = 'created_by'
+      ) THEN
+        INSERT INTO public.farms (
+          organization_id,
+          name_en,
+          name_ar,
+          location,
+          type,
+          size_hectares,
+          status,
+          created_by
+        )
+        SELECT
+          o.id,
+          INITCAP(REPLACE(o.slug, '-', ' ')) || ' Farm ' || g.farm_no,
+          'مزرعة ' || g.farm_no || ' - ' || INITCAP(REPLACE(o.slug, '-', ' ')),
+          CASE (g.farm_no % 6)
+            WHEN 0 THEN 'Al Khor'
+            WHEN 1 THEN 'Al Rayyan'
+            WHEN 2 THEN 'Umm Salal'
+            WHEN 3 THEN 'Al Daayen'
+            WHEN 4 THEN 'Al Wakrah'
+            ELSE 'Madinat ash Shamal'
+          END,
+          CASE ((g.farm_no + o.org_rank) % 3)
+            WHEN 0 THEN 'crop'
+            WHEN 1 THEN 'livestock'
+            ELSE 'aquaculture'
+          END,
+          ROUND((20 + o.org_rank * 5 + g.farm_no * 2.5)::NUMERIC, 2),
+          CASE ((g.farm_no + o.org_rank) % 5)
+            WHEN 0 THEN 'maintenance'
+            WHEN 1 THEN 'inactive'
+            ELSE 'active'
+          END,
+          v_primary_user
+        FROM tmp_org_map o
+        CROSS JOIN generate_series(1, 18) AS g(farm_no)
+        WHERE o.organization_type = 'farm_company'
+          AND NOT EXISTS (
+            SELECT 1
+            FROM public.farms f
+            WHERE f.organization_id = o.id
+              AND f.name_en = INITCAP(REPLACE(o.slug, '-', ' ')) || ' Farm ' || g.farm_no
+          );
+      ELSE
+        INSERT INTO public.farms (
+          organization_id,
+          name_en,
+          name_ar,
+          location,
+          type,
+          size_hectares,
+          status
+        )
+        SELECT
+          o.id,
+          INITCAP(REPLACE(o.slug, '-', ' ')) || ' Farm ' || g.farm_no,
+          'مزرعة ' || g.farm_no || ' - ' || INITCAP(REPLACE(o.slug, '-', ' ')),
+          CASE (g.farm_no % 6)
+            WHEN 0 THEN 'Al Khor'
+            WHEN 1 THEN 'Al Rayyan'
+            WHEN 2 THEN 'Umm Salal'
+            WHEN 3 THEN 'Al Daayen'
+            WHEN 4 THEN 'Al Wakrah'
+            ELSE 'Madinat ash Shamal'
+          END,
+          CASE ((g.farm_no + o.org_rank) % 3)
+            WHEN 0 THEN 'crop'
+            WHEN 1 THEN 'livestock'
+            ELSE 'aquaculture'
+          END,
+          ROUND((20 + o.org_rank * 5 + g.farm_no * 2.5)::NUMERIC, 2),
+          CASE ((g.farm_no + o.org_rank) % 5)
+            WHEN 0 THEN 'maintenance'
+            WHEN 1 THEN 'inactive'
+            ELSE 'active'
+          END
+        FROM tmp_org_map o
+        CROSS JOIN generate_series(1, 18) AS g(farm_no)
+        WHERE o.organization_type = 'farm_company'
+          AND NOT EXISTS (
+            SELECT 1
+            FROM public.farms f
+            WHERE f.organization_id = o.id
+              AND f.name_en = INITCAP(REPLACE(o.slug, '-', ' ')) || ' Farm ' || g.farm_no
+          );
+      END IF;
+    EXCEPTION
+      WHEN undefined_column OR undefined_table OR check_violation OR not_null_violation THEN
+        RAISE NOTICE 'Skipping farms seed due to schema mismatch: %', SQLERRM;
+    END;
   END IF;
 
   -- ---------------------------------------------------------------------------
