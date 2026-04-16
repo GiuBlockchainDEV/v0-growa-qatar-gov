@@ -11,8 +11,19 @@ import {
   Workflow,
 } from 'lucide-react'
 
-function normalizeKey(value: string) {
+function normalizeKey(value: string | null | undefined) {
+  if (!value) return ''
   return value.trim().toLowerCase().replace(/_/g, '-')
+}
+
+function resolveItemKey(item: Record<string, unknown>) {
+  const keyCandidate =
+    (typeof item.key === 'string' && item.key) ||
+    (typeof item.id === 'string' && item.id) ||
+    (typeof item.label === 'string' && item.label) ||
+    ''
+
+  return normalizeKey(keyCandidate)
 }
 
 interface ModuleWorkspaceProps {
@@ -41,7 +52,7 @@ export function ModuleWorkspace({ moduleKey }: ModuleWorkspaceProps) {
     const wanted = normalizeKey(moduleKey)
 
     return (
-      menuItems.find((item) => normalizeKey(item.key) === wanted) ||
+      menuItems.find((item) => resolveItemKey(item as unknown as Record<string, unknown>) === wanted) ||
       menuItems.find((item) => item.path === `/dashboard?module=${moduleKey}`) ||
       null
     )

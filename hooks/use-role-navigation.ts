@@ -58,6 +58,8 @@ export interface RoleNavigation {
   source?: 'registry' | 'database' | 'fallback'
 }
 
+type RawMenuItem = Record<string, unknown>
+
 // Map icon names to actual Lucide components
 const iconMap: Record<string, LucideIcon> = {
   Globe,
@@ -271,6 +273,84 @@ function splitNavigationSections(items: MenuItem[]) {
     section: 'secondary' as const,
   }))
   return { primary, secondary }
+}
+
+function normalizeRawMenuItems(rawItems: unknown): MenuItem[] {
+  if (!Array.isArray(rawItems)) return []
+
+  return rawItems
+    .map((entry, index) => {
+      if (!entry || typeof entry !== 'object') return null
+      const raw = entry as RawMenuItem
+
+      const keyFromRow =
+        typeof raw.key === 'string'
+          ? raw.key
+          : typeof raw.id === 'string'
+            ? raw.id
+            : null
+
+      const labelFromRow =
+        typeof raw.label === 'string'
+          ? raw.label
+          : typeof raw.title === 'string'
+            ? raw.title
+            : keyFromRow
+              ? keyFromRow.replace(/[-_]/g, ' ')
+              : `module-${index + 1}`
+
+      const normalizedKey =
+        (keyFromRow || labelFromRow || `module-${index + 1}`)
+          .trim()
+          .toLowerCase()
+          .replace(/\s+/g, '-')
+
+      const pathFromRow = typeof raw.path === 'string' ? raw.path : undefined
+      const hrefFromRow = typeof raw.href === 'string' ? raw.href : undefined
+      const normalizedPath = pathFromRow || hrefFromRow || `/dashboard?module=${normalizedKey}`
+
+      const icon =
+        typeof raw.icon === 'string' && raw.icon.trim().length > 0
+          ? raw.icon
+          : 'HelpCircle'
+
+      const submenu = Array.isArray(raw.submenu)
+        ? raw.submenu
+            .map((item, submenuIndex) => {
+              if (!item || typeof item !== 'object') return null
+              const rawSub = item as Record<string, unknown>
+              const subLabel =
+                typeof rawSub.label === 'string'
+                  ? rawSub.label
+                  : typeof rawSub.title === 'string'
+                    ? rawSub.title
+                    : `Section ${submenuIndex + 1}`
+              const subKey =
+                typeof rawSub.key === 'string'
+                  ? rawSub.key
+                  : typeof rawSub.id === 'string'
+                    ? rawSub.id
+                    : `${normalizedKey}-section-${submenuIndex + 1}`
+              return { key: subKey, label: subLabel }
+            })
+            .filter((item): item is { key: string; label: string } => Boolean(item))
+        : undefined
+
+      return {
+        key: normalizedKey,
+        label: labelFromRow,
+        path: normalizedPath,
+        icon,
+        backendRoute: typeof raw.backendRoute === 'string' ? raw.backendRoute : undefined,
+        purpose: typeof raw.purpose === 'string' ? raw.purpose : undefined,
+        defaultContent: typeof raw.defaultContent === 'string' ? raw.defaultContent : undefined,
+        allowedActions: Array.isArray(raw.allowedActions)
+          ? raw.allowedActions.filter((action): action is string => typeof action === 'string')
+          : undefined,
+        submenu,
+      } as MenuItem
+    })
+    .filter((item): item is MenuItem => Boolean(item))
 }
 
 export function useRoleNavigation() {
