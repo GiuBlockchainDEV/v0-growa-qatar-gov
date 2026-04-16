@@ -49,37 +49,122 @@ type FormState = {
   status: 'draft' | 'completed'
 }
 
-const CATEGORY_OPTIONS = [
-  'Planting',
-  'Fertilization',
-  'Irrigation',
-  'Plant Protection',
-  'Harvest',
-  'Soil Work',
-  'Monitoring',
-  'Other',
-]
+type CategoryKey =
+  | 'Planting'
+  | 'Fertilization'
+  | 'Irrigation'
+  | 'Plant Protection'
+  | 'Harvest'
+  | 'Soil Work'
+  | 'Monitoring'
+  | 'Other'
+
+type CategoryFormSection = {
+  label: string
+  description: string
+  fields: Array<
+    | 'operation_title'
+    | 'crop_name'
+    | 'product_name'
+    | 'active_substance'
+    | 'quantity'
+    | 'treated_area'
+    | 'weather_conditions'
+    | 'notes'
+  >
+}
+
+const CATEGORY_SECTIONS: Record<CategoryKey, CategoryFormSection> = {
+  Planting: {
+    label: 'Planting',
+    description: 'Simple section for sowing or transplanting activities.',
+    fields: ['crop_name', 'quantity', 'treated_area', 'notes'],
+  },
+  Fertilization: {
+    label: 'Fertilization',
+    description: 'Register fertilizer product and applied quantity.',
+    fields: ['product_name', 'quantity', 'treated_area', 'notes'],
+  },
+  Irrigation: {
+    label: 'Irrigation',
+    description: 'Track irrigation volume and weather context.',
+    fields: ['quantity', 'weather_conditions', 'notes'],
+  },
+  'Plant Protection': {
+    label: 'Plant Protection',
+    description: 'Record treatment product, active substance, and treated area.',
+    fields: [
+      'crop_name',
+      'product_name',
+      'active_substance',
+      'quantity',
+      'treated_area',
+      'weather_conditions',
+      'notes',
+    ],
+  },
+  Harvest: {
+    label: 'Harvest',
+    description: 'Capture crop harvested and resulting quantity.',
+    fields: ['crop_name', 'quantity', 'treated_area', 'notes'],
+  },
+  'Soil Work': {
+    label: 'Soil Work',
+    description: 'Register tillage and soil preparation operations.',
+    fields: ['operation_title', 'treated_area', 'notes'],
+  },
+  Monitoring: {
+    label: 'Monitoring',
+    description: 'Quick observations, scouting, and field checks.',
+    fields: ['weather_conditions', 'notes'],
+  },
+  Other: {
+    label: 'Other',
+    description: 'Flexible section for any other field operation.',
+    fields: ['operation_title', 'notes'],
+  },
+}
+
+const CATEGORY_OPTIONS = Object.keys(CATEGORY_SECTIONS) as CategoryKey[]
 
 const STATUS_OPTIONS: Array<{ value: 'draft' | 'completed'; label: string }> = [
   { value: 'draft', label: 'Draft' },
   { value: 'completed', label: 'Completed' },
 ]
 
+const UNIT_OPTIONS = ['kg', 'g', 'l', 'ml', 'm3', 't', 'units']
+const AREA_UNIT_OPTIONS = ['ha', 'm²', 'ac']
+
 function todayIsoDate() {
   return new Date().toISOString().slice(0, 10)
 }
 
-function createEmptyFormState(): FormState {
+function isCategoryKey(value: string): value is CategoryKey {
+  return Object.prototype.hasOwnProperty.call(CATEGORY_SECTIONS, value)
+}
+
+function defaultUnitByCategory(category: CategoryKey): string {
+  switch (category) {
+    case 'Irrigation':
+      return 'm3'
+    case 'Plant Protection':
+      return 'l'
+    default:
+      return 'kg'
+  }
+}
+
+function createEmptyFormState(defaultFarmId = '', defaultCategory: CategoryKey = 'Monitoring'): FormState {
   return {
     entry_date: todayIsoDate(),
-    farm_id: '',
-    activity_category: 'Monitoring',
+    farm_id: defaultFarmId,
+    activity_category: defaultCategory,
     operation_title: '',
     crop_name: '',
     product_name: '',
     active_substance: '',
     quantity: '',
-    unit: 'kg',
+    unit: defaultUnitByCategory(defaultCategory),
     treated_area: '',
     area_unit: 'ha',
     weather_conditions: '',
@@ -87,6 +172,162 @@ function createEmptyFormState(): FormState {
     notes: '',
     status: 'draft',
   }
+}
+
+function parseNumberInput(value: string): number | null {
+  const normalized = value.trim()
+  if (!normalized) return null
+  const parsed = Number(normalized)
+  return Number.isFinite(parsed) ? parsed : null
+}
+
+function renderCategoryFields({
+  formState,
+  setFormState,
+  visibleFieldSet,
+}: {
+  formState: FormState
+  setFormState: React.Dispatch<React.SetStateAction<FormState>>
+  visibleFieldSet: Set<string>
+}) {
+  return (
+    <>
+      {(visibleFieldSet.has('operation_title') || formState.activity_category === 'Other') && (
+        <label className="space-y-1 text-sm md:col-span-2">
+          <span className="text-white/75">Operation title</span>
+          <input
+            type="text"
+            value={formState.operation_title}
+            onChange={(e) => setFormState((prev) => ({ ...prev, operation_title: e.target.value }))}
+            className="h-10 w-full rounded-lg border border-white/10 bg-white/5 px-3 text-white focus:border-[#07f880]/40 focus:outline-none"
+            placeholder={`${formState.activity_category} activity`}
+          />
+        </label>
+      )}
+
+      {visibleFieldSet.has('crop_name') && (
+        <label className="space-y-1 text-sm">
+          <span className="text-white/75">Crop</span>
+          <input
+            type="text"
+            value={formState.crop_name}
+            onChange={(e) => setFormState((prev) => ({ ...prev, crop_name: e.target.value }))}
+            className="h-10 w-full rounded-lg border border-white/10 bg-white/5 px-3 text-white focus:border-[#07f880]/40 focus:outline-none"
+            placeholder="Tomato, Wheat, Olive..."
+          />
+        </label>
+      )}
+
+      {visibleFieldSet.has('product_name') && (
+        <label className="space-y-1 text-sm">
+          <span className="text-white/75">Product</span>
+          <input
+            type="text"
+            value={formState.product_name}
+            onChange={(e) => setFormState((prev) => ({ ...prev, product_name: e.target.value }))}
+            className="h-10 w-full rounded-lg border border-white/10 bg-white/5 px-3 text-white focus:border-[#07f880]/40 focus:outline-none"
+            placeholder="NPK 20-10-10, Copper..."
+          />
+        </label>
+      )}
+
+      {visibleFieldSet.has('active_substance') && (
+        <label className="space-y-1 text-sm">
+          <span className="text-white/75">Active substance</span>
+          <input
+            type="text"
+            value={formState.active_substance}
+            onChange={(e) => setFormState((prev) => ({ ...prev, active_substance: e.target.value }))}
+            className="h-10 w-full rounded-lg border border-white/10 bg-white/5 px-3 text-white focus:border-[#07f880]/40 focus:outline-none"
+            placeholder="Active ingredient"
+          />
+        </label>
+      )}
+
+      {visibleFieldSet.has('quantity') && (
+        <>
+          <label className="space-y-1 text-sm">
+            <span className="text-white/75">Quantity</span>
+            <input
+              type="number"
+              step="0.01"
+              value={formState.quantity}
+              onChange={(e) => setFormState((prev) => ({ ...prev, quantity: e.target.value }))}
+              className="h-10 w-full rounded-lg border border-white/10 bg-white/5 px-3 text-white focus:border-[#07f880]/40 focus:outline-none"
+            />
+          </label>
+          <label className="space-y-1 text-sm">
+            <span className="text-white/75">Unit</span>
+            <select
+              value={formState.unit}
+              onChange={(e) => setFormState((prev) => ({ ...prev, unit: e.target.value }))}
+              className="h-10 w-full rounded-lg border border-white/10 bg-white/5 px-3 text-white focus:border-[#07f880]/40 focus:outline-none"
+            >
+              {UNIT_OPTIONS.map((unit) => (
+                <option key={unit} value={unit} className="bg-[#0f1115]">
+                  {unit}
+                </option>
+              ))}
+            </select>
+          </label>
+        </>
+      )}
+
+      {visibleFieldSet.has('treated_area') && (
+        <>
+          <label className="space-y-1 text-sm">
+            <span className="text-white/75">Area</span>
+            <input
+              type="number"
+              step="0.01"
+              value={formState.treated_area}
+              onChange={(e) => setFormState((prev) => ({ ...prev, treated_area: e.target.value }))}
+              className="h-10 w-full rounded-lg border border-white/10 bg-white/5 px-3 text-white focus:border-[#07f880]/40 focus:outline-none"
+            />
+          </label>
+          <label className="space-y-1 text-sm">
+            <span className="text-white/75">Area unit</span>
+            <select
+              value={formState.area_unit}
+              onChange={(e) => setFormState((prev) => ({ ...prev, area_unit: e.target.value }))}
+              className="h-10 w-full rounded-lg border border-white/10 bg-white/5 px-3 text-white focus:border-[#07f880]/40 focus:outline-none"
+            >
+              {AREA_UNIT_OPTIONS.map((unit) => (
+                <option key={unit} value={unit} className="bg-[#0f1115]">
+                  {unit}
+                </option>
+              ))}
+            </select>
+          </label>
+        </>
+      )}
+
+      {visibleFieldSet.has('weather_conditions') && (
+        <label className="space-y-1 text-sm md:col-span-2">
+          <span className="text-white/75">Weather conditions</span>
+          <input
+            type="text"
+            value={formState.weather_conditions}
+            onChange={(e) => setFormState((prev) => ({ ...prev, weather_conditions: e.target.value }))}
+            className="h-10 w-full rounded-lg border border-white/10 bg-white/5 px-3 text-white focus:border-[#07f880]/40 focus:outline-none"
+            placeholder="Sunny, 18°C, light wind"
+          />
+        </label>
+      )}
+
+      {visibleFieldSet.has('notes') && (
+        <label className="space-y-1 text-sm md:col-span-2 xl:col-span-4">
+          <span className="text-white/75">Notes</span>
+          <textarea
+            value={formState.notes}
+            onChange={(e) => setFormState((prev) => ({ ...prev, notes: e.target.value }))}
+            className="min-h-24 w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-white focus:border-[#07f880]/40 focus:outline-none"
+            placeholder="Write short notes here..."
+          />
+        </label>
+      )}
+    </>
+  )
 }
 
 export default function FieldLogbookPage() {
@@ -102,6 +343,16 @@ export default function FieldLogbookPage() {
   const [formState, setFormState] = useState<FormState>(createEmptyFormState())
   const [error, setError] = useState<string | null>(null)
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
+
+  const selectedFormCategory = useMemo<CategoryKey>(() => {
+    return isCategoryKey(formState.activity_category) ? formState.activity_category : 'Other'
+  }, [formState.activity_category])
+
+  const selectedCategorySection = CATEGORY_SECTIONS[selectedFormCategory]
+  const visibleFieldSet = useMemo(
+    () => new Set<string>(selectedCategorySection.fields),
+    [selectedCategorySection.fields]
+  )
 
   const farmNameById = useMemo(() => {
     const map = new Map<string, string>()
@@ -183,9 +434,8 @@ export default function FieldLogbookPage() {
     setEditingEntryId(null)
     setSuccessMessage(null)
     setError(null)
-    const next = createEmptyFormState()
-    next.farm_id = selectedFarmId || farms[0]?.id || ''
-    setFormState(next)
+    const defaultFarmId = selectedFarmId || farms[0]?.id || ''
+    setFormState(createEmptyFormState(defaultFarmId))
     setIsFormOpen(true)
   }
 
@@ -193,16 +443,21 @@ export default function FieldLogbookPage() {
     setEditingEntryId(entry.id)
     setSuccessMessage(null)
     setError(null)
+
+    const normalizedCategory = isCategoryKey(entry.activity_category)
+      ? entry.activity_category
+      : 'Other'
+
     setFormState({
       entry_date: entry.entry_date || todayIsoDate(),
       farm_id: entry.farm_id || '',
-      activity_category: entry.activity_category || 'Monitoring',
+      activity_category: normalizedCategory,
       operation_title: entry.operation_title || '',
       crop_name: entry.crop_name || '',
       product_name: entry.product_name || '',
       active_substance: entry.active_substance || '',
       quantity: entry.quantity?.toString() || '',
-      unit: entry.unit || 'kg',
+      unit: entry.unit || defaultUnitByCategory(normalizedCategory),
       treated_area: entry.treated_area?.toString() || '',
       area_unit: entry.area_unit || 'ha',
       weather_conditions: entry.weather_conditions || '',
@@ -219,14 +474,27 @@ export default function FieldLogbookPage() {
     setFormState(createEmptyFormState())
   }
 
+  const handleCategoryChange = (category: CategoryKey) => {
+    setFormState((prev) => ({
+      ...prev,
+      activity_category: category,
+      unit: prev.unit.trim() ? prev.unit : defaultUnitByCategory(category),
+      operation_title: prev.operation_title.trim() ? prev.operation_title : `${category} activity`,
+    }))
+  }
+
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     if (!organization?.id) return
 
-    if (!formState.operation_title.trim()) {
-      setError('Operation title is required.')
+    if (!formState.farm_id) {
+      setError('Please select a farm.')
       return
     }
+
+    const category = isCategoryKey(formState.activity_category) ? formState.activity_category : 'Other'
+    const normalizedOperationTitle =
+      formState.operation_title.trim() || `${CATEGORY_SECTIONS[category].label} activity`
 
     setIsSubmitting(true)
     setError(null)
@@ -235,19 +503,19 @@ export default function FieldLogbookPage() {
     const payload = {
       organization_id: organization.id,
       farm_id: formState.farm_id || null,
-      entry_date: formState.entry_date,
-      activity_category: formState.activity_category,
-      operation_title: formState.operation_title,
-      crop_name: formState.crop_name || null,
-      product_name: formState.product_name || null,
-      active_substance: formState.active_substance || null,
-      quantity: formState.quantity ? Number(formState.quantity) : null,
-      unit: formState.unit || null,
-      treated_area: formState.treated_area ? Number(formState.treated_area) : null,
-      area_unit: formState.area_unit || null,
-      weather_conditions: formState.weather_conditions || null,
-      operator_name: formState.operator_name || null,
-      notes: formState.notes || null,
+      entry_date: formState.entry_date || todayIsoDate(),
+      activity_category: category,
+      operation_title: normalizedOperationTitle,
+      crop_name: formState.crop_name.trim() || null,
+      product_name: formState.product_name.trim() || null,
+      active_substance: formState.active_substance.trim() || null,
+      quantity: parseNumberInput(formState.quantity),
+      unit: formState.unit.trim() || null,
+      treated_area: parseNumberInput(formState.treated_area),
+      area_unit: formState.area_unit.trim() || null,
+      weather_conditions: formState.weather_conditions.trim() || null,
+      operator_name: formState.operator_name.trim() || null,
+      notes: formState.notes.trim() || null,
       status: formState.status,
     }
 
@@ -303,8 +571,8 @@ export default function FieldLogbookPage() {
           <div>
             <h1 className="text-2xl font-semibold text-foreground">Field Logbook</h1>
             <p className="mt-1 text-sm text-muted-foreground">
-              Record agronomic activities, treatments, and field operations inspired by the Italian
-              farming logbook model.
+              Category-based farmer logbook, inspired by the Italian field book and optimized for
+              quick daily entry.
             </p>
           </div>
           <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-white/80">
@@ -394,199 +662,285 @@ export default function FieldLogbookPage() {
             </button>
           </div>
 
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
-            <label className="space-y-1 text-sm">
-              <span className="text-white/75">Entry date</span>
-              <input
-                type="date"
-                value={formState.entry_date}
-                onChange={(e) => setFormState((prev) => ({ ...prev, entry_date: e.target.value }))}
-                className="h-10 w-full rounded-lg border border-white/10 bg-white/5 px-3 text-white focus:border-[#07f880]/40 focus:outline-none"
-                required
-              />
-            </label>
+          <div className="rounded-lg border border-white/10 bg-white/[0.02] p-4">
+            <p className="text-sm font-medium text-white">1. Basic information</p>
+            <p className="mt-1 text-xs text-white/60">Start with the minimum required details.</p>
+            <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
+              <label className="space-y-1 text-sm">
+                <span className="text-white/75">Entry date</span>
+                <input
+                  type="date"
+                  value={formState.entry_date}
+                  onChange={(e) => setFormState((prev) => ({ ...prev, entry_date: e.target.value }))}
+                  className="h-10 w-full rounded-lg border border-white/10 bg-white/5 px-3 text-white focus:border-[#07f880]/40 focus:outline-none"
+                  required
+                />
+              </label>
 
-            <label className="space-y-1 text-sm">
-              <span className="text-white/75">Farm</span>
-              <select
-                value={formState.farm_id}
-                onChange={(e) => setFormState((prev) => ({ ...prev, farm_id: e.target.value }))}
-                className="h-10 w-full rounded-lg border border-white/10 bg-white/5 px-3 text-white focus:border-[#07f880]/40 focus:outline-none"
-              >
-                <option value="" className="bg-[#0f1115]">
-                  Not specified
-                </option>
-                {farms.map((farm) => (
-                  <option key={farm.id} value={farm.id} className="bg-[#0f1115]">
-                    {farm.name}
+              <label className="space-y-1 text-sm">
+                <span className="text-white/75">Farm</span>
+                <select
+                  value={formState.farm_id}
+                  onChange={(e) => setFormState((prev) => ({ ...prev, farm_id: e.target.value }))}
+                  className="h-10 w-full rounded-lg border border-white/10 bg-white/5 px-3 text-white focus:border-[#07f880]/40 focus:outline-none"
+                  required
+                >
+                  <option value="" className="bg-[#0f1115]">
+                    Select farm
                   </option>
-                ))}
-              </select>
-            </label>
+                  {farms.map((farm) => (
+                    <option key={farm.id} value={farm.id} className="bg-[#0f1115]">
+                      {farm.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
 
-            <label className="space-y-1 text-sm">
-              <span className="text-white/75">Category</span>
-              <select
-                value={formState.activity_category}
-                onChange={(e) =>
-                  setFormState((prev) => ({ ...prev, activity_category: e.target.value }))
-                }
-                className="h-10 w-full rounded-lg border border-white/10 bg-white/5 px-3 text-white focus:border-[#07f880]/40 focus:outline-none"
-              >
-                {CATEGORY_OPTIONS.map((category) => (
-                  <option key={category} value={category} className="bg-[#0f1115]">
-                    {category}
+              <label className="space-y-1 text-sm">
+                <span className="text-white/75">Operator</span>
+                <input
+                  type="text"
+                  value={formState.operator_name}
+                  onChange={(e) =>
+                    setFormState((prev) => ({ ...prev, operator_name: e.target.value }))
+                  }
+                  className="h-10 w-full rounded-lg border border-white/10 bg-white/5 px-3 text-white focus:border-[#07f880]/40 focus:outline-none"
+                  placeholder="Farmer / worker name"
+                />
+              </label>
+
+              <label className="space-y-1 text-sm">
+                <span className="text-white/75">Status</span>
+                <select
+                  value={formState.status}
+                  onChange={(e) =>
+                    setFormState((prev) => ({
+                      ...prev,
+                      status: e.target.value as 'draft' | 'completed',
+                    }))
+                  }
+                  className="h-10 w-full rounded-lg border border-white/10 bg-white/5 px-3 text-white focus:border-[#07f880]/40 focus:outline-none"
+                >
+                  {STATUS_OPTIONS.map((status) => (
+                    <option key={status.value} value={status.value} className="bg-[#0f1115]">
+                      {status.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+          </div>
+
+          <div className="rounded-lg border border-white/10 bg-white/[0.02] p-4">
+            <p className="text-sm font-medium text-white">2. Choose category section</p>
+            <p className="mt-1 text-xs text-white/60">
+              Pick one section and complete only the fields needed for that activity.
+            </p>
+            <div className="mt-3 flex flex-wrap gap-2">
+              {CATEGORY_OPTIONS.map((category) => {
+                const active = selectedFormCategory === category
+                return (
+                  <button
+                    key={category}
+                    type="button"
+                    onClick={() => handleCategoryChange(category)}
+                    className={`rounded-full border px-3 py-1.5 text-xs transition-colors ${
+                      active
+                        ? 'border-[#07f880]/35 bg-[#07f880]/15 text-[#07f880]'
+                        : 'border-white/15 bg-white/5 text-white/75 hover:bg-white/10'
+                    }`}
+                  >
+                    {CATEGORY_SECTIONS[category].label}
+                  </button>
+                )
+              })}
+            </div>
+            <p className="mt-3 text-sm text-white/70">{selectedCategorySection.description}</p>
+          </div>
+
+          <div className="rounded-lg border border-white/10 bg-white/[0.02] p-4">
+            <p className="text-sm font-medium text-white">3. {selectedCategorySection.label} details</p>
+            <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
+              <label className="space-y-1 text-sm md:col-span-2">
+                <span className="text-white/75">Quick title</span>
+                <select
+                  value={formState.operation_title}
+                  onChange={(e) =>
+                    setFormState((prev) => ({ ...prev, operation_title: e.target.value }))
+                  }
+                  className="h-10 w-full rounded-lg border border-white/10 bg-white/5 px-3 text-white focus:border-[#07f880]/40 focus:outline-none"
+                >
+                  <option value="" className="bg-[#0f1115]">
+                    Select a quick title
                   </option>
-                ))}
-              </select>
-            </label>
+                  {(
+                    {
+                      Planting: ['Seeding', 'Transplanting', 'Gap filling'],
+                      Fertilization: ['Base fertilization', 'Top dressing', 'Foliar fertilization'],
+                      Irrigation: ['Drip irrigation', 'Sprinkler irrigation', 'Emergency irrigation'],
+                      'Plant Protection': ['Fungicide treatment', 'Insecticide treatment', 'Herbicide treatment'],
+                      Harvest: ['Main harvest', 'Selective harvest', 'Trial harvest'],
+                      'Soil Work': ['Tillage', 'Bed preparation', 'Mechanical weeding'],
+                      Monitoring: ['Field scouting', 'Pest check', 'Growth check'],
+                      Other: ['General operation', 'Maintenance activity', 'Other field task'],
+                    } as Record<CategoryKey, string[]>
+                  )[selectedFormCategory].map((title) => (
+                    <option key={title} value={title} className="bg-[#0f1115]">
+                      {title}
+                    </option>
+                  ))}
+                </select>
+              </label>
 
-            <label className="space-y-1 text-sm">
-              <span className="text-white/75">Status</span>
-              <select
-                value={formState.status}
-                onChange={(e) =>
-                  setFormState((prev) => ({
-                    ...prev,
-                    status: e.target.value as 'draft' | 'completed',
-                  }))
-                }
-                className="h-10 w-full rounded-lg border border-white/10 bg-white/5 px-3 text-white focus:border-[#07f880]/40 focus:outline-none"
-              >
-                {STATUS_OPTIONS.map((status) => (
-                  <option key={status.value} value={status.value} className="bg-[#0f1115]">
-                    {status.label}
-                  </option>
-                ))}
-              </select>
-            </label>
+              {visibleFieldSet.has('operation_title') && (
+                <label className="space-y-1 text-sm md:col-span-2">
+                  <span className="text-white/75">Operation title</span>
+                  <input
+                    type="text"
+                    value={formState.operation_title}
+                    onChange={(e) =>
+                      setFormState((prev) => ({ ...prev, operation_title: e.target.value }))
+                    }
+                    className="h-10 w-full rounded-lg border border-white/10 bg-white/5 px-3 text-white focus:border-[#07f880]/40 focus:outline-none"
+                    placeholder={`${selectedCategorySection.label} activity`}
+                  />
+                </label>
+              )}
 
-            <label className="space-y-1 text-sm md:col-span-2">
-              <span className="text-white/75">Operation title</span>
-              <input
-                type="text"
-                value={formState.operation_title}
-                onChange={(e) =>
-                  setFormState((prev) => ({ ...prev, operation_title: e.target.value }))
-                }
-                className="h-10 w-full rounded-lg border border-white/10 bg-white/5 px-3 text-white focus:border-[#07f880]/40 focus:outline-none"
-                placeholder="e.g. Fungicide treatment - vineyard block A"
-                required
-              />
-            </label>
+              {visibleFieldSet.has('crop_name') && (
+                <label className="space-y-1 text-sm">
+                  <span className="text-white/75">Crop</span>
+                  <input
+                    type="text"
+                    value={formState.crop_name}
+                    onChange={(e) => setFormState((prev) => ({ ...prev, crop_name: e.target.value }))}
+                    className="h-10 w-full rounded-lg border border-white/10 bg-white/5 px-3 text-white focus:border-[#07f880]/40 focus:outline-none"
+                    placeholder="Tomato, Wheat, Olive..."
+                  />
+                </label>
+              )}
 
-            <label className="space-y-1 text-sm">
-              <span className="text-white/75">Crop</span>
-              <input
-                type="text"
-                value={formState.crop_name}
-                onChange={(e) => setFormState((prev) => ({ ...prev, crop_name: e.target.value }))}
-                className="h-10 w-full rounded-lg border border-white/10 bg-white/5 px-3 text-white focus:border-[#07f880]/40 focus:outline-none"
-              />
-            </label>
+              {visibleFieldSet.has('product_name') && (
+                <label className="space-y-1 text-sm">
+                  <span className="text-white/75">Product</span>
+                  <input
+                    type="text"
+                    value={formState.product_name}
+                    onChange={(e) =>
+                      setFormState((prev) => ({ ...prev, product_name: e.target.value }))
+                    }
+                    className="h-10 w-full rounded-lg border border-white/10 bg-white/5 px-3 text-white focus:border-[#07f880]/40 focus:outline-none"
+                    placeholder="NPK 20-10-10, Copper..."
+                  />
+                </label>
+              )}
 
-            <label className="space-y-1 text-sm">
-              <span className="text-white/75">Operator</span>
-              <input
-                type="text"
-                value={formState.operator_name}
-                onChange={(e) =>
-                  setFormState((prev) => ({ ...prev, operator_name: e.target.value }))
-                }
-                className="h-10 w-full rounded-lg border border-white/10 bg-white/5 px-3 text-white focus:border-[#07f880]/40 focus:outline-none"
-              />
-            </label>
+              {visibleFieldSet.has('active_substance') && (
+                <label className="space-y-1 text-sm">
+                  <span className="text-white/75">Active substance</span>
+                  <input
+                    type="text"
+                    value={formState.active_substance}
+                    onChange={(e) =>
+                      setFormState((prev) => ({ ...prev, active_substance: e.target.value }))
+                    }
+                    className="h-10 w-full rounded-lg border border-white/10 bg-white/5 px-3 text-white focus:border-[#07f880]/40 focus:outline-none"
+                    placeholder="Active ingredient"
+                  />
+                </label>
+              )}
 
-            <label className="space-y-1 text-sm">
-              <span className="text-white/75">Product</span>
-              <input
-                type="text"
-                value={formState.product_name}
-                onChange={(e) =>
-                  setFormState((prev) => ({ ...prev, product_name: e.target.value }))
-                }
-                className="h-10 w-full rounded-lg border border-white/10 bg-white/5 px-3 text-white focus:border-[#07f880]/40 focus:outline-none"
-              />
-            </label>
+              {visibleFieldSet.has('quantity') && (
+                <>
+                  <label className="space-y-1 text-sm">
+                    <span className="text-white/75">Quantity</span>
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={formState.quantity}
+                      onChange={(e) =>
+                        setFormState((prev) => ({ ...prev, quantity: e.target.value }))
+                      }
+                      className="h-10 w-full rounded-lg border border-white/10 bg-white/5 px-3 text-white focus:border-[#07f880]/40 focus:outline-none"
+                    />
+                  </label>
+                  <label className="space-y-1 text-sm">
+                    <span className="text-white/75">Unit</span>
+                    <select
+                      value={formState.unit}
+                      onChange={(e) => setFormState((prev) => ({ ...prev, unit: e.target.value }))}
+                      className="h-10 w-full rounded-lg border border-white/10 bg-white/5 px-3 text-white focus:border-[#07f880]/40 focus:outline-none"
+                    >
+                      {UNIT_OPTIONS.map((unit) => (
+                        <option key={unit} value={unit} className="bg-[#0f1115]">
+                          {unit}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                </>
+              )}
 
-            <label className="space-y-1 text-sm">
-              <span className="text-white/75">Active substance</span>
-              <input
-                type="text"
-                value={formState.active_substance}
-                onChange={(e) =>
-                  setFormState((prev) => ({ ...prev, active_substance: e.target.value }))
-                }
-                className="h-10 w-full rounded-lg border border-white/10 bg-white/5 px-3 text-white focus:border-[#07f880]/40 focus:outline-none"
-              />
-            </label>
+              {visibleFieldSet.has('treated_area') && (
+                <>
+                  <label className="space-y-1 text-sm">
+                    <span className="text-white/75">Area</span>
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={formState.treated_area}
+                      onChange={(e) =>
+                        setFormState((prev) => ({ ...prev, treated_area: e.target.value }))
+                      }
+                      className="h-10 w-full rounded-lg border border-white/10 bg-white/5 px-3 text-white focus:border-[#07f880]/40 focus:outline-none"
+                    />
+                  </label>
+                  <label className="space-y-1 text-sm">
+                    <span className="text-white/75">Area unit</span>
+                    <select
+                      value={formState.area_unit}
+                      onChange={(e) =>
+                        setFormState((prev) => ({ ...prev, area_unit: e.target.value }))
+                      }
+                      className="h-10 w-full rounded-lg border border-white/10 bg-white/5 px-3 text-white focus:border-[#07f880]/40 focus:outline-none"
+                    >
+                      {AREA_UNIT_OPTIONS.map((unit) => (
+                        <option key={unit} value={unit} className="bg-[#0f1115]">
+                          {unit}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                </>
+              )}
 
-            <label className="space-y-1 text-sm">
-              <span className="text-white/75">Quantity</span>
-              <input
-                type="number"
-                step="0.01"
-                value={formState.quantity}
-                onChange={(e) => setFormState((prev) => ({ ...prev, quantity: e.target.value }))}
-                className="h-10 w-full rounded-lg border border-white/10 bg-white/5 px-3 text-white focus:border-[#07f880]/40 focus:outline-none"
-              />
-            </label>
+              {visibleFieldSet.has('weather_conditions') && (
+                <label className="space-y-1 text-sm md:col-span-2">
+                  <span className="text-white/75">Weather conditions</span>
+                  <input
+                    type="text"
+                    value={formState.weather_conditions}
+                    onChange={(e) =>
+                      setFormState((prev) => ({ ...prev, weather_conditions: e.target.value }))
+                    }
+                    className="h-10 w-full rounded-lg border border-white/10 bg-white/5 px-3 text-white focus:border-[#07f880]/40 focus:outline-none"
+                    placeholder="Sunny, 18°C, light wind"
+                  />
+                </label>
+              )}
 
-            <label className="space-y-1 text-sm">
-              <span className="text-white/75">Unit</span>
-              <input
-                type="text"
-                value={formState.unit}
-                onChange={(e) => setFormState((prev) => ({ ...prev, unit: e.target.value }))}
-                className="h-10 w-full rounded-lg border border-white/10 bg-white/5 px-3 text-white focus:border-[#07f880]/40 focus:outline-none"
-              />
-            </label>
-
-            <label className="space-y-1 text-sm">
-              <span className="text-white/75">Treated area</span>
-              <input
-                type="number"
-                step="0.01"
-                value={formState.treated_area}
-                onChange={(e) =>
-                  setFormState((prev) => ({ ...prev, treated_area: e.target.value }))
-                }
-                className="h-10 w-full rounded-lg border border-white/10 bg-white/5 px-3 text-white focus:border-[#07f880]/40 focus:outline-none"
-              />
-            </label>
-
-            <label className="space-y-1 text-sm">
-              <span className="text-white/75">Area unit</span>
-              <input
-                type="text"
-                value={formState.area_unit}
-                onChange={(e) => setFormState((prev) => ({ ...prev, area_unit: e.target.value }))}
-                className="h-10 w-full rounded-lg border border-white/10 bg-white/5 px-3 text-white focus:border-[#07f880]/40 focus:outline-none"
-              />
-            </label>
-
-            <label className="space-y-1 text-sm md:col-span-2">
-              <span className="text-white/75">Weather conditions</span>
-              <input
-                type="text"
-                value={formState.weather_conditions}
-                onChange={(e) =>
-                  setFormState((prev) => ({ ...prev, weather_conditions: e.target.value }))
-                }
-                className="h-10 w-full rounded-lg border border-white/10 bg-white/5 px-3 text-white focus:border-[#07f880]/40 focus:outline-none"
-                placeholder="Sunny, 18°C, light wind"
-              />
-            </label>
-
-            <label className="space-y-1 text-sm md:col-span-2 xl:col-span-4">
-              <span className="text-white/75">Notes</span>
-              <textarea
-                value={formState.notes}
-                onChange={(e) => setFormState((prev) => ({ ...prev, notes: e.target.value }))}
-                className="min-h-24 w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-white focus:border-[#07f880]/40 focus:outline-none"
-                placeholder="Additional operational notes..."
-              />
-            </label>
+              {visibleFieldSet.has('notes') && (
+                <label className="space-y-1 text-sm md:col-span-2 xl:col-span-4">
+                  <span className="text-white/75">Notes</span>
+                  <textarea
+                    value={formState.notes}
+                    onChange={(e) => setFormState((prev) => ({ ...prev, notes: e.target.value }))}
+                    className="min-h-24 w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-white focus:border-[#07f880]/40 focus:outline-none"
+                    placeholder="Write short notes here..."
+                  />
+                </label>
+              )}
+            </div>
           </div>
 
           <div className="flex items-center gap-2">
