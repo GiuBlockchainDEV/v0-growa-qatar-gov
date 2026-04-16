@@ -2,6 +2,7 @@
 
 import { useCallback, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { isMissingColumnError } from '@/lib/supabase/schema-compat'
 
 interface DataSharingRecord {
   id: string
@@ -17,16 +18,6 @@ interface DataSharingRecord {
 export function useDataSharing() {
   const [isLoading, setIsLoading] = useState(false)
   const supabase = createClient()
-
-  const isMissingColumnError = (message: string) => {
-    const normalized = message.toLowerCase()
-    return (
-      normalized.includes('column') ||
-      normalized.includes('schema cache') ||
-      normalized.includes('does not exist') ||
-      normalized.includes('could not find')
-    )
-  }
 
   /**
    * Ottiene le condivisioni dati per un'organizzazione

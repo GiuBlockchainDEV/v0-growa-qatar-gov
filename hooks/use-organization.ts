@@ -3,6 +3,7 @@
 import { useState, useEffect, useMemo } from 'react'
 import { useAuth } from './use-auth'
 import { createClient } from '@/lib/supabase/client'
+import { normalizeOrganizationRows } from '@/lib/supabase/schema-compat'
 
 export interface Organization {
   id: string
@@ -93,9 +94,10 @@ export function useOrganization() {
 
         if (orgsError) throw orgsError
 
-        setOrganizations(orgs || [])
-        if (orgs && orgs.length > 0) {
-          setOrganization(orgs[0])
+        const normalizedOrgs = normalizeOrganizationRows((orgs || []) as Record<string, unknown>[]) as Organization[]
+        setOrganizations(normalizedOrgs)
+        if (normalizedOrgs.length > 0) {
+          setOrganization(normalizedOrgs[0])
         } else {
           setOrganization(null)
         }

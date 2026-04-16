@@ -6,6 +6,7 @@ import { useAuth } from '@/hooks/use-auth'
 import { useOrganization } from '@/hooks/use-organization'
 import { usePermissions } from '@/hooks/use-permissions'
 import { useGovernance } from '@/hooks/use-governance'
+import { resolveOrganizationType } from '@/lib/supabase/schema-compat'
 import {
   Globe, Map, Layers, Sprout, Activity, AlertTriangle, CheckCircle,
   Users, Target, BarChart3, HelpCircle, Settings, LayoutDashboard,
@@ -372,7 +373,7 @@ export function useRoleNavigation() {
 
         if (mappedProfile) {
           const orgType = organization?.id
-            ? await getUserOrgType(organization.id)
+            ? await resolveOrganizationType(supabase as any, organization.id)
             : 'government'
           const permissions: Partial<Record<PermissionFlag, boolean>> = organization?.id
             ? ((await getPermissions(organization.id)) as Partial<Record<PermissionFlag, boolean>>)

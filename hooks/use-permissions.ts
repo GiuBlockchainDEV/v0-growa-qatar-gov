@@ -4,6 +4,7 @@ import { useCallback } from 'react'
 import { useAuth } from '@/hooks/use-auth'
 import { createClient } from '@/lib/supabase/client'
 import type { OrgType, SharedLayer, VisibilityLevel } from './use-governance'
+import { resolveOrgTypeForRow } from '@/lib/supabase/schema-compat'
 
 // All possible roles across organization types
 export type UserRole = 
@@ -147,7 +148,7 @@ export function usePermissions() {
         .single()
 
       if (error) return null
-      return (data?.type || data?.organization_type || null) as OrgType | null
+      return resolveOrgTypeForRow(data) as OrgType | null
     },
     [supabase]
   )

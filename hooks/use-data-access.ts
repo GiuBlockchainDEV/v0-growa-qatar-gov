@@ -3,6 +3,7 @@
 import { useCallback } from 'react'
 import { useAuth } from './use-auth'
 import { useOrganization } from './use-organization'
+import { getOrganizationType } from '@/lib/supabase/schema-compat'
 
 type OrganizationType = 'government_master' | 'government' | 'private' | 'public'
 
@@ -17,7 +18,7 @@ export function useDataAccess() {
     (targetOrgType: OrganizationType, isShared: boolean) => {
       if (!organization) return false
 
-      const orgType = organization.type || organization.organization_type
+      const orgType = getOrganizationType(organization)
       if (!orgType) return false
 
       // Se è la stessa organizzazione
@@ -50,7 +51,7 @@ export function useDataAccess() {
     (farms: any[], sharedFarms: any[] = []) => {
       if (!organization) return []
 
-      const orgType = organization.type || organization.organization_type
+      const orgType = getOrganizationType(organization)
       if (!orgType) return []
 
       if (orgType === 'government_master') {
@@ -80,7 +81,7 @@ export function useDataAccess() {
    */
   const canManageSharing = useCallback((): boolean => {
     if (!organization) return false
-    const orgType = organization.type || organization.organization_type
+    const orgType = getOrganizationType(organization)
     return orgType === 'government' || orgType === 'government_master'
   }, [organization])
 

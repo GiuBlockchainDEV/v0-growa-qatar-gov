@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { useOrganization } from '@/hooks/use-organization'
 import { useDataSharing } from '@/hooks/use-data-sharing'
 import { useDataAccess } from '@/hooks/use-data-access'
+import { resolveOrganizationType } from '@/lib/supabase/schema-compat'
 import { Share2, Unlock, Trash2 } from 'lucide-react'
 
 export default function DataSharingPage() {
@@ -15,6 +16,7 @@ export default function DataSharingPage() {
   const [shareableOrgs, setShareableOrgs] = useState<any[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const currentOrgType = resolveOrganizationType(organization)
 
   useEffect(() => {
     const loadData = async () => {
@@ -29,7 +31,7 @@ export default function DataSharingPage() {
       try {
         const [data, orgs] = await Promise.all([
           getDataSharing(organization.id),
-          getShareableOrganizations(organization.type || organization.organization_type || 'private'),
+          getShareableOrganizations(currentOrgType || 'private'),
         ])
 
         setSharings(data)
@@ -43,7 +45,7 @@ export default function DataSharingPage() {
     }
 
     loadData()
-  }, [organization?.id, organization?.type, organization?.organization_type, getDataSharing, getShareableOrganizations])
+  }, [organization?.id, currentOrgType, getDataSharing, getShareableOrganizations])
 
   if (!canManageSharing()) {
     return (
@@ -136,7 +138,9 @@ export default function DataSharingPage() {
               >
                 <div>
                   <p className="font-medium text-foreground">{org.name}</p>
-                  <p className="text-xs text-muted-foreground">{org.type}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {org.type || org.organization_type || 'organization'}
+                  </p>
                 </div>
                 <Unlock className="h-4 w-4 text-[#07f880]" />
               </button>

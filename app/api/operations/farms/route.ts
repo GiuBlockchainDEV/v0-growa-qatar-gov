@@ -1,15 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
-
-function isMissingColumnError(message: string) {
-  const normalized = message.toLowerCase()
-  return (
-    normalized.includes('column') ||
-    normalized.includes('schema cache') ||
-    normalized.includes('does not exist') ||
-    normalized.includes('could not find')
-  )
-}
+import { isMissingColumnError } from '@/lib/supabase/schema-compat'
 
 export async function GET(_request: Request) {
   const supabase = await createClient()

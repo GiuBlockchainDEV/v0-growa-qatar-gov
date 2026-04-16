@@ -2,6 +2,7 @@
 
 import { useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { getOrganizationTypeFromRow } from '@/lib/supabase/schema-compat'
 
 // Organization types
 export type OrgType = 'government_master' | 'government' | 'farm_company' | 'private' | 'public'
@@ -120,7 +121,7 @@ export function useGovernance() {
       .maybeSingle()
 
     if (!primary.error && primary.data) {
-      return (primary.data.type || primary.data.organization_type || null) as OrgType | null
+      return getOrganizationTypeFromRow(primary.data) as OrgType | null
     }
 
     const fallback = await supabase
@@ -134,7 +135,7 @@ export function useGovernance() {
       return null
     }
 
-    return (fallback.data?.type || null) as OrgType | null
+    return getOrganizationTypeFromRow(fallback.data) as OrgType | null
   }, [supabase])
 
   // Get roles available for an organization type
