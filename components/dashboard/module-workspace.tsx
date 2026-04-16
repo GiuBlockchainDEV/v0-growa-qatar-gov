@@ -107,8 +107,10 @@ export function ModuleWorkspace({ moduleKey }: ModuleWorkspaceProps) {
     )
   }
 
-  const submenu = virtualModule.submenu || []
-  const allowedActions = virtualModule.allowedActions || []
+  const submenu = Array.isArray(virtualModule.submenu) ? virtualModule.submenu : []
+  const allowedActions = Array.isArray(virtualModule.allowedActions)
+    ? virtualModule.allowedActions
+    : []
   const moduleSeed = getSeed(virtualModule.key)
   const kpis = [
     {

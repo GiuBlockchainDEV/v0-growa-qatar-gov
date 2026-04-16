@@ -239,7 +239,7 @@ function toLayerVisibilityFallback(
   }
 }
 
-function splitNavigationSections(items: MenuItem[]) {
+function splitNavigationSections(items: MenuItem[] = []) {
   const normalizeItemPath = (item: MenuItem): string => {
     if (item.key === 'support') return '/dashboard/support'
     if (item.key === 'settings') return '/dashboard/settings'
@@ -572,12 +572,25 @@ export function useRoleNavigation() {
             throw fetchError
           }
         } else if (data) {
-          // Parse menu_items if it's a string
-          const items = typeof data.menu_items === 'string'
-            ? JSON.parse(data.menu_items)
-            : data.menu_items
+          // Parse menu_items defensively because legacy rows can contain malformed payloads.
+          let parsedRawItems: unknown = data.menu_items
+          if (typeof data.menu_items === 'string') {
+            try {
+              parsedRawItems = JSON.parse(data.menu_items)
+            } catch {
+              parsedRawItems = []
+            }
+          }
+
+          const normalizedItems = normalizeRawMenuItems(parsedRawItems)
+          const safeItems =
+            normalizedItems.length > 0
+              ? normalizedItems
+              : mappedRole === HASSAD_SUPPLY_ROLE
+                ? ensureHassadSupplyOverview(defaultNavigation)
+                : defaultNavigation
           const roleAwareItems =
-            mappedRole === HASSAD_SUPPLY_ROLE ? ensureHassadSupplyOverview(items) : items
+            mappedRole === HASSAD_SUPPLY_ROLE ? ensureHassadSupplyOverview(safeItems) : safeItems
           const { primary, secondary } = splitNavigationSections(roleAwareItems)
           const merged = [...primary, ...secondary]
 
@@ -697,12 +710,22 @@ export function useAllRoleNavigations() {
         if (fetchError) throw fetchError
 
         // Parse menu_items for each navigation
-        const parsed = data?.map(nav => ({
-          ...nav,
-          menu_items: typeof nav.menu_items === 'string' 
-            ? JSON.parse(nav.menu_items) 
-            : nav.menu_items
-        })) || []
+        const parsed =
+          data?.map((nav) => {
+            let parsedRawItems: unknown = nav.menu_items
+            if (typeof nav.menu_items === 'string') {
+              try {
+                parsedRawItems = JSON.parse(nav.menu_items)
+              } catch {
+                parsedRawItems = []
+              }
+            }
+
+            return {
+              ...nav,
+              menu_items: normalizeRawMenuItems(parsedRawItems),
+            }
+          }) || []
 
         setNavigations(parsed)
       } catch (err) {
