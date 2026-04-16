@@ -353,6 +353,23 @@ function ensureFarmCompanyLiveMap(items: MenuItem[]): MenuItem[] {
   return deduped
 }
 
+function removeFarmCompanyUnsupportedItems(items: MenuItem[]): MenuItem[] {
+  return items.filter((item) => {
+    const normalizedLabel = item.label?.trim().toLowerCase()
+    const normalizedKey = item.key?.trim().toLowerCase()
+    const normalizedPath = item.path?.trim().toLowerCase()
+    const isResourcePlanner =
+      normalizedKey === 'resource-planner' ||
+      normalizedKey === 'resource_planner' ||
+      normalizedLabel === 'resource planner' ||
+      normalizedPath === '/dashboard?module=resource-planner' ||
+      normalizedPath === '/dashboard?module=resource_planner' ||
+      normalizedPath === '/dashboard/resource-planner'
+
+    return !isResourcePlanner
+  })
+}
+
 function applyRoleSpecificMenuItems(
   items: MenuItem[],
   role: string | null | undefined,
@@ -360,6 +377,7 @@ function applyRoleSpecificMenuItems(
 ): MenuItem[] {
   let enriched = items
   if (isFarmCompanyOperationalRole(role, orgType)) {
+    enriched = removeFarmCompanyUnsupportedItems(enriched)
     enriched = ensureFarmCompanyLiveMap(enriched)
   }
   if (role === HASSAD_SUPPLY_ROLE) {
