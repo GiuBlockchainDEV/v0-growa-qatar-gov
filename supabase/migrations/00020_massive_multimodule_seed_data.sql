@@ -40,22 +40,19 @@ BEGIN
     slug,
     description,
     type,
-    organization_type,
-    tier
+    organization_type
   )
   SELECT
     s.name,
     s.slug,
     s.description,
     s.organization_type,
-    s.organization_type,
-    s.tier
+    s.organization_type
   FROM tmp_seed_orgs s
   ON CONFLICT (slug) DO UPDATE
   SET
     name = EXCLUDED.name,
     description = EXCLUDED.description,
-    tier = GREATEST(COALESCE(public.organizations.tier, 1), EXCLUDED.tier),
     type = COALESCE(NULLIF(public.organizations.type, ''), EXCLUDED.type),
     organization_type = COALESCE(NULLIF(public.organizations.organization_type, ''), EXCLUDED.organization_type);
 
