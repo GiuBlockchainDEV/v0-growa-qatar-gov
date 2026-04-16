@@ -6,7 +6,6 @@ import { useAuth } from '@/hooks/use-auth'
 import { useOrganization } from '@/hooks/use-organization'
 import { usePermissions } from '@/hooks/use-permissions'
 import { useGovernance } from '@/hooks/use-governance'
-import { resolveOrganizationType } from '@/lib/supabase/schema-compat'
 import {
   Globe, Map, Layers, Sprout, Activity, AlertTriangle, CheckCircle,
   Users, Target, BarChart3, HelpCircle, Settings, LayoutDashboard,
@@ -147,12 +146,32 @@ const ministryProfileByRole: Record<string, MinistryRoleProfile> = {
 
 const SHARED_LAYERS: SharedLayer[] = ['regulatory', 'commercial', 'finance', 'technical_support']
 const HASSAD_SUPPLY_ROLE = 'sourcing_manager'
+const FARM_LOGBOOK_ROLES = new Set(['farm_manager', 'agronomist', 'farm_company_admin'])
 
 const HASSAD_SUPPLY_OVERVIEW_ITEM: MenuItem = {
   key: 'supply-overview',
   label: 'Supply Overview',
   path: '/dashboard/supply-overview',
   icon: 'ShoppingCart',
+}
+
+const FARM_LOGBOOK_ITEM: MenuItem = {
+  key: 'field-logbook',
+  label: 'Field Logbook',
+  path: '/dashboard/field-logbook',
+  icon: 'BookOpen',
+}
+
+function isFarmLogbookRole(
+  role: string | null | undefined,
+  orgType: string | null | undefined
+) {
+  if (!role) return false
+  if (FARM_LOGBOOK_ROLES.has(role)) {
+    return orgType ? orgType === 'farm_company' : true
+  }
+  // "operator" can exist in non-farm contexts; only show logbook when org is farm_company.
+  return role === 'operator' && orgType === 'farm_company'
 }
 
 function ensureHassadSupplyOverview(items: MenuItem[]): MenuItem[] {
@@ -209,6 +228,75 @@ function ensureHassadSupplyOverview(items: MenuItem[]): MenuItem[] {
   return deduped
 }
 
+function ensureFarmLogbook(items: MenuItem[]): MenuItem[] {
+  const normalized = items.map((item) => {
+    const normalizedLabel = item.label?.trim().toLowerCase()
+    const normalizedKey = item.key?.trim().toLowerCase()
+    const normalizedPath = item.path?.trim().toLowerCase()
+    const pointsToFieldLogbook =
+      normalizedKey === 'field-logbook' ||
+      normalizedKey === 'field_logbook' ||
+      normalizedLabel === 'field logbook' ||
+      normalizedPath === '/dashboard/field-logbook' ||
+      normalizedPath === '/dashboard?module=field-logbook' ||
+      normalizedPath === '/dashboard?module=field_logbook'
+
+    if (!pointsToFieldLogbook) return item
+
+    return {
+      ...item,
+      key: 'field-logbook',
+      label: item.label || FARM_LOGBOOK_ITEM.label,
+      path: '/dashboard/field-logbook',
+      icon: item.icon || FARM_LOGBOOK_ITEM.icon,
+    }
+  })
+
+  const deduped: MenuItem[] = []
+  let hasFieldLogbook = false
+  for (const item of normalized) {
+    const isFieldLogbook =
+      item.key === 'field-logbook' ||
+      item.path === '/dashboard/field-logbook' ||
+      item.path === '/dashboard?module=field-logbook'
+
+    if (isFieldLogbook) {
+      if (hasFieldLogbook) continue
+      hasFieldLogbook = true
+      deduped.push({
+        ...FARM_LOGBOOK_ITEM,
+        ...item,
+        key: 'field-logbook',
+        path: '/dashboard/field-logbook',
+      })
+      continue
+    }
+
+    deduped.push(item)
+  }
+
+  if (!hasFieldLogbook) {
+    deduped.unshift(FARM_LOGBOOK_ITEM)
+  }
+
+  return deduped
+}
+
+function applyRoleSpecificMenuItems(
+  items: MenuItem[],
+  role: string | null | undefined,
+  orgType: string | null | undefined
+): MenuItem[] {
+  let enriched = items
+  if (role === HASSAD_SUPPLY_ROLE) {
+    enriched = ensureHassadSupplyOverview(enriched)
+  }
+  if (isFarmLogbookRole(role, orgType)) {
+    enriched = ensureFarmLogbook(enriched)
+  }
+  return enriched
+}
+
 function toMenuItem(
   moduleDefinition: ResolvedModuleDefinition,
   section: 'primary' | 'secondary'
@@ -244,12 +332,15 @@ function splitNavigationSections(items: MenuItem[] = []) {
     if (item.key === 'support') return '/dashboard/support'
     if (item.key === 'settings') return '/dashboard/settings'
     if (item.key === 'supply-overview') return '/dashboard/supply-overview'
+    if (item.key === 'field-logbook') return '/dashboard/field-logbook'
     if (item.path === '/dashboard?module=supply-overview') return '/dashboard/supply-overview'
+    if (item.path === '/dashboard?module=field-logbook') return '/dashboard/field-logbook'
     if (item.path.startsWith('/dashboard?module=')) return item.path
     if (item.path === '/dashboard') return item.path
     if (item.path.startsWith('/dashboard/settings')) return item.path
     if (item.path.startsWith('/dashboard/support')) return item.path
     if (item.path.startsWith('/dashboard/supply-overview')) return item.path
+    if (item.path.startsWith('/dashboard/field-logbook')) return item.path
     if (item.path.startsWith('/dashboard')) return `/dashboard?module=${item.key}`
     return item.path
   }
@@ -377,6 +468,7 @@ export function useRoleNavigation() {
       }
 
       let mappedRoleForFallback: string | null = null
+      let resolvedOrgTypeForFallback: string | null = null
       try {
         setIsLoading(true)
         setError(null)
@@ -449,12 +541,11 @@ export function useRoleNavigation() {
         // Map legacy role to role registry namespace if needed
         const mappedRole = roleMapping[currentRole] || currentRole
         mappedRoleForFallback = mappedRole
+        resolvedOrgTypeForFallback = organization?.id ? await getUserOrgType(organization.id) : null
         const mappedProfile = ministryProfileByRole[mappedRole] || null
 
         if (mappedProfile) {
-          const orgType = organization?.id
-            ? await resolveOrganizationType(supabase as any, organization.id)
-            : 'government'
+          const orgType = resolvedOrgTypeForFallback || 'government'
           const permissions: Partial<Record<PermissionFlag, boolean>> = organization?.id
             ? ((await getPermissions(organization.id)) as Partial<Record<PermissionFlag, boolean>>)
             : mappedProfile === 'ministry_admin'
@@ -542,13 +633,18 @@ export function useRoleNavigation() {
         if (fetchError) {
           // If no specific navigation found, use default
           if (fetchError.code === 'PGRST116') {
-            const fallbackItems =
-              mappedRole === HASSAD_SUPPLY_ROLE
-                ? ensureHassadSupplyOverview(defaultNavigation)
-                : defaultNavigation
+            const fallbackItems = applyRoleSpecificMenuItems(
+              defaultNavigation,
+              mappedRole,
+              resolvedOrgTypeForFallback
+            )
             const { primary, secondary } = splitNavigationSections(fallbackItems)
             const resolvedLandingPage =
-              mappedRole === HASSAD_SUPPLY_ROLE ? '/dashboard/supply-overview' : '/dashboard'
+              mappedRole === HASSAD_SUPPLY_ROLE
+                ? '/dashboard/supply-overview'
+                : isFarmLogbookRole(mappedRole, resolvedOrgTypeForFallback)
+                  ? '/dashboard/field-logbook'
+                  : '/dashboard'
             const merged = [...primary, ...secondary]
             setNavigation({
               id: `fallback-${mappedRole}`,
@@ -586,11 +682,16 @@ export function useRoleNavigation() {
           const safeItems =
             normalizedItems.length > 0
               ? normalizedItems
-              : mappedRole === HASSAD_SUPPLY_ROLE
-                ? ensureHassadSupplyOverview(defaultNavigation)
-                : defaultNavigation
-          const roleAwareItems =
-            mappedRole === HASSAD_SUPPLY_ROLE ? ensureHassadSupplyOverview(safeItems) : safeItems
+              : applyRoleSpecificMenuItems(
+                  defaultNavigation,
+                  mappedRole,
+                  resolvedOrgTypeForFallback
+                )
+          const roleAwareItems = applyRoleSpecificMenuItems(
+            safeItems,
+            mappedRole,
+            resolvedOrgTypeForFallback
+          )
           const { primary, secondary } = splitNavigationSections(roleAwareItems)
           const merged = [...primary, ...secondary]
 
@@ -624,6 +725,9 @@ export function useRoleNavigation() {
           setLandingPage(
             mappedRole === HASSAD_SUPPLY_ROLE && normalizedLandingPage === '/dashboard'
               ? '/dashboard/supply-overview'
+              : isFarmLogbookRole(mappedRole, resolvedOrgTypeForFallback) &&
+                  normalizedLandingPage === '/dashboard'
+                ? '/dashboard/field-logbook'
               : normalizedLandingPage
           )
           setRoleProfile(null)
@@ -634,13 +738,19 @@ export function useRoleNavigation() {
         setError(err instanceof Error ? err.message : 'Failed to fetch navigation')
         // Fallback to default navigation
         const fallbackRole = mappedRoleForFallback || effectiveRole
-        const fallbackItems = fallbackRole === HASSAD_SUPPLY_ROLE
-          ? ensureHassadSupplyOverview(defaultNavigation)
-          : defaultNavigation
+        const fallbackItems = applyRoleSpecificMenuItems(
+          defaultNavigation,
+          fallbackRole,
+          resolvedOrgTypeForFallback
+        )
         const { primary, secondary } = splitNavigationSections(fallbackItems)
         const merged = [...primary, ...secondary]
         const resolvedLandingPage =
-          fallbackRole === HASSAD_SUPPLY_ROLE ? '/dashboard/supply-overview' : '/dashboard'
+          fallbackRole === HASSAD_SUPPLY_ROLE
+            ? '/dashboard/supply-overview'
+            : isFarmLogbookRole(fallbackRole, resolvedOrgTypeForFallback)
+              ? '/dashboard/field-logbook'
+              : '/dashboard'
         setNavigation({
           id: 'fallback-default',
           role_name: fallbackRole || 'viewer',
