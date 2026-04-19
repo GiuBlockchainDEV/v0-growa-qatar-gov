@@ -238,7 +238,18 @@ export function SatelliteMap({
     return [...baseline, ...custom]
   }, [customPoints, dynamicFarmMarkers])
 
-  const handleEditPointName = useCallback(
+  const parsePointTypeInput = useCallback((input: string | null, fallback: MapPointType) => {
+    if (input === null) return fallback
+    const normalized = input.trim().toLowerCase()
+    if (!normalized) return fallback
+    const byValue = POINT_TYPE_OPTIONS.find((option) => option.value === normalized)
+    if (byValue) return byValue.value
+    const byLabel = POINT_TYPE_OPTIONS.find((option) => option.label.toLowerCase() === normalized)
+    if (byLabel) return byLabel.value
+    return fallback
+  }, [])
+
+  const handleEditPoint = useCallback(
     (pointId: string) => {
       const target = customPoints.find((point) => point.id === pointId)
       if (!target) return
@@ -247,13 +258,21 @@ export function SatelliteMap({
         target.label
       )
       if (labelInput === null) return
-      const nextLabel = labelInput.trim()
-      if (!nextLabel) return
+      const nextLabel = labelInput.trim() || target.label
+      const typeInput = window.prompt(
+        locale === 'ar'
+          ? 'عدّل نوع النقطة (custom, farm, facility, sensor)'
+          : 'Edit point type (custom, farm, facility, sensor)',
+        target.pointType
+      )
+      const nextType = parsePointTypeInput(typeInput, target.pointType)
       setCustomPoints((prev) =>
-        prev.map((entry) => (entry.id === pointId ? { ...entry, label: nextLabel } : entry))
+        prev.map((entry) =>
+          entry.id === pointId ? { ...entry, label: nextLabel, pointType: nextType } : entry
+        )
       )
     },
-    [customPoints, locale]
+    [customPoints, locale, parsePointTypeInput]
   )
 
   const explicitTargetFarm = useMemo(
@@ -469,14 +488,14 @@ export function SatelliteMap({
           editButton.onclick = (clickEvent) => {
             clickEvent.preventDefault()
             clickEvent.stopPropagation()
-            handleEditPointName(customPoint.id)
+            handleEditPoint(customPoint.id)
           }
         })
       }
 
       return markerInstance
     })
-  }, [customPoints, handleEditPointName, mapMarkers, mapReady])
+  }, [customPoints, handleEditPoint, mapMarkers, mapReady])
 
   useEffect(() => {
     if (!isGrowaAdmin || !isAddPointMode) return
@@ -603,45 +622,6 @@ export function SatelliteMap({
           </div>
         )}
       </div>
-
-      {isGrowaAdmin && customPoints.length > 0 && (
-        <div className="absolute right-6 top-24 z-[1000] max-h-[40vh] w-72 overflow-auto rounded-lg border border-white/10 bg-[#0c0c0e]/90 p-3 shadow-lg">
-          <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-white/60">
-            Custom Points
-          </p>
-          <div className="space-y-2">
-            {customPoints.map((point) => (
-              <div key={point.id} className="rounded-md border border-white/10 bg-white/5 p-2">
-                <p className="truncate text-xs font-medium text-white">{point.label}</p>
-                <p className="mt-0.5 text-[11px] text-white/50">
-                  {point.lat.toFixed(4)}, {point.lng.toFixed(4)}
-                </p>
-                <div className="mt-2 flex items-center gap-2">
-                  <label className="text-[11px] text-white/60">Type</label>
-                  <select
-                    value={point.pointType}
-                    onChange={(event) => {
-                      const selectedType = event.target.value as MapPointType
-                      setCustomPoints((prev) =>
-                        prev.map((entry) =>
-                          entry.id === point.id ? { ...entry, pointType: selectedType } : entry
-                        )
-                      )
-                    }}
-                    className="h-7 flex-1 rounded border border-white/10 bg-[#0c0c0e] px-2 text-[11px] text-white focus:border-[#07f880]/60 focus:outline-none"
-                  >
-                    {POINT_TYPE_OPTIONS.map((option) => (
-                      <option key={option.value} value={option.value} className="bg-[#0c0c0e]">
-                        {option.label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
 
       {/* Loading Overlay */}
       {isLoading && (
