@@ -5,12 +5,26 @@ export async function GET(request: Request) {
   const supabase = await createClient()
   const { searchParams } = new URL(request.url)
   const searchQuery = searchParams.get('q')?.trim() || ''
+  const debugSearch = searchParams.get('debugSearch') === '1'
   
   // Get current user
   const { data: { user }, error: authError } = await supabase.auth.getUser()
   
   if (authError || !user) {
+    if (debugSearch) {
+      console.info('[farms-api] unauthorized request', {
+        hasAuthError: Boolean(authError),
+        query: searchQuery,
+      })
+    }
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
+  if (debugSearch) {
+    console.info('[farms-api] search request', {
+      userId: user.id,
+      query: searchQuery,
+    })
   }
 
   const selectAttempts = ['*', 'id, name_en, name_ar, location', 'id, name_en, location']
@@ -35,12 +49,27 @@ export async function GET(request: Request) {
 
       const { data, error } = await query
       if (!error) {
+        if (debugSearch) {
+          console.info('[farms-api] query success', {
+            select,
+            orderBy: orderConfig?.column || null,
+            resultCount: Array.isArray(data) ? data.length : 0,
+          })
+        }
         return NextResponse.json(data || [])
       }
 
       const message = error.message.toLowerCase()
       const retryable =
         message.includes('column') || message.includes('does not exist') || message.includes('schema cache')
+      if (debugSearch) {
+        console.warn('[farms-api] query failed', {
+          select,
+          orderBy: orderConfig?.column || null,
+          error: error.message,
+          retryable,
+        })
+      }
       if (!retryable) {
         return NextResponse.json({ error: error.message }, { status: 500 })
       }

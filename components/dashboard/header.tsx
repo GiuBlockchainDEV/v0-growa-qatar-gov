@@ -45,11 +45,25 @@ export function DashboardHeader({ onMenuToggle, menuOpen }: DashboardHeaderProps
       if (normalizedQuery) {
         params.set('q', normalizedQuery)
       }
-      const response = await fetch(`/api/operations/farms${params.size ? `?${params.toString()}` : ''}`, {
+      params.set('debugSearch', '1')
+      const requestUrl = `/api/operations/farms${params.size ? `?${params.toString()}` : ''}`
+      console.log('[farm-search-debug] fetching farms', {
+        query: normalizedQuery,
+        requestUrl,
+      })
+      const response = await fetch(requestUrl, {
         cache: 'no-store',
         signal,
       })
       const payload = await response.json().catch(() => null)
+      console.log('[farm-search-debug] farms response', {
+        query: normalizedQuery,
+        status: response.status,
+        ok: response.ok,
+        isArray: Array.isArray(payload),
+        rawCount: Array.isArray(payload) ? payload.length : null,
+        payload,
+      })
       if (!response.ok) {
         throw new Error((payload as { error?: string } | null)?.error || 'Failed to load farms')
       }
@@ -68,6 +82,11 @@ export function DashboardHeader({ onMenuToggle, menuOpen }: DashboardHeaderProps
           }
         })
         .filter((farm): farm is FarmSearchOption => Boolean(farm))
+      console.log('[farm-search-debug] mapped farm options', {
+        query: normalizedQuery,
+        mappedCount: mapped.length,
+        mapped,
+      })
       setFarmOptions(mapped)
     } catch (error) {
       if (signal.aborted) return
@@ -137,12 +156,17 @@ export function DashboardHeader({ onMenuToggle, menuOpen }: DashboardHeaderProps
               type="text"
               value={searchQuery}
               onChange={(event) => {
+                console.log('[farm-search-debug] input change', { value: event.target.value })
                 setSearchQuery(event.target.value)
                 setIsSearchOpen(true)
               }}
-              onFocus={() => setIsSearchOpen(true)}
+              onFocus={() => {
+                console.log('[farm-search-debug] input focus')
+                setIsSearchOpen(true)
+              }}
               onBlur={() => {
                 // Delay to allow click selection in dropdown.
+                console.log('[farm-search-debug] input blur')
                 window.setTimeout(() => setIsSearchOpen(false), 150)
               }}
               placeholder={locale === 'ar' ? 'ابحث عن مزرعة...' : 'Search farms...'}
