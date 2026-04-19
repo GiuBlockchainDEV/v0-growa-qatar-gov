@@ -26,6 +26,7 @@ export function DashboardHeader({ onMenuToggle, menuOpen }: DashboardHeaderProps
   const { effectiveRole, roleProfile, isLoading: roleLoading } = useRoleNavigation()
   const [searchQuery, setSearchQuery] = useState('')
   const [farmOptions, setFarmOptions] = useState<FarmSearchOption[]>([])
+  const [cachedFarmOptions, setCachedFarmOptions] = useState<FarmSearchOption[]>([])
   const [isSearchOpen, setIsSearchOpen] = useState(false)
   const [isLoadingFarms, setIsLoadingFarms] = useState(false)
   const searchContainerRef = useRef<HTMLDivElement | null>(null)
@@ -88,7 +89,32 @@ export function DashboardHeader({ onMenuToggle, menuOpen }: DashboardHeaderProps
         mappedCount: mapped.length,
         mapped,
       })
-      setFarmOptions(mapped)
+      if (!normalizedQuery) {
+        setCachedFarmOptions(mapped)
+        setFarmOptions(mapped)
+        return
+      }
+
+      // If query endpoint returns no rows in mixed-schema deployments, keep a local fallback
+      // from the cached full list so users still get autocomplete while typing.
+      if (mapped.length === 0 && cachedFarmOptions.length > 0) {
+        const q = normalizedQuery.toLowerCase()
+        const fallback = cachedFarmOptions.filter((farm) => {
+          return (
+            farm.name.toLowerCase().includes(q) ||
+            farm.location.toLowerCase().includes(q) ||
+            farm.id.toLowerCase().includes(q)
+          )
+        })
+        console.log('[farm-search-debug] fallback options from cache', {
+          query: normalizedQuery,
+          fallbackCount: fallback.length,
+          fallback,
+        })
+        setFarmOptions(fallback)
+      } else {
+        setFarmOptions(mapped)
+      }
     } catch (error) {
       if (signal.aborted) return
       console.error('[header] farm search load failed', error)
@@ -109,6 +135,12 @@ export function DashboardHeader({ onMenuToggle, menuOpen }: DashboardHeaderProps
     loadFarms(controller.signal, searchQuery)
     return () => controller.abort()
   }, [pathname, searchQuery])
+
+  useEffect(() => {
+    if (searchQuery.trim()) {
+      setIsSearchOpen(true)
+    }
+  }, [searchQuery])
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -134,6 +166,10 @@ export function DashboardHeader({ onMenuToggle, menuOpen }: DashboardHeaderProps
     setIsSearchOpen(false)
     router.push(`/dashboard?${params.toString()}`)
   }
+
+  const shouldShowSearchDropdown =
+    (isSearchOpen || searchQuery.trim().length > 0) &&
+    (isLoadingFarms || farmOptions.length > 0 || searchQuery.trim().length > 0)
 
   return (
     <header className="fixed top-0 left-0 right-0 z-50 h-16 bg-[#0c0c0e]/95 backdrop-blur-xl border-b border-white/5">
@@ -199,7 +235,7 @@ export function DashboardHeader({ onMenuToggle, menuOpen }: DashboardHeaderProps
               <kbd className="px-1.5 py-0.5 bg-white/10 rounded border border-white/10 font-mono">K</kbd>
             </div>
           </div>
-          {isSearchOpen && (
+          {shouldShowSearchDropdown && (
             <div className="absolute left-0 right-0 top-full z-[2200] mt-1 rounded-xl border border-white/10 bg-[#0c0c0e] p-2 shadow-2xl">
               {isLoadingFarms ? (
                 <div className="px-3 py-4 text-sm text-white/60">
