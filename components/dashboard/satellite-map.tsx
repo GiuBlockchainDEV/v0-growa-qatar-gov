@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, useCallback, useMemo } from 'react'
 import { Plus, Minus, Crosshair } from 'lucide-react'
 import { useOrganization } from '@/hooks/use-organization'
+import { useAuth } from '@/hooks/use-auth'
 
 // Qatar center coordinates
 const QATAR_CENTER = { lat: 25.3548, lng: 51.1839 }
@@ -14,7 +15,7 @@ interface MapMarker {
   lat: number
   lng: number
   label: string
-  type: 'farm' | 'facility' | 'sensor'
+  type: 'farm' | 'facility' | 'sensor' | 'custom'
 }
 
 interface FarmApiRow {
@@ -46,7 +47,15 @@ interface MapController {
   flyTo: (coords: [number, number], zoom: number, options?: { duration?: number }) => void
   getZoom: () => number
   on: (event: string, handler: () => void) => void
+  off: (event: string, handler: (...args: any[]) => void) => void
   remove: () => void
+}
+
+interface CustomPoint {
+  id: string
+  lat: number
+  lng: number
+  label: string
 }
 
 function hashToRange(input: string, min: number, max: number) {
@@ -85,6 +94,7 @@ export function SatelliteMap({
   targetFarmId = null,
   targetZoom,
 }: SatelliteMapProps) {
+  const { user } = useAuth()
   const { organization } = useOrganization()
   const mapRef = useRef<HTMLDivElement>(null)
   const mapInstanceRef = useRef<MapController | null>(null)
@@ -94,6 +104,8 @@ export function SatelliteMap({
   const [mapReady, setMapReady] = useState(false)
   const [currentZoom, setCurrentZoom] = useState(DEFAULT_ZOOM)
   const [farmRows, setFarmRows] = useState<FarmApiRow[]>([])
+  const [customPoints, setCustomPoints] = useState<CustomPoint[]>([])
+  const [isAddPointMode, setIsAddPointMode] = useState(false)
 
   const organizationType = (
     organization?.organization_type ||
@@ -103,6 +115,61 @@ export function SatelliteMap({
     .toString()
     .toLowerCase()
   const isFarmCompanyContext = organizationType === 'farm_company'
+  const isGrowaAdmin = Boolean(user?.email?.toLowerCase().endsWith('@growa.ai'))
+
+  const customPointsStorageKey = useMemo(
+    () => `growa-custom-map-points:${user?.id || 'anonymous'}`,
+    [user?.id]
+  )
+
+  useEffect(() => {
+    if (!isGrowaAdmin) {
+      setCustomPoints([])
+      setIsAddPointMode(false)
+      return
+    }
+    try {
+      const raw = window.localStorage.getItem(customPointsStorageKey)
+      if (!raw) {
+        setCustomPoints([])
+        return
+      }
+      const parsed = JSON.parse(raw)
+      if (!Array.isArray(parsed)) {
+        setCustomPoints([])
+        return
+      }
+      const normalized = parsed
+        .map((entry: unknown) => {
+          if (!entry || typeof entry !== 'object') return null
+          const row = entry as Record<string, unknown>
+          const id = typeof row.id === 'string' ? row.id : ''
+          const lat = typeof row.lat === 'number' ? row.lat : Number.NaN
+          const lng = typeof row.lng === 'number' ? row.lng : Number.NaN
+          const label = typeof row.label === 'string' ? row.label : ''
+          if (!id || !Number.isFinite(lat) || !Number.isFinite(lng)) return null
+          return {
+            id,
+            lat,
+            lng,
+            label: label.trim() || 'Custom Point',
+          } satisfies CustomPoint
+        })
+        .filter((row): row is CustomPoint => Boolean(row))
+      setCustomPoints(normalized)
+    } catch {
+      setCustomPoints([])
+    }
+  }, [customPointsStorageKey, isGrowaAdmin])
+
+  useEffect(() => {
+    if (!isGrowaAdmin) return
+    try {
+      window.localStorage.setItem(customPointsStorageKey, JSON.stringify(customPoints))
+    } catch {
+      // Ignore storage failures in restricted browser contexts.
+    }
+  }, [customPoints, customPointsStorageKey, isGrowaAdmin])
 
   const dynamicFarmMarkers = useMemo<MapMarker[]>(() => {
     const markers: MapMarker[] = []
@@ -125,10 +192,17 @@ export function SatelliteMap({
     return markers
   }, [farmRows, locale])
 
-  const mapMarkers = useMemo<MapMarker[]>(
-    () => (dynamicFarmMarkers.length > 0 ? dynamicFarmMarkers : FARM_MARKERS),
-    [dynamicFarmMarkers]
-  )
+  const mapMarkers = useMemo<MapMarker[]>(() => {
+    const baseline = dynamicFarmMarkers.length > 0 ? dynamicFarmMarkers : FARM_MARKERS
+    const custom = customPoints.map((point) => ({
+      id: point.id,
+      lat: point.lat,
+      lng: point.lng,
+      label: point.label,
+      type: 'custom' as const,
+    }))
+    return [...baseline, ...custom]
+  }, [customPoints, dynamicFarmMarkers])
 
   const explicitTargetFarm = useMemo(
     () =>
@@ -264,6 +338,7 @@ export function SatelliteMap({
         farm: '#07f880',
         facility: '#3B82F6',
         sensor: '#F59E0B',
+        custom: '#07f880',
       }
       const color = colors[type] || colors.farm
 
@@ -307,6 +382,43 @@ export function SatelliteMap({
   }, [mapMarkers, mapReady])
 
   useEffect(() => {
+    if (!isGrowaAdmin || !isAddPointMode) return
+    if (!mapReady || !mapInstanceRef.current) return
+    const map = mapInstanceRef.current as unknown as {
+      on: (event: string, handler: (...args: any[]) => void) => void
+      off: (event: string, handler: (...args: any[]) => void) => void
+    }
+
+    const handleMapClick = (event: any) => {
+      const lat = Number(event?.latlng?.lat)
+      const lng = Number(event?.latlng?.lng)
+      if (!Number.isFinite(lat) || !Number.isFinite(lng)) return
+      const suggested = `${locale === 'ar' ? 'نقطة جديدة' : 'Custom Point'} ${customPoints.length + 1}`
+      const labelInput = window.prompt(
+        locale === 'ar' ? 'اسم النقطة الجديدة' : 'Name for the new map point',
+        suggested
+      )
+      if (labelInput === null) return
+      const label = labelInput.trim() || suggested
+
+      setCustomPoints((prev) => [
+        ...prev,
+        {
+          id: `custom-${Date.now()}-${Math.floor(Math.random() * 10000)}`,
+          lat,
+          lng,
+          label,
+        },
+      ])
+    }
+
+    map.on('click', handleMapClick)
+    return () => {
+      map.off('click', handleMapClick)
+    }
+  }, [customPoints.length, isAddPointMode, isGrowaAdmin, locale, mapReady])
+
+  useEffect(() => {
     if (!mapInstanceRef.current) return
     if (!resolvedTargetFarm) return
     mapInstanceRef.current.flyTo(
@@ -323,6 +435,19 @@ export function SatelliteMap({
 
       {/* Map Controls - Bottom Right, ALWAYS Visible */}
       <div className="absolute bottom-6 right-6 z-[1000] flex flex-col gap-2">
+        {isGrowaAdmin && (
+          <button
+            onClick={() => setIsAddPointMode((prev) => !prev)}
+            className={`h-10 px-3 flex items-center justify-center rounded-lg border transition-all shadow-lg text-xs font-medium ${
+              isAddPointMode
+                ? 'bg-[#07f880]/20 border-[#07f880]/60 text-[#07f880]'
+                : 'bg-[#0c0c0e]/90 border-white/10 text-white/80 hover:border-[#07f880]/50 hover:text-[#07f880]'
+            }`}
+            title={isAddPointMode ? 'Click map to add points' : 'Enable add point mode'}
+          >
+            {isAddPointMode ? 'Add Point: ON' : 'Add Point'}
+          </button>
+        )}
         {/* Zoom In */}
         <button
           onClick={handleZoomIn}
@@ -360,6 +485,11 @@ export function SatelliteMap({
         {resolvedTargetFarm && (
           <div className="text-[11px] text-white/75">
             Focus: <span className="text-[#07f880]">{resolvedTargetFarm.label}</span>
+          </div>
+        )}
+        {isGrowaAdmin && isAddPointMode && (
+          <div className="text-[11px] text-[#07f880]">
+            Click on map to create a point.
           </div>
         )}
       </div>
