@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
 import { useI18n } from '@/lib/i18n'
 import { UserMenu } from './user-menu'
 import { LanguageToggle } from '@/components/language-toggle'
@@ -22,6 +22,7 @@ type FarmSearchOption = {
 export function DashboardHeader({ onMenuToggle, menuOpen }: DashboardHeaderProps) {
   const { locale } = useI18n()
   const router = useRouter()
+  const pathname = usePathname()
   const { effectiveRole, roleProfile, isLoading: roleLoading } = useRoleNavigation()
   const [searchQuery, setSearchQuery] = useState('')
   const [farmOptions, setFarmOptions] = useState<FarmSearchOption[]>([])
@@ -36,44 +37,53 @@ export function DashboardHeader({ onMenuToggle, menuOpen }: DashboardHeaderProps
       .replace(/\b\w/g, (char) => char.toUpperCase())
   })()
 
-  useEffect(() => {
-    let cancelled = false
-    async function loadFarms() {
-      try {
-        setIsLoadingFarms(true)
-        const operationsResponse = await fetch('/api/operations/farms', { cache: 'no-store' })
-        const payload = await operationsResponse.json().catch(() => null)
-        if (!operationsResponse.ok) {
-          throw new Error((payload as { error?: string } | null)?.error || 'Failed to load farms')
-        }
-        if (cancelled) return
-        const mapped = (Array.isArray(payload) ? payload : [])
-          .map((farm: Record<string, unknown>) => {
-            const id = typeof farm.id === 'string' ? farm.id : ''
-            if (!id) return null
-            const nameEn = typeof farm.name_en === 'string' ? farm.name_en : ''
-            const nameAr = typeof farm.name_ar === 'string' ? farm.name_ar : ''
-            const location = typeof farm.location === 'string' ? farm.location : 'Unknown location'
-            return {
-              id,
-              name: locale === 'ar' && nameAr ? nameAr : nameEn || nameAr || `Farm ${id.slice(0, 8)}`,
-              location,
-            }
-          })
-          .filter((farm): farm is FarmSearchOption => Boolean(farm))
-        setFarmOptions(mapped)
-      } catch (error) {
-        console.error('[header] farm search load failed', error)
-        if (!cancelled) setFarmOptions([])
-      } finally {
-        if (!cancelled) setIsLoadingFarms(false)
+  const loadFarms = async (signal: AbortSignal) => {
+    try {
+      setIsLoadingFarms(true)
+      const response = await fetch('/api/operations/farms', {
+        cache: 'no-store',
+        signal,
+      })
+      const payload = await response.json().catch(() => null)
+      if (!response.ok) {
+        throw new Error((payload as { error?: string } | null)?.error || 'Failed to load farms')
       }
+
+      const mapped = (Array.isArray(payload) ? payload : [])
+        .map((farm: Record<string, unknown>) => {
+          const id = typeof farm.id === 'string' ? farm.id : ''
+          if (!id) return null
+          const nameEn = typeof farm.name_en === 'string' ? farm.name_en : ''
+          const nameAr = typeof farm.name_ar === 'string' ? farm.name_ar : ''
+          const location = typeof farm.location === 'string' ? farm.location : 'Unknown location'
+          return {
+            id,
+            name: locale === 'ar' && nameAr ? nameAr : nameEn || nameAr || `Farm ${id.slice(0, 8)}`,
+            location,
+          }
+        })
+        .filter((farm): farm is FarmSearchOption => Boolean(farm))
+      setFarmOptions(mapped)
+    } catch (error) {
+      if (signal.aborted) return
+      console.error('[header] farm search load failed', error)
+      setFarmOptions([])
+    } finally {
+      if (!signal.aborted) setIsLoadingFarms(false)
     }
-    loadFarms()
-    return () => {
-      cancelled = true
-    }
+  }
+
+  useEffect(() => {
+    const controller = new AbortController()
+    loadFarms(controller.signal)
+    return () => controller.abort()
   }, [locale])
+
+  useEffect(() => {
+    const controller = new AbortController()
+    loadFarms(controller.signal)
+    return () => controller.abort()
+  }, [pathname])
 
   const filteredFarms = useMemo(() => {
     const q = searchQuery.trim().toLowerCase()
