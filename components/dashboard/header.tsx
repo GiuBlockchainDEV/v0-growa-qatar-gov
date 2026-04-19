@@ -172,7 +172,7 @@ export function DashboardHeader({ onMenuToggle, menuOpen }: DashboardHeaderProps
     (isLoadingFarms || farmOptions.length > 0 || searchQuery.trim().length > 0)
 
   return (
-    <header className="fixed top-0 left-0 right-0 z-50 h-16 bg-[#0c0c0e]/95 backdrop-blur-xl border-b border-white/5">
+    <header className="fixed top-0 left-0 right-0 z-[1200] h-16 bg-[#0c0c0e]/95 backdrop-blur-xl border-b border-white/5">
       <div className="flex items-center justify-between h-full px-4">
         {/* Left - Menu Toggle + Logo */}
         <div className="flex items-center gap-3">
