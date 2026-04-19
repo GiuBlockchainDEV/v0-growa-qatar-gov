@@ -34,7 +34,9 @@ export function useOrganization() {
         // This keeps dashboard modules (e.g. Supply Overview) scoped to impersonated org.
         if (isGrowaAdmin) {
           let roleData: any = null
-          const { data: effectiveRoleData } = await supabase.rpc('get_effective_role')
+          const { data: effectiveRoleData } = await supabase.rpc('get_effective_role', {
+            user_id: user.id,
+          })
           roleData = effectiveRoleData?.[0] || null
 
           if (!roleData?.is_impersonating) {

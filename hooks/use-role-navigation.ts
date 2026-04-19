@@ -315,8 +315,16 @@ export function useRoleNavigation() {
 
         if (isGrowaAdmin) {
           let roleData: any = null
-          const { data: effectiveRoleData } = await supabase.rpc('get_effective_role')
-          roleData = effectiveRoleData?.[0] || null
+          // Disambiguate overloaded RPC signatures in mixed DB states.
+          const { data: effectiveRoleData, error: effectiveRoleError } = await supabase.rpc(
+            'get_effective_role',
+            { user_id: user.id }
+          )
+          const fallbackEffectiveRoleData =
+            effectiveRoleError?.code === 'PGRST202' || effectiveRoleError?.code === 'PGRST203'
+              ? (await supabase.rpc('get_effective_role')).data
+              : null
+          roleData = effectiveRoleData?.[0] || fallbackEffectiveRoleData?.[0] || null
 
           // Fallback to persisted impersonation state if RPC output is empty.
           if (!roleData?.is_impersonating) {

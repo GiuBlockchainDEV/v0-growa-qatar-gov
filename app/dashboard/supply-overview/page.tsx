@@ -129,14 +129,24 @@ export default function SupplyOverviewPage() {
         return
       }
 
-      const { data: roleData } = await supabase.rpc('get_effective_role')
+      const { data: roleData, error: roleError } = await supabase.rpc('get_effective_role', {
+        user_id: user.id,
+      })
+      const fallbackRoleData =
+        roleError?.code === 'PGRST202' || roleError?.code === 'PGRST203'
+          ? (await supabase.rpc('get_effective_role')).data
+          : null
       const role = roleData?.[0] as
         | { is_impersonating?: boolean; org_id?: string; org_name?: string }
         | undefined
+      const fallbackRole = fallbackRoleData?.[0] as
+        | { is_impersonating?: boolean; org_id?: string; org_name?: string }
+        | undefined
+      const resolvedRole = role || fallbackRole
 
-      if (role?.is_impersonating && role?.org_id) {
-        setResolvedOrgId(role.org_id)
-        setResolvedOrgName(role.org_name || null)
+      if (resolvedRole?.is_impersonating && resolvedRole?.org_id) {
+        setResolvedOrgId(resolvedRole.org_id)
+        setResolvedOrgName(resolvedRole.org_name || null)
       } else {
         setResolvedOrgId(null)
         setResolvedOrgName(null)

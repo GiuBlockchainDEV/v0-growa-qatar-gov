@@ -41,9 +41,11 @@ export function DashboardHeader({ onMenuToggle, menuOpen }: DashboardHeaderProps
     async function loadFarms() {
       try {
         setIsLoadingFarms(true)
-        const response = await fetch('/api/operations/farms', { cache: 'no-store' })
-        const payload = await response.json()
-        if (!response.ok) throw new Error(payload?.error || 'Failed to load farms')
+        const operationsResponse = await fetch('/api/operations/farms', { cache: 'no-store' })
+        const payload = await operationsResponse.json().catch(() => null)
+        if (!operationsResponse.ok) {
+          throw new Error((payload as { error?: string } | null)?.error || 'Failed to load farms')
+        }
         if (cancelled) return
         const mapped = (Array.isArray(payload) ? payload : [])
           .map((farm: Record<string, unknown>) => {
@@ -60,7 +62,8 @@ export function DashboardHeader({ onMenuToggle, menuOpen }: DashboardHeaderProps
           })
           .filter((farm): farm is FarmSearchOption => Boolean(farm))
         setFarmOptions(mapped)
-      } catch {
+      } catch (error) {
+        console.error('[header] farm search load failed', error)
         if (!cancelled) setFarmOptions([])
       } finally {
         if (!cancelled) setIsLoadingFarms(false)

@@ -11,17 +11,35 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  // Get farms for user's organizations
-  const { data: farms, error } = await supabase
-    .from('farms')
-    .select('*')
-    .order('created_at', { ascending: false })
+  const selectAttempts = ['*', 'id, name_en, name_ar, location', 'id, name_en, location']
+  const orderAttempts: Array<{ column: string; ascending: boolean } | null> = [
+    { column: 'created_at', ascending: false },
+    { column: 'updated_at', ascending: false },
+    null,
+  ]
 
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 })
+  for (const select of selectAttempts) {
+    for (const orderConfig of orderAttempts) {
+      let query = supabase.from('farms').select(select)
+      if (orderConfig) {
+        query = query.order(orderConfig.column, { ascending: orderConfig.ascending })
+      }
+
+      const { data, error } = await query
+      if (!error) {
+        return NextResponse.json(data || [])
+      }
+
+      const message = error.message.toLowerCase()
+      const retryable =
+        message.includes('column') || message.includes('does not exist') || message.includes('schema cache')
+      if (!retryable) {
+        return NextResponse.json({ error: error.message }, { status: 500 })
+      }
+    }
   }
 
-  return NextResponse.json(farms || [])
+  return NextResponse.json([], { status: 200 })
 }
 
 export async function POST(request: Request) {

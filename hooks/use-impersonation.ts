@@ -66,7 +66,9 @@ export function useImpersonation() {
 
   const resolveEffectiveRoleWithFallback = useCallback(
     async (userId: string) => {
-      const { data: effectiveRole, error: roleError } = await supabase.rpc('get_effective_role')
+      const { data: effectiveRole, error: roleError } = await supabase.rpc('get_effective_role', {
+        user_id: userId,
+      })
       if (roleError) {
         console.error('Error getting effective role:', roleError)
       }
