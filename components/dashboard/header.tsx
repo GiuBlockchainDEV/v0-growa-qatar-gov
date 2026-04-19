@@ -1,9 +1,11 @@
 'use client'
 
+import { useEffect, useMemo, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { useI18n } from '@/lib/i18n'
 import { UserMenu } from './user-menu'
 import { LanguageToggle } from '@/components/language-toggle'
-import { Bell, Search, Command, Activity, PanelLeft, Globe } from 'lucide-react'
+import { Bell, Search, Command, Activity, PanelLeft, Globe, MapPin } from 'lucide-react'
 import { useRoleNavigation } from '@/hooks/use-role-navigation'
 
 interface DashboardHeaderProps {
@@ -11,9 +13,20 @@ interface DashboardHeaderProps {
   menuOpen: boolean
 }
 
+type FarmSearchOption = {
+  id: string
+  name: string
+  location: string
+}
+
 export function DashboardHeader({ onMenuToggle, menuOpen }: DashboardHeaderProps) {
   const { locale } = useI18n()
+  const router = useRouter()
   const { effectiveRole, roleProfile, isLoading: roleLoading } = useRoleNavigation()
+  const [searchQuery, setSearchQuery] = useState('')
+  const [farmOptions, setFarmOptions] = useState<FarmSearchOption[]>([])
+  const [isSearchOpen, setIsSearchOpen] = useState(false)
+  const [isLoadingFarms, setIsLoadingFarms] = useState(false)
 
   const activeRoleLabel = (() => {
     const roleKey = roleProfile || effectiveRole
@@ -22,6 +35,67 @@ export function DashboardHeader({ onMenuToggle, menuOpen }: DashboardHeaderProps
       .replace(/_/g, ' ')
       .replace(/\b\w/g, (char) => char.toUpperCase())
   })()
+
+  useEffect(() => {
+    let cancelled = false
+    async function loadFarms() {
+      try {
+        setIsLoadingFarms(true)
+        const response = await fetch('/api/operations/farms', { cache: 'no-store' })
+        const payload = await response.json()
+        if (!response.ok) throw new Error(payload?.error || 'Failed to load farms')
+        if (cancelled) return
+        const mapped = (Array.isArray(payload) ? payload : [])
+          .map((farm: Record<string, unknown>) => {
+            const id = typeof farm.id === 'string' ? farm.id : ''
+            if (!id) return null
+            const nameEn = typeof farm.name_en === 'string' ? farm.name_en : ''
+            const nameAr = typeof farm.name_ar === 'string' ? farm.name_ar : ''
+            const location = typeof farm.location === 'string' ? farm.location : 'Unknown location'
+            return {
+              id,
+              name: locale === 'ar' && nameAr ? nameAr : nameEn || nameAr || `Farm ${id.slice(0, 8)}`,
+              location,
+            }
+          })
+          .filter((farm): farm is FarmSearchOption => Boolean(farm))
+        setFarmOptions(mapped)
+      } catch {
+        if (!cancelled) setFarmOptions([])
+      } finally {
+        if (!cancelled) setIsLoadingFarms(false)
+      }
+    }
+    loadFarms()
+    return () => {
+      cancelled = true
+    }
+  }, [locale])
+
+  const filteredFarms = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase()
+    if (!q) return farmOptions.slice(0, 8)
+    return farmOptions
+      .filter((farm) => {
+        return (
+          farm.name.toLowerCase().includes(q) ||
+          farm.location.toLowerCase().includes(q) ||
+          farm.id.toLowerCase().includes(q)
+        )
+      })
+      .slice(0, 8)
+  }, [farmOptions, searchQuery])
+
+  const handleSelectFarm = (farm: FarmSearchOption) => {
+    const params = new URLSearchParams({
+      module: 'live-map',
+      farmId: farm.id,
+      zoom: '17',
+    })
+    setSearchQuery(farm.name)
+    setIsSearchOpen(false)
+    router.push(`/dashboard?${params.toString()}`)
+  }
 
   return (
     <header className="fixed top-0 left-0 right-0 z-50 h-16 bg-[#0c0c0e]/95 backdrop-blur-xl border-b border-white/5">
@@ -52,12 +126,22 @@ export function DashboardHeader({ onMenuToggle, menuOpen }: DashboardHeaderProps
         </div>
 
         {/* Center - Search */}
-        <div className="flex-1 max-w-xl mx-4">
+        <div className="relative flex-1 max-w-xl mx-4">
           <div className="relative group">
-            <Search             className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-white/40 group-focus-within:text-[#07f880] transition-colors" />
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-white/40 group-focus-within:text-[#07f880] transition-colors" />
             <input
               type="text"
-              placeholder={locale === 'ar' ? 'البحث في المنصة...' : 'Search platform...'}
+              value={searchQuery}
+              onChange={(event) => {
+                setSearchQuery(event.target.value)
+                setIsSearchOpen(true)
+              }}
+              onFocus={() => setIsSearchOpen(true)}
+              onBlur={() => {
+                // Delay to allow click selection in dropdown.
+                window.setTimeout(() => setIsSearchOpen(false), 150)
+              }}
+              placeholder={locale === 'ar' ? 'ابحث عن مزرعة...' : 'Search farms...'}
               className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 pl-10 pr-20 text-sm text-white placeholder-white/40 focus:border-[#07f880]/50 focus:bg-white/10 focus:outline-none transition-all"
             />
             <div className="absolute right-3 top-1/2 -translate-y-1/2 hidden sm:flex items-center gap-1 text-[10px] text-white/30">
@@ -67,6 +151,34 @@ export function DashboardHeader({ onMenuToggle, menuOpen }: DashboardHeaderProps
               <kbd className="px-1.5 py-0.5 bg-white/10 rounded border border-white/10 font-mono">K</kbd>
             </div>
           </div>
+          {isSearchOpen && (
+            <div className="absolute z-[2200] mt-1 w-full max-w-xl rounded-xl border border-white/10 bg-[#0c0c0e] p-2 shadow-2xl">
+              {isLoadingFarms ? (
+                <div className="px-3 py-4 text-sm text-white/60">
+                  {locale === 'ar' ? 'جاري تحميل المزارع...' : 'Loading farms...'}
+                </div>
+              ) : filteredFarms.length === 0 ? (
+                <div className="px-3 py-4 text-sm text-white/60">
+                  {locale === 'ar' ? 'لا توجد مزارع مطابقة.' : 'No matching farms found.'}
+                </div>
+              ) : (
+                filteredFarms.map((farm) => (
+                  <button
+                    key={farm.id}
+                    type="button"
+                    onClick={() => handleSelectFarm(farm)}
+                    className="flex w-full items-center justify-between rounded-lg px-3 py-2 text-left hover:bg-white/5"
+                  >
+                    <div className="min-w-0">
+                      <p className="truncate text-sm text-white">{farm.name}</p>
+                      <p className="truncate text-xs text-white/50">{farm.location}</p>
+                    </div>
+                    <MapPin className="h-4 w-4 text-[#07f880]" />
+                  </button>
+                ))
+              )}
+            </div>
+          )}
         </div>
 
         {/* Right - Status, Notifications, Language, User */}

@@ -1,11 +1,13 @@
 'use client'
 
-import { useEffect, useRef, useState, useCallback } from 'react'
-import { Plus, Minus, Crosshair, Layers } from 'lucide-react'
+import { useEffect, useRef, useState, useCallback, useMemo } from 'react'
+import { Plus, Minus, Crosshair } from 'lucide-react'
+import { useOrganization } from '@/hooks/use-organization'
 
 // Qatar center coordinates
 const QATAR_CENTER = { lat: 25.3548, lng: 51.1839 }
 const DEFAULT_ZOOM = 10
+const DEFAULT_FARM_ZOOM = 17
 
 interface MapMarker {
   id: string
@@ -13,6 +15,14 @@ interface MapMarker {
   lng: number
   label: string
   type: 'farm' | 'facility' | 'sensor'
+}
+
+interface FarmApiRow {
+  id?: string
+  name_en?: string
+  name_ar?: string
+  name?: string
+  location?: string | null
 }
 
 // Sample farm locations in Qatar
@@ -26,13 +36,119 @@ const FARM_MARKERS: MapMarker[] = [
 
 interface SatelliteMapProps {
   locale?: string
+  targetFarmId?: string | null
+  targetZoom?: number
 }
 
-export function SatelliteMap({ locale = 'en' }: SatelliteMapProps) {
+interface MapController {
+  zoomIn: () => void
+  zoomOut: () => void
+  flyTo: (coords: [number, number], zoom: number, options?: { duration?: number }) => void
+  getZoom: () => number
+  on: (event: string, handler: () => void) => void
+  remove: () => void
+}
+
+function hashToRange(input: string, min: number, max: number) {
+  let hash = 0
+  for (let i = 0; i < input.length; i += 1) {
+    hash = (hash * 31 + input.charCodeAt(i)) % 100000
+  }
+  const normalized = hash / 100000
+  return min + normalized * (max - min)
+}
+
+function estimateFarmCoordinates(farmId: string, location?: string | null) {
+  const locationKey = (location || '').toLowerCase()
+  const cityBias: Record<string, { lat: number; lng: number }> = {
+    'al khor': { lat: 25.6839, lng: 51.5058 },
+    'al rayyan': { lat: 25.2919, lng: 51.4244 },
+    'umm salal': { lat: 25.4167, lng: 51.4065 },
+    'al daayen': { lat: 25.4476, lng: 51.5254 },
+    'al wakrah': { lat: 25.1682, lng: 51.6034 },
+    'madinat ash shamal': { lat: 26.1293, lng: 51.2068 },
+  }
+
+  const matchedCity = Object.entries(cityBias).find(([city]) => locationKey.includes(city))
+  const base = matchedCity?.[1] || QATAR_CENTER
+  const latOffset = hashToRange(`${farmId}-lat`, -0.035, 0.035)
+  const lngOffset = hashToRange(`${farmId}-lng`, -0.05, 0.05)
+
+  return {
+    lat: base.lat + latOffset,
+    lng: base.lng + lngOffset,
+  }
+}
+
+export function SatelliteMap({
+  locale = 'en',
+  targetFarmId = null,
+  targetZoom,
+}: SatelliteMapProps) {
+  const { organization } = useOrganization()
   const mapRef = useRef<HTMLDivElement>(null)
-  const mapInstanceRef = useRef<L.Map | null>(null)
+  const mapInstanceRef = useRef<MapController | null>(null)
+  const leafletRef = useRef<any>(null)
+  const markerInstancesRef = useRef<any[]>([])
   const [isLoading, setIsLoading] = useState(true)
+  const [mapReady, setMapReady] = useState(false)
   const [currentZoom, setCurrentZoom] = useState(DEFAULT_ZOOM)
+  const [farmRows, setFarmRows] = useState<FarmApiRow[]>([])
+
+  const organizationType = (
+    organization?.organization_type ||
+    organization?.type ||
+    ''
+  )
+    .toString()
+    .toLowerCase()
+  const isFarmCompanyContext = organizationType === 'farm_company'
+
+  const dynamicFarmMarkers = useMemo<MapMarker[]>(() => {
+    const markers: MapMarker[] = []
+    for (const farm of farmRows) {
+      if (!farm.id) continue
+      const coordinates = estimateFarmCoordinates(farm.id, farm.location || null)
+      const label =
+        (locale === 'ar' && farm.name_ar) ||
+        farm.name_en ||
+        farm.name ||
+        `Farm ${farm.id.slice(0, 8)}`
+      markers.push({
+        id: farm.id,
+        lat: coordinates.lat,
+        lng: coordinates.lng,
+        label,
+        type: 'farm',
+      })
+    }
+    return markers
+  }, [farmRows, locale])
+
+  const mapMarkers = useMemo<MapMarker[]>(
+    () => (dynamicFarmMarkers.length > 0 ? dynamicFarmMarkers : FARM_MARKERS),
+    [dynamicFarmMarkers]
+  )
+
+  const explicitTargetFarm = useMemo(
+    () =>
+      targetFarmId
+        ? dynamicFarmMarkers.find((marker) => marker.id === targetFarmId) ||
+          mapMarkers.find((marker) => marker.id === targetFarmId) ||
+          null
+        : null,
+    [dynamicFarmMarkers, mapMarkers, targetFarmId]
+  )
+
+  const resolvedTargetFarm = useMemo(() => {
+    if (explicitTargetFarm) return explicitTargetFarm
+    if (!isFarmCompanyContext) return null
+    return dynamicFarmMarkers[0] || null
+  }, [explicitTargetFarm, isFarmCompanyContext, dynamicFarmMarkers])
+
+  const resolvedTargetZoom = resolvedTargetFarm
+    ? targetZoom ?? DEFAULT_FARM_ZOOM
+    : DEFAULT_ZOOM
 
   const handleZoomIn = useCallback(() => {
     if (mapInstanceRef.current) {
@@ -48,14 +164,41 @@ export function SatelliteMap({ locale = 'en' }: SatelliteMapProps) {
 
   const handleRecenter = useCallback(() => {
     if (mapInstanceRef.current) {
-      mapInstanceRef.current.flyTo([QATAR_CENTER.lat, QATAR_CENTER.lng], DEFAULT_ZOOM, {
+      const recenterLat = resolvedTargetFarm?.lat ?? QATAR_CENTER.lat
+      const recenterLng = resolvedTargetFarm?.lng ?? QATAR_CENTER.lng
+      const recenterZoom = resolvedTargetFarm ? resolvedTargetZoom : DEFAULT_ZOOM
+      mapInstanceRef.current.flyTo([recenterLat, recenterLng], recenterZoom, {
         duration: 1.5
       })
+    }
+  }, [resolvedTargetFarm, resolvedTargetZoom])
+
+  useEffect(() => {
+    let cancelled = false
+
+    async function loadFarms() {
+      try {
+        const response = await fetch('/api/operations/farms', { cache: 'no-store' })
+        const payload = await response.json()
+        if (!response.ok) return
+        if (!cancelled) {
+          setFarmRows(Array.isArray(payload) ? (payload as FarmApiRow[]) : [])
+        }
+      } catch {
+        if (!cancelled) {
+          setFarmRows([])
+        }
+      }
+    }
+
+    loadFarms()
+    return () => {
+      cancelled = true
     }
   }, [])
 
   useEffect(() => {
-    let map: L.Map | null = null
+    let map: MapController | null = null
     
     const initMap = async () => {
       if (!mapRef.current) return
@@ -63,11 +206,13 @@ export function SatelliteMap({ locale = 'en' }: SatelliteMapProps) {
       // Check if already initialized by Leaflet (has _leaflet_id on the container)
       if ((mapRef.current as HTMLDivElement & { _leaflet_id?: number })._leaflet_id) {
         setIsLoading(false)
+        setMapReady(true)
         return
       }
 
-      const L = (await import('leaflet')).default
+      const L = (await import('leaflet')).default as any
       await import('leaflet/dist/leaflet.css')
+      leafletRef.current = L
 
       // Initialize map
       map = L.map(mapRef.current, {
@@ -88,64 +233,88 @@ export function SatelliteMap({ locale = 'en' }: SatelliteMapProps) {
         setCurrentZoom(map.getZoom())
       })
 
-      // Custom marker icon
-      const createMarkerIcon = (type: string) => {
-        const colors = {
-          farm: '#07f880',
-          facility: '#3B82F6',
-          sensor: '#F59E0B'
-        }
-        const color = colors[type as keyof typeof colors] || colors.farm
-
-        return L.divIcon({
-          className: 'custom-marker',
-          html: `
-            <div style="
-              width: 24px;
-              height: 24px;
-              background: ${color};
-              border: 3px solid rgba(255,255,255,0.95);
-              border-radius: 50%;
-              box-shadow: 0 2px 8px rgba(0,0,0,0.4), 0 0 16px ${color}50;
-              cursor: pointer;
-            "></div>
-          `,
-          iconSize: [24, 24],
-          iconAnchor: [12, 12],
-        })
-      }
-
-      // Add markers
-      FARM_MARKERS.forEach((marker) => {
-        L.marker([marker.lat, marker.lng], {
-          icon: createMarkerIcon(marker.type)
-        })
-          .addTo(map)
-          .bindPopup(`
-            <div style="font-family: system-ui; padding: 8px; min-width: 140px;">
-              <strong style="color: #07f880; font-size: 13px;">${marker.label}</strong>
-              <br/>
-              <span style="font-size: 10px; color: #888; text-transform: uppercase;">Type: ${marker.type}</span>
-            </div>
-          `, {
-            className: 'custom-popup'
-          })
-      })
-
       mapInstanceRef.current = map
       setIsLoading(false)
+      setMapReady(true)
     }
 
     initMap()
 
     return () => {
+      markerInstancesRef.current.forEach((marker) => marker.remove?.())
+      markerInstancesRef.current = []
       // Cleanup on unmount - properly remove map
       if (map) {
         map.remove()
         mapInstanceRef.current = null
       }
+      leafletRef.current = null
+      setMapReady(false)
     }
   }, [])
+
+  useEffect(() => {
+    if (!mapReady || !mapInstanceRef.current || !leafletRef.current) return
+
+    const L = leafletRef.current
+    const map = mapInstanceRef.current
+
+    const createMarkerIcon = (type: MapMarker['type']) => {
+      const colors = {
+        farm: '#07f880',
+        facility: '#3B82F6',
+        sensor: '#F59E0B',
+      }
+      const color = colors[type] || colors.farm
+
+      return L.divIcon({
+        className: 'custom-marker',
+        html: `
+          <div style="
+            width: 24px;
+            height: 24px;
+            background: ${color};
+            border: 3px solid rgba(255,255,255,0.95);
+            border-radius: 50%;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.4), 0 0 16px ${color}50;
+            cursor: pointer;
+          "></div>
+        `,
+        iconSize: [24, 24],
+        iconAnchor: [12, 12],
+      })
+    }
+
+    markerInstancesRef.current.forEach((marker) => marker.remove?.())
+    markerInstancesRef.current = mapMarkers.map((marker) =>
+      L.marker([marker.lat, marker.lng], {
+        icon: createMarkerIcon(marker.type),
+      })
+        .addTo(map)
+        .bindPopup(
+          `
+            <div style="font-family: system-ui; padding: 8px; min-width: 140px;">
+              <strong style="color: #07f880; font-size: 13px;">${marker.label}</strong>
+              <br/>
+              <span style="font-size: 10px; color: #888; text-transform: uppercase;">Type: ${marker.type}</span>
+            </div>
+          `,
+          {
+            className: 'custom-popup',
+          }
+        )
+    )
+  }, [mapMarkers, mapReady])
+
+  useEffect(() => {
+    if (!mapInstanceRef.current) return
+    if (!resolvedTargetFarm) return
+    mapInstanceRef.current.flyTo(
+      [resolvedTargetFarm.lat, resolvedTargetFarm.lng],
+      resolvedTargetZoom,
+      { duration: 1.2 }
+    )
+  }, [resolvedTargetFarm, resolvedTargetZoom])
 
   return (
     <div className="absolute inset-0 pt-16"> {/* pt-16 to account for header */}
@@ -183,9 +352,16 @@ export function SatelliteMap({ locale = 'en' }: SatelliteMapProps) {
       </div>
 
       {/* Zoom Level Indicator - Bottom Left, ALWAYS Visible */}
-      <div className="absolute bottom-6 left-6 z-[1000] px-3 py-1.5 rounded-lg bg-[#0c0c0e]/90 border border-white/10 shadow-lg">
-        <span className="text-xs text-white/60">Zoom: </span>
-        <span className="text-xs text-[#07f880] font-medium">{currentZoom}</span>
+      <div className="absolute bottom-6 left-6 z-[1000] rounded-lg border border-white/10 bg-[#0c0c0e]/90 px-3 py-1.5 shadow-lg">
+        <div>
+          <span className="text-xs text-white/60">Zoom: </span>
+          <span className="text-xs text-[#07f880] font-medium">{currentZoom}</span>
+        </div>
+        {resolvedTargetFarm && (
+          <div className="text-[11px] text-white/75">
+            Focus: <span className="text-[#07f880]">{resolvedTargetFarm.label}</span>
+          </div>
+        )}
       </div>
 
       {/* Loading Overlay */}
