@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
 import { useI18n } from '@/lib/i18n'
 import { UserMenu } from './user-menu'
@@ -28,6 +28,7 @@ export function DashboardHeader({ onMenuToggle, menuOpen }: DashboardHeaderProps
   const [farmOptions, setFarmOptions] = useState<FarmSearchOption[]>([])
   const [isSearchOpen, setIsSearchOpen] = useState(false)
   const [isLoadingFarms, setIsLoadingFarms] = useState(false)
+  const searchContainerRef = useRef<HTMLDivElement | null>(null)
 
   const activeRoleLabel = (() => {
     const roleKey = roleProfile || effectiveRole
@@ -109,6 +110,20 @@ export function DashboardHeader({ onMenuToggle, menuOpen }: DashboardHeaderProps
     return () => controller.abort()
   }, [pathname, searchQuery])
 
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as Node
+      if (!searchContainerRef.current?.contains(target)) {
+        setIsSearchOpen(false)
+      }
+    }
+
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+    }
+  }, [])
+
   const handleSelectFarm = (farm: FarmSearchOption) => {
     const params = new URLSearchParams({
       module: 'live-map',
@@ -149,7 +164,7 @@ export function DashboardHeader({ onMenuToggle, menuOpen }: DashboardHeaderProps
         </div>
 
         {/* Center - Search */}
-        <div className="relative flex-1 max-w-xl mx-4">
+        <div ref={searchContainerRef} className="relative flex-1 max-w-xl mx-4">
           <div className="relative group">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-white/40 group-focus-within:text-[#07f880] transition-colors" />
             <input
@@ -164,10 +179,15 @@ export function DashboardHeader({ onMenuToggle, menuOpen }: DashboardHeaderProps
                 console.log('[farm-search-debug] input focus')
                 setIsSearchOpen(true)
               }}
-              onBlur={() => {
-                // Delay to allow click selection in dropdown.
-                console.log('[farm-search-debug] input blur')
-                window.setTimeout(() => setIsSearchOpen(false), 150)
+              onKeyDown={(event) => {
+                if (event.key === 'Escape') {
+                  setIsSearchOpen(false)
+                  return
+                }
+                if (event.key === 'Enter' && farmOptions.length > 0) {
+                  event.preventDefault()
+                  handleSelectFarm(farmOptions[0])
+                }
               }}
               placeholder={locale === 'ar' ? 'ابحث عن مزرعة...' : 'Search farms...'}
               className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 pl-10 pr-20 text-sm text-white placeholder-white/40 focus:border-[#07f880]/50 focus:bg-white/10 focus:outline-none transition-all"
@@ -180,7 +200,7 @@ export function DashboardHeader({ onMenuToggle, menuOpen }: DashboardHeaderProps
             </div>
           </div>
           {isSearchOpen && (
-            <div className="absolute z-[2200] mt-1 w-full max-w-xl rounded-xl border border-white/10 bg-[#0c0c0e] p-2 shadow-2xl">
+            <div className="absolute left-0 right-0 top-full z-[2200] mt-1 rounded-xl border border-white/10 bg-[#0c0c0e] p-2 shadow-2xl">
               {isLoadingFarms ? (
                 <div className="px-3 py-4 text-sm text-white/60">
                   {locale === 'ar' ? 'جاري تحميل المزارع...' : 'Loading farms...'}
@@ -194,6 +214,7 @@ export function DashboardHeader({ onMenuToggle, menuOpen }: DashboardHeaderProps
                   <button
                     key={farm.id}
                     type="button"
+                    onMouseDown={(event) => event.preventDefault()}
                     onClick={() => handleSelectFarm(farm)}
                     className="flex w-full items-center justify-between rounded-lg px-3 py-2 text-left hover:bg-white/5"
                   >
