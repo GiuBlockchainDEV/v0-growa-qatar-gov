@@ -5,10 +5,11 @@ import { Plus, Minus, Crosshair } from 'lucide-react'
 import { useOrganization } from '@/hooks/use-organization'
 import { useAuth } from '@/hooks/use-auth'
 
-// Qatar center coordinates
 const QATAR_CENTER = { lat: 25.3548, lng: 51.1839 }
 const DEFAULT_ZOOM = 10
 const DEFAULT_FARM_ZOOM = 17
+
+type MapPointType = 'farm' | 'facility' | 'sensor' | 'custom'
 
 interface MapMarker {
   id: string
@@ -26,15 +27,6 @@ interface FarmApiRow {
   location?: string | null
 }
 
-// Sample farm locations in Qatar
-const FARM_MARKERS: MapMarker[] = [
-  { id: '1', lat: 25.6842, lng: 51.4975, label: 'Al Khor Date Farm', type: 'farm' },
-  { id: '2', lat: 25.4107, lng: 51.2215, label: 'Umm Salal Greenhouse', type: 'farm' },
-  { id: '3', lat: 25.1725, lng: 51.4190, label: 'Al Shahaniya Livestock', type: 'farm' },
-  { id: '4', lat: 24.9940, lng: 51.5505, label: 'Mesaieed Aquaculture', type: 'facility' },
-  { id: '5', lat: 25.1700, lng: 51.6101, label: 'Al Wakra Poultry', type: 'farm' },
-]
-
 interface SatelliteMapProps {
   locale?: string
   targetFarmId?: string | null
@@ -51,8 +43,6 @@ interface MapController {
   remove: () => void
 }
 
-type MapPointType = 'farm' | 'facility' | 'sensor' | 'custom'
-
 interface CustomPoint {
   id: string
   lat: number
@@ -60,6 +50,21 @@ interface CustomPoint {
   label: string
   pointType: MapPointType
 }
+
+interface PolygonVertex {
+  lat: number
+  lng: number
+}
+
+type PointPolygonsMap = Record<string, PolygonVertex[][]>
+
+const FARM_MARKERS: MapMarker[] = [
+  { id: '1', lat: 25.6842, lng: 51.4975, label: 'Al Khor Date Farm', type: 'farm' },
+  { id: '2', lat: 25.4107, lng: 51.2215, label: 'Umm Salal Greenhouse', type: 'farm' },
+  { id: '3', lat: 25.1725, lng: 51.419, label: 'Al Shahaniya Livestock', type: 'farm' },
+  { id: '4', lat: 24.994, lng: 51.5505, label: 'Mesaieed Aquaculture', type: 'facility' },
+  { id: '5', lat: 25.17, lng: 51.6101, label: 'Al Wakra Poultry', type: 'farm' },
+]
 
 const POINT_TYPE_OPTIONS: Array<{ value: MapPointType; label: string }> = [
   { value: 'custom', label: 'Custom' },
@@ -115,30 +120,44 @@ function estimateFarmCoordinates(farmId: string, location?: string | null) {
   }
 }
 
-export function SatelliteMap({
-  locale = 'en',
-  targetFarmId = null,
-  targetZoom,
-}: SatelliteMapProps) {
+function normalizePolygonVertices(input: unknown): PolygonVertex[] {
+  if (!Array.isArray(input)) return []
+  return input
+    .map((entry) => {
+      if (!entry || typeof entry !== 'object') return null
+      const row = entry as Record<string, unknown>
+      const lat = typeof row.lat === 'number' ? row.lat : Number.NaN
+      const lng = typeof row.lng === 'number' ? row.lng : Number.NaN
+      if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null
+      return { lat, lng } satisfies PolygonVertex
+    })
+    .filter((vertex): vertex is PolygonVertex => Boolean(vertex))
+}
+
+export function SatelliteMap({ locale = 'en', targetFarmId = null, targetZoom }: SatelliteMapProps) {
   const { user } = useAuth()
   const { organization } = useOrganization()
+
   const mapRef = useRef<HTMLDivElement>(null)
   const mapInstanceRef = useRef<MapController | null>(null)
   const leafletRef = useRef<any>(null)
   const markerInstancesRef = useRef<any[]>([])
+  const polygonInstancesRef = useRef<any[]>([])
+  const draftPolylineRef = useRef<any | null>(null)
+
   const [isLoading, setIsLoading] = useState(true)
   const [mapReady, setMapReady] = useState(false)
   const [currentZoom, setCurrentZoom] = useState(DEFAULT_ZOOM)
   const [farmRows, setFarmRows] = useState<FarmApiRow[]>([])
   const [customPoints, setCustomPoints] = useState<CustomPoint[]>([])
+  const [pointPolygons, setPointPolygons] = useState<PointPolygonsMap>({})
   const [isAddPointMode, setIsAddPointMode] = useState(false)
   const [newPointType, setNewPointType] = useState<MapPointType>('custom')
+  const [activePointId, setActivePointId] = useState<string | null>(null)
+  const [polygonDrawPointId, setPolygonDrawPointId] = useState<string | null>(null)
+  const [draftPolygon, setDraftPolygon] = useState<PolygonVertex[]>([])
 
-  const organizationType = (
-    organization?.organization_type ||
-    organization?.type ||
-    ''
-  )
+  const organizationType = (organization?.organization_type || organization?.type || '')
     .toString()
     .toLowerCase()
   const isFarmCompanyContext = organizationType === 'farm_company'
@@ -146,6 +165,10 @@ export function SatelliteMap({
 
   const customPointsStorageKey = useMemo(
     () => `growa-custom-map-points:${user?.id || 'anonymous'}`,
+    [user?.id]
+  )
+  const pointPolygonsStorageKey = useMemo(
+    () => `growa-custom-point-polygons:${user?.id || 'anonymous'}`,
     [user?.id]
   )
 
@@ -181,13 +204,7 @@ export function SatelliteMap({
             ? (rawPointType as MapPointType)
             : 'custom'
           if (!id || !Number.isFinite(lat) || !Number.isFinite(lng)) return null
-          return {
-            id,
-            lat,
-            lng,
-            label: label.trim() || 'Custom Point',
-            pointType,
-          } satisfies CustomPoint
+          return { id, lat, lng, label: label.trim() || 'Custom Point', pointType } satisfies CustomPoint
         })
         .filter((row): row is CustomPoint => Boolean(row))
       setCustomPoints(normalized)
@@ -205,23 +222,54 @@ export function SatelliteMap({
     }
   }, [customPoints, customPointsStorageKey, isGrowaAdmin])
 
+  useEffect(() => {
+    if (!isGrowaAdmin) {
+      setPointPolygons({})
+      setActivePointId(null)
+      setPolygonDrawPointId(null)
+      setDraftPolygon([])
+      return
+    }
+    try {
+      const raw = window.localStorage.getItem(pointPolygonsStorageKey)
+      if (!raw) {
+        setPointPolygons({})
+        return
+      }
+      const parsed = JSON.parse(raw)
+      if (!parsed || typeof parsed !== 'object') {
+        setPointPolygons({})
+        return
+      }
+      const normalizedEntries = Object.entries(parsed as Record<string, unknown>).map(([key, value]) => {
+        const polygons = (Array.isArray(value) ? value : [])
+          .map((polygon) => normalizePolygonVertices(polygon))
+          .filter((vertices) => vertices.length >= 3)
+        return [key, polygons] as const
+      })
+      setPointPolygons(Object.fromEntries(normalizedEntries))
+    } catch {
+      setPointPolygons({})
+    }
+  }, [isGrowaAdmin, pointPolygonsStorageKey])
+
+  useEffect(() => {
+    if (!isGrowaAdmin) return
+    try {
+      window.localStorage.setItem(pointPolygonsStorageKey, JSON.stringify(pointPolygons))
+    } catch {
+      // Ignore storage failures in restricted browser contexts.
+    }
+  }, [isGrowaAdmin, pointPolygons, pointPolygonsStorageKey])
+
   const dynamicFarmMarkers = useMemo<MapMarker[]>(() => {
     const markers: MapMarker[] = []
     for (const farm of farmRows) {
       if (!farm.id) continue
       const coordinates = estimateFarmCoordinates(farm.id, farm.location || null)
       const label =
-        (locale === 'ar' && farm.name_ar) ||
-        farm.name_en ||
-        farm.name ||
-        `Farm ${farm.id.slice(0, 8)}`
-      markers.push({
-        id: farm.id,
-        lat: coordinates.lat,
-        lng: coordinates.lng,
-        label,
-        type: 'farm',
-      })
+        (locale === 'ar' && farm.name_ar) || farm.name_en || farm.name || `Farm ${farm.id.slice(0, 8)}`
+      markers.push({ id: farm.id, lat: coordinates.lat, lng: coordinates.lng, label, type: 'farm' })
     }
     return markers
   }, [farmRows, locale])
@@ -275,6 +323,32 @@ export function SatelliteMap({
     [customPoints, locale, parsePointTypeInput]
   )
 
+  const startPolygonDraw = useCallback((pointId: string) => {
+    setActivePointId(pointId)
+    setPolygonDrawPointId(pointId)
+    setDraftPolygon([])
+    setIsAddPointMode(false)
+  }, [])
+
+  const cancelPolygonDraw = useCallback(() => {
+    setPolygonDrawPointId(null)
+    setDraftPolygon([])
+  }, [])
+
+  const saveDraftPolygon = useCallback(() => {
+    if (!polygonDrawPointId || draftPolygon.length < 3) return
+    setPointPolygons((prev) => ({
+      ...prev,
+      [polygonDrawPointId]: [...(prev[polygonDrawPointId] || []), draftPolygon],
+    }))
+    setPolygonDrawPointId(null)
+    setDraftPolygon([])
+  }, [draftPolygon, polygonDrawPointId])
+
+  const undoDraftVertex = useCallback(() => {
+    setDraftPolygon((prev) => prev.slice(0, -1))
+  }, [])
+
   const explicitTargetFarm = useMemo(
     () =>
       targetFarmId
@@ -291,51 +365,36 @@ export function SatelliteMap({
     return dynamicFarmMarkers[0] || null
   }, [explicitTargetFarm, isFarmCompanyContext, dynamicFarmMarkers])
 
-  const resolvedTargetZoom = resolvedTargetFarm
-    ? targetZoom ?? DEFAULT_FARM_ZOOM
-    : DEFAULT_ZOOM
+  const resolvedTargetZoom = resolvedTargetFarm ? targetZoom ?? DEFAULT_FARM_ZOOM : DEFAULT_ZOOM
 
   const handleZoomIn = useCallback(() => {
-    if (mapInstanceRef.current) {
-      mapInstanceRef.current.zoomIn()
-    }
+    mapInstanceRef.current?.zoomIn()
   }, [])
 
   const handleZoomOut = useCallback(() => {
-    if (mapInstanceRef.current) {
-      mapInstanceRef.current.zoomOut()
-    }
+    mapInstanceRef.current?.zoomOut()
   }, [])
 
   const handleRecenter = useCallback(() => {
-    if (mapInstanceRef.current) {
-      const recenterLat = resolvedTargetFarm?.lat ?? QATAR_CENTER.lat
-      const recenterLng = resolvedTargetFarm?.lng ?? QATAR_CENTER.lng
-      const recenterZoom = resolvedTargetFarm ? resolvedTargetZoom : DEFAULT_ZOOM
-      mapInstanceRef.current.flyTo([recenterLat, recenterLng], recenterZoom, {
-        duration: 1.5
-      })
-    }
+    if (!mapInstanceRef.current) return
+    const recenterLat = resolvedTargetFarm?.lat ?? QATAR_CENTER.lat
+    const recenterLng = resolvedTargetFarm?.lng ?? QATAR_CENTER.lng
+    const recenterZoom = resolvedTargetFarm ? resolvedTargetZoom : DEFAULT_ZOOM
+    mapInstanceRef.current.flyTo([recenterLat, recenterLng], recenterZoom, { duration: 1.5 })
   }, [resolvedTargetFarm, resolvedTargetZoom])
 
   useEffect(() => {
     let cancelled = false
-
     async function loadFarms() {
       try {
         const response = await fetch('/api/operations/farms', { cache: 'no-store' })
         const payload = await response.json()
         if (!response.ok) return
-        if (!cancelled) {
-          setFarmRows(Array.isArray(payload) ? (payload as FarmApiRow[]) : [])
-        }
+        if (!cancelled) setFarmRows(Array.isArray(payload) ? (payload as FarmApiRow[]) : [])
       } catch {
-        if (!cancelled) {
-          setFarmRows([])
-        }
+        if (!cancelled) setFarmRows([])
       }
     }
-
     loadFarms()
     return () => {
       cancelled = true
@@ -344,11 +403,8 @@ export function SatelliteMap({
 
   useEffect(() => {
     let map: MapController | null = null
-    
     const initMap = async () => {
       if (!mapRef.current) return
-      
-      // Check if already initialized by Leaflet (has _leaflet_id on the container)
       if ((mapRef.current as HTMLDivElement & { _leaflet_id?: number })._leaflet_id) {
         setIsLoading(false)
         setMapReady(true)
@@ -358,37 +414,30 @@ export function SatelliteMap({
       const L = (await import('leaflet')).default as any
       await import('leaflet/dist/leaflet.css')
       leafletRef.current = L
-
-      // Initialize map
       map = L.map(mapRef.current, {
         center: [QATAR_CENTER.lat, QATAR_CENTER.lng],
         zoom: DEFAULT_ZOOM,
         zoomControl: false,
         attributionControl: false,
       })
-
-      // ESRI World Imagery (Satellite)
       L.tileLayer(
         'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
         { maxZoom: 19 }
       ).addTo(map)
-
-      // Track zoom level
-      map.on('zoomend', () => {
-        setCurrentZoom(map.getZoom())
-      })
-
+      map.on('zoomend', () => setCurrentZoom(map.getZoom()))
       mapInstanceRef.current = map
       setIsLoading(false)
       setMapReady(true)
     }
 
     initMap()
-
     return () => {
       markerInstancesRef.current.forEach((marker) => marker.remove?.())
       markerInstancesRef.current = []
-      // Cleanup on unmount - properly remove map
+      polygonInstancesRef.current.forEach((layer) => layer.remove?.())
+      polygonInstancesRef.current = []
+      draftPolylineRef.current?.remove?.()
+      draftPolylineRef.current = null
       if (map) {
         map.remove()
         mapInstanceRef.current = null
@@ -400,7 +449,6 @@ export function SatelliteMap({
 
   useEffect(() => {
     if (!mapReady || !mapInstanceRef.current || !leafletRef.current) return
-
     const L = leafletRef.current
     const map = mapInstanceRef.current
 
@@ -412,7 +460,6 @@ export function SatelliteMap({
         custom: '#07f880',
       }
       const color = colors[type] || colors.farm
-
       return L.divIcon({
         className: 'custom-marker',
         html: `
@@ -434,19 +481,23 @@ export function SatelliteMap({
     markerInstancesRef.current.forEach((marker) => marker.remove?.())
     markerInstancesRef.current = mapMarkers.map((marker) => {
       const customPoint = customPoints.find((point) => point.id === marker.id) || null
+      const polygonCount = customPoint ? (pointPolygons[customPoint.id] || []).length : 0
       const popupContent = customPoint
         ? `
-            <div style="font-family: system-ui; padding: 8px; min-width: 180px;">
+            <div style="font-family: system-ui; padding: 8px; min-width: 190px;">
               <strong style="color: #07f880; font-size: 13px;">${escapeHtml(marker.label)}</strong>
               <br/>
               <span style="font-size: 10px; color: #888; text-transform: uppercase;">Type: ${escapeHtml(
                 POINT_TYPE_LABELS[marker.type]
               )}</span>
               <br/>
+              <span style="font-size: 10px; color: #aaa;">Polygons: ${polygonCount}</span>
+              <br/>
               <button
                 data-edit-point-id="${customPoint.id}"
                 style="
                   margin-top: 8px;
+                  margin-right: 6px;
                   border: 1px solid rgba(7,248,128,0.35);
                   background: rgba(7,248,128,0.12);
                   color: #07f880;
@@ -457,6 +508,21 @@ export function SatelliteMap({
                 "
               >
                 Edit Point
+              </button>
+              <button
+                data-draw-polygon-point-id="${customPoint.id}"
+                style="
+                  margin-top: 8px;
+                  border: 1px solid rgba(59,130,246,0.4);
+                  background: rgba(59,130,246,0.15);
+                  color: #93c5fd;
+                  border-radius: 6px;
+                  padding: 4px 8px;
+                  font-size: 11px;
+                  cursor: pointer;
+                "
+              >
+                Draw Polygon
               </button>
             </div>
           `
@@ -470,58 +536,93 @@ export function SatelliteMap({
             </div>
           `
 
-      const markerInstance = L.marker([marker.lat, marker.lng], {
-        icon: createMarkerIcon(marker.type),
-      })
+      const markerInstance = L.marker([marker.lat, marker.lng], { icon: createMarkerIcon(marker.type) })
         .addTo(map)
-        .bindPopup(popupContent, {
-          className: 'custom-popup',
-        })
+        .bindPopup(popupContent, { className: 'custom-popup' })
 
       if (customPoint) {
         markerInstance.on('popupopen', (event: any) => {
+          setActivePointId(customPoint.id)
           const popupElement = event?.popup?.getElement?.() as HTMLElement | null
           const editButton = popupElement?.querySelector(
             `[data-edit-point-id="${customPoint.id}"]`
           ) as HTMLButtonElement | null
-          if (!editButton) return
-          editButton.onclick = (clickEvent) => {
-            clickEvent.preventDefault()
-            clickEvent.stopPropagation()
-            handleEditPoint(customPoint.id)
+          const drawButton = popupElement?.querySelector(
+            `[data-draw-polygon-point-id="${customPoint.id}"]`
+          ) as HTMLButtonElement | null
+
+          if (editButton) {
+            editButton.onclick = (clickEvent) => {
+              clickEvent.preventDefault()
+              clickEvent.stopPropagation()
+              handleEditPoint(customPoint.id)
+            }
+          }
+          if (drawButton) {
+            drawButton.onclick = (clickEvent) => {
+              clickEvent.preventDefault()
+              clickEvent.stopPropagation()
+              startPolygonDraw(customPoint.id)
+            }
           }
         })
       }
 
       return markerInstance
     })
-  }, [customPoints, handleEditPoint, mapMarkers, mapReady])
+
+    polygonInstancesRef.current.forEach((layer) => layer.remove?.())
+    polygonInstancesRef.current = []
+    draftPolylineRef.current?.remove?.()
+    draftPolylineRef.current = null
+
+    if (activePointId) {
+      const activePolygons = pointPolygons[activePointId] || []
+      for (const vertices of activePolygons) {
+        if (vertices.length < 3) continue
+        const layer = L.polygon(vertices.map((v) => [v.lat, v.lng]), {
+          color: '#07f880',
+          weight: 2,
+          opacity: 0.9,
+          fillColor: '#07f880',
+          fillOpacity: 0.16,
+        }).addTo(map)
+        polygonInstancesRef.current.push(layer)
+      }
+    }
+
+    if (polygonDrawPointId && draftPolygon.length > 0 && polygonDrawPointId === activePointId) {
+      draftPolylineRef.current = L.polyline(
+        draftPolygon.map((v) => [v.lat, v.lng]),
+        { color: '#3B82F6', weight: 2, dashArray: '6 6', opacity: 0.9 }
+      ).addTo(map)
+    }
+  }, [
+    activePointId,
+    customPoints,
+    draftPolygon,
+    handleEditPoint,
+    mapMarkers,
+    mapReady,
+    pointPolygons,
+    polygonDrawPointId,
+    startPolygonDraw,
+  ])
 
   useEffect(() => {
-    if (!isGrowaAdmin || !isAddPointMode) return
+    if (!isGrowaAdmin || !isAddPointMode || polygonDrawPointId) return
     if (!mapReady || !mapInstanceRef.current) return
-    const map = mapInstanceRef.current as unknown as {
-      on: (event: string, handler: (...args: any[]) => void) => void
-      off: (event: string, handler: (...args: any[]) => void) => void
-    }
+    const map = mapInstanceRef.current
 
     const handleMapClick = (event: any) => {
       const lat = Number(event?.latlng?.lat)
       const lng = Number(event?.latlng?.lng)
       if (!Number.isFinite(lat) || !Number.isFinite(lng)) return
-      const pointLabelPrefix =
-        locale === 'ar' ? 'نقطة' : POINT_TYPE_LABELS[newPointType]
+      const pointLabelPrefix = locale === 'ar' ? 'نقطة' : POINT_TYPE_LABELS[newPointType]
       const label = `${pointLabelPrefix} ${customPoints.length + 1}`
-
       setCustomPoints((prev) => [
         ...prev,
-        {
-          id: `custom-${Date.now()}-${Math.floor(Math.random() * 10000)}`,
-          lat,
-          lng,
-          label,
-          pointType: newPointType,
-        },
+        { id: `custom-${Date.now()}-${Math.floor(Math.random() * 10000)}`, lat, lng, label, pointType: newPointType },
       ])
     }
 
@@ -529,29 +630,46 @@ export function SatelliteMap({
     return () => {
       map.off('click', handleMapClick)
     }
-  }, [customPoints.length, isAddPointMode, isGrowaAdmin, locale, mapReady, newPointType])
+  }, [customPoints.length, isAddPointMode, isGrowaAdmin, locale, mapReady, newPointType, polygonDrawPointId])
 
   useEffect(() => {
-    if (!mapInstanceRef.current) return
-    if (!resolvedTargetFarm) return
-    mapInstanceRef.current.flyTo(
-      [resolvedTargetFarm.lat, resolvedTargetFarm.lng],
-      resolvedTargetZoom,
-      { duration: 1.2 }
-    )
+    if (!isGrowaAdmin || !polygonDrawPointId) return
+    if (!mapReady || !mapInstanceRef.current) return
+    const map = mapInstanceRef.current
+
+    const handleMapClick = (event: any) => {
+      const lat = Number(event?.latlng?.lat)
+      const lng = Number(event?.latlng?.lng)
+      if (!Number.isFinite(lat) || !Number.isFinite(lng)) return
+      setDraftPolygon((prev) => [...prev, { lat, lng }])
+    }
+
+    map.on('click', handleMapClick)
+    return () => {
+      map.off('click', handleMapClick)
+    }
+  }, [isGrowaAdmin, mapReady, polygonDrawPointId])
+
+  useEffect(() => {
+    if (!mapInstanceRef.current || !resolvedTargetFarm) return
+    mapInstanceRef.current.flyTo([resolvedTargetFarm.lat, resolvedTargetFarm.lng], resolvedTargetZoom, {
+      duration: 1.2,
+    })
   }, [resolvedTargetFarm, resolvedTargetZoom])
 
   return (
-    <div className="absolute inset-0 pt-16"> {/* pt-16 to account for header */}
-      {/* Map Container */}
-      <div ref={mapRef} className="w-full h-full" />
+    <div className="absolute inset-0 pt-16">
+      <div ref={mapRef} className="h-full w-full" />
 
-      {/* Map Controls - Bottom Right, ALWAYS Visible */}
       <div className="absolute bottom-6 right-6 z-[1000] flex flex-col gap-2">
         {isGrowaAdmin && (
           <>
             <button
-              onClick={() => setIsAddPointMode((prev) => !prev)}
+              onClick={() => {
+                setIsAddPointMode((prev) => !prev)
+                setPolygonDrawPointId(null)
+                setDraftPolygon([])
+              }}
               className={`h-10 px-3 flex items-center justify-center rounded-lg border transition-all shadow-lg text-xs font-medium ${
                 isAddPointMode
                   ? 'bg-[#07f880]/20 border-[#07f880]/60 text-[#07f880]'
@@ -561,7 +679,7 @@ export function SatelliteMap({
             >
               {isAddPointMode ? 'Add Point: ON' : 'Add Point'}
             </button>
-            {isAddPointMode && (
+            {isAddPointMode && !polygonDrawPointId && (
               <select
                 value={newPointType}
                 onChange={(event) => setNewPointType(event.target.value as MapPointType)}
@@ -577,7 +695,6 @@ export function SatelliteMap({
             )}
           </>
         )}
-        {/* Zoom In */}
         <button
           onClick={handleZoomIn}
           className="h-10 w-10 flex items-center justify-center rounded-lg bg-[#0c0c0e]/90 border border-white/10 hover:border-[#07f880]/50 hover:bg-[#0c0c0e] transition-all shadow-lg"
@@ -585,8 +702,6 @@ export function SatelliteMap({
         >
           <Plus className="h-5 w-5 text-white" />
         </button>
-
-        {/* Zoom Out */}
         <button
           onClick={handleZoomOut}
           className="h-10 w-10 flex items-center justify-center rounded-lg bg-[#0c0c0e]/90 border border-white/10 hover:border-[#07f880]/50 hover:bg-[#0c0c0e] transition-all shadow-lg"
@@ -594,8 +709,6 @@ export function SatelliteMap({
         >
           <Minus className="h-5 w-5 text-white" />
         </button>
-
-        {/* Recenter on Qatar */}
         <button
           onClick={handleRecenter}
           className="h-10 w-10 flex items-center justify-center rounded-lg bg-[#0c0c0e]/90 border border-white/10 hover:border-[#07f880]/50 hover:bg-[#0c0c0e] transition-all shadow-lg"
@@ -605,44 +718,77 @@ export function SatelliteMap({
         </button>
       </div>
 
-      {/* Zoom Level Indicator - Bottom Left, ALWAYS Visible */}
       <div className="absolute bottom-6 left-6 z-[1000] rounded-lg border border-white/10 bg-[#0c0c0e]/90 px-3 py-1.5 shadow-lg">
         <div>
           <span className="text-xs text-white/60">Zoom: </span>
-          <span className="text-xs text-[#07f880] font-medium">{currentZoom}</span>
+          <span className="text-xs font-medium text-[#07f880]">{currentZoom}</span>
         </div>
         {resolvedTargetFarm && (
           <div className="text-[11px] text-white/75">
             Focus: <span className="text-[#07f880]">{resolvedTargetFarm.label}</span>
           </div>
         )}
-        {isGrowaAdmin && isAddPointMode && (
+        {isGrowaAdmin && isAddPointMode && !polygonDrawPointId && (
           <div className="text-[11px] text-[#07f880]">
             Click on map to create a {POINT_TYPE_LABELS[newPointType].toLowerCase()} point.
           </div>
         )}
+        {isGrowaAdmin && polygonDrawPointId && (
+          <div className="mt-1 text-[11px] text-[#93c5fd]">
+            Polygon mode: click map to add vertices for selected point.
+          </div>
+        )}
       </div>
 
-      {/* Loading Overlay */}
+      {isGrowaAdmin && polygonDrawPointId && (
+        <div className="absolute left-6 top-24 z-[1000] w-72 rounded-lg border border-white/10 bg-[#0c0c0e]/90 p-3 shadow-lg">
+          <p className="text-xs font-semibold uppercase tracking-wide text-white/70">Polygon Draft</p>
+          <p className="mt-1 text-[11px] text-white/60">
+            Vertices: <span className="text-[#93c5fd]">{draftPolygon.length}</span>
+          </p>
+          <div className="mt-3 flex gap-2">
+            <button
+              onClick={undoDraftVertex}
+              disabled={draftPolygon.length === 0}
+              className="h-8 flex-1 rounded border border-white/15 bg-white/5 text-[11px] text-white/80 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              Undo
+            </button>
+            <button
+              onClick={cancelPolygonDraw}
+              className="h-8 flex-1 rounded border border-white/15 bg-white/5 text-[11px] text-white/80"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={saveDraftPolygon}
+              disabled={draftPolygon.length < 3}
+              className="h-8 flex-1 rounded border border-[#07f880]/35 bg-[#07f880]/15 text-[11px] text-[#07f880] disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              Save
+            </button>
+          </div>
+        </div>
+      )}
+
       {isLoading && (
-        <div className="absolute inset-0 flex items-center justify-center bg-background z-50">
+        <div className="absolute inset-0 z-50 flex items-center justify-center bg-background">
           <div className="flex flex-col items-center gap-4">
             <div className="relative">
-              <div className="h-16 w-16 rounded-full border-4 border-[#07f880]/20 border-t-[#07f880] animate-spin" />
-              <img 
-                src="https://hebbkx1anhila5yf.public.blob.vercel-storage.com/logo512-dN5LxVKBkzU9yWpc5ROgvoTj7C4wM5.png" 
-                alt="Growa" 
+              <div className="h-16 w-16 animate-spin rounded-full border-4 border-[#07f880]/20 border-t-[#07f880]" />
+              <img
+                src="https://hebbkx1anhila5yf.public.blob.vercel-storage.com/logo512-dN5LxVKBkzU9yWpc5ROgvoTj7C4wM5.png"
+                alt="Growa"
                 className="absolute inset-0 m-auto h-8 w-8"
               />
             </div>
-            <span className="text-sm text-muted-foreground font-medium">
+            <span className="text-sm font-medium text-muted-foreground">
               {locale === 'ar' ? 'جاري تحميل صور الأقمار الصناعية...' : 'Loading satellite imagery...'}
             </span>
           </div>
         </div>
       )}
 
-      {/* Custom Popup Styles */}
       <style jsx global>{`
         .custom-popup .leaflet-popup-content-wrapper {
           background: rgba(12, 12, 14, 0.95);
