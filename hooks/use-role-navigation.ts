@@ -120,6 +120,12 @@ const unassignedNavigation: MenuItem[] = [
   { key: 'settings', label: 'Settings', path: '/dashboard/settings', icon: 'Settings' },
 ]
 
+// Minimal menu for @growa.ai "Normal User" mode.
+const normalUserNavigation: MenuItem[] = [
+  { key: 'live-map', label: 'Live Map', path: '/dashboard?module=live-map', icon: 'Map' },
+  { key: 'rss-feed', label: 'RSS Feed', path: '/dashboard?module=rss-feed', icon: 'Globe' },
+]
+
 // Role mapping for legacy roles to new roles
 const roleMapping: Record<string, string> = {
   'super_admin': 'ministry_admin',
@@ -305,6 +311,7 @@ export function useRoleNavigation() {
         // - metadata fallback is accepted only when org exists
         const isGrowaAdmin = user.email?.endsWith('@growa.ai') || false
         let currentRole: string | null = organization?.id ? await getUserRole(organization.id) : null
+        let isGrowaImpersonating = false
 
         if (isGrowaAdmin) {
           let roleData: any = null
@@ -330,6 +337,34 @@ export function useRoleNavigation() {
           if (roleData?.is_impersonating && roleData?.role_name) {
             currentRole = roleData.role_name
           }
+          isGrowaImpersonating = Boolean(roleData?.is_impersonating)
+        }
+
+        // In "Normal User" mode for growa admins, always force a minimal
+        // observer menu, regardless of backend membership role.
+        if (isGrowaAdmin && !isGrowaImpersonating) {
+          const { primary, secondary } = splitNavigationSections(normalUserNavigation)
+          const merged = [...primary, ...secondary]
+          setNavigation({
+            id: 'normal-user',
+            role_name: 'normal_user',
+            display_name: 'Normal User',
+            landing_page: '/dashboard?module=live-map',
+            menu_items: merged,
+            primary_items: primary,
+            secondary_items: secondary,
+            role_profile: null,
+            source: 'fallback',
+            description: 'Minimal navigation for normal user mode.',
+          })
+          setPrimaryItems(primary)
+          setSecondaryItems(secondary)
+          setMenuItems(merged)
+          setLandingPage('/dashboard?module=live-map')
+          setEffectiveRole('normal_user')
+          setRoleProfile(null)
+          setSource('fallback')
+          return
         }
 
         if (!currentRole && organization?.id) {
