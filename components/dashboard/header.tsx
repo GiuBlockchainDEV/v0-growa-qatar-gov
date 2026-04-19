@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
 import { useI18n } from '@/lib/i18n'
 import { UserMenu } from './user-menu'
@@ -37,10 +37,15 @@ export function DashboardHeader({ onMenuToggle, menuOpen }: DashboardHeaderProps
       .replace(/\b\w/g, (char) => char.toUpperCase())
   })()
 
-  const loadFarms = async (signal: AbortSignal) => {
+  const loadFarms = async (signal: AbortSignal, queryValue = '') => {
     try {
       setIsLoadingFarms(true)
-      const response = await fetch('/api/operations/farms', {
+      const params = new URLSearchParams()
+      const normalizedQuery = queryValue.trim()
+      if (normalizedQuery) {
+        params.set('q', normalizedQuery)
+      }
+      const response = await fetch(`/api/operations/farms${params.size ? `?${params.toString()}` : ''}`, {
         cache: 'no-store',
         signal,
       })
@@ -75,29 +80,15 @@ export function DashboardHeader({ onMenuToggle, menuOpen }: DashboardHeaderProps
 
   useEffect(() => {
     const controller = new AbortController()
-    loadFarms(controller.signal)
+    loadFarms(controller.signal, '')
     return () => controller.abort()
   }, [locale])
 
   useEffect(() => {
     const controller = new AbortController()
-    loadFarms(controller.signal)
+    loadFarms(controller.signal, searchQuery)
     return () => controller.abort()
-  }, [pathname])
-
-  const filteredFarms = useMemo(() => {
-    const q = searchQuery.trim().toLowerCase()
-    if (!q) return farmOptions.slice(0, 8)
-    return farmOptions
-      .filter((farm) => {
-        return (
-          farm.name.toLowerCase().includes(q) ||
-          farm.location.toLowerCase().includes(q) ||
-          farm.id.toLowerCase().includes(q)
-        )
-      })
-      .slice(0, 8)
-  }, [farmOptions, searchQuery])
+  }, [pathname, searchQuery])
 
   const handleSelectFarm = (farm: FarmSearchOption) => {
     const params = new URLSearchParams({
@@ -170,12 +161,12 @@ export function DashboardHeader({ onMenuToggle, menuOpen }: DashboardHeaderProps
                 <div className="px-3 py-4 text-sm text-white/60">
                   {locale === 'ar' ? 'جاري تحميل المزارع...' : 'Loading farms...'}
                 </div>
-              ) : filteredFarms.length === 0 ? (
+              ) : farmOptions.length === 0 ? (
                 <div className="px-3 py-4 text-sm text-white/60">
-                  {locale === 'ar' ? 'لا توجد مزارع مطابقة.' : 'No matching farms found.'}
+                  {locale === 'ar' ? 'لا توجد نتائج.' : 'No farm suggestions found.'}
                 </div>
               ) : (
-                filteredFarms.map((farm) => (
+                farmOptions.map((farm) => (
                   <button
                     key={farm.id}
                     type="button"

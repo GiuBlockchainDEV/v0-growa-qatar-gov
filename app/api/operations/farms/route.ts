@@ -3,6 +3,8 @@ import { NextResponse } from 'next/server'
 
 export async function GET(request: Request) {
   const supabase = await createClient()
+  const { searchParams } = new URL(request.url)
+  const searchQuery = searchParams.get('q')?.trim() || ''
   
   // Get current user
   const { data: { user }, error: authError } = await supabase.auth.getUser()
@@ -21,6 +23,12 @@ export async function GET(request: Request) {
   for (const select of selectAttempts) {
     for (const orderConfig of orderAttempts) {
       let query = supabase.from('farms').select(select)
+      if (searchQuery) {
+        const escaped = searchQuery.replace(/[%_]/g, '\\$&')
+        query = query.or(
+          `name_en.ilike.%${escaped}%,name_ar.ilike.%${escaped}%,location.ilike.%${escaped}%`
+        )
+      }
       if (orderConfig) {
         query = query.order(orderConfig.column, { ascending: orderConfig.ascending })
       }
