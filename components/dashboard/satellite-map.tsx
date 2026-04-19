@@ -46,7 +46,7 @@ interface MapController {
   zoomOut: () => void
   flyTo: (coords: [number, number], zoom: number, options?: { duration?: number }) => void
   getZoom: () => number
-  on: (event: string, handler: () => void) => void
+  on: (event: string, handler: (...args: any[]) => void) => void
   off: (event: string, handler: (...args: any[]) => void) => void
   remove: () => void
 }
@@ -82,6 +82,15 @@ function hashToRange(input: string, min: number, max: number) {
   }
   const normalized = hash / 100000
   return min + normalized * (max - min)
+}
+
+function escapeHtml(value: string) {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
 }
 
 function estimateFarmCoordinates(farmId: string, location?: string | null) {
@@ -228,6 +237,24 @@ export function SatelliteMap({
     }))
     return [...baseline, ...custom]
   }, [customPoints, dynamicFarmMarkers])
+
+  const handleEditPointName = useCallback(
+    (pointId: string) => {
+      const target = customPoints.find((point) => point.id === pointId)
+      if (!target) return
+      const labelInput = window.prompt(
+        locale === 'ar' ? 'عدّل اسم النقطة' : 'Edit point name',
+        target.label
+      )
+      if (labelInput === null) return
+      const nextLabel = labelInput.trim()
+      if (!nextLabel) return
+      setCustomPoints((prev) =>
+        prev.map((entry) => (entry.id === pointId ? { ...entry, label: nextLabel } : entry))
+      )
+    },
+    [customPoints, locale]
+  )
 
   const explicitTargetFarm = useMemo(
     () =>
@@ -386,25 +413,70 @@ export function SatelliteMap({
     }
 
     markerInstancesRef.current.forEach((marker) => marker.remove?.())
-    markerInstancesRef.current = mapMarkers.map((marker) =>
-      L.marker([marker.lat, marker.lng], {
+    markerInstancesRef.current = mapMarkers.map((marker) => {
+      const customPoint = customPoints.find((point) => point.id === marker.id) || null
+      const popupContent = customPoint
+        ? `
+            <div style="font-family: system-ui; padding: 8px; min-width: 180px;">
+              <strong style="color: #07f880; font-size: 13px;">${escapeHtml(marker.label)}</strong>
+              <br/>
+              <span style="font-size: 10px; color: #888; text-transform: uppercase;">Type: ${escapeHtml(
+                POINT_TYPE_LABELS[marker.type]
+              )}</span>
+              <br/>
+              <button
+                data-edit-point-id="${customPoint.id}"
+                style="
+                  margin-top: 8px;
+                  border: 1px solid rgba(7,248,128,0.35);
+                  background: rgba(7,248,128,0.12);
+                  color: #07f880;
+                  border-radius: 6px;
+                  padding: 4px 8px;
+                  font-size: 11px;
+                  cursor: pointer;
+                "
+              >
+                Edit Point
+              </button>
+            </div>
+          `
+        : `
+            <div style="font-family: system-ui; padding: 8px; min-width: 140px;">
+              <strong style="color: #07f880; font-size: 13px;">${escapeHtml(marker.label)}</strong>
+              <br/>
+              <span style="font-size: 10px; color: #888; text-transform: uppercase;">Type: ${escapeHtml(
+                POINT_TYPE_LABELS[marker.type]
+              )}</span>
+            </div>
+          `
+
+      const markerInstance = L.marker([marker.lat, marker.lng], {
         icon: createMarkerIcon(marker.type),
       })
         .addTo(map)
-        .bindPopup(
-          `
-            <div style="font-family: system-ui; padding: 8px; min-width: 140px;">
-              <strong style="color: #07f880; font-size: 13px;">${marker.label}</strong>
-              <br/>
-              <span style="font-size: 10px; color: #888; text-transform: uppercase;">Type: ${marker.type}</span>
-            </div>
-          `,
-          {
-            className: 'custom-popup',
+        .bindPopup(popupContent, {
+          className: 'custom-popup',
+        })
+
+      if (customPoint) {
+        markerInstance.on('popupopen', (event: any) => {
+          const popupElement = event?.popup?.getElement?.() as HTMLElement | null
+          const editButton = popupElement?.querySelector(
+            `[data-edit-point-id="${customPoint.id}"]`
+          ) as HTMLButtonElement | null
+          if (!editButton) return
+          editButton.onclick = (clickEvent) => {
+            clickEvent.preventDefault()
+            clickEvent.stopPropagation()
+            handleEditPointName(customPoint.id)
           }
-        )
-    )
-  }, [mapMarkers, mapReady])
+        })
+      }
+
+      return markerInstance
+    })
+  }, [customPoints, handleEditPointName, mapMarkers, mapReady])
 
   useEffect(() => {
     if (!isGrowaAdmin || !isAddPointMode) return
@@ -418,13 +490,9 @@ export function SatelliteMap({
       const lat = Number(event?.latlng?.lat)
       const lng = Number(event?.latlng?.lng)
       if (!Number.isFinite(lat) || !Number.isFinite(lng)) return
-      const suggested = `${locale === 'ar' ? 'نقطة جديدة' : 'Custom Point'} ${customPoints.length + 1}`
-      const labelInput = window.prompt(
-        locale === 'ar' ? 'اسم النقطة الجديدة' : 'Name for the new map point',
-        suggested
-      )
-      if (labelInput === null) return
-      const label = labelInput.trim() || suggested
+      const pointLabelPrefix =
+        locale === 'ar' ? 'نقطة' : POINT_TYPE_LABELS[newPointType]
+      const label = `${pointLabelPrefix} ${customPoints.length + 1}`
 
       setCustomPoints((prev) => [
         ...prev,
