@@ -4,6 +4,7 @@ import { useI18n } from '@/lib/i18n'
 import { useSearchParams } from 'next/navigation'
 import { SatelliteMap } from '@/components/dashboard/satellite-map'
 import { ModuleWorkspace } from '@/components/dashboard/module-workspace'
+import { RssFeedWorkspace } from '@/components/dashboard/rss-feed-workspace'
 
 export default function DashboardPage() {
   const { locale } = useI18n()
@@ -14,6 +15,10 @@ export default function DashboardPage() {
 
   if (!module || mapModules.has(module)) {
     return <SatelliteMap locale={locale} />
+  }
+
+  if (module === 'rss-feed') {
+    return <RssFeedWorkspace />
   }
 
   return <ModuleWorkspace moduleKey={module} />
