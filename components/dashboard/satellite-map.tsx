@@ -15,7 +15,7 @@ interface MapMarker {
   lat: number
   lng: number
   label: string
-  type: 'farm' | 'facility' | 'sensor' | 'custom'
+  type: MapPointType
 }
 
 interface FarmApiRow {
@@ -51,11 +51,28 @@ interface MapController {
   remove: () => void
 }
 
+type MapPointType = 'farm' | 'facility' | 'sensor' | 'custom'
+
 interface CustomPoint {
   id: string
   lat: number
   lng: number
   label: string
+  pointType: MapPointType
+}
+
+const POINT_TYPE_OPTIONS: Array<{ value: MapPointType; label: string }> = [
+  { value: 'custom', label: 'Custom' },
+  { value: 'farm', label: 'Farm' },
+  { value: 'facility', label: 'Facility' },
+  { value: 'sensor', label: 'Sensor' },
+]
+
+const POINT_TYPE_LABELS: Record<MapPointType, string> = {
+  custom: 'Custom',
+  farm: 'Farm',
+  facility: 'Facility',
+  sensor: 'Sensor',
 }
 
 function hashToRange(input: string, min: number, max: number) {
@@ -106,6 +123,7 @@ export function SatelliteMap({
   const [farmRows, setFarmRows] = useState<FarmApiRow[]>([])
   const [customPoints, setCustomPoints] = useState<CustomPoint[]>([])
   const [isAddPointMode, setIsAddPointMode] = useState(false)
+  const [newPointType, setNewPointType] = useState<MapPointType>('custom')
 
   const organizationType = (
     organization?.organization_type ||
@@ -147,12 +165,19 @@ export function SatelliteMap({
           const lat = typeof row.lat === 'number' ? row.lat : Number.NaN
           const lng = typeof row.lng === 'number' ? row.lng : Number.NaN
           const label = typeof row.label === 'string' ? row.label : ''
+          const rawPointType = typeof row.pointType === 'string' ? row.pointType : ''
+          const pointType: MapPointType = POINT_TYPE_OPTIONS.some(
+            (option) => option.value === rawPointType
+          )
+            ? (rawPointType as MapPointType)
+            : 'custom'
           if (!id || !Number.isFinite(lat) || !Number.isFinite(lng)) return null
           return {
             id,
             lat,
             lng,
             label: label.trim() || 'Custom Point',
+            pointType,
           } satisfies CustomPoint
         })
         .filter((row): row is CustomPoint => Boolean(row))
@@ -199,7 +224,7 @@ export function SatelliteMap({
       lat: point.lat,
       lng: point.lng,
       label: point.label,
-      type: 'custom' as const,
+      type: point.pointType,
     }))
     return [...baseline, ...custom]
   }, [customPoints, dynamicFarmMarkers])
@@ -408,6 +433,7 @@ export function SatelliteMap({
           lat,
           lng,
           label,
+          pointType: newPointType,
         },
       ])
     }
@@ -416,7 +442,7 @@ export function SatelliteMap({
     return () => {
       map.off('click', handleMapClick)
     }
-  }, [customPoints.length, isAddPointMode, isGrowaAdmin, locale, mapReady])
+  }, [customPoints.length, isAddPointMode, isGrowaAdmin, locale, mapReady, newPointType])
 
   useEffect(() => {
     if (!mapInstanceRef.current) return
@@ -436,17 +462,33 @@ export function SatelliteMap({
       {/* Map Controls - Bottom Right, ALWAYS Visible */}
       <div className="absolute bottom-6 right-6 z-[1000] flex flex-col gap-2">
         {isGrowaAdmin && (
-          <button
-            onClick={() => setIsAddPointMode((prev) => !prev)}
-            className={`h-10 px-3 flex items-center justify-center rounded-lg border transition-all shadow-lg text-xs font-medium ${
-              isAddPointMode
-                ? 'bg-[#07f880]/20 border-[#07f880]/60 text-[#07f880]'
-                : 'bg-[#0c0c0e]/90 border-white/10 text-white/80 hover:border-[#07f880]/50 hover:text-[#07f880]'
-            }`}
-            title={isAddPointMode ? 'Click map to add points' : 'Enable add point mode'}
-          >
-            {isAddPointMode ? 'Add Point: ON' : 'Add Point'}
-          </button>
+          <>
+            <button
+              onClick={() => setIsAddPointMode((prev) => !prev)}
+              className={`h-10 px-3 flex items-center justify-center rounded-lg border transition-all shadow-lg text-xs font-medium ${
+                isAddPointMode
+                  ? 'bg-[#07f880]/20 border-[#07f880]/60 text-[#07f880]'
+                  : 'bg-[#0c0c0e]/90 border-white/10 text-white/80 hover:border-[#07f880]/50 hover:text-[#07f880]'
+              }`}
+              title={isAddPointMode ? 'Click map to add points' : 'Enable add point mode'}
+            >
+              {isAddPointMode ? 'Add Point: ON' : 'Add Point'}
+            </button>
+            {isAddPointMode && (
+              <select
+                value={newPointType}
+                onChange={(event) => setNewPointType(event.target.value as MapPointType)}
+                className="h-10 rounded-lg border border-white/10 bg-[#0c0c0e]/90 px-2 text-xs text-white shadow-lg focus:border-[#07f880]/60 focus:outline-none"
+                title="Point type for new points"
+              >
+                {POINT_TYPE_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value} className="bg-[#0c0c0e]">
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            )}
+          </>
         )}
         {/* Zoom In */}
         <button
@@ -489,10 +531,49 @@ export function SatelliteMap({
         )}
         {isGrowaAdmin && isAddPointMode && (
           <div className="text-[11px] text-[#07f880]">
-            Click on map to create a point.
+            Click on map to create a {POINT_TYPE_LABELS[newPointType].toLowerCase()} point.
           </div>
         )}
       </div>
+
+      {isGrowaAdmin && customPoints.length > 0 && (
+        <div className="absolute right-6 top-24 z-[1000] max-h-[40vh] w-72 overflow-auto rounded-lg border border-white/10 bg-[#0c0c0e]/90 p-3 shadow-lg">
+          <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-white/60">
+            Custom Points
+          </p>
+          <div className="space-y-2">
+            {customPoints.map((point) => (
+              <div key={point.id} className="rounded-md border border-white/10 bg-white/5 p-2">
+                <p className="truncate text-xs font-medium text-white">{point.label}</p>
+                <p className="mt-0.5 text-[11px] text-white/50">
+                  {point.lat.toFixed(4)}, {point.lng.toFixed(4)}
+                </p>
+                <div className="mt-2 flex items-center gap-2">
+                  <label className="text-[11px] text-white/60">Type</label>
+                  <select
+                    value={point.pointType}
+                    onChange={(event) => {
+                      const selectedType = event.target.value as MapPointType
+                      setCustomPoints((prev) =>
+                        prev.map((entry) =>
+                          entry.id === point.id ? { ...entry, pointType: selectedType } : entry
+                        )
+                      )
+                    }}
+                    className="h-7 flex-1 rounded border border-white/10 bg-[#0c0c0e] px-2 text-[11px] text-white focus:border-[#07f880]/60 focus:outline-none"
+                  >
+                    {POINT_TYPE_OPTIONS.map((option) => (
+                      <option key={option.value} value={option.value} className="bg-[#0c0c0e]">
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Loading Overlay */}
       {isLoading && (
