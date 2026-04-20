@@ -538,6 +538,7 @@ export function SatelliteMap({ locale = 'en', targetFarmId = null, targetZoom }:
                 data-draw-polygon-point-id="${customPoint.id}"
                 style="
                   margin-top: 8px;
+                  margin-right: 6px;
                   border: 1px solid rgba(59,130,246,0.4);
                   background: rgba(59,130,246,0.15);
                   color: #93c5fd;
@@ -548,6 +549,21 @@ export function SatelliteMap({ locale = 'en', targetFarmId = null, targetZoom }:
                 "
               >
                 Draw Polygon
+              </button>
+              <button
+                data-delete-point-id="${customPoint.id}"
+                style="
+                  margin-top: 8px;
+                  border: 1px solid rgba(239,68,68,0.45);
+                  background: rgba(239,68,68,0.14);
+                  color: #fca5a5;
+                  border-radius: 6px;
+                  padding: 4px 8px;
+                  font-size: 11px;
+                  cursor: pointer;
+                "
+              >
+                Delete Point
               </button>
             </div>
           `
@@ -575,6 +591,9 @@ export function SatelliteMap({ locale = 'en', targetFarmId = null, targetZoom }:
           const drawButton = popupElement?.querySelector(
             `[data-draw-polygon-point-id="${customPoint.id}"]`
           ) as HTMLButtonElement | null
+          const deleteButton = popupElement?.querySelector(
+            `[data-delete-point-id="${customPoint.id}"]`
+          ) as HTMLButtonElement | null
 
           if (editButton) {
             editButton.onclick = (clickEvent) => {
@@ -588,6 +607,13 @@ export function SatelliteMap({ locale = 'en', targetFarmId = null, targetZoom }:
               clickEvent.preventDefault()
               clickEvent.stopPropagation()
               startPolygonDraw(customPoint.id)
+            }
+          }
+          if (deleteButton) {
+            deleteButton.onclick = (clickEvent) => {
+              clickEvent.preventDefault()
+              clickEvent.stopPropagation()
+              handleDeletePoint(customPoint.id)
             }
           }
         })
@@ -616,6 +642,7 @@ export function SatelliteMap({ locale = 'en', targetFarmId = null, targetZoom }:
           opacity: 0.9,
           fillColor: '#07f880',
           fillOpacity: 0.16,
+          interactive: false,
         }).addTo(map)
         polygonInstancesRef.current.push(layer)
       }
@@ -624,12 +651,13 @@ export function SatelliteMap({ locale = 'en', targetFarmId = null, targetZoom }:
     if (polygonDrawPointId && draftPolygon.length > 0 && polygonDrawPointId === activePointId) {
       draftPolylineRef.current = L.polyline(
         draftPolygon.map((v) => [v.lat, v.lng]),
-        { color: '#3B82F6', weight: 2, dashArray: '6 6', opacity: 0.9 }
+        { color: '#3B82F6', weight: 2, dashArray: '6 6', opacity: 0.9, interactive: false }
       ).addTo(map)
     }
   }, [
     activePointId,
     customPoints,
+    handleDeletePoint,
     draftPolygon,
     handleEditPoint,
     mapMarkers,
