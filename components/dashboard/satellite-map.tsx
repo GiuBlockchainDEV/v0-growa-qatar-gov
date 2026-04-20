@@ -146,6 +146,7 @@ export function SatelliteMap({ locale = 'en', targetFarmId = null, targetZoom }:
   const markerInstancesRef = useRef<any[]>([])
   const polygonInstancesRef = useRef<any[]>([])
   const draftPolylineRef = useRef<any | null>(null)
+  const polygonDrawPointIdRef = useRef<string | null>(null)
 
   const [isLoading, setIsLoading] = useState(true)
   const [mapReady, setMapReady] = useState(false)
@@ -158,6 +159,10 @@ export function SatelliteMap({ locale = 'en', targetFarmId = null, targetZoom }:
   const [activePointId, setActivePointId] = useState<string | null>(null)
   const [polygonDrawPointId, setPolygonDrawPointId] = useState<string | null>(null)
   const [draftPolygon, setDraftPolygon] = useState<PolygonVertex[]>([])
+
+  useEffect(() => {
+    polygonDrawPointIdRef.current = polygonDrawPointId
+  }, [polygonDrawPointId])
 
   const organizationType = (organization?.organization_type || organization?.type || '')
     .toString()
@@ -616,9 +621,12 @@ export function SatelliteMap({ locale = 'en', targetFarmId = null, targetZoom }:
           }
         })
         markerInstance.on('popupclose', () => {
+          const isDrawingThisPoint = polygonDrawPointIdRef.current === customPoint.id
+          if (isDrawingThisPoint) {
+            // Keep drawing state active while adding polygon vertices on map clicks.
+            return
+          }
           setActivePointId((prev) => (prev === customPoint.id ? null : prev))
-          setPolygonDrawPointId((prev) => (prev === customPoint.id ? null : prev))
-          setDraftPolygon((prev) => (prev.length > 0 ? [] : prev))
         })
       }
 
