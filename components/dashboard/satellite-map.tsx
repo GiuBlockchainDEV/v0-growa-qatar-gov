@@ -516,7 +516,6 @@ export function SatelliteMap({ locale = 'en', targetFarmId = null, targetZoom }:
     markerInstancesRef.current.forEach((marker) => marker.remove?.())
     markerInstancesRef.current = mapMarkers.map((marker) => {
       const customPoint = customPoints.find((point) => point.id === marker.id) || null
-      const polygonCount = customPoint ? (pointPolygons[customPoint.id] || []).length : 0
       const popupContent = customPoint
         ? `
             <div style="font-family: system-ui; padding: 8px; min-width: 190px;">
@@ -525,8 +524,6 @@ export function SatelliteMap({ locale = 'en', targetFarmId = null, targetZoom }:
               <span style="font-size: 10px; color: #888; text-transform: uppercase;">Type: ${escapeHtml(
                 POINT_TYPE_LABELS[marker.type]
               )}</span>
-              <br/>
-              <span style="font-size: 10px; color: #aaa;">Polygons: ${polygonCount}</span>
               <br/>
               <button
                 data-edit-point-id="${customPoint.id}"
@@ -630,12 +627,18 @@ export function SatelliteMap({ locale = 'en', targetFarmId = null, targetZoom }:
         markerInstance.on('popupclose', () => {
           setActivePointId((prev) => (prev === customPoint.id ? null : prev))
           setPolygonDrawPointId((prev) => (prev === customPoint.id ? null : prev))
-          setDraftPolygon((prev) => (polygonDrawPointId === customPoint.id ? [] : prev))
+          setDraftPolygon((prev) => (prev.length > 0 ? [] : prev))
         })
       }
 
       return markerInstance
     })
+  }, [customPoints, handleDeletePoint, handleEditPoint, mapMarkers, mapReady, startPolygonDraw])
+
+  useEffect(() => {
+    if (!mapReady || !mapInstanceRef.current || !leafletRef.current) return
+    const L = leafletRef.current
+    const map = mapInstanceRef.current
 
     polygonInstancesRef.current.forEach((layer) => layer.remove?.())
     polygonInstancesRef.current = []
@@ -664,18 +667,7 @@ export function SatelliteMap({ locale = 'en', targetFarmId = null, targetZoom }:
         { color: '#3B82F6', weight: 2, dashArray: '6 6', opacity: 0.9, interactive: false }
       ).addTo(map)
     }
-  }, [
-    activePointId,
-    customPoints,
-    handleDeletePoint,
-    draftPolygon,
-    handleEditPoint,
-    mapMarkers,
-    mapReady,
-    pointPolygons,
-    polygonDrawPointId,
-    startPolygonDraw,
-  ])
+  }, [activePointId, draftPolygon, mapReady, pointPolygons, polygonDrawPointId])
 
   useEffect(() => {
     if (!isGrowaAdmin || !isAddPointMode || polygonDrawPointId) return
