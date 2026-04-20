@@ -134,6 +134,16 @@ function normalizePolygonVertices(input: unknown): PolygonVertex[] {
     .filter((vertex): vertex is PolygonVertex => Boolean(vertex))
 }
 
+function isLeafletUiClick(event: any) {
+  const target = event?.originalEvent?.target
+  if (!(target instanceof Element)) return false
+  return Boolean(
+    target.closest(
+      '.leaflet-marker-icon, .leaflet-popup, .leaflet-popup-content, .leaflet-control, .custom-marker, .leaflet-interactive'
+    )
+  )
+}
+
 export function SatelliteMap({ locale = 'en', targetFarmId = null, targetZoom }: SatelliteMapProps) {
   const { user } = useAuth()
   const { organization } = useOrganization()
