@@ -323,6 +323,31 @@ export function SatelliteMap({ locale = 'en', targetFarmId = null, targetZoom }:
     [customPoints, locale, parsePointTypeInput]
   )
 
+  const handleDeletePoint = useCallback(
+    (pointId: string) => {
+      const target = customPoints.find((point) => point.id === pointId)
+      if (!target) return
+      const confirmed = window.confirm(
+        locale === 'ar'
+          ? `هل تريد حذف النقطة "${target.label}" وكل المضلعات المرتبطة بها؟`
+          : `Delete point "${target.label}" and all linked polygons?`
+      )
+      if (!confirmed) return
+
+      setCustomPoints((prev) => prev.filter((entry) => entry.id !== pointId))
+      setPointPolygons((prev) => {
+        if (!(pointId in prev)) return prev
+        const next = { ...prev }
+        delete next[pointId]
+        return next
+      })
+      setActivePointId((prev) => (prev === pointId ? null : prev))
+      setPolygonDrawPointId((prev) => (prev === pointId ? null : prev))
+      setDraftPolygon([])
+    },
+    [customPoints, locale]
+  )
+
   const startPolygonDraw = useCallback((pointId: string) => {
     setActivePointId(pointId)
     setPolygonDrawPointId(pointId)
