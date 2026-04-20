@@ -58,14 +58,6 @@ interface PolygonVertex {
 
 type PointPolygonsMap = Record<string, PolygonVertex[][]>
 
-const FARM_MARKERS: MapMarker[] = [
-  { id: '1', lat: 25.6842, lng: 51.4975, label: 'Al Khor Date Farm', type: 'farm' },
-  { id: '2', lat: 25.4107, lng: 51.2215, label: 'Umm Salal Greenhouse', type: 'farm' },
-  { id: '3', lat: 25.1725, lng: 51.419, label: 'Al Shahaniya Livestock', type: 'farm' },
-  { id: '4', lat: 24.994, lng: 51.5505, label: 'Mesaieed Aquaculture', type: 'facility' },
-  { id: '5', lat: 25.17, lng: 51.6101, label: 'Al Wakra Poultry', type: 'farm' },
-]
-
 const POINT_TYPE_OPTIONS: Array<{ value: MapPointType; label: string }> = [
   { value: 'custom', label: 'Custom' },
   { value: 'farm', label: 'Farm' },
@@ -285,7 +277,6 @@ export function SatelliteMap({ locale = 'en', targetFarmId = null, targetZoom }:
   }, [farmRows, locale])
 
   const mapMarkers = useMemo<MapMarker[]>(() => {
-    const baseline = dynamicFarmMarkers.length > 0 ? dynamicFarmMarkers : FARM_MARKERS
     const custom = customPoints.map((point) => ({
       id: point.id,
       lat: point.lat,
@@ -293,7 +284,7 @@ export function SatelliteMap({ locale = 'en', targetFarmId = null, targetZoom }:
       label: point.label,
       type: point.pointType,
     }))
-    return [...baseline, ...custom]
+    return [...dynamicFarmMarkers, ...custom]
   }, [customPoints, dynamicFarmMarkers])
 
   const parsePointTypeInput = useCallback((input: string | null, fallback: MapPointType) => {
