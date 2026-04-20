@@ -566,6 +566,11 @@ export function SatelliteMap({ locale = 'en', targetFarmId = null, targetZoom }:
             }
           }
         })
+        markerInstance.on('popupclose', () => {
+          setActivePointId((prev) => (prev === customPoint.id ? null : prev))
+          setPolygonDrawPointId((prev) => (prev === customPoint.id ? null : prev))
+          setDraftPolygon((prev) => (polygonDrawPointId === customPoint.id ? [] : prev))
+        })
       }
 
       return markerInstance
