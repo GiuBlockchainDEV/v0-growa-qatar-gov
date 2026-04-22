@@ -1,9 +1,9 @@
 'use client'
 
-import { useEffect, useRef, useState, useCallback, useMemo } from 'react'
-import { Plus, Minus, Crosshair } from 'lucide-react'
-import { useOrganization } from '@/hooks/use-organization'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Crosshair, Minus, Plus } from 'lucide-react'
 import { useAuth } from '@/hooks/use-auth'
+import { useOrganization } from '@/hooks/use-organization'
 
 const QATAR_CENTER = { lat: 25.3548, lng: 51.1839 }
 const DEFAULT_ZOOM = 10
@@ -56,7 +56,31 @@ interface PolygonVertex {
   lng: number
 }
 
-type PointPolygonsMap = Record<string, PolygonVertex[][]>
+interface PolygonCropData {
+  cropName: string
+  variety: string
+  sowingDate: string
+  expectedHarvestDate: string
+  notes: string
+}
+
+interface PointPolygon {
+  id: string
+  name: string
+  vertices: PolygonVertex[]
+  crop: PolygonCropData
+  createdAt: string
+}
+
+type PointPolygonsMap = Record<string, PointPolygon[]>
+
+const EMPTY_POLYGON_CROP: PolygonCropData = {
+  cropName: '',
+  variety: '',
+  sowingDate: '',
+  expectedHarvestDate: '',
+  notes: '',
+}
 
 const POINT_TYPE_OPTIONS: Array<{ value: MapPointType; label: string }> = [
   { value: 'custom', label: 'Custom' },
@@ -100,15 +124,11 @@ function estimateFarmCoordinates(farmId: string, location?: string | null) {
     'al wakrah': { lat: 25.1682, lng: 51.6034 },
     'madinat ash shamal': { lat: 26.1293, lng: 51.2068 },
   }
-
   const matchedCity = Object.entries(cityBias).find(([city]) => locationKey.includes(city))
   const base = matchedCity?.[1] || QATAR_CENTER
-  const latOffset = hashToRange(`${farmId}-lat`, -0.035, 0.035)
-  const lngOffset = hashToRange(`${farmId}-lng`, -0.05, 0.05)
-
   return {
-    lat: base.lat + latOffset,
-    lng: base.lng + lngOffset,
+    lat: base.lat + hashToRange(`${farmId}-lat`, -0.035, 0.035),
+    lng: base.lng + hashToRange(`${farmId}-lng`, -0.05, 0.05),
   }
 }
 
@@ -124,6 +144,57 @@ function normalizePolygonVertices(input: unknown): PolygonVertex[] {
       return { lat, lng } satisfies PolygonVertex
     })
     .filter((vertex): vertex is PolygonVertex => Boolean(vertex))
+}
+
+function normalizePointPolygon(input: unknown, fallbackId: string, fallbackName: string): PointPolygon | null {
+  // Backward compatibility with legacy format: polygon was an array of vertices.
+  if (Array.isArray(input)) {
+    const legacyVertices = normalizePolygonVertices(input)
+    if (legacyVertices.length < 3) return null
+    return {
+      id: fallbackId,
+      name: fallbackName,
+      vertices: legacyVertices,
+      crop: { ...EMPTY_POLYGON_CROP },
+      createdAt: new Date().toISOString(),
+    }
+  }
+
+  if (!input || typeof input !== 'object') return null
+  const row = input as Record<string, unknown>
+  const vertices = normalizePolygonVertices(row.vertices)
+  if (vertices.length < 3) return null
+
+  const cropRow = row.crop && typeof row.crop === 'object' ? (row.crop as Record<string, unknown>) : null
+  return {
+    id: typeof row.id === 'string' && row.id.trim() ? row.id.trim() : fallbackId,
+    name: typeof row.name === 'string' && row.name.trim() ? row.name.trim() : fallbackName,
+    vertices,
+    crop: {
+      cropName:
+        (typeof cropRow?.cropName === 'string' && cropRow.cropName) ||
+        (typeof row.cropName === 'string' && row.cropName) ||
+        '',
+      variety:
+        (typeof cropRow?.variety === 'string' && cropRow.variety) ||
+        (typeof row.cropVariety === 'string' && row.cropVariety) ||
+        '',
+      sowingDate:
+        (typeof cropRow?.sowingDate === 'string' && cropRow.sowingDate) ||
+        (typeof row.plantingDate === 'string' && row.plantingDate) ||
+        '',
+      expectedHarvestDate:
+        (typeof cropRow?.expectedHarvestDate === 'string' && cropRow.expectedHarvestDate) ||
+        (typeof row.expectedHarvestDate === 'string' && row.expectedHarvestDate) ||
+        '',
+      notes:
+        (typeof cropRow?.notes === 'string' && cropRow.notes) ||
+        (typeof row.notes === 'string' && row.notes) ||
+        '',
+    },
+    createdAt:
+      typeof row.createdAt === 'string' && row.createdAt.trim() ? row.createdAt : new Date().toISOString(),
+  }
 }
 
 function isLeafletUiClick(event: any) {
@@ -159,6 +230,12 @@ export function SatelliteMap({ locale = 'en', targetFarmId = null, targetZoom }:
   const [activePointId, setActivePointId] = useState<string | null>(null)
   const [polygonDrawPointId, setPolygonDrawPointId] = useState<string | null>(null)
   const [draftPolygon, setDraftPolygon] = useState<PolygonVertex[]>([])
+  const [draftPolygonName, setDraftPolygonName] = useState('')
+  const [draftCropName, setDraftCropName] = useState('')
+  const [draftCropVariety, setDraftCropVariety] = useState('')
+  const [draftSowingDate, setDraftSowingDate] = useState('')
+  const [draftExpectedHarvestDate, setDraftExpectedHarvestDate] = useState('')
+  const [draftCropNotes, setDraftCropNotes] = useState('')
 
   useEffect(() => {
     polygonDrawPointIdRef.current = polygonDrawPointId
@@ -248,13 +325,19 @@ export function SatelliteMap({ locale = 'en', targetFarmId = null, targetZoom }:
         setPointPolygons({})
         return
       }
-      const normalizedEntries = Object.entries(parsed as Record<string, unknown>).map(([key, value]) => {
+      const normalizedEntries = Object.entries(parsed as Record<string, unknown>).map(([pointId, value]) => {
         const polygons = (Array.isArray(value) ? value : [])
-          .map((polygon) => normalizePolygonVertices(polygon))
-          .filter((vertices) => vertices.length >= 3)
-        return [key, polygons] as const
+          .map((polygon, index) =>
+            normalizePointPolygon(
+              polygon,
+              `polygon-${pointId}-${index + 1}`,
+              `Polygon ${index + 1}`
+            )
+          )
+          .filter((polygon): polygon is PointPolygon => Boolean(polygon))
+        return [pointId, polygons] as const
       })
-      setPointPolygons(Object.fromEntries(normalizedEntries))
+      setPointPolygons(Object.fromEntries(normalizedEntries) as PointPolygonsMap)
     } catch {
       setPointPolygons({})
     }
@@ -301,6 +384,15 @@ export function SatelliteMap({ locale = 'en', targetFarmId = null, targetZoom }:
     const byLabel = POINT_TYPE_OPTIONS.find((option) => option.label.toLowerCase() === normalized)
     if (byLabel) return byLabel.value
     return fallback
+  }, [])
+
+  const resetDraftMetadata = useCallback(() => {
+    setDraftPolygonName('')
+    setDraftCropName('')
+    setDraftCropVariety('')
+    setDraftSowingDate('')
+    setDraftExpectedHarvestDate('')
+    setDraftCropNotes('')
   }, [])
 
   const handleEditPoint = useCallback(
@@ -350,31 +442,65 @@ export function SatelliteMap({ locale = 'en', targetFarmId = null, targetZoom }:
       setActivePointId((prev) => (prev === pointId ? null : prev))
       setPolygonDrawPointId((prev) => (prev === pointId ? null : prev))
       setDraftPolygon([])
+      resetDraftMetadata()
     },
-    [customPoints, locale]
+    [customPoints, locale, resetDraftMetadata]
   )
 
-  const startPolygonDraw = useCallback((pointId: string) => {
-    setActivePointId(pointId)
-    setPolygonDrawPointId(pointId)
-    setDraftPolygon([])
-    setIsAddPointMode(false)
-  }, [])
+  const startPolygonDraw = useCallback(
+    (pointId: string) => {
+      setActivePointId(pointId)
+      setPolygonDrawPointId(pointId)
+      setDraftPolygon([])
+      resetDraftMetadata()
+      setIsAddPointMode(false)
+    },
+    [resetDraftMetadata]
+  )
 
   const cancelPolygonDraw = useCallback(() => {
     setPolygonDrawPointId(null)
     setDraftPolygon([])
-  }, [])
+    resetDraftMetadata()
+  }, [resetDraftMetadata])
 
   const saveDraftPolygon = useCallback(() => {
     if (!polygonDrawPointId || draftPolygon.length < 3) return
+    const polygonName =
+      draftPolygonName.trim() || `Polygon ${(pointPolygons[polygonDrawPointId]?.length || 0) + 1}`
+    const newPolygon: PointPolygon = {
+      id: `polygon-${Date.now()}-${Math.floor(Math.random() * 10000)}`,
+      name: polygonName,
+      vertices: draftPolygon,
+      crop: {
+        cropName: draftCropName.trim(),
+        variety: draftCropVariety.trim(),
+        sowingDate: draftSowingDate.trim(),
+        expectedHarvestDate: draftExpectedHarvestDate.trim(),
+        notes: draftCropNotes.trim(),
+      },
+      createdAt: new Date().toISOString(),
+    }
+
     setPointPolygons((prev) => ({
       ...prev,
-      [polygonDrawPointId]: [...(prev[polygonDrawPointId] || []), draftPolygon],
+      [polygonDrawPointId]: [...(prev[polygonDrawPointId] || []), newPolygon],
     }))
     setPolygonDrawPointId(null)
     setDraftPolygon([])
-  }, [draftPolygon, polygonDrawPointId])
+    resetDraftMetadata()
+  }, [
+    draftCropName,
+    draftCropNotes,
+    draftCropVariety,
+    draftExpectedHarvestDate,
+    draftPolygon,
+    draftPolygonName,
+    draftSowingDate,
+    pointPolygons,
+    polygonDrawPointId,
+    resetDraftMetadata,
+  ])
 
   const undoDraftVertex = useCallback(() => {
     setDraftPolygon((prev) => prev.slice(0, -1))
@@ -394,7 +520,7 @@ export function SatelliteMap({ locale = 'en', targetFarmId = null, targetZoom }:
     if (explicitTargetFarm) return explicitTargetFarm
     if (!isFarmCompanyContext) return null
     return dynamicFarmMarkers[0] || null
-  }, [explicitTargetFarm, isFarmCompanyContext, dynamicFarmMarkers])
+  }, [dynamicFarmMarkers, explicitTargetFarm, isFarmCompanyContext])
 
   const resolvedTargetZoom = resolvedTargetFarm ? targetZoom ?? DEFAULT_FARM_ZOOM : DEFAULT_ZOOM
 
@@ -479,6 +605,20 @@ export function SatelliteMap({ locale = 'en', targetFarmId = null, targetZoom }:
   }, [])
 
   useEffect(() => {
+    if (!activePointId) return
+    if (customPoints.some((point) => point.id === activePointId)) return
+    setActivePointId(null)
+  }, [activePointId, customPoints])
+
+  useEffect(() => {
+    if (!polygonDrawPointId) return
+    if (customPoints.some((point) => point.id === polygonDrawPointId)) return
+    setPolygonDrawPointId(null)
+    setDraftPolygon([])
+    resetDraftMetadata()
+  }, [customPoints, draftPolygon, polygonDrawPointId, resetDraftMetadata])
+
+  useEffect(() => {
     if (!mapReady || !mapInstanceRef.current || !leafletRef.current) return
     const L = leafletRef.current
     const map = mapInstanceRef.current
@@ -512,14 +652,17 @@ export function SatelliteMap({ locale = 'en', targetFarmId = null, targetZoom }:
     markerInstancesRef.current.forEach((marker) => marker.remove?.())
     markerInstancesRef.current = mapMarkers.map((marker) => {
       const customPoint = customPoints.find((point) => point.id === marker.id) || null
+      const polygonCount = customPoint ? (pointPolygons[customPoint.id] || []).length : 0
       const popupContent = customPoint
         ? `
-            <div style="font-family: system-ui; padding: 8px; min-width: 190px;">
+            <div style="font-family: system-ui; padding: 8px; min-width: 210px;">
               <strong style="color: #07f880; font-size: 13px;">${escapeHtml(marker.label)}</strong>
               <br/>
               <span style="font-size: 10px; color: #888; text-transform: uppercase;">Type: ${escapeHtml(
                 POINT_TYPE_LABELS[marker.type]
               )}</span>
+              <br/>
+              <span style="font-size: 10px; color: #aaa;">Polygons: ${polygonCount}</span>
               <br/>
               <button
                 data-edit-point-id="${customPoint.id}"
@@ -621,18 +764,18 @@ export function SatelliteMap({ locale = 'en', targetFarmId = null, targetZoom }:
           }
         })
         markerInstance.on('popupclose', () => {
-          const isDrawingThisPoint = polygonDrawPointIdRef.current === customPoint.id
-          if (isDrawingThisPoint) {
-            // Keep drawing state active while adding polygon vertices on map clicks.
-            return
-          }
+          if (polygonDrawPointIdRef.current === customPoint.id) return
           setActivePointId((prev) => (prev === customPoint.id ? null : prev))
+        })
+      } else {
+        markerInstance.on('popupopen', () => {
+          setActivePointId(null)
         })
       }
 
       return markerInstance
     })
-  }, [customPoints, handleDeletePoint, handleEditPoint, mapMarkers, mapReady, startPolygonDraw])
+  }, [customPoints, handleDeletePoint, handleEditPoint, mapMarkers, mapReady, pointPolygons, startPolygonDraw])
 
   useEffect(() => {
     if (!mapReady || !mapInstanceRef.current || !leafletRef.current) return
@@ -646,23 +789,41 @@ export function SatelliteMap({ locale = 'en', targetFarmId = null, targetZoom }:
 
     if (activePointId) {
       const activePolygons = pointPolygons[activePointId] || []
-      for (const vertices of activePolygons) {
-        if (vertices.length < 3) continue
-        const layer = L.polygon(vertices.map((v) => [v.lat, v.lng]), {
-          color: '#07f880',
-          weight: 2,
-          opacity: 0.9,
-          fillColor: '#07f880',
-          fillOpacity: 0.16,
-          interactive: false,
-        }).addTo(map)
+      for (const polygon of activePolygons) {
+        if (polygon.vertices.length < 3) continue
+        const crop = polygon.crop
+        const popupLines = [
+          `<strong style="color:#07f880;font-size:13px;">${escapeHtml(polygon.name)}</strong>`,
+          crop.cropName ? `<br/><span style="font-size:11px;color:#ddd;">Crop: ${escapeHtml(crop.cropName)}</span>` : '',
+          crop.variety ? `<br/><span style="font-size:11px;color:#bbb;">Variety: ${escapeHtml(crop.variety)}</span>` : '',
+          crop.sowingDate ? `<br/><span style="font-size:11px;color:#bbb;">Sowing: ${escapeHtml(crop.sowingDate)}</span>` : '',
+          crop.expectedHarvestDate
+            ? `<br/><span style="font-size:11px;color:#bbb;">Harvest: ${escapeHtml(crop.expectedHarvestDate)}</span>`
+            : '',
+          crop.notes ? `<br/><span style="font-size:11px;color:#999;">${escapeHtml(crop.notes)}</span>` : '',
+        ].join('')
+
+        const layer = L.polygon(
+          polygon.vertices.map((vertex) => [vertex.lat, vertex.lng]),
+          {
+            color: '#07f880',
+            weight: 2,
+            opacity: 0.9,
+            fillColor: '#07f880',
+            fillOpacity: 0.16,
+          }
+        )
+          .addTo(map)
+          .bindPopup(`<div style="font-family:system-ui; padding:8px; min-width:180px;">${popupLines}</div>`, {
+            className: 'custom-popup',
+          })
         polygonInstancesRef.current.push(layer)
       }
     }
 
     if (polygonDrawPointId && draftPolygon.length > 0 && polygonDrawPointId === activePointId) {
       draftPolylineRef.current = L.polyline(
-        draftPolygon.map((v) => [v.lat, v.lng]),
+        draftPolygon.map((vertex) => [vertex.lat, vertex.lng]),
         { color: '#3B82F6', weight: 2, dashArray: '6 6', opacity: 0.9, interactive: false }
       ).addTo(map)
     }
@@ -674,6 +835,7 @@ export function SatelliteMap({ locale = 'en', targetFarmId = null, targetZoom }:
     const map = mapInstanceRef.current
 
     const handleMapClick = (event: any) => {
+      if (isLeafletUiClick(event)) return
       const lat = Number(event?.latlng?.lat)
       const lng = Number(event?.latlng?.lng)
       if (!Number.isFinite(lat) || !Number.isFinite(lng)) return
@@ -681,7 +843,13 @@ export function SatelliteMap({ locale = 'en', targetFarmId = null, targetZoom }:
       const label = `${pointLabelPrefix} ${customPoints.length + 1}`
       setCustomPoints((prev) => [
         ...prev,
-        { id: `custom-${Date.now()}-${Math.floor(Math.random() * 10000)}`, lat, lng, label, pointType: newPointType },
+        {
+          id: `custom-${Date.now()}-${Math.floor(Math.random() * 10000)}`,
+          lat,
+          lng,
+          label,
+          pointType: newPointType,
+        },
       ])
     }
 
@@ -697,6 +865,7 @@ export function SatelliteMap({ locale = 'en', targetFarmId = null, targetZoom }:
     const map = mapInstanceRef.current
 
     const handleMapClick = (event: any) => {
+      if (isLeafletUiClick(event)) return
       const lat = Number(event?.latlng?.lat)
       const lng = Number(event?.latlng?.lng)
       if (!Number.isFinite(lat) || !Number.isFinite(lng)) return
@@ -728,6 +897,7 @@ export function SatelliteMap({ locale = 'en', targetFarmId = null, targetZoom }:
                 setIsAddPointMode((prev) => !prev)
                 setPolygonDrawPointId(null)
                 setDraftPolygon([])
+                resetDraftMetadata()
               }}
               className={`h-10 px-3 flex items-center justify-center rounded-lg border transition-all shadow-lg text-xs font-medium ${
                 isAddPointMode
@@ -800,11 +970,54 @@ export function SatelliteMap({ locale = 'en', targetFarmId = null, targetZoom }:
       </div>
 
       {isGrowaAdmin && polygonDrawPointId && (
-        <div className="absolute left-6 top-24 z-[1000] w-72 rounded-lg border border-white/10 bg-[#0c0c0e]/90 p-3 shadow-lg">
+        <div className="absolute left-6 top-24 z-[1000] w-80 rounded-lg border border-white/10 bg-[#0c0c0e]/90 p-3 shadow-lg">
           <p className="text-xs font-semibold uppercase tracking-wide text-white/70">Polygon Draft</p>
           <p className="mt-1 text-[11px] text-white/60">
             Vertices: <span className="text-[#93c5fd]">{draftPolygon.length}</span>
           </p>
+
+          <div className="mt-3 space-y-2">
+            <input
+              value={draftPolygonName}
+              onChange={(event) => setDraftPolygonName(event.target.value)}
+              placeholder="Polygon name (e.g. Tomato Plot A)"
+              className="h-8 w-full rounded border border-white/10 bg-[#0b0b0c] px-2 text-[11px] text-white placeholder:text-white/35 focus:border-[#07f880]/60 focus:outline-none"
+            />
+            <input
+              value={draftCropName}
+              onChange={(event) => setDraftCropName(event.target.value)}
+              placeholder="Crop name"
+              className="h-8 w-full rounded border border-white/10 bg-[#0b0b0c] px-2 text-[11px] text-white placeholder:text-white/35 focus:border-[#07f880]/60 focus:outline-none"
+            />
+            <input
+              value={draftCropVariety}
+              onChange={(event) => setDraftCropVariety(event.target.value)}
+              placeholder="Variety"
+              className="h-8 w-full rounded border border-white/10 bg-[#0b0b0c] px-2 text-[11px] text-white placeholder:text-white/35 focus:border-[#07f880]/60 focus:outline-none"
+            />
+            <div className="grid grid-cols-2 gap-2">
+              <input
+                type="date"
+                value={draftSowingDate}
+                onChange={(event) => setDraftSowingDate(event.target.value)}
+                className="h-8 w-full rounded border border-white/10 bg-[#0b0b0c] px-2 text-[11px] text-white focus:border-[#07f880]/60 focus:outline-none"
+              />
+              <input
+                type="date"
+                value={draftExpectedHarvestDate}
+                onChange={(event) => setDraftExpectedHarvestDate(event.target.value)}
+                className="h-8 w-full rounded border border-white/10 bg-[#0b0b0c] px-2 text-[11px] text-white focus:border-[#07f880]/60 focus:outline-none"
+              />
+            </div>
+            <textarea
+              value={draftCropNotes}
+              onChange={(event) => setDraftCropNotes(event.target.value)}
+              placeholder="Notes"
+              rows={2}
+              className="w-full resize-none rounded border border-white/10 bg-[#0b0b0c] px-2 py-1.5 text-[11px] text-white placeholder:text-white/35 focus:border-[#07f880]/60 focus:outline-none"
+            />
+          </div>
+
           <div className="mt-3 flex gap-2">
             <button
               onClick={undoDraftVertex}
