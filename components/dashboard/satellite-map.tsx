@@ -965,12 +965,19 @@ export function SatelliteMap({ locale = 'en', targetFarmId = null, targetZoom }:
             opacity: 0.9,
             fillColor: '#07f880',
             fillOpacity: 0.16,
+            interactive: true,
+            bubblingMouseEvents: false,
           }
         )
           .addTo(map)
           .bindPopup(`<div style="font-family:system-ui; padding:8px; min-width:180px;">${popupLines}</div>`, {
             className: 'custom-popup',
           })
+        layer.on('click', (event: any) => {
+          event?.originalEvent?.preventDefault?.()
+          event?.originalEvent?.stopPropagation?.()
+          layer.openPopup()
+        })
         polygonInstancesRef.current.push(layer)
       }
     }
