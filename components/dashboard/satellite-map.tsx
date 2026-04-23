@@ -64,8 +64,22 @@ interface PolygonCropData {
   notes: string
 }
 
+interface PolygonApiRow {
+  id: string
+  custom_point_id: string
+  name: string
+  vertices: unknown
+  crop_name: string | null
+  crop_variety: string | null
+  sowing_date: string | null
+  expected_harvest_date: string | null
+  notes: string | null
+  created_at: string | null
+}
+
 interface PointPolygon {
   id: string
+  customPointId: string
   name: string
   vertices: PolygonVertex[]
   crop: PolygonCropData
@@ -197,6 +211,24 @@ function normalizePointPolygon(input: unknown, fallbackId: string, fallbackName:
   }
 }
 
+function fromApiPolygonRow(row: PolygonApiRow): PointPolygon | null {
+  const vertices = normalizePolygonVertices(row.vertices)
+  if (vertices.length < 3) return null
+  return {
+    id: row.id,
+    name: row.name?.trim() || 'Polygon',
+    vertices,
+    crop: {
+      cropName: row.crop_name || '',
+      variety: row.crop_variety || '',
+      sowingDate: row.sowing_date || '',
+      expectedHarvestDate: row.expected_harvest_date || '',
+      notes: row.notes || '',
+    },
+    createdAt: row.created_at || new Date().toISOString(),
+  }
+}
+
 function isLeafletUiClick(event: any) {
   const target = event?.originalEvent?.target
   if (!(target instanceof Element)) return false
@@ -251,11 +283,6 @@ export function SatelliteMap({ locale = 'en', targetFarmId = null, targetZoom }:
     () => `growa-custom-map-points:${user?.id || 'anonymous'}`,
     [user?.id]
   )
-  const pointPolygonsStorageKey = useMemo(
-    () => `growa-custom-point-polygons:${user?.id || 'anonymous'}`,
-    [user?.id]
-  )
-
   useEffect(() => {
     if (!isGrowaAdmin) {
       setCustomPoints([])
@@ -312,45 +339,43 @@ export function SatelliteMap({ locale = 'en', targetFarmId = null, targetZoom }:
       setActivePointId(null)
       setPolygonDrawPointId(null)
       setDraftPolygon([])
+      resetDraftMetadata()
       return
     }
-    try {
-      const raw = window.localStorage.getItem(pointPolygonsStorageKey)
-      if (!raw) {
-        setPointPolygons({})
-        return
-      }
-      const parsed = JSON.parse(raw)
-      if (!parsed || typeof parsed !== 'object') {
-        setPointPolygons({})
-        return
-      }
-      const normalizedEntries = Object.entries(parsed as Record<string, unknown>).map(([pointId, value]) => {
-        const polygons = (Array.isArray(value) ? value : [])
-          .map((polygon, index) =>
-            normalizePointPolygon(
-              polygon,
-              `polygon-${pointId}-${index + 1}`,
-              `Polygon ${index + 1}`
-            )
+    let cancelled = false
+    async function loadPolygons() {
+      try {
+        const response = await fetch('/api/operations/custom-point-polygons', {
+          cache: 'no-store',
+        })
+        const payload = await response.json()
+        if (!response.ok || !Array.isArray(payload) || cancelled) {
+          if (!cancelled) setPointPolygons({})
+          return
+        }
+        const grouped = payload.reduce<Record<string, PointPolygon[]>>((acc, row) => {
+          const pointId = typeof row?.pointId === 'string' ? row.pointId : ''
+          if (!pointId) return acc
+          const polygon = normalizePointPolygon(
+            row,
+            `polygon-${pointId}-${(acc[pointId]?.length || 0) + 1}`,
+            `Polygon ${(acc[pointId]?.length || 0) + 1}`
           )
-          .filter((polygon): polygon is PointPolygon => Boolean(polygon))
-        return [pointId, polygons] as const
-      })
-      setPointPolygons(Object.fromEntries(normalizedEntries) as PointPolygonsMap)
-    } catch {
-      setPointPolygons({})
+          if (!polygon) return acc
+          if (!acc[pointId]) acc[pointId] = []
+          acc[pointId].push(polygon)
+          return acc
+        }, {})
+        setPointPolygons(grouped)
+      } catch {
+        if (!cancelled) setPointPolygons({})
+      }
     }
-  }, [isGrowaAdmin, pointPolygonsStorageKey])
-
-  useEffect(() => {
-    if (!isGrowaAdmin) return
-    try {
-      window.localStorage.setItem(pointPolygonsStorageKey, JSON.stringify(pointPolygons))
-    } catch {
-      // Ignore storage failures in restricted browser contexts.
+    loadPolygons()
+    return () => {
+      cancelled = true
     }
-  }, [isGrowaAdmin, pointPolygons, pointPolygonsStorageKey])
+  }, [isGrowaAdmin, resetDraftMetadata])
 
   const dynamicFarmMarkers = useMemo<MapMarker[]>(() => {
     const markers: MapMarker[] = []
@@ -422,7 +447,7 @@ export function SatelliteMap({ locale = 'en', targetFarmId = null, targetZoom }:
   )
 
   const handleDeletePoint = useCallback(
-    (pointId: string) => {
+    async (pointId: string) => {
       const target = customPoints.find((point) => point.id === pointId)
       if (!target) return
       const confirmed = window.confirm(
@@ -431,6 +456,14 @@ export function SatelliteMap({ locale = 'en', targetFarmId = null, targetZoom }:
           : `Delete point "${target.label}" and all linked polygons?`
       )
       if (!confirmed) return
+
+      try {
+        await fetch(`/api/operations/custom-point-polygons?pointId=${encodeURIComponent(pointId)}`, {
+          method: 'DELETE',
+        })
+      } catch {
+        // Continue local cleanup even if remote delete fails.
+      }
 
       setCustomPoints((prev) => prev.filter((entry) => entry.id !== pointId))
       setPointPolygons((prev) => {
@@ -464,31 +497,47 @@ export function SatelliteMap({ locale = 'en', targetFarmId = null, targetZoom }:
     resetDraftMetadata()
   }, [resetDraftMetadata])
 
-  const saveDraftPolygon = useCallback(() => {
+  const saveDraftPolygon = useCallback(async () => {
     if (!polygonDrawPointId || draftPolygon.length < 3) return
     const polygonName =
       draftPolygonName.trim() || `Polygon ${(pointPolygons[polygonDrawPointId]?.length || 0) + 1}`
-    const newPolygon: PointPolygon = {
-      id: `polygon-${Date.now()}-${Math.floor(Math.random() * 10000)}`,
-      name: polygonName,
-      vertices: draftPolygon,
-      crop: {
-        cropName: draftCropName.trim(),
-        variety: draftCropVariety.trim(),
-        sowingDate: draftSowingDate.trim(),
-        expectedHarvestDate: draftExpectedHarvestDate.trim(),
-        notes: draftCropNotes.trim(),
-      },
-      createdAt: new Date().toISOString(),
+    const cropPayload: PolygonCropData = {
+      cropName: draftCropName.trim(),
+      variety: draftCropVariety.trim(),
+      sowingDate: draftSowingDate.trim(),
+      expectedHarvestDate: draftExpectedHarvestDate.trim(),
+      notes: draftCropNotes.trim(),
     }
 
-    setPointPolygons((prev) => ({
-      ...prev,
-      [polygonDrawPointId]: [...(prev[polygonDrawPointId] || []), newPolygon],
-    }))
-    setPolygonDrawPointId(null)
-    setDraftPolygon([])
-    resetDraftMetadata()
+    try {
+      const response = await fetch('/api/operations/custom-point-polygons', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          pointId: polygonDrawPointId,
+          name: polygonName,
+          vertices: draftPolygon,
+          crop: cropPayload,
+        }),
+      })
+      const payload = await response.json()
+      if (!response.ok) return
+
+      const normalized = normalizePointPolygon(payload, payload.id || `polygon-${Date.now()}`, polygonName)
+      if (!normalized) return
+
+      setPointPolygons((prev) => ({
+        ...prev,
+        [polygonDrawPointId]: [...(prev[polygonDrawPointId] || []), normalized],
+      }))
+      setPolygonDrawPointId(null)
+      setDraftPolygon([])
+      resetDraftMetadata()
+    } catch {
+      // Keep draft in place so user can retry save.
+    }
   }, [
     draftCropName,
     draftCropNotes,
