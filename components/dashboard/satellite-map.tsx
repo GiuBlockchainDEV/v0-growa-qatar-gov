@@ -796,6 +796,22 @@ export function SatelliteMap({ locale = 'en', targetFarmId = null, targetZoom }:
                 Draw Polygon
               </button>
               <button
+                data-edit-polygon-point-id="${customPoint.id}"
+                style="
+                  margin-top: 8px;
+                  margin-right: 6px;
+                  border: 1px solid rgba(147,197,253,0.45);
+                  background: rgba(147,197,253,0.14);
+                  color: #bfdbfe;
+                  border-radius: 6px;
+                  padding: 4px 8px;
+                  font-size: 11px;
+                  cursor: pointer;
+                "
+              >
+                Edit Polygon
+              </button>
+              <button
                 data-delete-point-id="${customPoint.id}"
                 style="
                   margin-top: 8px;
