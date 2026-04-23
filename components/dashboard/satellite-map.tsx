@@ -594,6 +594,7 @@ export function SatelliteMap({ locale = 'en', targetFarmId = null, targetZoom }:
           const updated = current.map((entry) => (entry.id === normalized.id ? normalized : entry))
           return { ...prev, [pointId]: updated }
         })
+        window.location.reload()
       } catch {
         // Ignore network errors to keep map interactions responsive.
       }
