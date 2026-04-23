@@ -263,6 +263,7 @@ export function SatelliteMap({ locale = 'en', targetFarmId = null, targetZoom }:
   const [newPointType, setNewPointType] = useState<MapPointType>('custom')
   const [activePointId, setActivePointId] = useState<string | null>(null)
   const [polygonDrawPointId, setPolygonDrawPointId] = useState<string | null>(null)
+  const [polygonEditPointId, setPolygonEditPointId] = useState<string | null>(null)
   const [draftPolygon, setDraftPolygon] = useState<PolygonVertex[]>([])
   const [draftPolygonName, setDraftPolygonName] = useState('')
   const [draftCropName, setDraftCropName] = useState('')
@@ -482,6 +483,7 @@ export function SatelliteMap({ locale = 'en', targetFarmId = null, targetZoom }:
     (pointId: string) => {
       setActivePointId(pointId)
       setPolygonDrawPointId(pointId)
+      setPolygonEditPointId(null)
       setDraftPolygon([])
       resetDraftMetadata()
       setIsAddPointMode(false)
@@ -494,6 +496,17 @@ export function SatelliteMap({ locale = 'en', targetFarmId = null, targetZoom }:
     setDraftPolygon([])
     resetDraftMetadata()
   }, [resetDraftMetadata])
+
+  const startPolygonEditMode = useCallback((pointId: string) => {
+    setActivePointId(pointId)
+    setPolygonEditPointId(pointId)
+    setPolygonDrawPointId(null)
+    setIsAddPointMode(false)
+  }, [])
+
+  const stopPolygonEditMode = useCallback(() => {
+    setPolygonEditPointId(null)
+  }, [])
 
   const saveDraftPolygon = useCallback(async () => {
     if (!polygonDrawPointId || draftPolygon.length < 3) return
@@ -882,21 +895,7 @@ export function SatelliteMap({ locale = 'en', targetFarmId = null, targetZoom }:
               clickEvent.stopPropagation()
               const linkedPolygons = pointPolygons[customPoint.id] || []
               if (linkedPolygons.length === 0) return
-              let selected = linkedPolygons[0]
-              if (linkedPolygons.length > 1) {
-                const labels = linkedPolygons
-                  .map((polygon, index) => `${index + 1}) ${polygon.name}`)
-                  .join('\n')
-                const selectionInput = window.prompt(
-                  `Select polygon to edit:\n${labels}`,
-                  '1'
-                )
-                if (selectionInput === null) return
-                const selection = Number.parseInt(selectionInput, 10)
-                if (!Number.isFinite(selection) || selection < 1 || selection > linkedPolygons.length) return
-                selected = linkedPolygons[selection - 1]
-              }
-              handleEditPolygonData(selected)
+              startPolygonEditMode(customPoint.id)
             }
           }
           if (deleteButton) {
@@ -927,6 +926,7 @@ export function SatelliteMap({ locale = 'en', targetFarmId = null, targetZoom }:
     mapMarkers,
     mapReady,
     pointPolygons,
+    startPolygonEditMode,
     startPolygonDraw,
   ])
 
