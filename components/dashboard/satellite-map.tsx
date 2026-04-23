@@ -269,6 +269,15 @@ export function SatelliteMap({ locale = 'en', targetFarmId = null, targetZoom }:
   const [draftExpectedHarvestDate, setDraftExpectedHarvestDate] = useState('')
   const [draftCropNotes, setDraftCropNotes] = useState('')
 
+  const resetDraftMetadata = useCallback(() => {
+    setDraftPolygonName('')
+    setDraftCropName('')
+    setDraftCropVariety('')
+    setDraftSowingDate('')
+    setDraftExpectedHarvestDate('')
+    setDraftCropNotes('')
+  }, [])
+
   useEffect(() => {
     polygonDrawPointIdRef.current = polygonDrawPointId
   }, [polygonDrawPointId])
@@ -409,15 +418,6 @@ export function SatelliteMap({ locale = 'en', targetFarmId = null, targetZoom }:
     const byLabel = POINT_TYPE_OPTIONS.find((option) => option.label.toLowerCase() === normalized)
     if (byLabel) return byLabel.value
     return fallback
-  }, [])
-
-  const resetDraftMetadata = useCallback(() => {
-    setDraftPolygonName('')
-    setDraftCropName('')
-    setDraftCropVariety('')
-    setDraftSowingDate('')
-    setDraftExpectedHarvestDate('')
-    setDraftCropNotes('')
   }, [])
 
   const handleEditPoint = useCallback(
