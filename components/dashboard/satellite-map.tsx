@@ -694,6 +694,8 @@ export function SatelliteMap({ locale = 'en', targetFarmId = null, targetZoom }:
       polygonInstancesRef.current = []
       draftPolylineRef.current?.remove?.()
       draftPolylineRef.current = null
+      draftVertexInstancesRef.current.forEach((marker) => marker.remove?.())
+      draftVertexInstancesRef.current = []
       if (map) {
         map.remove()
         mapInstanceRef.current = null
@@ -852,6 +854,9 @@ export function SatelliteMap({ locale = 'en', targetFarmId = null, targetZoom }:
           const drawButton = popupElement?.querySelector(
             `[data-draw-polygon-point-id="${customPoint.id}"]`
           ) as HTMLButtonElement | null
+          const editPolygonButton = popupElement?.querySelector(
+            `[data-edit-polygon-point-id="${customPoint.id}"]`
+          ) as HTMLButtonElement | null
           const deleteButton = popupElement?.querySelector(
             `[data-delete-point-id="${customPoint.id}"]`
           ) as HTMLButtonElement | null
@@ -868,6 +873,29 @@ export function SatelliteMap({ locale = 'en', targetFarmId = null, targetZoom }:
               clickEvent.preventDefault()
               clickEvent.stopPropagation()
               startPolygonDraw(customPoint.id)
+            }
+          }
+          if (editPolygonButton) {
+            editPolygonButton.onclick = (clickEvent) => {
+              clickEvent.preventDefault()
+              clickEvent.stopPropagation()
+              const linkedPolygons = pointPolygons[customPoint.id] || []
+              if (linkedPolygons.length === 0) return
+              let selected = linkedPolygons[0]
+              if (linkedPolygons.length > 1) {
+                const labels = linkedPolygons
+                  .map((polygon, index) => `${index + 1}) ${polygon.name}`)
+                  .join('\n')
+                const selectionInput = window.prompt(
+                  `Select polygon to edit:\n${labels}`,
+                  '1'
+                )
+                if (selectionInput === null) return
+                const selection = Number.parseInt(selectionInput, 10)
+                if (!Number.isFinite(selection) || selection < 1 || selection > linkedPolygons.length) return
+                selected = linkedPolygons[selection - 1]
+              }
+              handleEditPolygonData(selected)
             }
           }
           if (deleteButton) {
@@ -890,7 +918,16 @@ export function SatelliteMap({ locale = 'en', targetFarmId = null, targetZoom }:
 
       return markerInstance
     })
-  }, [customPoints, handleDeletePoint, handleEditPoint, mapMarkers, mapReady, pointPolygons, startPolygonDraw])
+  }, [
+    customPoints,
+    handleDeletePoint,
+    handleEditPoint,
+    handleEditPolygonData,
+    mapMarkers,
+    mapReady,
+    pointPolygons,
+    startPolygonDraw,
+  ])
 
   useEffect(() => {
     if (!mapReady || !mapInstanceRef.current || !leafletRef.current) return
@@ -901,6 +938,8 @@ export function SatelliteMap({ locale = 'en', targetFarmId = null, targetZoom }:
     polygonInstancesRef.current = []
     draftPolylineRef.current?.remove?.()
     draftPolylineRef.current = null
+    draftVertexInstancesRef.current.forEach((marker) => marker.remove?.())
+    draftVertexInstancesRef.current = []
 
     if (activePointId) {
       const activePolygons = pointPolygons[activePointId] || []
@@ -939,8 +978,26 @@ export function SatelliteMap({ locale = 'en', targetFarmId = null, targetZoom }:
     if (polygonDrawPointId && draftPolygon.length > 0 && polygonDrawPointId === activePointId) {
       draftPolylineRef.current = L.polyline(
         draftPolygon.map((vertex) => [vertex.lat, vertex.lng]),
-        { color: '#3B82F6', weight: 2, dashArray: '6 6', opacity: 0.9, interactive: false }
+        {
+          color: '#38bdf8',
+          weight: 4,
+          dashArray: '10 6',
+          opacity: 1,
+          lineCap: 'round',
+          lineJoin: 'round',
+          interactive: false,
+        }
       ).addTo(map)
+      draftVertexInstancesRef.current = draftPolygon.map((vertex, index) =>
+        L.circleMarker([vertex.lat, vertex.lng], {
+          radius: index === 0 ? 7 : 6,
+          color: '#ffffff',
+          weight: 2,
+          fillColor: index === 0 ? '#07f880' : '#38bdf8',
+          fillOpacity: 1,
+          interactive: false,
+        }).addTo(map)
+      )
     }
   }, [activePointId, draftPolygon, mapReady, pointPolygons, polygonDrawPointId])
 
