@@ -216,6 +216,7 @@ function fromApiPolygonRow(row: PolygonApiRow): PointPolygon | null {
   if (vertices.length < 3) return null
   return {
     id: row.id,
+    customPointId: row.custom_point_id,
     name: row.name?.trim() || 'Polygon',
     vertices,
     crop: {
@@ -362,14 +363,10 @@ export function SatelliteMap({ locale = 'en', targetFarmId = null, targetZoom }:
           if (!cancelled) setPointPolygons({})
           return
         }
-        const grouped = payload.reduce<Record<string, PointPolygon[]>>((acc, row) => {
+      const grouped = payload.reduce<Record<string, PointPolygon[]>>((acc, row) => {
           const pointId = typeof row?.pointId === 'string' ? row.pointId : ''
           if (!pointId) return acc
-          const polygon = normalizePointPolygon(
-            row,
-            `polygon-${pointId}-${(acc[pointId]?.length || 0) + 1}`,
-            `Polygon ${(acc[pointId]?.length || 0) + 1}`
-          )
+          const polygon = fromApiPolygonRow(row as PolygonApiRow)
           if (!polygon) return acc
           if (!acc[pointId]) acc[pointId] = []
           acc[pointId].push(polygon)
@@ -550,6 +547,58 @@ export function SatelliteMap({ locale = 'en', targetFarmId = null, targetZoom }:
     polygonDrawPointId,
     resetDraftMetadata,
   ])
+
+  const handleEditPolygonData = useCallback(
+    async (polygon: PointPolygon) => {
+      const nextNameInput = window.prompt('Polygon name', polygon.name)
+      if (nextNameInput === null) return
+      const nextName = nextNameInput.trim() || polygon.name
+
+      const nextCropName = window.prompt('Crop name', polygon.crop.cropName || '') ?? polygon.crop.cropName
+      const nextVariety = window.prompt('Variety', polygon.crop.variety || '') ?? polygon.crop.variety
+      const nextSowingDate =
+        window.prompt('Sowing date (YYYY-MM-DD)', polygon.crop.sowingDate || '') ?? polygon.crop.sowingDate
+      const nextHarvestDate =
+        window.prompt('Expected harvest date (YYYY-MM-DD)', polygon.crop.expectedHarvestDate || '') ??
+        polygon.crop.expectedHarvestDate
+      const nextNotes = window.prompt('Notes', polygon.crop.notes || '') ?? polygon.crop.notes
+
+      try {
+        const response = await fetch('/api/operations/custom-point-polygons', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            polygonId: polygon.id,
+            name: nextName,
+            crop: {
+              cropName: nextCropName,
+              variety: nextVariety,
+              sowingDate: nextSowingDate,
+              expectedHarvestDate: nextHarvestDate,
+              notes: nextNotes,
+            },
+          }),
+        })
+        const payload = await response.json()
+        if (!response.ok) return
+        const normalized = normalizePointPolygon(
+          payload,
+          polygon.id,
+          nextName
+        )
+        if (!normalized || !normalized.customPointId) return
+        setPointPolygons((prev) => {
+          const pointId = normalized.customPointId
+          const current = prev[pointId] || []
+          const updated = current.map((entry) => (entry.id === normalized.id ? normalized : entry))
+          return { ...prev, [pointId]: updated }
+        })
+      } catch {
+        // Ignore network errors to keep map interactions responsive.
+      }
+    },
+    []
+  )
 
   const undoDraftVertex = useCallback(() => {
     setDraftPolygon((prev) => prev.slice(0, -1))

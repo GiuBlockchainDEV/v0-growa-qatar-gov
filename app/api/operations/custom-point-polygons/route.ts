@@ -151,6 +151,57 @@ export async function POST(request: Request) {
   return NextResponse.json(mapRowToResponse(data), { status: 201 })
 }
 
+export async function PATCH(request: Request) {
+  const supabase = await createClient()
+  const {
+    data: { user },
+    error: authError,
+  } = await supabase.auth.getUser()
+
+  if (authError || !user) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
+  const body = await request.json()
+  const polygonId = typeof body?.polygonId === 'string' ? body.polygonId.trim() : ''
+  const name = typeof body?.name === 'string' ? body.name.trim() : ''
+  const crop = normalizeCrop(body?.crop)
+
+  if (!polygonId) {
+    return NextResponse.json({ error: 'polygonId is required' }, { status: 400 })
+  }
+  if (!name) {
+    return NextResponse.json({ error: 'name is required' }, { status: 400 })
+  }
+
+  const { data, error } = await supabase
+    .from('custom_point_polygons')
+    .update({
+      name,
+      crop_name: crop.cropName || null,
+      crop_variety: crop.variety || null,
+      sowing_date: crop.sowingDate || null,
+      expected_harvest_date: crop.expectedHarvestDate || null,
+      notes: crop.notes || null,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', polygonId)
+    .eq('user_id', user.id)
+    .select(
+      'id, custom_point_id, name, vertices, crop_name, crop_variety, sowing_date, expected_harvest_date, notes, created_at'
+    )
+    .maybeSingle()
+
+  if (error) {
+    return NextResponse.json({ error: error.message }, { status: 500 })
+  }
+  if (!data) {
+    return NextResponse.json({ error: 'Polygon not found' }, { status: 404 })
+  }
+
+  return NextResponse.json(mapRowToResponse(data))
+}
+
 export async function DELETE(request: Request) {
   const supabase = await createClient()
   const { searchParams } = new URL(request.url)
