@@ -250,6 +250,7 @@ export function SatelliteMap({ locale = 'en', targetFarmId = null, targetZoom }:
   const markerInstancesRef = useRef<any[]>([])
   const polygonInstancesRef = useRef<any[]>([])
   const draftPolylineRef = useRef<any | null>(null)
+  const draftVertexInstancesRef = useRef<any[]>([])
   const polygonDrawPointIdRef = useRef<string | null>(null)
 
   const [isLoading, setIsLoading] = useState(true)
