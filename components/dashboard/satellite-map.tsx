@@ -160,13 +160,19 @@ function normalizePolygonVertices(input: unknown): PolygonVertex[] {
     .filter((vertex): vertex is PolygonVertex => Boolean(vertex))
 }
 
-function normalizePointPolygon(input: unknown, fallbackId: string, fallbackName: string): PointPolygon | null {
+function normalizePointPolygon(
+  input: unknown,
+  fallbackId: string,
+  fallbackName: string,
+  fallbackCustomPointId = ''
+): PointPolygon | null {
   // Backward compatibility with legacy format: polygon was an array of vertices.
   if (Array.isArray(input)) {
     const legacyVertices = normalizePolygonVertices(input)
     if (legacyVertices.length < 3) return null
     return {
       id: fallbackId,
+      customPointId: fallbackCustomPointId,
       name: fallbackName,
       vertices: legacyVertices,
       crop: { ...EMPTY_POLYGON_CROP },
@@ -180,8 +186,14 @@ function normalizePointPolygon(input: unknown, fallbackId: string, fallbackName:
   if (vertices.length < 3) return null
 
   const cropRow = row.crop && typeof row.crop === 'object' ? (row.crop as Record<string, unknown>) : null
+  const customPointId =
+    (typeof row.customPointId === 'string' && row.customPointId.trim()) ||
+    (typeof row.custom_point_id === 'string' && row.custom_point_id.trim()) ||
+    (typeof row.pointId === 'string' && row.pointId.trim()) ||
+    fallbackCustomPointId
   return {
     id: typeof row.id === 'string' && row.id.trim() ? row.id.trim() : fallbackId,
+    customPointId,
     name: typeof row.name === 'string' && row.name.trim() ? row.name.trim() : fallbackName,
     vertices,
     crop: {
@@ -523,7 +535,12 @@ export function SatelliteMap({ locale = 'en', targetFarmId = null, targetZoom }:
       const payload = await response.json()
       if (!response.ok) return
 
-      const normalized = normalizePointPolygon(payload, payload.id || `polygon-${Date.now()}`, polygonName)
+      const normalized = normalizePointPolygon(
+        payload,
+        payload.id || `polygon-${Date.now()}`,
+        polygonName,
+        polygonDrawPointId
+      )
       if (!normalized) return
 
       setPointPolygons((prev) => ({
@@ -568,6 +585,7 @@ export function SatelliteMap({ locale = 'en', targetFarmId = null, targetZoom }:
         const response = await fetch('/api/operations/custom-point-polygons', {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
+          credentials: 'same-origin',
           body: JSON.stringify({
             polygonId: polygon.id,
             name: nextName,
@@ -581,11 +599,19 @@ export function SatelliteMap({ locale = 'en', targetFarmId = null, targetZoom }:
           }),
         })
         const payload = await response.json()
-        if (!response.ok) return
+        if (!response.ok) {
+          const message =
+            typeof payload?.error === 'string' && payload.error.trim()
+              ? payload.error
+              : 'Failed to update polygon.'
+          window.alert(message)
+          return
+        }
         const normalized = normalizePointPolygon(
           payload,
           polygon.id,
-          nextName
+          nextName,
+          polygon.customPointId
         )
         if (!normalized || !normalized.customPointId) return
         setPointPolygons((prev) => {
@@ -612,9 +638,17 @@ export function SatelliteMap({ locale = 'en', targetFarmId = null, targetZoom }:
       try {
         const response = await fetch(
           `/api/operations/custom-point-polygons?polygonId=${encodeURIComponent(polygon.id)}`,
-          { method: 'DELETE' }
+          { method: 'DELETE', credentials: 'same-origin' }
         )
-        if (!response.ok) return
+        if (!response.ok) {
+          const payload = await response.json().catch(() => ({}))
+          const message =
+            typeof payload?.error === 'string' && payload.error.trim()
+              ? payload.error
+              : 'Failed to delete polygon.'
+          window.alert(message)
+          return
+        }
 
         setPointPolygons((prev) => {
           const pointId = polygon.customPointId
@@ -980,6 +1014,44 @@ export function SatelliteMap({ locale = 'en', targetFarmId = null, targetZoom }:
           </div>
         `
 
+        const popupContainer = document.createElement('div')
+        popupContainer.style.fontFamily = 'system-ui'
+        popupContainer.style.padding = '8px'
+        popupContainer.style.minWidth = '180px'
+        popupContainer.style.pointerEvents = 'auto'
+        popupContainer.innerHTML = `${popupLines}${popupActions}`
+        L.DomEvent.disableClickPropagation(popupContainer)
+        L.DomEvent.disableScrollPropagation(popupContainer)
+
+        const editButton = popupContainer.querySelector(
+          `[data-edit-polygon-id="${polygon.id}"]`
+        ) as HTMLButtonElement | null
+        const deleteButton = popupContainer.querySelector(
+          `[data-delete-polygon-id="${polygon.id}"]`
+        ) as HTMLButtonElement | null
+
+        if (editButton) {
+          editButton.style.pointerEvents = 'auto'
+          L.DomEvent.on(editButton, 'mousedown', L.DomEvent.stop)
+          L.DomEvent.on(editButton, 'click', L.DomEvent.stop)
+          editButton.onclick = (clickEvent) => {
+            clickEvent.preventDefault()
+            clickEvent.stopPropagation()
+            handleEditPolygonData(polygon)
+          }
+        }
+
+        if (deleteButton) {
+          deleteButton.style.pointerEvents = 'auto'
+          L.DomEvent.on(deleteButton, 'mousedown', L.DomEvent.stop)
+          L.DomEvent.on(deleteButton, 'click', L.DomEvent.stop)
+          deleteButton.onclick = (clickEvent) => {
+            clickEvent.preventDefault()
+            clickEvent.stopPropagation()
+            handleDeletePolygon(polygon)
+          }
+        }
+
         const layer = L.polygon(
           polygon.vertices.map((vertex) => [vertex.lat, vertex.lng]),
           {
@@ -993,36 +1065,7 @@ export function SatelliteMap({ locale = 'en', targetFarmId = null, targetZoom }:
           }
         )
           .addTo(map)
-          .bindPopup(
-            `<div style="font-family:system-ui; padding:8px; min-width:180px;">${popupLines}${popupActions}</div>`,
-            {
-              className: 'custom-popup',
-            }
-          )
-        layer.on('popupopen', (event: any) => {
-          const popupElement = event?.popup?.getElement?.() as HTMLElement | null
-          const editButton = popupElement?.querySelector(
-            `[data-edit-polygon-id="${polygon.id}"]`
-          ) as HTMLButtonElement | null
-          const deleteButton = popupElement?.querySelector(
-            `[data-delete-polygon-id="${polygon.id}"]`
-          ) as HTMLButtonElement | null
-
-          if (editButton) {
-            editButton.onclick = (clickEvent) => {
-              clickEvent.preventDefault()
-              clickEvent.stopPropagation()
-              handleEditPolygonData(polygon)
-            }
-          }
-          if (deleteButton) {
-            deleteButton.onclick = (clickEvent) => {
-              clickEvent.preventDefault()
-              clickEvent.stopPropagation()
-              handleDeletePolygon(polygon)
-            }
-          }
-        })
+          .bindPopup(popupContainer, { className: 'custom-popup' })
         layer.on('click', (event: any) => {
           event?.originalEvent?.preventDefault?.()
           event?.originalEvent?.stopPropagation?.()
