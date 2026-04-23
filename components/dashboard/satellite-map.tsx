@@ -908,7 +908,7 @@ export function SatelliteMap({ locale = 'en', targetFarmId = null, targetZoom }:
         })
         markerInstance.on('popupclose', () => {
           if (polygonDrawPointIdRef.current === customPoint.id) return
-          setActivePointId((prev) => (prev === customPoint.id ? null : prev))
+          // Keep the point active after popup closes so linked polygons remain clickable.
         })
       } else {
         markerInstance.on('popupopen', () => {
@@ -1049,6 +1049,22 @@ export function SatelliteMap({ locale = 'en', targetFarmId = null, targetZoom }:
       map.off('click', handleMapClick)
     }
   }, [isGrowaAdmin, mapReady, polygonDrawPointId])
+
+  useEffect(() => {
+    if (!mapReady || !mapInstanceRef.current) return
+    if (!activePointId || isAddPointMode || polygonDrawPointId) return
+    const map = mapInstanceRef.current
+
+    const handleMapClick = (event: any) => {
+      if (isLeafletUiClick(event)) return
+      setActivePointId(null)
+    }
+
+    map.on('click', handleMapClick)
+    return () => {
+      map.off('click', handleMapClick)
+    }
+  }, [activePointId, isAddPointMode, mapReady, polygonDrawPointId])
 
   useEffect(() => {
     if (!mapInstanceRef.current || !resolvedTargetFarm) return
