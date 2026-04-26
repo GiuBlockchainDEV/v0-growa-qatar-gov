@@ -72,6 +72,7 @@ interface PolygonApiRow {
   custom_point_id: string
   name: string
   vertices: unknown
+  score: number | null
   crop_name: string | null
   crop_variety: string | null
   sowing_date: string | null
@@ -85,6 +86,7 @@ interface PointPolygon {
   customPointId: string
   name: string
   vertices: PolygonVertex[]
+  score: number
   crop: PolygonCropData
   createdAt: string
 }
@@ -184,6 +186,20 @@ function formatHectares(value: number) {
   return value.toFixed(4)
 }
 
+function normalizePolygonScore(value: unknown, fallback = 50) {
+  const numericValue =
+    typeof value === 'number' ? value : typeof value === 'string' ? Number(value) : Number.NaN
+  if (!Number.isFinite(numericValue)) return fallback
+  return Math.min(100, Math.max(0, Math.round(numericValue)))
+}
+
+function scoreToPolygonColor(score: number) {
+  const normalized = normalizePolygonScore(score, 50)
+  // Requested scale: 0 -> red, mid -> yellow/orange, 100 -> red.
+  const hue = normalized <= 50 ? (normalized / 50) * 55 : ((100 - normalized) / 50) * 55
+  return `hsl(${hue.toFixed(1)} 92% 52%)`
+}
+
 function createRectangleVertices(start: PolygonVertex, end: PolygonVertex): PolygonVertex[] {
   const minLat = Math.min(start.lat, end.lat)
   const maxLat = Math.max(start.lat, end.lat)
@@ -251,6 +267,7 @@ function normalizePointPolygon(
       customPointId: fallbackCustomPointId,
       name: fallbackName,
       vertices: legacyVertices,
+      score: 50,
       crop: { ...EMPTY_POLYGON_CROP },
       createdAt: new Date().toISOString(),
     }
@@ -272,6 +289,12 @@ function normalizePointPolygon(
     customPointId,
     name: typeof row.name === 'string' && row.name.trim() ? row.name.trim() : fallbackName,
     vertices,
+    score: normalizePolygonScore(
+      (row as Record<string, unknown>).score ??
+        (row as Record<string, unknown>).polygonScore ??
+        (row as Record<string, unknown>).polygon_score,
+      50
+    ),
     crop: {
       cropName:
         (typeof cropRow?.cropName === 'string' && cropRow.cropName) ||
@@ -319,6 +342,7 @@ function fromApiPolygonRow(row: PolygonApiRow): PointPolygon | null {
     customPointId: row.custom_point_id,
     name: row.name?.trim() || 'Polygon',
     vertices,
+    score: normalizePolygonScore(row.score, 50),
     crop: {
       cropName: row.crop_name || '',
       variety: row.crop_variety || '',
@@ -374,6 +398,7 @@ export function SatelliteMap({
   const [circleSegments, setCircleSegments] = useState(16)
   const [draftPolygon, setDraftPolygon] = useState<PolygonVertex[]>([])
   const [draftPolygonName, setDraftPolygonName] = useState('')
+  const [draftPolygonScore, setDraftPolygonScore] = useState(50)
   const [draftCropName, setDraftCropName] = useState('')
   const [draftCropVariety, setDraftCropVariety] = useState('')
   const [draftSowingDate, setDraftSowingDate] = useState('')
@@ -382,6 +407,7 @@ export function SatelliteMap({
 
   const resetDraftMetadata = useCallback(() => {
     setDraftPolygonName('')
+    setDraftPolygonScore(50)
     setDraftCropName('')
     setDraftCropVariety('')
     setDraftSowingDate('')
@@ -635,6 +661,7 @@ export function SatelliteMap({
         body: JSON.stringify({
           pointId: polygonDrawPointId,
           name: polygonName,
+          score: normalizePolygonScore(draftPolygonScore, 50),
           vertices: draftPolygon,
           crop: cropPayload,
         }),
@@ -669,6 +696,7 @@ export function SatelliteMap({
     draftExpectedHarvestDate,
     draftPolygon,
     draftPolygonName,
+    draftPolygonScore,
     draftSowingDate,
     pointPolygons,
     polygonDrawPointId,
@@ -681,6 +709,10 @@ export function SatelliteMap({
       const nextNameInput = window.prompt('Polygon name', polygon.name)
       if (nextNameInput === null) return
       const nextName = nextNameInput.trim() || polygon.name
+
+      const nextScoreRaw = window.prompt('Score (0-100)', String(polygon.score))
+      if (nextScoreRaw === null) return
+      const nextScore = normalizePolygonScore(nextScoreRaw, polygon.score)
 
       const nextCropName = window.prompt('Crop name', polygon.crop.cropName || '') ?? polygon.crop.cropName
       const nextVariety = window.prompt('Variety', polygon.crop.variety || '') ?? polygon.crop.variety
@@ -698,6 +730,7 @@ export function SatelliteMap({
           body: JSON.stringify({
             polygonId: polygon.id,
             name: nextName,
+            score: nextScore,
             crop: {
               cropName: nextCropName,
               variety: nextVariety,
@@ -1077,9 +1110,12 @@ export function SatelliteMap({
       for (const polygon of activePolygons) {
         if (polygon.vertices.length < 3) continue
         const crop = polygon.crop
+        const polygonScore = normalizePolygonScore(polygon.score, 50)
+        const polygonColor = scoreToPolygonColor(polygonScore)
         const areaHectares = calculatePolygonAreaHectares(polygon.vertices)
         const popupLines = [
           `<strong style="color:#07f880;font-size:13px;">${escapeHtml(polygon.name)}</strong>`,
+          `<br/><span style="font-size:11px;color:${escapeHtml(polygonColor)};">Score: ${polygonScore}/100</span>`,
           `<br/><span style="font-size:11px;color:#9ca3af;">Area: ${escapeHtml(formatHectares(areaHectares))} ha</span>`,
           crop.cropName ? `<br/><span style="font-size:11px;color:#ddd;">Crop: ${escapeHtml(crop.cropName)}</span>` : '',
           crop.variety ? `<br/><span style="font-size:11px;color:#bbb;">Variety: ${escapeHtml(crop.variety)}</span>` : '',
@@ -1153,10 +1189,10 @@ export function SatelliteMap({
         const layer = L.polygon(
           polygon.vertices.map((vertex) => [vertex.lat, vertex.lng]),
           {
-            color: '#07f880',
+            color: polygonColor,
             weight: 2,
             opacity: 0.9,
-            fillColor: '#07f880',
+            fillColor: polygonColor,
             fillOpacity: 0.16,
             interactive: true,
             bubblingMouseEvents: false,
@@ -1479,6 +1515,19 @@ export function SatelliteMap({
               <span className="w-10 text-right text-[11px] text-[#07f880]">{circleSegments}</span>
             </div>
           )}
+          <div className="mt-2 flex items-center gap-2">
+            <span className="text-[11px] text-white/55">Score</span>
+            <input
+              type="range"
+              min={0}
+              max={100}
+              step={1}
+              value={draftPolygonScore}
+              onChange={(event) => setDraftPolygonScore(normalizePolygonScore(event.target.value, 50))}
+              className="flex-1 accent-[#07f880]"
+            />
+            <span className="w-12 text-right text-[11px] text-[#07f880]">{draftPolygonScore}</span>
+          </div>
 
           <div className="mt-3 space-y-2">
             <input

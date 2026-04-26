@@ -14,6 +14,19 @@ interface PolygonCropData {
   notes: string
 }
 
+function normalizeScore(input: unknown): number {
+  if (typeof input === 'number' && Number.isFinite(input)) {
+    return Math.max(0, Math.min(100, Math.round(input)))
+  }
+  if (typeof input === 'string') {
+    const parsed = Number(input)
+    if (Number.isFinite(parsed)) {
+      return Math.max(0, Math.min(100, Math.round(parsed)))
+    }
+  }
+  return 0
+}
+
 function normalizeVertices(input: unknown): PolygonVertex[] {
   if (!Array.isArray(input)) return []
   return input
@@ -53,6 +66,7 @@ function mapRowToResponse(row: Record<string, any>) {
     id: row.id,
     pointId: row.custom_point_id,
     name: row.name,
+    score: normalizeScore(row.score),
     vertices: normalizeVertices(row.vertices),
     crop: {
       cropName: row.crop_name || '',
@@ -82,7 +96,7 @@ export async function GET(request: Request) {
   let query = supabase
     .from('custom_point_polygons')
     .select(
-      'id, custom_point_id, name, vertices, crop_name, crop_variety, sowing_date, expected_harvest_date, notes, created_at'
+      'id, custom_point_id, name, score, vertices, crop_name, crop_variety, sowing_date, expected_harvest_date, notes, created_at'
     )
     .eq('user_id', user.id)
     .order('created_at', { ascending: true })
@@ -113,6 +127,7 @@ export async function POST(request: Request) {
   const body = await request.json()
   const pointId = typeof body?.pointId === 'string' ? body.pointId.trim() : ''
   const name = typeof body?.name === 'string' ? body.name.trim() : ''
+  const score = normalizeScore(body?.score)
   const vertices = normalizeVertices(body?.vertices)
   const crop = normalizeCrop(body?.crop)
 
@@ -132,6 +147,7 @@ export async function POST(request: Request) {
       user_id: user.id,
       custom_point_id: pointId,
       name,
+      score,
       vertices,
       crop_name: crop.cropName || null,
       crop_variety: crop.variety || null,
@@ -140,7 +156,7 @@ export async function POST(request: Request) {
       notes: crop.notes || null,
     })
     .select(
-      'id, custom_point_id, name, vertices, crop_name, crop_variety, sowing_date, expected_harvest_date, notes, created_at'
+      'id, custom_point_id, name, score, vertices, crop_name, crop_variety, sowing_date, expected_harvest_date, notes, created_at'
     )
     .single()
 
@@ -165,6 +181,7 @@ export async function PATCH(request: Request) {
   const body = await request.json()
   const polygonId = typeof body?.polygonId === 'string' ? body.polygonId.trim() : ''
   const name = typeof body?.name === 'string' ? body.name.trim() : ''
+  const score = normalizeScore(body?.score)
   const crop = normalizeCrop(body?.crop)
 
   if (!polygonId) {
@@ -178,6 +195,7 @@ export async function PATCH(request: Request) {
     .from('custom_point_polygons')
     .update({
       name,
+      score,
       crop_name: crop.cropName || null,
       crop_variety: crop.variety || null,
       sowing_date: crop.sowingDate || null,
@@ -188,7 +206,7 @@ export async function PATCH(request: Request) {
     .eq('id', polygonId)
     .eq('user_id', user.id)
     .select(
-      'id, custom_point_id, name, vertices, crop_name, crop_variety, sowing_date, expected_harvest_date, notes, created_at'
+      'id, custom_point_id, name, score, vertices, crop_name, crop_variety, sowing_date, expected_harvest_date, notes, created_at'
     )
     .maybeSingle()
 
