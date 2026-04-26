@@ -444,6 +444,7 @@ export function SatelliteMap({
   const draftPolylineRef = useRef<any | null>(null)
   const draftVertexInstancesRef = useRef<any[]>([])
   const polygonDrawPointIdRef = useRef<string | null>(null)
+  const lastClearedFocusTokenRef = useRef<string | null>(null)
 
   const [isLoading, setIsLoading] = useState(true)
   const [mapReady, setMapReady] = useState(false)
@@ -911,6 +912,20 @@ export function SatelliteMap({
     const recenterZoom = explicitTargetPoint || resolvedTargetFarm ? resolvedTargetZoom : DEFAULT_ZOOM
     mapInstanceRef.current.flyTo([recenterLat, recenterLng], recenterZoom, { duration: 1.5 })
   }, [explicitTargetPoint, resolvedTargetFarm, resolvedTargetZoom])
+
+  const clearFocusParamFromUrl = useCallback(() => {
+    if (typeof window === 'undefined') return
+    const currentUrl = new URL(window.location.href)
+    if (!currentUrl.searchParams.has('focus')) return
+    const currentToken = currentUrl.searchParams.get('focus')
+    if (currentToken && lastClearedFocusTokenRef.current === currentToken) return
+    if (currentToken) {
+      lastClearedFocusTokenRef.current = currentToken
+    }
+    currentUrl.searchParams.delete('focus')
+    const nextUrl = `${currentUrl.pathname}${currentUrl.search}${currentUrl.hash}`
+    window.history.replaceState(window.history.state, '', nextUrl)
+  }, [])
 
   useEffect(() => {
     let cancelled = false
@@ -1424,7 +1439,8 @@ export function SatelliteMap({
     mapInstanceRef.current.flyTo([resolvedTargetFarm.lat, resolvedTargetFarm.lng], resolvedTargetZoom, {
       duration: 1.2,
     })
-  }, [mapReady, resolvedTargetFarm, resolvedTargetZoom, targetPointId, targetFocusToken])
+    clearFocusParamFromUrl()
+  }, [clearFocusParamFromUrl, mapReady, resolvedTargetFarm, resolvedTargetZoom, targetPointId, targetFocusToken])
 
   useEffect(() => {
     if (!mapReady || !mapInstanceRef.current || !explicitTargetPoint) return
@@ -1436,7 +1452,8 @@ export function SatelliteMap({
       duration: 1.2,
     })
     setActivePointId(explicitTargetPoint.id)
-  }, [mapReady, explicitTargetPoint, targetZoom, targetFocusToken])
+    clearFocusParamFromUrl()
+  }, [clearFocusParamFromUrl, mapReady, explicitTargetPoint, targetZoom, targetFocusToken])
 
   return (
     <div className="absolute inset-0 pt-16">
