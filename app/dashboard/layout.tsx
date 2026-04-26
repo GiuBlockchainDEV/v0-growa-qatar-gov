@@ -1,6 +1,6 @@
 'use client'
 
-import { Suspense, useEffect, useState } from 'react'
+import { Suspense, useEffect, useRef, useState } from 'react'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { useAuth } from '@/hooks/use-auth'
 import { DashboardSidebar } from '@/components/dashboard/sidebar'
@@ -19,6 +19,7 @@ function DashboardShell({
   const searchParams = useSearchParams()
   const { landingPage, isMinistryWorkspace, isLoading: navLoading } = useRoleNavigation()
   const [sidebarOpen, setSidebarOpen] = useState(false) // Closed by default
+  const handledReloadRedirectRef = useRef(false)
 
   useEffect(() => {
     if (!loading && !user) {
@@ -45,6 +46,34 @@ function DashboardShell({
       router.replace(landingPage)
     }
   }, [loading, navLoading, user, pathname, searchParams, landingPage, router])
+
+  useEffect(() => {
+    if (loading || navLoading || !user || pathname !== '/dashboard' || handledReloadRedirectRef.current) return
+    if (typeof window === 'undefined') return
+
+    const navigationEntry = performance.getEntriesByType('navigation')[0] as PerformanceNavigationTiming | undefined
+    const isReloadNavigation = navigationEntry?.type === 'reload'
+    if (!isReloadNavigation) return
+
+    const currentParams = new URLSearchParams(window.location.search)
+    const currentModule = currentParams.get('module')
+    const isMapSurface =
+      !currentModule ||
+      ['live-map', 'map', 'national-map', 'inspection-map'].includes(currentModule)
+    if (!isMapSurface) return
+
+    const canonicalParams = new URLSearchParams({ module: 'live-map', zoom: '10' })
+    const currentCanonical =
+      currentModule === 'live-map' &&
+      currentParams.get('zoom') === '10' &&
+      !currentParams.get('farmId') &&
+      !currentParams.get('pointId') &&
+      !currentParams.get('focus')
+    if (currentCanonical) return
+
+    handledReloadRedirectRef.current = true
+    router.replace(`/dashboard?${canonicalParams.toString()}`)
+  }, [loading, navLoading, user, pathname, router])
 
   if (loading) {
     return (
