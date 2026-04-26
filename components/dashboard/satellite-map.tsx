@@ -10,6 +10,7 @@ const DEFAULT_ZOOM = 10
 const DEFAULT_FARM_ZOOM = 17
 
 type MapPointType = 'farm' | 'facility' | 'sensor' | 'custom'
+type PolygonDrawMethod = 'vertex' | 'rectangle' | 'circle'
 
 interface MapMarker {
   id: string
@@ -112,6 +113,12 @@ const POINT_TYPE_LABELS: Record<MapPointType, string> = {
   sensor: 'Sensor',
 }
 
+const POLYGON_DRAW_METHOD_OPTIONS: Array<{ value: PolygonDrawMethod; label: string }> = [
+  { value: 'vertex', label: 'Point by point' },
+  { value: 'rectangle', label: 'Rectangle' },
+  { value: 'circle', label: 'Circle' },
+]
+
 function hashToRange(input: string, min: number, max: number) {
   let hash = 0
   for (let i = 0; i < input.length; i += 1) {
@@ -175,6 +182,44 @@ function formatHectares(value: number) {
   if (value >= 1) return value.toFixed(2)
   if (value >= 0.1) return value.toFixed(3)
   return value.toFixed(4)
+}
+
+function createRectangleVertices(start: PolygonVertex, end: PolygonVertex): PolygonVertex[] {
+  const minLat = Math.min(start.lat, end.lat)
+  const maxLat = Math.max(start.lat, end.lat)
+  const minLng = Math.min(start.lng, end.lng)
+  const maxLng = Math.max(start.lng, end.lng)
+  return [
+    { lat: minLat, lng: minLng },
+    { lat: minLat, lng: maxLng },
+    { lat: maxLat, lng: maxLng },
+    { lat: maxLat, lng: minLng },
+  ]
+}
+
+function createCircleVertices(
+  center: PolygonVertex,
+  edge: PolygonVertex,
+  segmentCount = 36
+): PolygonVertex[] {
+  const latScale = 111320
+  const lngScale = Math.cos((center.lat * Math.PI) / 180) * 111320
+  const deltaX = (edge.lng - center.lng) * lngScale
+  const deltaY = (edge.lat - center.lat) * latScale
+  const radiusMeters = Math.sqrt(deltaX * deltaX + deltaY * deltaY)
+  if (!Number.isFinite(radiusMeters) || radiusMeters <= 0) return []
+
+  const vertices: PolygonVertex[] = []
+  for (let i = 0; i < segmentCount; i += 1) {
+    const angle = (2 * Math.PI * i) / segmentCount
+    const x = radiusMeters * Math.cos(angle)
+    const y = radiusMeters * Math.sin(angle)
+    vertices.push({
+      lat: center.lat + y / latScale,
+      lng: center.lng + x / lngScale,
+    })
+  }
+  return vertices
 }
 
 function normalizePolygonVertices(input: unknown): PolygonVertex[] {
@@ -324,6 +369,9 @@ export function SatelliteMap({
   const [newPointType, setNewPointType] = useState<MapPointType>('custom')
   const [activePointId, setActivePointId] = useState<string | null>(null)
   const [polygonDrawPointId, setPolygonDrawPointId] = useState<string | null>(null)
+  const [polygonDrawMethod, setPolygonDrawMethod] = useState<PolygonDrawMethod>('vertex')
+  const [shapeSeedVertex, setShapeSeedVertex] = useState<PolygonVertex | null>(null)
+  const [circleSegments, setCircleSegments] = useState(16)
   const [draftPolygon, setDraftPolygon] = useState<PolygonVertex[]>([])
   const [draftPolygonName, setDraftPolygonName] = useState('')
   const [draftCropName, setDraftCropName] = useState('')
@@ -551,6 +599,7 @@ export function SatelliteMap({
     (pointId: string) => {
       setActivePointId(pointId)
       setPolygonDrawPointId(pointId)
+      setShapeSeedVertex(null)
       setDraftPolygon([])
       resetDraftMetadata()
       setIsAddPointMode(false)
@@ -560,6 +609,7 @@ export function SatelliteMap({
 
   const cancelPolygonDraw = useCallback(() => {
     setPolygonDrawPointId(null)
+    setShapeSeedVertex(null)
     setDraftPolygon([])
     resetDraftMetadata()
   }, [resetDraftMetadata])
@@ -605,12 +655,14 @@ export function SatelliteMap({
         [polygonDrawPointId]: [...(prev[polygonDrawPointId] || []), normalized],
       }))
       setPolygonDrawPointId(null)
+      setShapeSeedVertex(null)
       setDraftPolygon([])
       resetDraftMetadata()
     } catch {
       // Keep draft in place so user can retry save.
     }
   }, [
+    circleSegments,
     draftCropName,
     draftCropNotes,
     draftCropVariety,
@@ -620,6 +672,7 @@ export function SatelliteMap({
     draftSowingDate,
     pointPolygons,
     polygonDrawPointId,
+    polygonDrawMethod,
     resetDraftMetadata,
   ])
 
@@ -706,8 +759,16 @@ export function SatelliteMap({
   )
 
   const undoDraftVertex = useCallback(() => {
-    setDraftPolygon((prev) => prev.slice(0, -1))
-  }, [])
+    if (polygonDrawMethod === 'vertex') {
+      setDraftPolygon((prev) => prev.slice(0, -1))
+      return
+    }
+
+    if (shapeSeedVertex) {
+      setShapeSeedVertex(null)
+      setDraftPolygon([])
+    }
+  }, [polygonDrawMethod, shapeSeedVertex])
 
   const explicitTargetFarm = useMemo(
     () =>
@@ -827,9 +888,10 @@ export function SatelliteMap({
     if (!polygonDrawPointId) return
     if (customPoints.some((point) => point.id === polygonDrawPointId)) return
     setPolygonDrawPointId(null)
+    setShapeSeedVertex(null)
     setDraftPolygon([])
     resetDraftMetadata()
-  }, [customPoints, draftPolygon, polygonDrawPointId, resetDraftMetadata])
+  }, [customPoints, polygonDrawPointId, resetDraftMetadata])
 
   useEffect(() => {
     if (!mapReady || !mapInstanceRef.current || !leafletRef.current) return
@@ -1185,14 +1247,40 @@ export function SatelliteMap({
       const lat = Number(event?.latlng?.lat)
       const lng = Number(event?.latlng?.lng)
       if (!Number.isFinite(lat) || !Number.isFinite(lng)) return
-      setDraftPolygon((prev) => [...prev, { lat, lng }])
+
+      const vertex = { lat, lng } satisfies PolygonVertex
+      if (polygonDrawMethod === 'vertex') {
+        setDraftPolygon((prev) => [...prev, vertex])
+        return
+      }
+
+      if (!shapeSeedVertex) {
+        setShapeSeedVertex(vertex)
+        return
+      }
+
+      if (polygonDrawMethod === 'rectangle') {
+        setDraftPolygon(createRectangleVertices(shapeSeedVertex, vertex))
+        setShapeSeedVertex(null)
+        return
+      }
+
+      setDraftPolygon(createCircleVertices(shapeSeedVertex, vertex, circleSegments))
+      setShapeSeedVertex(null)
     }
 
     map.on('click', handleMapClick)
     return () => {
       map.off('click', handleMapClick)
     }
-  }, [isGrowaAdmin, mapReady, polygonDrawPointId])
+  }, [
+    circleSegments,
+    isGrowaAdmin,
+    mapReady,
+    polygonDrawMethod,
+    polygonDrawPointId,
+    shapeSeedVertex,
+  ])
 
   useEffect(() => {
     if (!mapReady || !mapInstanceRef.current) return
@@ -1308,7 +1396,16 @@ export function SatelliteMap({
         )}
         {isGrowaAdmin && polygonDrawPointId && (
           <div className="mt-1 text-[11px] text-[#93c5fd]">
-            Polygon mode: click map to add vertices for selected point.
+            Polygon mode:{' '}
+            {polygonDrawMethod === 'vertex'
+              ? 'click map to add vertices.'
+              : polygonDrawMethod === 'rectangle'
+                ? shapeSeedVertex
+                  ? 'click opposite corner to finish rectangle.'
+                  : 'click first corner of rectangle.'
+                : shapeSeedVertex
+                  ? 'click edge point to finish circle.'
+                  : 'click circle center point.'}
           </div>
         )}
       </div>
@@ -1319,6 +1416,47 @@ export function SatelliteMap({
           <p className="mt-1 text-[11px] text-white/60">
             Vertices: <span className="text-[#93c5fd]">{draftPolygon.length}</span>
           </p>
+          <div className="mt-2 grid grid-cols-3 gap-2">
+            {POLYGON_DRAW_METHOD_OPTIONS.map((option) => (
+              <button
+                key={option.value}
+                onClick={() => {
+                  setPolygonDrawMethod(option.value)
+                  setShapeSeedVertex(null)
+                  setDraftPolygon([])
+                }}
+                className={`h-7 rounded border text-[11px] ${
+                  polygonDrawMethod === option.value
+                    ? 'border-[#07f880]/45 bg-[#07f880]/12 text-[#07f880]'
+                    : 'border-white/15 bg-white/5 text-white/70'
+                }`}
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
+          <p className="mt-1 text-[11px] text-white/45">
+            {polygonDrawMethod === 'vertex'
+              ? 'Click to add each vertex.'
+              : polygonDrawMethod === 'rectangle'
+                ? 'Click first corner, then opposite corner.'
+                : 'Click center, then edge point.'}
+          </p>
+          {polygonDrawMethod === 'circle' && (
+            <div className="mt-2 flex items-center gap-2">
+              <span className="text-[11px] text-white/55">Circle detail</span>
+              <input
+                type="range"
+                min={8}
+                max={72}
+                step={4}
+                value={circleSegments}
+                onChange={(event) => setCircleSegments(Number(event.target.value))}
+                className="flex-1 accent-[#07f880]"
+              />
+              <span className="w-10 text-right text-[11px] text-[#07f880]">{circleSegments}</span>
+            </div>
+          )}
 
           <div className="mt-3 space-y-2">
             <input
@@ -1365,7 +1503,7 @@ export function SatelliteMap({
           <div className="mt-3 flex gap-2">
             <button
               onClick={undoDraftVertex}
-              disabled={draftPolygon.length === 0}
+              disabled={polygonDrawMethod !== 'vertex' ? !shapeSeedVertex && draftPolygon.length === 0 : draftPolygon.length === 0}
               className="h-8 flex-1 rounded border border-white/15 bg-white/5 text-[11px] text-white/80 disabled:cursor-not-allowed disabled:opacity-40"
             >
               Undo
