@@ -287,7 +287,6 @@ export function SatelliteMap({ locale = 'en', targetFarmId = null, targetZoom }:
   const [newPointType, setNewPointType] = useState<MapPointType>('custom')
   const [activePointId, setActivePointId] = useState<string | null>(null)
   const [polygonDrawPointId, setPolygonDrawPointId] = useState<string | null>(null)
-  const [polygonEditPointId, setPolygonEditPointId] = useState<string | null>(null)
   const [draftPolygon, setDraftPolygon] = useState<PolygonVertex[]>([])
   const [draftPolygonName, setDraftPolygonName] = useState('')
   const [draftCropName, setDraftCropName] = useState('')
@@ -515,7 +514,6 @@ export function SatelliteMap({ locale = 'en', targetFarmId = null, targetZoom }:
     (pointId: string) => {
       setActivePointId(pointId)
       setPolygonDrawPointId(pointId)
-      setPolygonEditPointId(null)
       setDraftPolygon([])
       resetDraftMetadata()
       setIsAddPointMode(false)
@@ -528,17 +526,6 @@ export function SatelliteMap({ locale = 'en', targetFarmId = null, targetZoom }:
     setDraftPolygon([])
     resetDraftMetadata()
   }, [resetDraftMetadata])
-
-  const startPolygonEditMode = useCallback((pointId: string) => {
-    setActivePointId(pointId)
-    setPolygonEditPointId(pointId)
-    setPolygonDrawPointId(null)
-    setIsAddPointMode(false)
-  }, [])
-
-  const stopPolygonEditMode = useCallback(() => {
-    setPolygonEditPointId(null)
-  }, [])
 
   const saveDraftPolygon = useCallback(async () => {
     if (!polygonDrawPointId || draftPolygon.length < 3) return
@@ -646,6 +633,39 @@ export function SatelliteMap({ locale = 'en', targetFarmId = null, targetZoom }:
       }
     },
     []
+  )
+
+  const handleDeletePolygon = useCallback(
+    async (polygon: PointPolygon) => {
+      const confirmed = window.confirm(
+        locale === 'ar' ? `هل تريد حذف المضلع "${polygon.name}"؟` : `Delete polygon "${polygon.name}"?`
+      )
+      if (!confirmed) return
+
+      try {
+        const response = await fetch(
+          `/api/operations/custom-point-polygons?polygonId=${encodeURIComponent(polygon.id)}`,
+          { method: 'DELETE' }
+        )
+        if (!response.ok) return
+
+        setPointPolygons((prev) => {
+          const pointId = polygon.customPointId
+          const current = prev[pointId] || []
+          const updated = current.filter((entry) => entry.id !== polygon.id)
+          if (updated.length === current.length) return prev
+          if (updated.length === 0) {
+            const next = { ...prev }
+            delete next[pointId]
+            return next
+          }
+          return { ...prev, [pointId]: updated }
+        })
+      } catch {
+        // Ignore network errors to keep map interactions responsive.
+      }
+    },
+    [locale]
   )
 
   const undoDraftVertex = useCallback(() => {
@@ -845,22 +865,6 @@ export function SatelliteMap({ locale = 'en', targetFarmId = null, targetZoom }:
                 Draw Polygon
               </button>
               <button
-                data-edit-polygon-point-id="${customPoint.id}"
-                style="
-                  margin-top: 8px;
-                  margin-right: 6px;
-                  border: 1px solid rgba(147,197,253,0.45);
-                  background: rgba(147,197,253,0.14);
-                  color: #bfdbfe;
-                  border-radius: 6px;
-                  padding: 4px 8px;
-                  font-size: 11px;
-                  cursor: pointer;
-                "
-              >
-                Edit Polygon
-              </button>
-              <button
                 data-delete-point-id="${customPoint.id}"
                 style="
                   margin-top: 8px;
@@ -901,9 +905,6 @@ export function SatelliteMap({ locale = 'en', targetFarmId = null, targetZoom }:
           const drawButton = popupElement?.querySelector(
             `[data-draw-polygon-point-id="${customPoint.id}"]`
           ) as HTMLButtonElement | null
-          const editPolygonButton = popupElement?.querySelector(
-            `[data-edit-polygon-point-id="${customPoint.id}"]`
-          ) as HTMLButtonElement | null
           const deleteButton = popupElement?.querySelector(
             `[data-delete-point-id="${customPoint.id}"]`
           ) as HTMLButtonElement | null
@@ -920,15 +921,6 @@ export function SatelliteMap({ locale = 'en', targetFarmId = null, targetZoom }:
               clickEvent.preventDefault()
               clickEvent.stopPropagation()
               startPolygonDraw(customPoint.id)
-            }
-          }
-          if (editPolygonButton) {
-            editPolygonButton.onclick = (clickEvent) => {
-              clickEvent.preventDefault()
-              clickEvent.stopPropagation()
-              const linkedPolygons = pointPolygons[customPoint.id] || []
-              if (linkedPolygons.length === 0) return
-              startPolygonEditMode(customPoint.id)
             }
           }
           if (deleteButton) {
@@ -955,11 +947,9 @@ export function SatelliteMap({ locale = 'en', targetFarmId = null, targetZoom }:
     customPoints,
     handleDeletePoint,
     handleEditPoint,
-    handleEditPolygonData,
     mapMarkers,
     mapReady,
     pointPolygons,
-    startPolygonEditMode,
     startPolygonDraw,
   ])
 
@@ -990,6 +980,66 @@ export function SatelliteMap({ locale = 'en', targetFarmId = null, targetZoom }:
             : '',
           crop.notes ? `<br/><span style="font-size:11px;color:#999;">${escapeHtml(crop.notes)}</span>` : '',
         ].join('')
+        const popupActions = `
+          <div style="margin-top:10px; display:flex; gap:6px;">
+            <button
+              data-edit-polygon-id="${polygon.id}"
+              style="
+                border: 1px solid rgba(147,197,253,0.45);
+                background: rgba(147,197,253,0.14);
+                color: #bfdbfe;
+                border-radius: 6px;
+                padding: 4px 8px;
+                font-size: 11px;
+                cursor: pointer;
+              "
+            >
+              Edit Polygon
+            </button>
+            <button
+              data-delete-polygon-id="${polygon.id}"
+              style="
+                border: 1px solid rgba(239,68,68,0.45);
+                background: rgba(239,68,68,0.14);
+                color: #fca5a5;
+                border-radius: 6px;
+                padding: 4px 8px;
+                font-size: 11px;
+                cursor: pointer;
+              "
+            >
+              Delete Polygon
+            </button>
+          </div>
+        `
+
+        const popupContainer = document.createElement('div')
+        popupContainer.style.fontFamily = 'system-ui'
+        popupContainer.style.padding = '8px'
+        popupContainer.style.minWidth = '180px'
+        popupContainer.innerHTML = `${popupLines}${popupActions}`
+
+        const editButton = popupContainer.querySelector(
+          `[data-edit-polygon-id="${polygon.id}"]`
+        ) as HTMLButtonElement | null
+        const deleteButton = popupContainer.querySelector(
+          `[data-delete-polygon-id="${polygon.id}"]`
+        ) as HTMLButtonElement | null
+
+        if (editButton) {
+          editButton.onclick = (clickEvent) => {
+            clickEvent.preventDefault()
+            clickEvent.stopPropagation()
+            handleEditPolygonData(polygon)
+          }
+        }
+        if (deleteButton) {
+          deleteButton.onclick = (clickEvent) => {
+            clickEvent.preventDefault()
+            clickEvent.stopPropagation()
+            handleDeletePolygon(polygon)
+          }
+        }
 
         const layer = L.polygon(
           polygon.vertices.map((vertex) => [vertex.lat, vertex.lng]),
@@ -1004,9 +1054,7 @@ export function SatelliteMap({ locale = 'en', targetFarmId = null, targetZoom }:
           }
         )
           .addTo(map)
-          .bindPopup(`<div style="font-family:system-ui; padding:8px; min-width:180px;">${popupLines}</div>`, {
-            className: 'custom-popup',
-          })
+          .bindPopup(popupContainer, { className: 'custom-popup' })
         layer.on('click', (event: any) => {
           event?.originalEvent?.preventDefault?.()
           event?.originalEvent?.stopPropagation?.()
@@ -1040,7 +1088,15 @@ export function SatelliteMap({ locale = 'en', targetFarmId = null, targetZoom }:
         }).addTo(map)
       )
     }
-  }, [activePointId, draftPolygon, mapReady, pointPolygons, polygonDrawPointId])
+  }, [
+    activePointId,
+    draftPolygon,
+    handleDeletePolygon,
+    handleEditPolygonData,
+    mapReady,
+    pointPolygons,
+    polygonDrawPointId,
+  ])
 
   useEffect(() => {
     if (!isGrowaAdmin || !isAddPointMode || polygonDrawPointId) return
