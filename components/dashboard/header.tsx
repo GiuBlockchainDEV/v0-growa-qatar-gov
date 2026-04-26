@@ -251,7 +251,11 @@ export function DashboardHeader({ onMenuToggle, menuOpen }: DashboardHeaderProps
   }, [])
 
   const handleSelectFarm = (farm: FarmSearchOption) => {
-    const params = new URLSearchParams({ module: 'live-map', zoom: '17' })
+    const params = new URLSearchParams({
+      module: 'live-map',
+      zoom: '17',
+      focus: Date.now().toString(),
+    })
     if (farm.source === 'point') {
       params.set('pointId', farm.id)
     } else {

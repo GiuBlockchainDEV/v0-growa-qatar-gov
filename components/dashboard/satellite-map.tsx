@@ -31,6 +31,7 @@ interface SatelliteMapProps {
   locale?: string
   targetFarmId?: string | null
   targetPointId?: string | null
+  targetFocusToken?: string | null
   targetZoom?: number
 }
 
@@ -269,6 +270,7 @@ export function SatelliteMap({
   locale = 'en',
   targetFarmId = null,
   targetPointId = null,
+  targetFocusToken = null,
   targetZoom,
 }: SatelliteMapProps) {
   const { user } = useAuth()
@@ -1178,14 +1180,14 @@ export function SatelliteMap({
   }, [activePointId, isAddPointMode, mapReady, polygonDrawPointId])
 
   useEffect(() => {
-    if (!mapInstanceRef.current || !resolvedTargetFarm || targetPointId) return
+    if (!mapReady || !mapInstanceRef.current || !resolvedTargetFarm || targetPointId) return
     mapInstanceRef.current.flyTo([resolvedTargetFarm.lat, resolvedTargetFarm.lng], resolvedTargetZoom, {
       duration: 1.2,
     })
-  }, [resolvedTargetFarm, resolvedTargetZoom, targetPointId])
+  }, [mapReady, resolvedTargetFarm, resolvedTargetZoom, targetPointId, targetFocusToken])
 
   useEffect(() => {
-    if (!mapInstanceRef.current || !explicitTargetPoint) return
+    if (!mapReady || !mapInstanceRef.current || !explicitTargetPoint) return
     const pointZoom =
       Number.isFinite(targetZoom) && (targetZoom as number) >= 3 && (targetZoom as number) <= 19
         ? (targetZoom as number)
@@ -1194,7 +1196,7 @@ export function SatelliteMap({
       duration: 1.2,
     })
     setActivePointId(explicitTargetPoint.id)
-  }, [explicitTargetPoint, targetZoom])
+  }, [mapReady, explicitTargetPoint, targetZoom, targetFocusToken])
 
   return (
     <div className="absolute inset-0 pt-16">

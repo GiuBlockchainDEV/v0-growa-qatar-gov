@@ -12,6 +12,7 @@ export default function DashboardPage() {
   const module = searchParams.get('module')
   const targetFarmId = searchParams.get('farmId')
   const targetPointId = searchParams.get('pointId')
+  const targetFocusToken = searchParams.get('focus')
   const zoomParam = searchParams.get('zoom')
   const requestedZoom = zoomParam ? Number(zoomParam) : Number.NaN
   const targetZoom =
@@ -27,6 +28,7 @@ export default function DashboardPage() {
         locale={locale}
         targetFarmId={targetFarmId}
         targetPointId={targetPointId}
+        targetFocusToken={targetFocusToken}
         targetZoom={targetZoom}
       />
     )
