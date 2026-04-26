@@ -7,6 +7,7 @@ import { UserMenu } from './user-menu'
 import { LanguageToggle } from '@/components/language-toggle'
 import { Bell, Search, Command, Activity, PanelLeft, Globe, MapPin } from 'lucide-react'
 import { useRoleNavigation } from '@/hooks/use-role-navigation'
+import { useAuth } from '@/hooks/use-auth'
 
 interface DashboardHeaderProps {
   onMenuToggle: () => void
@@ -17,12 +18,14 @@ type FarmSearchOption = {
   id: string
   name: string
   location: string
+  source: 'farm' | 'point'
 }
 
 export function DashboardHeader({ onMenuToggle, menuOpen }: DashboardHeaderProps) {
   const { locale } = useI18n()
   const router = useRouter()
   const pathname = usePathname()
+  const { user } = useAuth()
   const { effectiveRole, roleProfile, isLoading: roleLoading } = useRoleNavigation()
   const [searchQuery, setSearchQuery] = useState('')
   const [farmOptions, setFarmOptions] = useState<FarmSearchOption[]>([])
@@ -49,9 +52,30 @@ export function DashboardHeader({ onMenuToggle, menuOpen }: DashboardHeaderProps
             nameAr ||
             `Farm ${id.slice(0, 8)}`,
           location,
+          source: 'farm',
         }
       })
       .filter((farm): farm is FarmSearchOption => Boolean(farm))
+
+  const mapPointRows = (rows: unknown): FarmSearchOption[] =>
+    (Array.isArray(rows) ? rows : [])
+      .map((entry: Record<string, unknown>) => {
+        if (!entry || typeof entry !== 'object') return null
+        const row = entry as Record<string, unknown>
+        const id = typeof row.id === 'string' ? row.id : ''
+        const lat = typeof row.lat === 'number' ? row.lat : Number.NaN
+        const lng = typeof row.lng === 'number' ? row.lng : Number.NaN
+        if (!id || !Number.isFinite(lat) || !Number.isFinite(lng)) return null
+        const label = typeof row.label === 'string' ? row.label.trim() : ''
+        const pointType = typeof row.pointType === 'string' ? row.pointType : 'custom'
+        return {
+          id,
+          name: label || `Point ${id.slice(0, 8)}`,
+          location: `Custom point (${pointType})`,
+          source: 'point',
+        } satisfies FarmSearchOption
+      })
+      .filter((point): point is FarmSearchOption => Boolean(point))
 
   const activeRoleLabel = (() => {
     const roleKey = roleProfile || effectiveRole
@@ -98,9 +122,29 @@ export function DashboardHeader({ onMenuToggle, menuOpen }: DashboardHeaderProps
         mappedCount: mapped.length,
         mapped,
       })
+      let pointMapped: FarmSearchOption[] = []
+      try {
+        const rawPoints = window.localStorage.getItem(`growa-custom-map-points:${user?.id || 'anonymous'}`)
+        pointMapped = mapPointRows(rawPoints ? JSON.parse(rawPoints) : [])
+      } catch {
+        pointMapped = []
+      }
+
+      if (normalizedQuery) {
+        const q = normalizedQuery.toLowerCase()
+        pointMapped = pointMapped.filter((point) => {
+          return (
+            point.name.toLowerCase().includes(q) ||
+            point.location.toLowerCase().includes(q) ||
+            point.id.toLowerCase().includes(q)
+          )
+        })
+      }
+
+      const merged = [...mapped, ...pointMapped]
       if (!normalizedQuery) {
-        setCachedFarmOptions(mapped)
-        setFarmOptions(mapped)
+        setCachedFarmOptions(merged)
+        setFarmOptions(merged)
         return
       }
 
@@ -114,7 +158,7 @@ export function DashboardHeader({ onMenuToggle, menuOpen }: DashboardHeaderProps
         })
         const fullListPayload = await fullListResponse.json().catch(() => null)
         if (fullListResponse.ok) {
-          effectiveCache = mapFarmRows(fullListPayload)
+          effectiveCache = [...mapFarmRows(fullListPayload), ...pointMapped]
           setCachedFarmOptions(effectiveCache)
           console.log('[farm-search-debug] populated fallback cache from full list', {
             fullCount: effectiveCache.length,
@@ -122,7 +166,7 @@ export function DashboardHeader({ onMenuToggle, menuOpen }: DashboardHeaderProps
         }
       }
 
-      if (mapped.length === 0 && effectiveCache.length > 0) {
+      if (merged.length === 0 && effectiveCache.length > 0) {
         const q = normalizedQuery.toLowerCase()
         const fallback = effectiveCache.filter((farm) => {
           return (
@@ -138,7 +182,7 @@ export function DashboardHeader({ onMenuToggle, menuOpen }: DashboardHeaderProps
         })
         setFarmOptions(fallback)
       } else {
-        setFarmOptions(mapped)
+        setFarmOptions(merged)
       }
     } catch (error) {
       if (signal.aborted) return
@@ -153,7 +197,7 @@ export function DashboardHeader({ onMenuToggle, menuOpen }: DashboardHeaderProps
     const controller = new AbortController()
     loadFarms(controller.signal, '')
     return () => controller.abort()
-  }, [locale])
+  }, [locale, user?.id])
 
   useEffect(() => {
     const controller = new AbortController()
@@ -182,11 +226,12 @@ export function DashboardHeader({ onMenuToggle, menuOpen }: DashboardHeaderProps
   }, [])
 
   const handleSelectFarm = (farm: FarmSearchOption) => {
-    const params = new URLSearchParams({
-      module: 'live-map',
-      farmId: farm.id,
-      zoom: '17',
-    })
+    const params = new URLSearchParams({ module: 'live-map', zoom: '17' })
+    if (farm.source === 'point') {
+      params.set('pointId', farm.id)
+    } else {
+      params.set('farmId', farm.id)
+    }
     setSearchQuery(farm.name)
     setIsSearchOpen(false)
     router.push(`/dashboard?${params.toString()}`)

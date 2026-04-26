@@ -30,6 +30,7 @@ interface FarmApiRow {
 interface SatelliteMapProps {
   locale?: string
   targetFarmId?: string | null
+  targetPointId?: string | null
   targetZoom?: number
 }
 
@@ -264,7 +265,12 @@ function isLeafletUiClick(event: any) {
   )
 }
 
-export function SatelliteMap({ locale = 'en', targetFarmId = null, targetZoom }: SatelliteMapProps) {
+export function SatelliteMap({
+  locale = 'en',
+  targetFarmId = null,
+  targetPointId = null,
+  targetZoom,
+}: SatelliteMapProps) {
   const { user } = useAuth()
   const { organization } = useOrganization()
 
@@ -688,7 +694,13 @@ export function SatelliteMap({ locale = 'en', targetFarmId = null, targetZoom }:
     return dynamicFarmMarkers[0] || null
   }, [dynamicFarmMarkers, explicitTargetFarm, isFarmCompanyContext])
 
-  const resolvedTargetZoom = resolvedTargetFarm ? targetZoom ?? DEFAULT_FARM_ZOOM : DEFAULT_ZOOM
+  const explicitTargetPoint = useMemo(() => {
+    if (!targetPointId) return null
+    return customPoints.find((point) => point.id === targetPointId) || null
+  }, [customPoints, targetPointId])
+
+  const resolvedTargetZoom =
+    resolvedTargetFarm || explicitTargetPoint ? targetZoom ?? DEFAULT_FARM_ZOOM : DEFAULT_ZOOM
 
   const handleZoomIn = useCallback(() => {
     mapInstanceRef.current?.zoomIn()
@@ -700,11 +712,11 @@ export function SatelliteMap({ locale = 'en', targetFarmId = null, targetZoom }:
 
   const handleRecenter = useCallback(() => {
     if (!mapInstanceRef.current) return
-    const recenterLat = resolvedTargetFarm?.lat ?? QATAR_CENTER.lat
-    const recenterLng = resolvedTargetFarm?.lng ?? QATAR_CENTER.lng
-    const recenterZoom = resolvedTargetFarm ? resolvedTargetZoom : DEFAULT_ZOOM
+    const recenterLat = explicitTargetPoint?.lat ?? resolvedTargetFarm?.lat ?? QATAR_CENTER.lat
+    const recenterLng = explicitTargetPoint?.lng ?? resolvedTargetFarm?.lng ?? QATAR_CENTER.lng
+    const recenterZoom = explicitTargetPoint || resolvedTargetFarm ? resolvedTargetZoom : DEFAULT_ZOOM
     mapInstanceRef.current.flyTo([recenterLat, recenterLng], recenterZoom, { duration: 1.5 })
-  }, [resolvedTargetFarm, resolvedTargetZoom])
+  }, [explicitTargetPoint, resolvedTargetFarm, resolvedTargetZoom])
 
   useEffect(() => {
     let cancelled = false
@@ -1169,6 +1181,18 @@ export function SatelliteMap({ locale = 'en', targetFarmId = null, targetZoom }:
       duration: 1.2,
     })
   }, [resolvedTargetFarm, resolvedTargetZoom])
+
+  useEffect(() => {
+    if (!mapInstanceRef.current || !explicitTargetPoint) return
+    const pointZoom =
+      Number.isFinite(targetZoom) && (targetZoom as number) >= 3 && (targetZoom as number) <= 19
+        ? (targetZoom as number)
+        : DEFAULT_FARM_ZOOM
+    mapInstanceRef.current.flyTo([explicitTargetPoint.lat, explicitTargetPoint.lng], pointZoom, {
+      duration: 1.2,
+    })
+    setActivePointId(explicitTargetPoint.id)
+  }, [explicitTargetPoint, targetZoom])
 
   return (
     <div className="absolute inset-0 pt-16">

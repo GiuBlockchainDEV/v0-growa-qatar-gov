@@ -11,6 +11,7 @@ export default function DashboardPage() {
   const searchParams = useSearchParams()
   const module = searchParams.get('module')
   const targetFarmId = searchParams.get('farmId')
+  const targetPointId = searchParams.get('pointId')
   const zoomParam = searchParams.get('zoom')
   const requestedZoom = zoomParam ? Number(zoomParam) : Number.NaN
   const targetZoom =
@@ -21,7 +22,14 @@ export default function DashboardPage() {
   const mapModules = new Set(['live-map', 'map', 'national-map', 'inspection-map'])
 
   if (!module || mapModules.has(module)) {
-    return <SatelliteMap locale={locale} targetFarmId={targetFarmId} targetZoom={targetZoom} />
+    return (
+      <SatelliteMap
+        locale={locale}
+        targetFarmId={targetFarmId}
+        targetPointId={targetPointId}
+        targetZoom={targetZoom}
+      />
+    )
   }
 
   if (module === 'rss-feed') {
