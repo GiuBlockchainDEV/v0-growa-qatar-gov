@@ -57,7 +57,10 @@ export function DashboardHeader({ onMenuToggle, menuOpen }: DashboardHeaderProps
       })
       .filter((farm): farm is FarmSearchOption => Boolean(farm))
 
-  const mapPointRows = (rows: unknown): FarmSearchOption[] =>
+  const mapPointRows = (
+    rows: unknown,
+    polygonCountByPointId: Record<string, number> = {}
+  ): FarmSearchOption[] =>
     (Array.isArray(rows) ? rows : [])
       .map((entry: Record<string, unknown>) => {
         if (!entry || typeof entry !== 'object') return null
@@ -67,11 +70,12 @@ export function DashboardHeader({ onMenuToggle, menuOpen }: DashboardHeaderProps
         const lng = typeof row.lng === 'number' ? row.lng : Number.NaN
         if (!id || !Number.isFinite(lat) || !Number.isFinite(lng)) return null
         const label = typeof row.label === 'string' ? row.label.trim() : ''
-        const pointType = typeof row.pointType === 'string' ? row.pointType : 'custom'
+        const polygonCount = polygonCountByPointId[id] || 0
+        const polygonLabel = `${polygonCount} polygon${polygonCount === 1 ? '' : 's'}`
         return {
           id,
           name: label || `Point ${id.slice(0, 8)}`,
-          location: `Custom point (${pointType})`,
+          location: polygonLabel,
           source: 'point',
         } satisfies FarmSearchOption
       })
@@ -123,9 +127,30 @@ export function DashboardHeader({ onMenuToggle, menuOpen }: DashboardHeaderProps
         mapped,
       })
       let pointMapped: FarmSearchOption[] = []
+      let polygonCountByPointId: Record<string, number> = {}
+      try {
+        const polygonResponse = await fetch('/api/operations/custom-point-polygons', {
+          cache: 'no-store',
+          signal,
+        })
+        const polygonPayload = await polygonResponse.json().catch(() => null)
+        if (polygonResponse.ok && Array.isArray(polygonPayload)) {
+          polygonCountByPointId = polygonPayload.reduce<Record<string, number>>((acc, row) => {
+            const pointId =
+              (typeof row?.pointId === 'string' && row.pointId) ||
+              (typeof row?.custom_point_id === 'string' && row.custom_point_id) ||
+              ''
+            if (!pointId) return acc
+            acc[pointId] = (acc[pointId] || 0) + 1
+            return acc
+          }, {})
+        }
+      } catch {
+        polygonCountByPointId = {}
+      }
       try {
         const rawPoints = window.localStorage.getItem(`growa-custom-map-points:${user?.id || 'anonymous'}`)
-        pointMapped = mapPointRows(rawPoints ? JSON.parse(rawPoints) : [])
+        pointMapped = mapPointRows(rawPoints ? JSON.parse(rawPoints) : [], polygonCountByPointId)
       } catch {
         pointMapped = []
       }
