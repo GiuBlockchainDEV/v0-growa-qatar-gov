@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
+import { createClient as createSupabaseAdminClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
 
 export async function GET(request: Request) {
@@ -27,9 +28,26 @@ export async function GET(request: Request) {
     })
   }
 
+  const supabaseUrl =
+    process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL || 'https://qczaynvalytoqesfwdue.supabase.co'
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+  const searchClient = serviceRoleKey
+    ? createSupabaseAdminClient(supabaseUrl, serviceRoleKey, {
+        auth: {
+          autoRefreshToken: false,
+          persistSession: false,
+        },
+      })
+    : supabase
+
+  if (debugSearch) {
+    console.info('[farms-api] using search client', {
+      mode: serviceRoleKey ? 'service-role' : 'session',
+    })
+  }
+
   const escapedSearch = searchQuery.replace(/[%_]/g, '\\$&')
   const selectAttempts = [
-    '*',
     'id, name, name_en, name_ar, location',
     'id, name_en, name_ar, location',
     'id, name, location',
@@ -53,7 +71,7 @@ export async function GET(request: Request) {
   for (const select of selectAttempts) {
     for (const filter of filterAttempts) {
       for (const orderConfig of orderAttempts) {
-        let query = supabase.from('farms').select(select)
+        let query = searchClient.from('farms').select(select)
         if (filter) {
           query = query.or(filter)
         }

@@ -31,6 +31,28 @@ export function DashboardHeader({ onMenuToggle, menuOpen }: DashboardHeaderProps
   const [isLoadingFarms, setIsLoadingFarms] = useState(false)
   const searchContainerRef = useRef<HTMLDivElement | null>(null)
 
+  const mapFarmRows = (rows: unknown): FarmSearchOption[] =>
+    (Array.isArray(rows) ? rows : [])
+      .map((farm: Record<string, unknown>) => {
+        const id = typeof farm.id === 'string' ? farm.id : ''
+        if (!id) return null
+        const legacyName = typeof farm.name === 'string' ? farm.name : ''
+        const nameEn = typeof farm.name_en === 'string' ? farm.name_en : ''
+        const nameAr = typeof farm.name_ar === 'string' ? farm.name_ar : ''
+        const location = typeof farm.location === 'string' ? farm.location : 'Unknown location'
+        return {
+          id,
+          name:
+            (locale === 'ar' && nameAr) ||
+            nameEn ||
+            legacyName ||
+            nameAr ||
+            `Farm ${id.slice(0, 8)}`,
+          location,
+        }
+      })
+      .filter((farm): farm is FarmSearchOption => Boolean(farm))
+
   const activeRoleLabel = (() => {
     const roleKey = roleProfile || effectiveRole
     if (!roleKey) return locale === 'ar' ? 'دور غير محدد' : 'Role Unresolved'
@@ -70,26 +92,7 @@ export function DashboardHeader({ onMenuToggle, menuOpen }: DashboardHeaderProps
         throw new Error((payload as { error?: string } | null)?.error || 'Failed to load farms')
       }
 
-      const mapped = (Array.isArray(payload) ? payload : [])
-        .map((farm: Record<string, unknown>) => {
-          const id = typeof farm.id === 'string' ? farm.id : ''
-          if (!id) return null
-          const legacyName = typeof farm.name === 'string' ? farm.name : ''
-          const nameEn = typeof farm.name_en === 'string' ? farm.name_en : ''
-          const nameAr = typeof farm.name_ar === 'string' ? farm.name_ar : ''
-          const location = typeof farm.location === 'string' ? farm.location : 'Unknown location'
-          return {
-            id,
-            name:
-              (locale === 'ar' && nameAr) ||
-              nameEn ||
-              legacyName ||
-              nameAr ||
-              `Farm ${id.slice(0, 8)}`,
-            location,
-          }
-        })
-        .filter((farm): farm is FarmSearchOption => Boolean(farm))
+      const mapped = mapFarmRows(payload)
       console.log('[farm-search-debug] mapped farm options', {
         query: normalizedQuery,
         mappedCount: mapped.length,
@@ -103,9 +106,25 @@ export function DashboardHeader({ onMenuToggle, menuOpen }: DashboardHeaderProps
 
       // If query endpoint returns no rows in mixed-schema deployments, keep a local fallback
       // from the cached full list so users still get autocomplete while typing.
-      if (mapped.length === 0 && cachedFarmOptions.length > 0) {
+      let effectiveCache = cachedFarmOptions
+      if (mapped.length === 0 && effectiveCache.length === 0) {
+        const fullListResponse = await fetch('/api/operations/farms?debugSearch=1', {
+          cache: 'no-store',
+          signal,
+        })
+        const fullListPayload = await fullListResponse.json().catch(() => null)
+        if (fullListResponse.ok) {
+          effectiveCache = mapFarmRows(fullListPayload)
+          setCachedFarmOptions(effectiveCache)
+          console.log('[farm-search-debug] populated fallback cache from full list', {
+            fullCount: effectiveCache.length,
+          })
+        }
+      }
+
+      if (mapped.length === 0 && effectiveCache.length > 0) {
         const q = normalizedQuery.toLowerCase()
-        const fallback = cachedFarmOptions.filter((farm) => {
+        const fallback = effectiveCache.filter((farm) => {
           return (
             farm.name.toLowerCase().includes(q) ||
             farm.location.toLowerCase().includes(q) ||
