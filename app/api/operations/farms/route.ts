@@ -27,51 +27,68 @@ export async function GET(request: Request) {
     })
   }
 
-  const selectAttempts = ['*', 'id, name_en, name_ar, location', 'id, name_en, location']
+  const escapedSearch = searchQuery.replace(/[%_]/g, '\\$&')
+  const selectAttempts = [
+    '*',
+    'id, name, name_en, name_ar, location',
+    'id, name_en, name_ar, location',
+    'id, name, location',
+    'id, name_en, location',
+  ]
   const orderAttempts: Array<{ column: string; ascending: boolean } | null> = [
     { column: 'created_at', ascending: false },
     { column: 'updated_at', ascending: false },
     null,
   ]
+  const filterAttempts = searchQuery
+    ? [
+        `name_en.ilike.%${escapedSearch}%,name_ar.ilike.%${escapedSearch}%,location.ilike.%${escapedSearch}%`,
+        `name.ilike.%${escapedSearch}%,location.ilike.%${escapedSearch}%`,
+        `name_en.ilike.%${escapedSearch}%,location.ilike.%${escapedSearch}%`,
+        `name.ilike.%${escapedSearch}%`,
+        `location.ilike.%${escapedSearch}%`,
+      ]
+    : [null]
 
   for (const select of selectAttempts) {
-    for (const orderConfig of orderAttempts) {
-      let query = supabase.from('farms').select(select)
-      if (searchQuery) {
-        const escaped = searchQuery.replace(/[%_]/g, '\\$&')
-        query = query.or(
-          `name_en.ilike.%${escaped}%,name_ar.ilike.%${escaped}%,location.ilike.%${escaped}%`
-        )
-      }
-      if (orderConfig) {
-        query = query.order(orderConfig.column, { ascending: orderConfig.ascending })
-      }
+    for (const filter of filterAttempts) {
+      for (const orderConfig of orderAttempts) {
+        let query = supabase.from('farms').select(select)
+        if (filter) {
+          query = query.or(filter)
+        }
+        if (orderConfig) {
+          query = query.order(orderConfig.column, { ascending: orderConfig.ascending })
+        }
 
-      const { data, error } = await query
-      if (!error) {
+        const { data, error } = await query
+        if (!error) {
+          if (debugSearch) {
+            console.info('[farms-api] query success', {
+              select,
+              filter,
+              orderBy: orderConfig?.column || null,
+              resultCount: Array.isArray(data) ? data.length : 0,
+            })
+          }
+          return NextResponse.json(data || [])
+        }
+
+        const message = error.message.toLowerCase()
+        const retryable =
+          message.includes('column') || message.includes('does not exist') || message.includes('schema cache')
         if (debugSearch) {
-          console.info('[farms-api] query success', {
+          console.warn('[farms-api] query failed', {
             select,
+            filter,
             orderBy: orderConfig?.column || null,
-            resultCount: Array.isArray(data) ? data.length : 0,
+            error: error.message,
+            retryable,
           })
         }
-        return NextResponse.json(data || [])
-      }
-
-      const message = error.message.toLowerCase()
-      const retryable =
-        message.includes('column') || message.includes('does not exist') || message.includes('schema cache')
-      if (debugSearch) {
-        console.warn('[farms-api] query failed', {
-          select,
-          orderBy: orderConfig?.column || null,
-          error: error.message,
-          retryable,
-        })
-      }
-      if (!retryable) {
-        return NextResponse.json({ error: error.message }, { status: 500 })
+        if (!retryable) {
+          return NextResponse.json({ error: error.message }, { status: 500 })
+        }
       }
     }
   }

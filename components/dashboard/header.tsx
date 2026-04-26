@@ -74,12 +74,18 @@ export function DashboardHeader({ onMenuToggle, menuOpen }: DashboardHeaderProps
         .map((farm: Record<string, unknown>) => {
           const id = typeof farm.id === 'string' ? farm.id : ''
           if (!id) return null
+          const legacyName = typeof farm.name === 'string' ? farm.name : ''
           const nameEn = typeof farm.name_en === 'string' ? farm.name_en : ''
           const nameAr = typeof farm.name_ar === 'string' ? farm.name_ar : ''
           const location = typeof farm.location === 'string' ? farm.location : 'Unknown location'
           return {
             id,
-            name: locale === 'ar' && nameAr ? nameAr : nameEn || nameAr || `Farm ${id.slice(0, 8)}`,
+            name:
+              (locale === 'ar' && nameAr) ||
+              nameEn ||
+              legacyName ||
+              nameAr ||
+              `Farm ${id.slice(0, 8)}`,
             location,
           }
         })
