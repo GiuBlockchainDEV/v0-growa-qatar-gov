@@ -251,10 +251,11 @@ export function DashboardHeader({ onMenuToggle, menuOpen }: DashboardHeaderProps
   }, [])
 
   const handleSelectFarm = (farm: FarmSearchOption) => {
+    const focusToken = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
     const params = new URLSearchParams({
       module: 'live-map',
       zoom: '17',
-      focus: Date.now().toString(),
+      focus: focusToken,
     })
     if (farm.source === 'point') {
       params.set('pointId', farm.id)
@@ -349,8 +350,11 @@ export function DashboardHeader({ onMenuToggle, menuOpen }: DashboardHeaderProps
                   <button
                     key={farm.id}
                     type="button"
-                    onMouseDown={(event) => event.preventDefault()}
-                    onClick={() => handleSelectFarm(farm)}
+                    onMouseDown={(event) => {
+                      event.preventDefault()
+                      event.stopPropagation()
+                      handleSelectFarm(farm)
+                    }}
                     className="flex w-full items-center justify-between rounded-lg px-3 py-2 text-left hover:bg-white/5"
                   >
                     <div className="min-w-0">
