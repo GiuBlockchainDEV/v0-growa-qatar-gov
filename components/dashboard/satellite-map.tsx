@@ -148,6 +148,35 @@ function estimateFarmCoordinates(farmId: string, location?: string | null) {
   }
 }
 
+function calculatePolygonAreaHectares(vertices: PolygonVertex[]): number {
+  if (vertices.length < 3) return 0
+  const earthRadiusMeters = 6371008.8
+  const toRadians = (value: number) => (value * Math.PI) / 180
+  const meanLatRadians =
+    vertices.reduce((sum, vertex) => sum + toRadians(vertex.lat), 0) / vertices.length
+  const cartesianVertices = vertices.map((vertex) => ({
+    x: earthRadiusMeters * toRadians(vertex.lng) * Math.cos(meanLatRadians),
+    y: earthRadiusMeters * toRadians(vertex.lat),
+  }))
+
+  let doubleArea = 0
+  for (let i = 0; i < cartesianVertices.length; i += 1) {
+    const current = cartesianVertices[i]
+    const next = cartesianVertices[(i + 1) % cartesianVertices.length]
+    doubleArea += current.x * next.y - next.x * current.y
+  }
+
+  const areaSquareMeters = Math.abs(doubleArea) * 0.5
+  return areaSquareMeters / 10000
+}
+
+function formatHectares(value: number) {
+  if (!Number.isFinite(value) || value <= 0) return '0.00'
+  if (value >= 1) return value.toFixed(2)
+  if (value >= 0.1) return value.toFixed(3)
+  return value.toFixed(4)
+}
+
 function normalizePolygonVertices(input: unknown): PolygonVertex[] {
   if (!Array.isArray(input)) return []
   return input
@@ -986,8 +1015,10 @@ export function SatelliteMap({
       for (const polygon of activePolygons) {
         if (polygon.vertices.length < 3) continue
         const crop = polygon.crop
+        const areaHectares = calculatePolygonAreaHectares(polygon.vertices)
         const popupLines = [
           `<strong style="color:#07f880;font-size:13px;">${escapeHtml(polygon.name)}</strong>`,
+          `<br/><span style="font-size:11px;color:#9ca3af;">Area: ${escapeHtml(formatHectares(areaHectares))} ha</span>`,
           crop.cropName ? `<br/><span style="font-size:11px;color:#ddd;">Crop: ${escapeHtml(crop.cropName)}</span>` : '',
           crop.variety ? `<br/><span style="font-size:11px;color:#bbb;">Variety: ${escapeHtml(crop.variety)}</span>` : '',
           crop.sowingDate ? `<br/><span style="font-size:11px;color:#bbb;">Sowing: ${escapeHtml(crop.sowingDate)}</span>` : '',
