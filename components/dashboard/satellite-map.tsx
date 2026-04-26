@@ -40,6 +40,7 @@ interface MapController {
   zoomIn: () => void
   zoomOut: () => void
   flyTo: (coords: [number, number], zoom: number, options?: { duration?: number }) => void
+  setView: (coords: [number, number], zoom: number) => void
   getZoom: () => number
   on: (event: string, handler: (...args: any[]) => void) => void
   off: (event: string, handler: (...args: any[]) => void) => void
@@ -1436,10 +1437,14 @@ export function SatelliteMap({
 
   useEffect(() => {
     if (!mapReady || !mapInstanceRef.current || !resolvedTargetFarm || targetPointId) return
-    mapInstanceRef.current.flyTo([resolvedTargetFarm.lat, resolvedTargetFarm.lng], resolvedTargetZoom, {
-      duration: 1.2,
-    })
-    clearFocusParamFromUrl()
+    if (targetFocusToken) {
+      mapInstanceRef.current.flyTo([resolvedTargetFarm.lat, resolvedTargetFarm.lng], resolvedTargetZoom, {
+        duration: 1.2,
+      })
+      clearFocusParamFromUrl()
+      return
+    }
+    mapInstanceRef.current.setView([resolvedTargetFarm.lat, resolvedTargetFarm.lng], resolvedTargetZoom)
   }, [clearFocusParamFromUrl, mapReady, resolvedTargetFarm, resolvedTargetZoom, targetPointId, targetFocusToken])
 
   useEffect(() => {
@@ -1448,11 +1453,15 @@ export function SatelliteMap({
       Number.isFinite(targetZoom) && (targetZoom as number) >= 3 && (targetZoom as number) <= 19
         ? (targetZoom as number)
         : DEFAULT_FARM_ZOOM
-    mapInstanceRef.current.flyTo([explicitTargetPoint.lat, explicitTargetPoint.lng], pointZoom, {
-      duration: 1.2,
-    })
+    if (targetFocusToken) {
+      mapInstanceRef.current.flyTo([explicitTargetPoint.lat, explicitTargetPoint.lng], pointZoom, {
+        duration: 1.2,
+      })
+      clearFocusParamFromUrl()
+    } else {
+      mapInstanceRef.current.setView([explicitTargetPoint.lat, explicitTargetPoint.lng], pointZoom)
+    }
     setActivePointId(explicitTargetPoint.id)
-    clearFocusParamFromUrl()
   }, [clearFocusParamFromUrl, mapReady, explicitTargetPoint, targetZoom, targetFocusToken])
 
   return (
