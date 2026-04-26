@@ -1269,9 +1269,27 @@ export function SatelliteMap({
       setShapeSeedVertex(null)
     }
 
+    const handleMouseMove = (event: any) => {
+      if (isLeafletUiClick(event)) return
+      if (!shapeSeedVertex) return
+      const lat = Number(event?.latlng?.lat)
+      const lng = Number(event?.latlng?.lng)
+      if (!Number.isFinite(lat) || !Number.isFinite(lng)) return
+      const vertex = { lat, lng } satisfies PolygonVertex
+      if (polygonDrawMethod === 'rectangle') {
+        setDraftPolygon(createRectangleVertices(shapeSeedVertex, vertex))
+        return
+      }
+      if (polygonDrawMethod === 'circle') {
+        setDraftPolygon(createCircleVertices(shapeSeedVertex, vertex, circleSegments))
+      }
+    }
+
     map.on('click', handleMapClick)
+    map.on('mousemove', handleMouseMove)
     return () => {
       map.off('click', handleMapClick)
+      map.off('mousemove', handleMouseMove)
     }
   }, [
     circleSegments,
@@ -1439,8 +1457,12 @@ export function SatelliteMap({
             {polygonDrawMethod === 'vertex'
               ? 'Click to add each vertex.'
               : polygonDrawMethod === 'rectangle'
-                ? 'Click first corner, then opposite corner.'
-                : 'Click center, then edge point.'}
+                ? shapeSeedVertex
+                  ? 'Move mouse to resize rectangle, then click to confirm.'
+                  : 'Click first corner of rectangle.'
+                : shapeSeedVertex
+                  ? 'Move mouse to resize circle, then click to confirm.'
+                  : 'Click circle center point.'}
           </p>
           {polygonDrawMethod === 'circle' && (
             <div className="mt-2 flex items-center gap-2">
