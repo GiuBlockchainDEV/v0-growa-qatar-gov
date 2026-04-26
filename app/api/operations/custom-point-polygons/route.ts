@@ -14,7 +14,21 @@ interface PolygonCropData {
   notes: string
 }
 
-function normalizeScore(input: unknown): number {
+const SELECT_WITH_SCORE =
+  'id, custom_point_id, name, score, vertices, crop_name, crop_variety, sowing_date, expected_harvest_date, notes, created_at'
+const SELECT_BASE =
+  'id, custom_point_id, name, vertices, crop_name, crop_variety, sowing_date, expected_harvest_date, notes, created_at'
+
+function isMissingScoreColumnError(error: { message?: string } | null | undefined) {
+  const message = error?.message?.toLowerCase() || ''
+  return (
+    message.includes('column') &&
+    message.includes('score') &&
+    (message.includes('does not exist') || message.includes('schema cache'))
+  )
+}
+
+function normalizeScore(input: unknown, fallback = 50): number {
   if (typeof input === 'number' && Number.isFinite(input)) {
     return Math.max(0, Math.min(100, Math.round(input)))
   }
@@ -24,7 +38,7 @@ function normalizeScore(input: unknown): number {
       return Math.max(0, Math.min(100, Math.round(parsed)))
     }
   }
-  return 0
+  return fallback
 }
 
 function normalizeVertices(input: unknown): PolygonVertex[] {
@@ -66,7 +80,7 @@ function mapRowToResponse(row: Record<string, any>) {
     id: row.id,
     pointId: row.custom_point_id,
     name: row.name,
-    score: normalizeScore(row.score),
+    score: normalizeScore(row.score, 50),
     vertices: normalizeVertices(row.vertices),
     crop: {
       cropName: row.crop_name || '',
@@ -95,9 +109,7 @@ export async function GET(request: Request) {
 
   let query = supabase
     .from('custom_point_polygons')
-    .select(
-      'id, custom_point_id, name, score, vertices, crop_name, crop_variety, sowing_date, expected_harvest_date, notes, created_at'
-    )
+    .select(SELECT_WITH_SCORE)
     .eq('user_id', user.id)
     .order('created_at', { ascending: true })
 
@@ -106,11 +118,26 @@ export async function GET(request: Request) {
   }
 
   const { data, error } = await query
-  if (error) {
+  if (!error) {
+    return NextResponse.json((data || []).map((row) => mapRowToResponse(row)))
+  }
+  if (!isMissingScoreColumnError(error)) {
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
 
-  return NextResponse.json((data || []).map((row) => mapRowToResponse(row)))
+  let fallbackQuery = supabase
+    .from('custom_point_polygons')
+    .select(SELECT_BASE)
+    .eq('user_id', user.id)
+    .order('created_at', { ascending: true })
+  if (pointId) {
+    fallbackQuery = fallbackQuery.eq('custom_point_id', pointId)
+  }
+  const { data: fallbackData, error: fallbackError } = await fallbackQuery
+  if (fallbackError) {
+    return NextResponse.json({ error: fallbackError.message }, { status: 500 })
+  }
+  return NextResponse.json((fallbackData || []).map((row) => mapRowToResponse(row)))
 }
 
 export async function POST(request: Request) {
@@ -155,16 +182,35 @@ export async function POST(request: Request) {
       expected_harvest_date: crop.expectedHarvestDate || null,
       notes: crop.notes || null,
     })
-    .select(
-      'id, custom_point_id, name, score, vertices, crop_name, crop_variety, sowing_date, expected_harvest_date, notes, created_at'
-    )
+    .select(SELECT_WITH_SCORE)
     .single()
 
-  if (error) {
+  if (!error) {
+    return NextResponse.json(mapRowToResponse(data), { status: 201 })
+  }
+  if (!isMissingScoreColumnError(error)) {
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
 
-  return NextResponse.json(mapRowToResponse(data), { status: 201 })
+  const { data: fallbackData, error: fallbackError } = await supabase
+    .from('custom_point_polygons')
+    .insert({
+      user_id: user.id,
+      custom_point_id: pointId,
+      name,
+      vertices,
+      crop_name: crop.cropName || null,
+      crop_variety: crop.variety || null,
+      sowing_date: crop.sowingDate || null,
+      expected_harvest_date: crop.expectedHarvestDate || null,
+      notes: crop.notes || null,
+    })
+    .select(SELECT_BASE)
+    .single()
+  if (fallbackError) {
+    return NextResponse.json({ error: fallbackError.message }, { status: 500 })
+  }
+  return NextResponse.json(mapRowToResponse(fallbackData), { status: 201 })
 }
 
 export async function PATCH(request: Request) {
@@ -205,19 +251,41 @@ export async function PATCH(request: Request) {
     })
     .eq('id', polygonId)
     .eq('user_id', user.id)
-    .select(
-      'id, custom_point_id, name, score, vertices, crop_name, crop_variety, sowing_date, expected_harvest_date, notes, created_at'
-    )
+    .select(SELECT_WITH_SCORE)
     .maybeSingle()
 
-  if (error) {
+  if (!error) {
+    if (!data) {
+      return NextResponse.json({ error: 'Polygon not found' }, { status: 404 })
+    }
+    return NextResponse.json(mapRowToResponse(data))
+  }
+  if (!isMissingScoreColumnError(error)) {
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
-  if (!data) {
+
+  const { data: fallbackData, error: fallbackError } = await supabase
+    .from('custom_point_polygons')
+    .update({
+      name,
+      crop_name: crop.cropName || null,
+      crop_variety: crop.variety || null,
+      sowing_date: crop.sowingDate || null,
+      expected_harvest_date: crop.expectedHarvestDate || null,
+      notes: crop.notes || null,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', polygonId)
+    .eq('user_id', user.id)
+    .select(SELECT_BASE)
+    .maybeSingle()
+  if (fallbackError) {
+    return NextResponse.json({ error: fallbackError.message }, { status: 500 })
+  }
+  if (!fallbackData) {
     return NextResponse.json({ error: 'Polygon not found' }, { status: 404 })
   }
-
-  return NextResponse.json(mapRowToResponse(data))
+  return NextResponse.json(mapRowToResponse(fallbackData))
 }
 
 export async function DELETE(request: Request) {
