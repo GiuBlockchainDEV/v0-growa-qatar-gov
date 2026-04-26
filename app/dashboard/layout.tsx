@@ -29,8 +29,19 @@ function DashboardShell({
   useEffect(() => {
     if (loading || navLoading || !user || pathname !== '/dashboard') return
 
-    const module = searchParams.get('module')
-    if (!module && landingPage && landingPage !== '/dashboard') {
+    const moduleFromHook = searchParams.get('module')
+    const browserSearchParams =
+      typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null
+    const moduleFromUrl = browserSearchParams?.get('module') || null
+    const hasTargetContextInUrl = Boolean(
+      browserSearchParams?.get('farmId') ||
+        browserSearchParams?.get('pointId') ||
+        browserSearchParams?.get('zoom') ||
+        browserSearchParams?.get('focus')
+    )
+
+    // Avoid stripping deep-link params during hydration/race conditions.
+    if (!moduleFromHook && !moduleFromUrl && !hasTargetContextInUrl && landingPage && landingPage !== '/dashboard') {
       router.replace(landingPage)
     }
   }, [loading, navLoading, user, pathname, searchParams, landingPage, router])
