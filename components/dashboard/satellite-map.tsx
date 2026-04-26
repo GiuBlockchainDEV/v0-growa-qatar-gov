@@ -195,8 +195,8 @@ function normalizePolygonScore(value: unknown, fallback = 50) {
 
 function scoreToPolygonColor(score: number) {
   const normalized = normalizePolygonScore(score, 50)
-  // Requested scale: 0 -> red, mid -> yellow/orange, 100 -> red.
-  const hue = normalized <= 50 ? (normalized / 50) * 55 : ((100 - normalized) / 50) * 55
+  // Requested scale: 0 -> red, mid -> yellow/orange, 100 -> green.
+  const hue = (normalized / 100) * 120
   return `hsl(${hue.toFixed(1)} 92% 52%)`
 }
 
