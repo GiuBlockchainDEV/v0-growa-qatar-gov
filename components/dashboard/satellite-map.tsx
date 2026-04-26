@@ -160,13 +160,19 @@ function normalizePolygonVertices(input: unknown): PolygonVertex[] {
     .filter((vertex): vertex is PolygonVertex => Boolean(vertex))
 }
 
-function normalizePointPolygon(input: unknown, fallbackId: string, fallbackName: string): PointPolygon | null {
+function normalizePointPolygon(
+  input: unknown,
+  fallbackId: string,
+  fallbackName: string,
+  fallbackCustomPointId = ''
+): PointPolygon | null {
   // Backward compatibility with legacy format: polygon was an array of vertices.
   if (Array.isArray(input)) {
     const legacyVertices = normalizePolygonVertices(input)
     if (legacyVertices.length < 3) return null
     return {
       id: fallbackId,
+      customPointId: fallbackCustomPointId,
       name: fallbackName,
       vertices: legacyVertices,
       crop: { ...EMPTY_POLYGON_CROP },
@@ -180,26 +186,42 @@ function normalizePointPolygon(input: unknown, fallbackId: string, fallbackName:
   if (vertices.length < 3) return null
 
   const cropRow = row.crop && typeof row.crop === 'object' ? (row.crop as Record<string, unknown>) : null
+  const customPointId =
+    (typeof row.customPointId === 'string' && row.customPointId.trim()) ||
+    (typeof row.custom_point_id === 'string' && row.custom_point_id.trim()) ||
+    (typeof row.pointId === 'string' && row.pointId.trim()) ||
+    fallbackCustomPointId
   return {
     id: typeof row.id === 'string' && row.id.trim() ? row.id.trim() : fallbackId,
+    customPointId,
     name: typeof row.name === 'string' && row.name.trim() ? row.name.trim() : fallbackName,
     vertices,
     crop: {
       cropName:
         (typeof cropRow?.cropName === 'string' && cropRow.cropName) ||
+        (typeof cropRow?.crop_name === 'string' && cropRow.crop_name) ||
         (typeof row.cropName === 'string' && row.cropName) ||
+        (typeof row.crop_name === 'string' && row.crop_name) ||
         '',
       variety:
         (typeof cropRow?.variety === 'string' && cropRow.variety) ||
+        (typeof cropRow?.cropVariety === 'string' && cropRow.cropVariety) ||
+        (typeof cropRow?.crop_variety === 'string' && cropRow.crop_variety) ||
         (typeof row.cropVariety === 'string' && row.cropVariety) ||
+        (typeof row.crop_variety === 'string' && row.crop_variety) ||
         '',
       sowingDate:
         (typeof cropRow?.sowingDate === 'string' && cropRow.sowingDate) ||
+        (typeof cropRow?.sowing_date === 'string' && cropRow.sowing_date) ||
         (typeof row.plantingDate === 'string' && row.plantingDate) ||
+        (typeof row.sowingDate === 'string' && row.sowingDate) ||
+        (typeof row.sowing_date === 'string' && row.sowing_date) ||
         '',
       expectedHarvestDate:
         (typeof cropRow?.expectedHarvestDate === 'string' && cropRow.expectedHarvestDate) ||
+        (typeof cropRow?.expected_harvest_date === 'string' && cropRow.expected_harvest_date) ||
         (typeof row.expectedHarvestDate === 'string' && row.expectedHarvestDate) ||
+        (typeof row.expected_harvest_date === 'string' && row.expected_harvest_date) ||
         '',
       notes:
         (typeof cropRow?.notes === 'string' && cropRow.notes) ||
@@ -207,7 +229,9 @@ function normalizePointPolygon(input: unknown, fallbackId: string, fallbackName:
         '',
     },
     createdAt:
-      typeof row.createdAt === 'string' && row.createdAt.trim() ? row.createdAt : new Date().toISOString(),
+      (typeof row.createdAt === 'string' && row.createdAt.trim() ? row.createdAt : null) ||
+      (typeof row.created_at === 'string' && row.created_at.trim() ? row.created_at : null) ||
+      new Date().toISOString(),
   }
 }
 
@@ -365,10 +389,18 @@ export function SatelliteMap({ locale = 'en', targetFarmId = null, targetZoom }:
           if (!cancelled) setPointPolygons({})
           return
         }
-      const grouped = payload.reduce<Record<string, PointPolygon[]>>((acc, row) => {
-          const pointId = typeof row?.pointId === 'string' ? row.pointId : ''
+        const grouped = payload.reduce<Record<string, PointPolygon[]>>((acc, row) => {
+          const pointId =
+            (typeof row?.pointId === 'string' && row.pointId) ||
+            (typeof row?.custom_point_id === 'string' && row.custom_point_id) ||
+            (typeof row?.customPointId === 'string' && row.customPointId) ||
+            ''
           if (!pointId) return acc
-          const polygon = fromApiPolygonRow(row as PolygonApiRow)
+          const fallbackId =
+            typeof row?.id === 'string' && row.id.trim() ? row.id.trim() : `polygon-${Date.now()}`
+          const fallbackName =
+            typeof row?.name === 'string' && row.name.trim() ? row.name.trim() : 'Polygon'
+          const polygon = normalizePointPolygon(row, fallbackId, fallbackName, pointId)
           if (!polygon) return acc
           if (!acc[pointId]) acc[pointId] = []
           acc[pointId].push(polygon)
@@ -536,7 +568,12 @@ export function SatelliteMap({ locale = 'en', targetFarmId = null, targetZoom }:
       const payload = await response.json()
       if (!response.ok) return
 
-      const normalized = normalizePointPolygon(payload, payload.id || `polygon-${Date.now()}`, polygonName)
+      const normalized = normalizePointPolygon(
+        payload,
+        payload.id || `polygon-${Date.now()}`,
+        polygonName,
+        polygonDrawPointId
+      )
       if (!normalized) return
 
       setPointPolygons((prev) => ({
@@ -595,11 +632,7 @@ export function SatelliteMap({ locale = 'en', targetFarmId = null, targetZoom }:
         })
         const payload = await response.json()
         if (!response.ok) return
-        const normalized = normalizePointPolygon(
-          payload,
-          polygon.id,
-          nextName
-        )
+        const normalized = normalizePointPolygon(payload, polygon.id, nextName, polygon.customPointId)
         if (!normalized || !normalized.customPointId) return
         setPointPolygons((prev) => {
           const pointId = normalized.customPointId
