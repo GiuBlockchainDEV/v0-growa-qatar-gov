@@ -121,6 +121,68 @@ const POLYGON_DRAW_METHOD_OPTIONS: Array<{ value: PolygonDrawMethod; label: stri
   { value: 'circle', label: 'Circle' },
 ]
 
+const CUSTOM_POINTS_STORAGE_PREFIX = 'growa-custom-map-points:'
+const ANONYMOUS_CUSTOM_POINTS_STORAGE_KEY = `${CUSTOM_POINTS_STORAGE_PREFIX}anonymous`
+
+function normalizeStoredCustomPoints(rows: unknown): CustomPoint[] {
+  if (!Array.isArray(rows)) return []
+  return rows
+    .map((entry: unknown) => {
+      if (!entry || typeof entry !== 'object') return null
+      const row = entry as Record<string, unknown>
+      const id = typeof row.id === 'string' ? row.id : ''
+      const lat =
+        typeof row.lat === 'number'
+          ? row.lat
+          : typeof row.lat === 'string'
+            ? Number(row.lat)
+            : Number.NaN
+      const lng =
+        typeof row.lng === 'number'
+          ? row.lng
+          : typeof row.lng === 'string'
+            ? Number(row.lng)
+            : Number.NaN
+      const label =
+        typeof row.label === 'string'
+          ? row.label
+          : typeof row.name === 'string'
+            ? row.name
+            : 'Custom Point'
+      const rawPointType =
+        typeof row.pointType === 'string'
+          ? row.pointType
+          : typeof row.type === 'string'
+            ? row.type
+            : 'custom'
+      const pointType: MapPointType = POINT_TYPE_OPTIONS.some((option) => option.value === rawPointType)
+        ? (rawPointType as MapPointType)
+        : 'custom'
+      if (!id || !Number.isFinite(lat) || !Number.isFinite(lng)) return null
+      return { id, lat, lng, label: label.trim() || 'Custom Point', pointType } satisfies CustomPoint
+    })
+    .filter((row): row is CustomPoint => Boolean(row))
+}
+
+function readCustomPointsFromStorageKeys(keys: string[]): CustomPoint[] {
+  if (typeof window === 'undefined') return []
+  const merged = new Map<string, CustomPoint>()
+  for (const key of keys) {
+    try {
+      const raw = window.localStorage.getItem(key)
+      if (!raw) continue
+      const parsed = JSON.parse(raw)
+      const normalized = normalizeStoredCustomPoints(parsed)
+      for (const point of normalized) {
+        merged.set(point.id, point)
+      }
+    } catch {
+      // Ignore malformed storage payloads.
+    }
+  }
+  return Array.from(merged.values())
+}
+
 function hashToRange(input: string, min: number, max: number) {
   let hash = 0
   for (let i = 0; i < input.length; i += 1) {
@@ -426,7 +488,7 @@ export function SatelliteMap({
   const isGrowaAdmin = Boolean(user?.email?.toLowerCase().endsWith('@growa.ai'))
 
   const customPointsStorageKey = useMemo(
-    () => `growa-custom-map-points:${user?.id || 'anonymous'}`,
+    () => `${CUSTOM_POINTS_STORAGE_PREFIX}${user?.id || 'anonymous'}`,
     [user?.id]
   )
   useEffect(() => {
@@ -435,38 +497,20 @@ export function SatelliteMap({
       setIsAddPointMode(false)
       return
     }
-    try {
-      const raw = window.localStorage.getItem(customPointsStorageKey)
-      if (!raw) {
-        setCustomPoints([])
-        return
+    const storageKeys =
+      customPointsStorageKey === ANONYMOUS_CUSTOM_POINTS_STORAGE_KEY
+        ? [customPointsStorageKey]
+        : [customPointsStorageKey, ANONYMOUS_CUSTOM_POINTS_STORAGE_KEY]
+    const mergedPoints = readCustomPointsFromStorageKeys(storageKeys)
+    setCustomPoints(mergedPoints)
+
+    if (customPointsStorageKey !== ANONYMOUS_CUSTOM_POINTS_STORAGE_KEY) {
+      try {
+        // Keep a consolidated copy under the signed-in user key for stable deep-links.
+        window.localStorage.setItem(customPointsStorageKey, JSON.stringify(mergedPoints))
+      } catch {
+        // Ignore storage failures in restricted browser contexts.
       }
-      const parsed = JSON.parse(raw)
-      if (!Array.isArray(parsed)) {
-        setCustomPoints([])
-        return
-      }
-      const normalized = parsed
-        .map((entry: unknown) => {
-          if (!entry || typeof entry !== 'object') return null
-          const row = entry as Record<string, unknown>
-          const id = typeof row.id === 'string' ? row.id : ''
-          const lat = typeof row.lat === 'number' ? row.lat : Number.NaN
-          const lng = typeof row.lng === 'number' ? row.lng : Number.NaN
-          const label = typeof row.label === 'string' ? row.label : ''
-          const rawPointType = typeof row.pointType === 'string' ? row.pointType : ''
-          const pointType: MapPointType = POINT_TYPE_OPTIONS.some(
-            (option) => option.value === rawPointType
-          )
-            ? (rawPointType as MapPointType)
-            : 'custom'
-          if (!id || !Number.isFinite(lat) || !Number.isFinite(lng)) return null
-          return { id, lat, lng, label: label.trim() || 'Custom Point', pointType } satisfies CustomPoint
-        })
-        .filter((row): row is CustomPoint => Boolean(row))
-      setCustomPoints(normalized)
-    } catch {
-      setCustomPoints([])
     }
   }, [customPointsStorageKey, isGrowaAdmin])
 
@@ -823,8 +867,31 @@ export function SatelliteMap({
 
   const explicitTargetPoint = useMemo(() => {
     if (!targetPointId) return null
-    return customPoints.find((point) => point.id === targetPointId) || null
-  }, [customPoints, targetPointId])
+    const inMemoryPoint = customPoints.find((point) => point.id === targetPointId)
+    if (inMemoryPoint) return inMemoryPoint
+    const storageKeys =
+      customPointsStorageKey === ANONYMOUS_CUSTOM_POINTS_STORAGE_KEY
+        ? [customPointsStorageKey]
+        : [customPointsStorageKey, ANONYMOUS_CUSTOM_POINTS_STORAGE_KEY]
+    return readCustomPointsFromStorageKeys(storageKeys).find((point) => point.id === targetPointId) || null
+  }, [customPoints, customPointsStorageKey, targetPointId])
+
+  useEffect(() => {
+    if (!isGrowaAdmin || !targetPointId) return
+    if (customPoints.some((point) => point.id === targetPointId)) return
+    const storageKeys =
+      customPointsStorageKey === ANONYMOUS_CUSTOM_POINTS_STORAGE_KEY
+        ? [customPointsStorageKey]
+        : [customPointsStorageKey, ANONYMOUS_CUSTOM_POINTS_STORAGE_KEY]
+    const fromStorage = readCustomPointsFromStorageKeys(storageKeys).find(
+      (point) => point.id === targetPointId
+    )
+    if (!fromStorage) return
+    setCustomPoints((prev) => {
+      if (prev.some((point) => point.id === fromStorage.id)) return prev
+      return [...prev, fromStorage]
+    })
+  }, [customPoints, customPointsStorageKey, isGrowaAdmin, targetPointId])
 
   const resolvedTargetZoom =
     resolvedTargetFarm || explicitTargetPoint ? targetZoom ?? DEFAULT_FARM_ZOOM : DEFAULT_ZOOM
