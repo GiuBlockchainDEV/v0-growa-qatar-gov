@@ -98,6 +98,15 @@ function DashboardShell({
   }
 
   const activeModule = searchParams.get('module')
+  const targetFarmId = searchParams.get('farmId')
+  const targetPointId = searchParams.get('pointId')
+  const targetFocusToken = searchParams.get('focus')
+  const zoomParam = searchParams.get('zoom')
+  const requestedZoom = zoomParam ? Number(zoomParam) : Number.NaN
+  const targetZoom =
+    Number.isFinite(requestedZoom) && requestedZoom >= 3 && requestedZoom <= 19
+      ? requestedZoom
+      : undefined
   const shouldRenderMapSurface =
     pathname === '/dashboard' &&
     (!activeModule || ['live-map', 'map', 'national-map', 'inspection-map'].includes(activeModule))
@@ -106,7 +115,16 @@ function DashboardShell({
     <div className="h-screen w-screen overflow-hidden bg-background relative">
       {/* Base content surface: map-first for ministry workspace */}
       <main className="absolute inset-0">
-        {isMinistryWorkspace && shouldRenderMapSurface ? <SatelliteMap /> : children}
+        {isMinistryWorkspace && shouldRenderMapSurface ? (
+          <SatelliteMap
+            targetFarmId={targetFarmId}
+            targetPointId={targetPointId}
+            targetFocusToken={targetFocusToken}
+            targetZoom={targetZoom}
+          />
+        ) : (
+          children
+        )}
       </main>
 
       {/* Header - Always Visible on Top */}
