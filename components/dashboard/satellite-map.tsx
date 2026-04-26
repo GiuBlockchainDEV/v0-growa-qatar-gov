@@ -690,9 +690,11 @@ export function SatelliteMap({
 
   const resolvedTargetFarm = useMemo(() => {
     if (explicitTargetFarm) return explicitTargetFarm
+    // When a specific point is requested from search, keep point focus priority.
+    if (targetPointId) return null
     if (!isFarmCompanyContext) return null
     return dynamicFarmMarkers[0] || null
-  }, [dynamicFarmMarkers, explicitTargetFarm, isFarmCompanyContext])
+  }, [dynamicFarmMarkers, explicitTargetFarm, isFarmCompanyContext, targetPointId])
 
   const explicitTargetPoint = useMemo(() => {
     if (!targetPointId) return null
@@ -1176,11 +1178,11 @@ export function SatelliteMap({
   }, [activePointId, isAddPointMode, mapReady, polygonDrawPointId])
 
   useEffect(() => {
-    if (!mapInstanceRef.current || !resolvedTargetFarm) return
+    if (!mapInstanceRef.current || !resolvedTargetFarm || targetPointId) return
     mapInstanceRef.current.flyTo([resolvedTargetFarm.lat, resolvedTargetFarm.lng], resolvedTargetZoom, {
       duration: 1.2,
     })
-  }, [resolvedTargetFarm, resolvedTargetZoom])
+  }, [resolvedTargetFarm, resolvedTargetZoom, targetPointId])
 
   useEffect(() => {
     if (!mapInstanceRef.current || !explicitTargetPoint) return
