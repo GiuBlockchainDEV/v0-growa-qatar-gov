@@ -496,6 +496,11 @@ function formatMetric(value: number, unit: string) {
   return `${value.toLocaleString('en-US', { maximumFractionDigits: 2 })} ${unit}`
 }
 
+function formatScoreValue(value: number | null) {
+  if (value === null || !Number.isFinite(value)) return '-'
+  return `${value.toFixed(1)}/100`
+}
+
 function normalizeExternalLink(input: string) {
   const trimmed = input.trim()
   if (!trimmed) return ''
@@ -1055,6 +1060,9 @@ export function SatelliteMap({
     return count
   }, [normalizedCropFilter, pointPolygons])
   const activePointInsights = insightsModalPointId ? farmCropInsightsByPoint[insightsModalPointId] || [] : []
+  const activeInsightsPointPolygons = insightsModalPointId
+    ? pointPolygons[insightsModalPointId] || []
+    : []
   const insightsModalPoint = useMemo(
     () => (insightsModalPointId ? customPoints.find((point) => point.id === insightsModalPointId) || null : null),
     [customPoints, insightsModalPointId]
@@ -1063,6 +1071,32 @@ export function SatelliteMap({
   const activeInsightsPointPolygonCount = insightsModalPointId
     ? (pointPolygons[insightsModalPointId] || []).length
     : 0
+  const activeInsightsFarmScore = useMemo(() => {
+    if (activeInsightsPointPolygons.length === 0) return null
+    const total = activeInsightsPointPolygons.reduce(
+      (sum, polygon) => sum + normalizePolygonScore(polygon.score, 50),
+      0
+    )
+    return total / activeInsightsPointPolygons.length
+  }, [activeInsightsPointPolygons])
+  const cropScoreByName = useMemo(() => {
+    const grouped = new Map<string, { total: number; count: number }>()
+    for (const polygon of activeInsightsPointPolygons) {
+      const cropName = polygon.crop.cropName.trim().toLowerCase()
+      if (!cropName) continue
+      const current = grouped.get(cropName) || { total: 0, count: 0 }
+      current.total += normalizePolygonScore(polygon.score, 50)
+      current.count += 1
+      grouped.set(cropName, current)
+    }
+
+    const averages = new Map<string, number>()
+    for (const [cropName, stats] of grouped.entries()) {
+      if (stats.count <= 0) continue
+      averages.set(cropName, stats.total / stats.count)
+    }
+    return averages
+  }, [activeInsightsPointPolygons])
   const activeInsightsFarmExternalUrl = useMemo(() => {
     for (const insight of activePointInsights) {
       const normalized = normalizeExternalLink(insight.externalUrl)
@@ -1727,6 +1761,10 @@ export function SatelliteMap({
                 <p className="text-[11px] text-white/50">
                   Linked polygons: <span className="text-white/80">{activeInsightsPointPolygonCount}</span>
                 </p>
+                <p className="text-[11px] text-white/50">
+                  Farm score:{' '}
+                  <span className="text-[#07f880]">{formatScoreValue(activeInsightsFarmScore)}</span>
+                </p>
               </div>
               <button
                 type="button"
@@ -1794,20 +1832,26 @@ export function SatelliteMap({
                   <thead className="bg-white/5">
                     <tr className="text-[11px] uppercase tracking-wide text-white/60">
                       <th className="px-3 py-2 font-medium">Crop</th>
+                      <th className="px-3 py-2 font-medium">Crop Score</th>
                       <th className="px-3 py-2 font-medium">Estimated Production</th>
                       <th className="px-3 py-2 font-medium">Energy Consumption</th>
                       <th className="px-3 py-2 font-medium">Water Consumption</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-white/5">
-                    {activePointInsights.map((insight) => (
-                      <tr key={insight.id} className="text-xs text-white/85">
-                        <td className="px-3 py-2">{insight.cropName}</td>
-                        <td className="px-3 py-2">{formatMetric(insight.estimatedProductionTons, 'tons')}</td>
-                        <td className="px-3 py-2">{formatMetric(insight.energyConsumptionKwh, 'kWh')}</td>
-                        <td className="px-3 py-2">{formatMetric(insight.waterConsumptionM3, 'm³')}</td>
-                      </tr>
-                    ))}
+                    {activePointInsights.map((insight) => {
+                      const cropKey = insight.cropName.trim().toLowerCase()
+                      const cropScore = cropScoreByName.get(cropKey) ?? null
+                      return (
+                        <tr key={insight.id} className="text-xs text-white/85">
+                          <td className="px-3 py-2">{insight.cropName}</td>
+                          <td className="px-3 py-2 text-[#07f880]">{formatScoreValue(cropScore)}</td>
+                          <td className="px-3 py-2">{formatMetric(insight.estimatedProductionTons, 'tons')}</td>
+                          <td className="px-3 py-2">{formatMetric(insight.energyConsumptionKwh, 'kWh')}</td>
+                          <td className="px-3 py-2">{formatMetric(insight.waterConsumptionM3, 'm³')}</td>
+                        </tr>
+                      )
+                    })}
                   </tbody>
                 </table>
               </div>
