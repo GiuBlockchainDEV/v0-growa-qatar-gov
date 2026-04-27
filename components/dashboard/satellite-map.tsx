@@ -501,6 +501,11 @@ function formatScoreValue(value: number | null) {
   return `${value.toFixed(1)}/100`
 }
 
+function getScoreTextColor(value: number | null) {
+  if (value === null || !Number.isFinite(value)) return '#9ca3af'
+  return scoreToPolygonColor(value)
+}
+
 function normalizeExternalLink(input: string) {
   const trimmed = input.trim()
   if (!trimmed) return ''
@@ -1775,7 +1780,12 @@ export function SatelliteMap({
               </div>
               <div className="rounded-lg border border-[#07f880]/20 bg-[#07f880]/8 px-3 py-2">
                 <p className="text-[10px] uppercase tracking-wide text-white/50">Farm score</p>
-                <p className="mt-1 text-sm font-semibold text-[#07f880]">{formatScoreValue(activeInsightsFarmScore)}</p>
+                <p
+                  className="mt-1 text-sm font-semibold"
+                  style={{ color: getScoreTextColor(activeInsightsFarmScore) }}
+                >
+                  {formatScoreValue(activeInsightsFarmScore)}
+                </p>
               </div>
             </div>
 
@@ -1852,7 +1862,12 @@ export function SatelliteMap({
                           className={`text-xs text-white/85 ${index % 2 === 0 ? 'bg-white/[0.01]' : 'bg-transparent'} hover:bg-white/[0.03]`}
                         >
                           <td className="px-3 py-2.5 font-medium text-white">{insight.cropName}</td>
-                          <td className="px-3 py-2.5 text-[#07f880]">{formatScoreValue(cropScore)}</td>
+                          <td
+                            className="px-3 py-2.5 font-semibold"
+                            style={{ color: getScoreTextColor(cropScore) }}
+                          >
+                            {formatScoreValue(cropScore)}
+                          </td>
                           <td className="px-3 py-2.5">{formatMetric(insight.estimatedProductionTons, 'tons')}</td>
                           <td className="px-3 py-2.5">{formatMetric(insight.energyConsumptionKwh, 'kWh')}</td>
                           <td className="px-3 py-2.5">{formatMetric(insight.waterConsumptionM3, 'm³')}</td>
