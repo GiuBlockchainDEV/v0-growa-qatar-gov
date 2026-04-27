@@ -456,6 +456,7 @@ export function SatelliteMap({
   const [isAddPointMode, setIsAddPointMode] = useState(false)
   const [newPointType, setNewPointType] = useState<MapPointType>('custom')
   const [activePointId, setActivePointId] = useState<string | null>(null)
+  const [polygonCropFilterQuery, setPolygonCropFilterQuery] = useState('')
   const [polygonDrawPointId, setPolygonDrawPointId] = useState<string | null>(null)
   const [polygonDrawMethod, setPolygonDrawMethod] = useState<PolygonDrawMethod>('vertex')
   const [shapeSeedVertex, setShapeSeedVertex] = useState<PolygonVertex | null>(null)
@@ -897,6 +898,31 @@ export function SatelliteMap({
 
   const resolvedTargetZoom =
     resolvedTargetFarm || explicitTargetPoint ? targetZoom ?? DEFAULT_FARM_ZOOM : DEFAULT_ZOOM
+  const normalizedCropFilter = polygonCropFilterQuery.trim().toLowerCase()
+  const cropFilterOptions = useMemo(() => {
+    const uniqueCrops = new Set<string>()
+    for (const polygonList of Object.values(pointPolygons)) {
+      for (const polygon of polygonList) {
+        const cropName = polygon.crop.cropName.trim()
+        if (cropName) uniqueCrops.add(cropName)
+      }
+    }
+    return Array.from(uniqueCrops).sort((a, b) => a.localeCompare(b))
+  }, [pointPolygons])
+  const cropFilteredPolygonCount = useMemo(() => {
+    if (!normalizedCropFilter) return 0
+    let count = 0
+    for (const polygonList of Object.values(pointPolygons)) {
+      for (const polygon of polygonList) {
+        const cropName = polygon.crop.cropName.trim().toLowerCase()
+        const variety = polygon.crop.variety.trim().toLowerCase()
+        if (cropName.includes(normalizedCropFilter) || variety.includes(normalizedCropFilter)) {
+          count += 1
+        }
+      }
+    }
+    return count
+  }, [normalizedCropFilter, pointPolygons])
 
   const handleZoomIn = useCallback(() => {
     mapInstanceRef.current?.zoomIn()
@@ -1188,9 +1214,19 @@ export function SatelliteMap({
     draftVertexInstancesRef.current.forEach((marker) => marker.remove?.())
     draftVertexInstancesRef.current = []
 
-    if (activePointId) {
-      const activePolygons = pointPolygons[activePointId] || []
-      for (const polygon of activePolygons) {
+    const polygonsToRender = normalizedCropFilter
+      ? Object.values(pointPolygons)
+          .flat()
+          .filter((polygon) => {
+            const cropName = polygon.crop.cropName.trim().toLowerCase()
+            const variety = polygon.crop.variety.trim().toLowerCase()
+            return cropName.includes(normalizedCropFilter) || variety.includes(normalizedCropFilter)
+          })
+      : activePointId
+        ? pointPolygons[activePointId] || []
+        : []
+
+    for (const polygon of polygonsToRender) {
         if (polygon.vertices.length < 3) continue
         const crop = polygon.crop
         const polygonScore = normalizePolygonScore(polygon.score, 50)
@@ -1289,7 +1325,6 @@ export function SatelliteMap({
           layer.openPopup()
         })
         polygonInstancesRef.current.push(layer)
-      }
     }
 
     if (polygonDrawPointId && draftPolygon.length > 0 && polygonDrawPointId === activePointId) {
@@ -1322,6 +1357,7 @@ export function SatelliteMap({
     handleDeletePolygon,
     handleEditPolygonData,
     mapReady,
+    normalizedCropFilter,
     pointPolygons,
     polygonDrawPointId,
   ])
@@ -1686,6 +1722,41 @@ export function SatelliteMap({
               Save
             </button>
           </div>
+        </div>
+      )}
+
+      {isGrowaAdmin && (
+        <div className="absolute right-6 top-24 z-[1000] w-80 rounded-lg border border-white/10 bg-[#0c0c0e]/90 p-3 shadow-lg">
+          <p className="text-xs font-semibold uppercase tracking-wide text-white/70">
+            Polygon Crop Filter
+          </p>
+          <div className="mt-2 flex items-center gap-2">
+            <input
+              type="text"
+              value={polygonCropFilterQuery}
+              onChange={(event) => setPolygonCropFilterQuery(event.target.value)}
+              list="polygon-crop-options"
+              placeholder="Search crop (e.g. Tomato)"
+              className="h-8 flex-1 rounded border border-white/10 bg-[#0b0b0c] px-2 text-[11px] text-white placeholder:text-white/35 focus:border-[#07f880]/60 focus:outline-none"
+            />
+            <button
+              type="button"
+              onClick={() => setPolygonCropFilterQuery('')}
+              className="h-8 rounded border border-white/15 bg-white/5 px-2 text-[11px] text-white/80 hover:border-[#07f880]/40 hover:text-[#07f880]"
+            >
+              Clear
+            </button>
+          </div>
+          <datalist id="polygon-crop-options">
+            {cropFilterOptions.map((cropName) => (
+              <option key={cropName} value={cropName} />
+            ))}
+          </datalist>
+          <p className="mt-2 text-[11px] text-white/60">
+            {normalizedCropFilter
+              ? `Showing ${cropFilteredPolygonCount} polygon${cropFilteredPolygonCount === 1 ? '' : 's'} for "${polygonCropFilterQuery.trim()}".`
+              : 'Type a crop name to only show matching polygons on the map.'}
+          </p>
         </div>
       )}
 
