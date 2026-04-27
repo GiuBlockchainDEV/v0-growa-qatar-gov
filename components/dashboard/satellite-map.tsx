@@ -1743,44 +1743,48 @@ export function SatelliteMap({
 
       {isInsightsModalOpen && (
         <div
-          className="absolute inset-0 z-[2600] flex items-center justify-center bg-black/65 px-4"
+          className="absolute inset-0 z-[2600] flex items-center justify-center bg-black/75 backdrop-blur-sm px-4 py-6"
           role="dialog"
           aria-modal="true"
           onClick={closePointInsightsModal}
         >
           <div
-            className="w-full max-w-3xl rounded-xl border border-white/10 bg-[#0c0c0e] p-4 shadow-2xl"
+            className="w-full max-w-4xl rounded-2xl border border-white/12 bg-gradient-to-b from-[#111216] to-[#090a0d] p-5 shadow-[0_20px_80px_rgba(0,0,0,0.65)]"
             onClick={(event) => event.stopPropagation()}
           >
-            <div className="flex items-start justify-between gap-3 border-b border-white/10 pb-3">
+            <div className="flex items-start justify-between gap-3 border-b border-white/10 pb-4">
               <div>
-                <p className="text-sm font-semibold text-white">Farm Crop Insights</p>
-                <p className="text-xs text-white/60">
-                  Point: <span className="text-[#07f880]">{activeInsightsPointLabel}</span>
-                </p>
-                <p className="text-[11px] text-white/50">
-                  Linked polygons: <span className="text-white/80">{activeInsightsPointPolygonCount}</span>
-                </p>
-                <p className="text-[11px] text-white/50">
-                  Farm score:{' '}
-                  <span className="text-[#07f880]">{formatScoreValue(activeInsightsFarmScore)}</span>
+                <p className="text-base font-semibold text-white">Farm Crop Insights</p>
+                <p className="mt-1 text-xs text-white/60">
+                  Point: <span className="font-medium text-[#07f880]">{activeInsightsPointLabel}</span>
                 </p>
               </div>
               <button
                 type="button"
                 onClick={closePointInsightsModal}
-                className="rounded border border-white/15 px-2 py-1 text-xs text-white/80 hover:border-[#07f880]/45 hover:text-[#07f880]"
+                className="rounded-md border border-white/15 bg-white/[0.02] px-2.5 py-1 text-xs text-white/80 hover:border-[#07f880]/45 hover:text-[#07f880]"
               >
                 Close
               </button>
             </div>
 
-            <div className="mt-3 flex flex-wrap gap-2">
+            <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-2">
+              <div className="rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2">
+                <p className="text-[10px] uppercase tracking-wide text-white/50">Linked polygons</p>
+                <p className="mt-1 text-sm font-semibold text-white">{activeInsightsPointPolygonCount}</p>
+              </div>
+              <div className="rounded-lg border border-[#07f880]/20 bg-[#07f880]/8 px-3 py-2">
+                <p className="text-[10px] uppercase tracking-wide text-white/50">Farm score</p>
+                <p className="mt-1 text-sm font-semibold text-[#07f880]">{formatScoreValue(activeInsightsFarmScore)}</p>
+              </div>
+            </div>
+
+            <div className="mt-4 flex flex-wrap gap-2">
               <button
                 type="button"
                 onClick={handleInsightsModalEditPoint}
                 disabled={!insightsModalPointId}
-                className="rounded border border-[#07f880]/35 bg-[#07f880]/12 px-2 py-1 text-[11px] text-[#07f880] disabled:cursor-not-allowed disabled:opacity-40"
+                className="rounded-md border border-[#07f880]/35 bg-[#07f880]/12 px-2.5 py-1.5 text-[11px] font-medium text-[#07f880] disabled:cursor-not-allowed disabled:opacity-40"
               >
                 Edit Point
               </button>
@@ -1788,7 +1792,7 @@ export function SatelliteMap({
                 type="button"
                 onClick={handleInsightsModalDrawPolygon}
                 disabled={!insightsModalPointId}
-                className="rounded border border-[#93c5fd]/35 bg-[#93c5fd]/12 px-2 py-1 text-[11px] text-[#bfdbfe] disabled:cursor-not-allowed disabled:opacity-40"
+                className="rounded-md border border-[#93c5fd]/35 bg-[#93c5fd]/12 px-2.5 py-1.5 text-[11px] font-medium text-[#bfdbfe] disabled:cursor-not-allowed disabled:opacity-40"
               >
                 Draw Polygon
               </button>
@@ -1796,20 +1800,20 @@ export function SatelliteMap({
                 type="button"
                 onClick={handleInsightsModalDeletePoint}
                 disabled={!insightsModalPointId}
-                className="rounded border border-red-400/35 bg-red-500/12 px-2 py-1 text-[11px] text-red-300 disabled:cursor-not-allowed disabled:opacity-40"
+                className="rounded-md border border-red-400/35 bg-red-500/12 px-2.5 py-1.5 text-[11px] font-medium text-red-300 disabled:cursor-not-allowed disabled:opacity-40"
               >
                 Delete Point
               </button>
             </div>
 
-            <div className="mt-3 rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2">
-              <p className="text-[11px] uppercase tracking-wide text-white/55">Farm External Link</p>
+            <div className="mt-4 rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2.5">
+              <p className="text-[10px] uppercase tracking-wide text-white/50">Farm external link</p>
               {activeInsightsFarmExternalUrl ? (
                 <a
                   href={activeInsightsFarmExternalUrl}
                   target="_blank"
                   rel="noreferrer"
-                  className="mt-1 inline-block text-xs text-[#07f880] underline underline-offset-2 hover:text-[#8dffca]"
+                  className="mt-1 inline-block text-xs font-medium text-[#07f880] underline underline-offset-2 hover:text-[#8dffca]"
                 >
                   Open Farm Link
                 </a>
@@ -1819,36 +1823,39 @@ export function SatelliteMap({
             </div>
 
             {isInsightsModalLoading ? (
-              <div className="py-8 text-center text-sm text-white/65">Loading insights...</div>
+              <div className="py-10 text-center text-sm text-white/65">Loading insights...</div>
             ) : insightsModalError ? (
-              <div className="py-8 text-center text-sm text-red-300">{insightsModalError}</div>
+              <div className="py-10 text-center text-sm text-red-300">{insightsModalError}</div>
             ) : activePointInsights.length === 0 ? (
-              <div className="py-8 text-center text-sm text-white/65">
+              <div className="py-10 text-center text-sm text-white/65">
                 No crop insight records found for this point.
               </div>
             ) : (
-              <div className="mt-3 max-h-[60vh] overflow-y-auto rounded-lg border border-white/10">
+              <div className="mt-4 max-h-[58vh] overflow-y-auto rounded-lg border border-white/10">
                 <table className="min-w-full divide-y divide-white/10 text-left">
-                  <thead className="bg-white/5">
+                  <thead className="sticky top-0 bg-[#14161b]">
                     <tr className="text-[11px] uppercase tracking-wide text-white/60">
-                      <th className="px-3 py-2 font-medium">Crop</th>
-                      <th className="px-3 py-2 font-medium">Crop Score</th>
-                      <th className="px-3 py-2 font-medium">Estimated Production</th>
-                      <th className="px-3 py-2 font-medium">Energy Consumption</th>
-                      <th className="px-3 py-2 font-medium">Water Consumption</th>
+                      <th className="px-3 py-2.5 font-medium">Crop</th>
+                      <th className="px-3 py-2.5 font-medium">Crop Score</th>
+                      <th className="px-3 py-2.5 font-medium">Estimated Production</th>
+                      <th className="px-3 py-2.5 font-medium">Energy Consumption</th>
+                      <th className="px-3 py-2.5 font-medium">Water Consumption</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-white/5">
-                    {activePointInsights.map((insight) => {
+                    {activePointInsights.map((insight, index) => {
                       const cropKey = insight.cropName.trim().toLowerCase()
                       const cropScore = cropScoreByName.get(cropKey) ?? null
                       return (
-                        <tr key={insight.id} className="text-xs text-white/85">
-                          <td className="px-3 py-2">{insight.cropName}</td>
-                          <td className="px-3 py-2 text-[#07f880]">{formatScoreValue(cropScore)}</td>
-                          <td className="px-3 py-2">{formatMetric(insight.estimatedProductionTons, 'tons')}</td>
-                          <td className="px-3 py-2">{formatMetric(insight.energyConsumptionKwh, 'kWh')}</td>
-                          <td className="px-3 py-2">{formatMetric(insight.waterConsumptionM3, 'm³')}</td>
+                        <tr
+                          key={insight.id}
+                          className={`text-xs text-white/85 ${index % 2 === 0 ? 'bg-white/[0.01]' : 'bg-transparent'} hover:bg-white/[0.03]`}
+                        >
+                          <td className="px-3 py-2.5 font-medium text-white">{insight.cropName}</td>
+                          <td className="px-3 py-2.5 text-[#07f880]">{formatScoreValue(cropScore)}</td>
+                          <td className="px-3 py-2.5">{formatMetric(insight.estimatedProductionTons, 'tons')}</td>
+                          <td className="px-3 py-2.5">{formatMetric(insight.energyConsumptionKwh, 'kWh')}</td>
+                          <td className="px-3 py-2.5">{formatMetric(insight.waterConsumptionM3, 'm³')}</td>
                         </tr>
                       )
                     })}
