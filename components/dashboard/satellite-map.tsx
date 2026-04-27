@@ -506,6 +506,15 @@ function getScoreTextColor(value: number | null) {
   return scoreToPolygonColor(value)
 }
 
+function getScoreSurfaceColor(value: number | null, alpha: number) {
+  if (value === null || !Number.isFinite(value)) {
+    return `rgba(156, 163, 175, ${Math.max(0, Math.min(1, alpha))})`
+  }
+  const normalized = normalizePolygonScore(value, 50)
+  const hue = (normalized / 100) * 120
+  return `hsl(${hue.toFixed(1)} 100% 56% / ${Math.max(0, Math.min(1, alpha))})`
+}
+
 function normalizeExternalLink(input: string) {
   const trimmed = input.trim()
   if (!trimmed) return ''
@@ -1778,7 +1787,13 @@ export function SatelliteMap({
                 <p className="text-[10px] uppercase tracking-wide text-white/50">Linked polygons</p>
                 <p className="mt-1 text-sm font-semibold text-white">{activeInsightsPointPolygonCount}</p>
               </div>
-              <div className="rounded-lg border border-[#07f880]/20 bg-[#07f880]/8 px-3 py-2">
+              <div
+                className="rounded-lg border px-3 py-2"
+                style={{
+                  borderColor: getScoreSurfaceColor(activeInsightsFarmScore, 0.4),
+                  backgroundColor: getScoreSurfaceColor(activeInsightsFarmScore, 0.14),
+                }}
+              >
                 <p className="text-[10px] uppercase tracking-wide text-white/50">Farm score</p>
                 <p
                   className="mt-1 text-sm font-semibold"
