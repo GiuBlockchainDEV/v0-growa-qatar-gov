@@ -92,6 +92,35 @@ interface PointPolygon {
   createdAt: string
 }
 
+interface FarmCropInsightApiRow {
+  id: string
+  custom_point_id?: string | null
+  pointId?: string | null
+  crop_name?: string | null
+  cropName?: string | null
+  estimated_production_tons?: number | string | null
+  estimatedProductionTons?: number | string | null
+  energy_consumption_kwh?: number | string | null
+  energyConsumptionKwh?: number | string | null
+  water_consumption_m3?: number | string | null
+  waterConsumptionM3?: number | string | null
+  external_url?: string | null
+  externalUrl?: string | null
+  created_at?: string | null
+  createdAt?: string | null
+}
+
+interface FarmCropInsight {
+  id: string
+  pointId: string
+  cropName: string
+  estimatedProductionTons: number
+  energyConsumptionKwh: number
+  waterConsumptionM3: number
+  externalUrl: string
+  createdAt: string
+}
+
 type PointPolygonsMap = Record<string, PointPolygon[]>
 
 const EMPTY_POLYGON_CROP: PolygonCropData = {
@@ -417,6 +446,61 @@ function fromApiPolygonRow(row: PolygonApiRow): PointPolygon | null {
   }
 }
 
+function normalizeMetricValue(input: unknown): number {
+  const value =
+    typeof input === 'number' ? input : typeof input === 'string' ? Number(input) : Number.NaN
+  if (!Number.isFinite(value) || value < 0) return 0
+  return Math.round(value * 100) / 100
+}
+
+function normalizeFarmCropInsight(input: unknown): FarmCropInsight | null {
+  if (!input || typeof input !== 'object') return null
+  const row = input as FarmCropInsightApiRow
+  const id = typeof row.id === 'string' ? row.id.trim() : ''
+  const pointId =
+    (typeof row.custom_point_id === 'string' && row.custom_point_id.trim()) ||
+    (typeof row.pointId === 'string' && row.pointId.trim()) ||
+    ''
+  const cropName =
+    (typeof row.crop_name === 'string' && row.crop_name.trim()) ||
+    (typeof row.cropName === 'string' && row.cropName.trim()) ||
+    ''
+  if (!id || !pointId || !cropName) return null
+  const externalUrl =
+    (typeof row.external_url === 'string' && row.external_url.trim()) ||
+    (typeof row.externalUrl === 'string' && row.externalUrl.trim()) ||
+    ''
+  return {
+    id,
+    pointId,
+    cropName,
+    estimatedProductionTons: normalizeMetricValue(
+      row.estimated_production_tons ?? row.estimatedProductionTons
+    ),
+    energyConsumptionKwh: normalizeMetricValue(
+      row.energy_consumption_kwh ?? row.energyConsumptionKwh
+    ),
+    waterConsumptionM3: normalizeMetricValue(
+      row.water_consumption_m3 ?? row.waterConsumptionM3
+    ),
+    externalUrl,
+    createdAt:
+      (typeof row.created_at === 'string' && row.created_at.trim()) ||
+      (typeof row.createdAt === 'string' && row.createdAt.trim()) ||
+      new Date().toISOString(),
+  }
+}
+
+function formatMetric(value: number, unit: string) {
+  return `${value.toLocaleString('en-US', { maximumFractionDigits: 2 })} ${unit}`
+}
+
+function normalizeExternalLink(input: string) {
+  const trimmed = input.trim()
+  if (!trimmed) return ''
+  return /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`
+}
+
 function isLeafletUiClick(event: any) {
   const target = event?.originalEvent?.target
   if (!(target instanceof Element)) return false
@@ -446,6 +530,7 @@ export function SatelliteMap({
   const draftVertexInstancesRef = useRef<any[]>([])
   const polygonDrawPointIdRef = useRef<string | null>(null)
   const lastClearedFocusTokenRef = useRef<string | null>(null)
+  const insightsRequestIdRef = useRef(0)
 
   const [isLoading, setIsLoading] = useState(true)
   const [mapReady, setMapReady] = useState(false)
@@ -457,6 +542,11 @@ export function SatelliteMap({
   const [newPointType, setNewPointType] = useState<MapPointType>('custom')
   const [activePointId, setActivePointId] = useState<string | null>(null)
   const [polygonCropFilterQuery, setPolygonCropFilterQuery] = useState('')
+  const [farmCropInsightsByPoint, setFarmCropInsightsByPoint] = useState<Record<string, FarmCropInsight[]>>({})
+  const [insightsModalPointId, setInsightsModalPointId] = useState<string | null>(null)
+  const [isInsightsModalOpen, setIsInsightsModalOpen] = useState(false)
+  const [isInsightsModalLoading, setIsInsightsModalLoading] = useState(false)
+  const [insightsModalError, setInsightsModalError] = useState<string | null>(null)
   const [polygonDrawPointId, setPolygonDrawPointId] = useState<string | null>(null)
   const [polygonDrawMethod, setPolygonDrawMethod] = useState<PolygonDrawMethod>('vertex')
   const [shapeSeedVertex, setShapeSeedVertex] = useState<PolygonVertex | null>(null)
@@ -529,6 +619,11 @@ export function SatelliteMap({
   useEffect(() => {
     if (!isGrowaAdmin) {
       setPointPolygons({})
+      setFarmCropInsightsByPoint({})
+      setIsInsightsModalOpen(false)
+      setInsightsModalPointId(null)
+      setIsInsightsModalLoading(false)
+      setInsightsModalError(null)
       setActivePointId(null)
       setPolygonDrawPointId(null)
       setDraftPolygon([])
@@ -573,6 +668,41 @@ export function SatelliteMap({
       cancelled = true
     }
   }, [isGrowaAdmin, resetDraftMetadata])
+
+  useEffect(() => {
+    if (!isGrowaAdmin) return
+    let cancelled = false
+    async function loadFarmCropInsights() {
+      try {
+        const response = await fetch('/api/operations/farm-crop-insights', {
+          cache: 'no-store',
+        })
+        const payload = await response.json()
+        if (!response.ok || !Array.isArray(payload) || cancelled) {
+          if (!cancelled) setFarmCropInsightsByPoint({})
+          return
+        }
+
+        const grouped = payload.reduce<Record<string, FarmCropInsight[]>>((acc, row) => {
+          const normalized = normalizeFarmCropInsight(row)
+          if (!normalized) return acc
+          if (!acc[normalized.pointId]) acc[normalized.pointId] = []
+          acc[normalized.pointId].push(normalized)
+          return acc
+        }, {})
+        for (const pointId of Object.keys(grouped)) {
+          grouped[pointId].sort((a, b) => a.cropName.localeCompare(b.cropName))
+        }
+        setFarmCropInsightsByPoint(grouped)
+      } catch {
+        if (!cancelled) setFarmCropInsightsByPoint({})
+      }
+    }
+    loadFarmCropInsights()
+    return () => {
+      cancelled = true
+    }
+  }, [isGrowaAdmin])
 
   const dynamicFarmMarkers = useMemo<MapMarker[]>(() => {
     const markers: MapMarker[] = []
@@ -923,6 +1053,79 @@ export function SatelliteMap({
     }
     return count
   }, [normalizedCropFilter, pointPolygons])
+  const activePointInsights = insightsModalPointId ? farmCropInsightsByPoint[insightsModalPointId] || [] : []
+  const insightsModalPoint = useMemo(
+    () => (insightsModalPointId ? customPoints.find((point) => point.id === insightsModalPointId) || null : null),
+    [customPoints, insightsModalPointId]
+  )
+  const activeInsightsPointLabel = insightsModalPoint?.label || 'Selected point'
+  const activeInsightsPointPolygonCount = insightsModalPointId
+    ? (pointPolygons[insightsModalPointId] || []).length
+    : 0
+
+  const closePointInsightsModal = useCallback(() => {
+    insightsRequestIdRef.current += 1
+    setIsInsightsModalOpen(false)
+    setInsightsModalPointId(null)
+    setInsightsModalError(null)
+    setIsInsightsModalLoading(false)
+  }, [])
+
+  const openPointInsightsModal = useCallback(async (pointId: string) => {
+    const requestId = insightsRequestIdRef.current + 1
+    insightsRequestIdRef.current = requestId
+    setInsightsModalPointId(pointId)
+    setIsInsightsModalOpen(true)
+    setInsightsModalError(null)
+    setIsInsightsModalLoading(true)
+    try {
+      const response = await fetch(
+        `/api/operations/farm-crop-insights?pointId=${encodeURIComponent(pointId)}`,
+        {
+          cache: 'no-store',
+        }
+      )
+      const payload = await response.json()
+      if (requestId !== insightsRequestIdRef.current) return
+      if (!response.ok || !Array.isArray(payload)) {
+        setInsightsModalError('Failed to load farm crop insights.')
+        return
+      }
+      const normalized = payload
+        .map((row) => normalizeFarmCropInsight(row))
+        .filter((row): row is FarmCropInsight => Boolean(row))
+        .sort((a, b) => a.cropName.localeCompare(b.cropName))
+      setFarmCropInsightsByPoint((prev) => ({
+        ...prev,
+        [pointId]: normalized,
+      }))
+    } catch {
+      if (requestId !== insightsRequestIdRef.current) return
+      setInsightsModalError('Failed to load farm crop insights.')
+    } finally {
+      if (requestId !== insightsRequestIdRef.current) return
+      setIsInsightsModalLoading(false)
+    }
+  }, [])
+
+  const handleInsightsModalEditPoint = useCallback(() => {
+    if (!insightsModalPointId) return
+    handleEditPoint(insightsModalPointId)
+  }, [handleEditPoint, insightsModalPointId])
+
+  const handleInsightsModalDrawPolygon = useCallback(() => {
+    if (!insightsModalPointId) return
+    startPolygonDraw(insightsModalPointId)
+    setIsInsightsModalOpen(false)
+    setInsightsModalError(null)
+    setIsInsightsModalLoading(false)
+  }, [insightsModalPointId, startPolygonDraw])
+
+  const handleInsightsModalDeletePoint = useCallback(async () => {
+    if (!insightsModalPointId) return
+    await handleDeletePoint(insightsModalPointId)
+    closePointInsightsModal()
+  }, [closePointInsightsModal, handleDeletePoint, insightsModalPointId])
 
   const handleZoomIn = useCallback(() => {
     mapInstanceRef.current?.zoomIn()
@@ -1069,137 +1272,39 @@ export function SatelliteMap({
     markerInstancesRef.current.forEach((marker) => marker.remove?.())
     markerInstancesRef.current = mapMarkers.map((marker) => {
       const customPoint = customPoints.find((point) => point.id === marker.id) || null
-      const polygonCount = customPoint ? (pointPolygons[customPoint.id] || []).length : 0
-      const popupContent = customPoint
-        ? `
-            <div style="font-family: system-ui; padding: 8px; min-width: 210px;">
-              <strong style="color: #07f880; font-size: 13px;">${escapeHtml(marker.label)}</strong>
-              <br/>
-              <span style="font-size: 10px; color: #888; text-transform: uppercase;">Type: ${escapeHtml(
-                POINT_TYPE_LABELS[marker.type]
-              )}</span>
-              <br/>
-              <span style="font-size: 10px; color: #aaa;">Polygons: ${polygonCount}</span>
-              <br/>
-              <button
-                data-edit-point-id="${customPoint.id}"
-                style="
-                  margin-top: 8px;
-                  margin-right: 6px;
-                  border: 1px solid rgba(7,248,128,0.35);
-                  background: rgba(7,248,128,0.12);
-                  color: #07f880;
-                  border-radius: 6px;
-                  padding: 4px 8px;
-                  font-size: 11px;
-                  cursor: pointer;
-                "
-              >
-                Edit Point
-              </button>
-              <button
-                data-draw-polygon-point-id="${customPoint.id}"
-                style="
-                  margin-top: 8px;
-                  margin-right: 6px;
-                  border: 1px solid rgba(59,130,246,0.4);
-                  background: rgba(59,130,246,0.15);
-                  color: #93c5fd;
-                  border-radius: 6px;
-                  padding: 4px 8px;
-                  font-size: 11px;
-                  cursor: pointer;
-                "
-              >
-                Draw Polygon
-              </button>
-              <button
-                data-delete-point-id="${customPoint.id}"
-                style="
-                  margin-top: 8px;
-                  border: 1px solid rgba(239,68,68,0.45);
-                  background: rgba(239,68,68,0.14);
-                  color: #fca5a5;
-                  border-radius: 6px;
-                  padding: 4px 8px;
-                  font-size: 11px;
-                  cursor: pointer;
-                "
-              >
-                Delete Point
-              </button>
-            </div>
-          `
-        : `
-            <div style="font-family: system-ui; padding: 8px; min-width: 140px;">
-              <strong style="color: #07f880; font-size: 13px;">${escapeHtml(marker.label)}</strong>
-              <br/>
-              <span style="font-size: 10px; color: #888; text-transform: uppercase;">Type: ${escapeHtml(
-                POINT_TYPE_LABELS[marker.type]
-              )}</span>
-            </div>
-          `
-
-      const markerInstance = L.marker([marker.lat, marker.lng], { icon: createMarkerIcon(marker.type) })
-        .addTo(map)
-        .bindPopup(popupContent, { className: 'custom-popup' })
+      const markerInstance = L.marker([marker.lat, marker.lng], { icon: createMarkerIcon(marker.type) }).addTo(map)
 
       if (customPoint) {
-        markerInstance.on('popupopen', (event: any) => {
+        markerInstance.on('click', (event: any) => {
+          event?.originalEvent?.preventDefault?.()
+          event?.originalEvent?.stopPropagation?.()
           setActivePointId(customPoint.id)
-          const popupElement = event?.popup?.getElement?.() as HTMLElement | null
-          const editButton = popupElement?.querySelector(
-            `[data-edit-point-id="${customPoint.id}"]`
-          ) as HTMLButtonElement | null
-          const drawButton = popupElement?.querySelector(
-            `[data-draw-polygon-point-id="${customPoint.id}"]`
-          ) as HTMLButtonElement | null
-          const deleteButton = popupElement?.querySelector(
-            `[data-delete-point-id="${customPoint.id}"]`
-          ) as HTMLButtonElement | null
-
-          if (editButton) {
-            editButton.onclick = (clickEvent) => {
-              clickEvent.preventDefault()
-              clickEvent.stopPropagation()
-              handleEditPoint(customPoint.id)
-            }
-          }
-          if (drawButton) {
-            drawButton.onclick = (clickEvent) => {
-              clickEvent.preventDefault()
-              clickEvent.stopPropagation()
-              startPolygonDraw(customPoint.id)
-            }
-          }
-          if (deleteButton) {
-            deleteButton.onclick = (clickEvent) => {
-              clickEvent.preventDefault()
-              clickEvent.stopPropagation()
-              handleDeletePoint(customPoint.id)
-            }
-          }
+          openPointInsightsModal(customPoint.id)
         })
-        markerInstance.on('popupclose', () => {
-          if (polygonDrawPointIdRef.current === customPoint.id) return
-          // Keep the point active after popup closes so linked polygons remain clickable.
-        })
-      } else {
-        markerInstance.on('popupopen', () => {
-          setActivePointId(null)
-        })
+        return markerInstance
       }
 
+      const popupContent = `
+        <div style="font-family: system-ui; padding: 8px; min-width: 140px;">
+          <strong style="color: #07f880; font-size: 13px;">${escapeHtml(marker.label)}</strong>
+          <br/>
+          <span style="font-size: 10px; color: #888; text-transform: uppercase;">Type: ${escapeHtml(
+            POINT_TYPE_LABELS[marker.type]
+          )}</span>
+        </div>
+      `
+
+      markerInstance.bindPopup(popupContent, { className: 'custom-popup' })
+      markerInstance.on('popupopen', () => {
+        setActivePointId(null)
+      })
       return markerInstance
     })
   }, [
     customPoints,
-    handleDeletePoint,
-    handleEditPoint,
     mapMarkers,
     mapReady,
-    pointPolygons,
-    startPolygonDraw,
+    openPointInsightsModal,
   ])
 
   useEffect(() => {
@@ -1593,6 +1698,114 @@ export function SatelliteMap({
         )}
       </div>
 
+      {isInsightsModalOpen && (
+        <div
+          className="absolute inset-0 z-[2200] flex items-center justify-center bg-black/65 px-4"
+          role="dialog"
+          aria-modal="true"
+          onClick={closePointInsightsModal}
+        >
+          <div
+            className="w-full max-w-3xl rounded-xl border border-white/10 bg-[#0c0c0e] p-4 shadow-2xl"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="flex items-start justify-between gap-3 border-b border-white/10 pb-3">
+              <div>
+                <p className="text-sm font-semibold text-white">Farm Crop Insights</p>
+                <p className="text-xs text-white/60">
+                  Point: <span className="text-[#07f880]">{activeInsightsPointLabel}</span>
+                </p>
+                <p className="text-[11px] text-white/50">
+                  Linked polygons: <span className="text-white/80">{activeInsightsPointPolygonCount}</span>
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={closePointInsightsModal}
+                className="rounded border border-white/15 px-2 py-1 text-xs text-white/80 hover:border-[#07f880]/45 hover:text-[#07f880]"
+              >
+                Close
+              </button>
+            </div>
+
+            <div className="mt-3 flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={handleInsightsModalEditPoint}
+                disabled={!insightsModalPointId}
+                className="rounded border border-[#07f880]/35 bg-[#07f880]/12 px-2 py-1 text-[11px] text-[#07f880] disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                Edit Point
+              </button>
+              <button
+                type="button"
+                onClick={handleInsightsModalDrawPolygon}
+                disabled={!insightsModalPointId}
+                className="rounded border border-[#93c5fd]/35 bg-[#93c5fd]/12 px-2 py-1 text-[11px] text-[#bfdbfe] disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                Draw Polygon
+              </button>
+              <button
+                type="button"
+                onClick={handleInsightsModalDeletePoint}
+                disabled={!insightsModalPointId}
+                className="rounded border border-red-400/35 bg-red-500/12 px-2 py-1 text-[11px] text-red-300 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                Delete Point
+              </button>
+            </div>
+
+            {isInsightsModalLoading ? (
+              <div className="py-8 text-center text-sm text-white/65">Loading insights...</div>
+            ) : insightsModalError ? (
+              <div className="py-8 text-center text-sm text-red-300">{insightsModalError}</div>
+            ) : activePointInsights.length === 0 ? (
+              <div className="py-8 text-center text-sm text-white/65">
+                No crop insight records found for this point.
+              </div>
+            ) : (
+              <div className="mt-3 max-h-[60vh] overflow-y-auto rounded-lg border border-white/10">
+                <table className="min-w-full divide-y divide-white/10 text-left">
+                  <thead className="bg-white/5">
+                    <tr className="text-[11px] uppercase tracking-wide text-white/60">
+                      <th className="px-3 py-2 font-medium">Crop</th>
+                      <th className="px-3 py-2 font-medium">Estimated Production</th>
+                      <th className="px-3 py-2 font-medium">Energy Consumption</th>
+                      <th className="px-3 py-2 font-medium">Water Consumption</th>
+                      <th className="px-3 py-2 font-medium">External Link</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-white/5">
+                    {activePointInsights.map((insight) => (
+                      <tr key={insight.id} className="text-xs text-white/85">
+                        <td className="px-3 py-2">{insight.cropName}</td>
+                        <td className="px-3 py-2">{formatMetric(insight.estimatedProductionTons, 'tons')}</td>
+                        <td className="px-3 py-2">{formatMetric(insight.energyConsumptionKwh, 'kWh')}</td>
+                        <td className="px-3 py-2">{formatMetric(insight.waterConsumptionM3, 'm³')}</td>
+                        <td className="px-3 py-2">
+                          {insight.externalUrl ? (
+                            <a
+                              href={normalizeExternalLink(insight.externalUrl)}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="text-[#07f880] underline underline-offset-2 hover:text-[#8dffca]"
+                            >
+                              Open
+                            </a>
+                          ) : (
+                            <span className="text-white/45">-</span>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       {isGrowaAdmin && polygonDrawPointId && (
         <div className="absolute left-6 top-24 z-[1000] w-80 rounded-lg border border-white/10 bg-[#0c0c0e]/90 p-3 shadow-lg">
           <p className="text-xs font-semibold uppercase tracking-wide text-white/70">Polygon Draft</p>
@@ -1757,6 +1970,84 @@ export function SatelliteMap({
               ? `Showing ${cropFilteredPolygonCount} polygon${cropFilteredPolygonCount === 1 ? '' : 's'} for "${polygonCropFilterQuery.trim()}".`
               : 'Type a crop name to only show matching polygons on the map.'}
           </p>
+        </div>
+      )}
+
+      {isInsightsModalOpen && (
+        <div
+          className="absolute inset-0 z-[2200] flex items-center justify-center bg-black/65 px-4"
+          role="dialog"
+          aria-modal="true"
+          onClick={closePointInsightsModal}
+        >
+          <div
+            className="w-full max-w-3xl rounded-xl border border-white/10 bg-[#0c0c0e] p-4 shadow-2xl"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="flex items-start justify-between gap-3 border-b border-white/10 pb-3">
+              <div>
+                <p className="text-sm font-semibold text-white">Farm Crop Insights</p>
+                <p className="text-xs text-white/60">
+                  Point: <span className="text-[#07f880]">{activeInsightsPointLabel}</span>
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={closePointInsightsModal}
+                className="rounded border border-white/15 px-2 py-1 text-xs text-white/80 hover:border-[#07f880]/45 hover:text-[#07f880]"
+              >
+                Close
+              </button>
+            </div>
+
+            {isInsightsModalLoading ? (
+              <div className="py-8 text-center text-sm text-white/65">Loading insights...</div>
+            ) : insightsModalError ? (
+              <div className="py-8 text-center text-sm text-red-300">{insightsModalError}</div>
+            ) : activePointInsights.length === 0 ? (
+              <div className="py-8 text-center text-sm text-white/65">
+                No crop insight records found for this point.
+              </div>
+            ) : (
+              <div className="mt-3 max-h-[60vh] overflow-y-auto rounded-lg border border-white/10">
+                <table className="min-w-full divide-y divide-white/10 text-left">
+                  <thead className="bg-white/5">
+                    <tr className="text-[11px] uppercase tracking-wide text-white/60">
+                      <th className="px-3 py-2 font-medium">Crop</th>
+                      <th className="px-3 py-2 font-medium">Estimated Production</th>
+                      <th className="px-3 py-2 font-medium">Energy Consumption</th>
+                      <th className="px-3 py-2 font-medium">Water Consumption</th>
+                      <th className="px-3 py-2 font-medium">External Link</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-white/5">
+                    {activePointInsights.map((insight) => (
+                      <tr key={insight.id} className="text-xs text-white/85">
+                        <td className="px-3 py-2">{insight.cropName}</td>
+                        <td className="px-3 py-2">{formatMetric(insight.estimatedProductionTons, 'tons')}</td>
+                        <td className="px-3 py-2">{formatMetric(insight.energyConsumptionKwh, 'kWh')}</td>
+                        <td className="px-3 py-2">{formatMetric(insight.waterConsumptionM3, 'm³')}</td>
+                        <td className="px-3 py-2">
+                          {insight.externalUrl ? (
+                            <a
+                              href={insight.externalUrl}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="text-[#07f880] underline underline-offset-2 hover:text-[#8dffca]"
+                            >
+                              Open
+                            </a>
+                          ) : (
+                            <span className="text-white/45">-</span>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
         </div>
       )}
 
