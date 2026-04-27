@@ -22,6 +22,9 @@ const SELECT_WITHOUT_METRICS =
 const SELECT_LEGACY_MIN =
   'id, user_id, custom_point_id, crop_name, created_at'
 
+const SELECT_POLYGON_CROPS =
+  'custom_point_id, crop_name, created_at'
+
 function isMissingColumnError(error: { message?: string } | null | undefined, columnName: string) {
   const message = error?.message?.toLowerCase() || ''
   const normalizedColumn = columnName.toLowerCase()
@@ -129,6 +132,31 @@ async function selectInsights(
   return { data: [] as any[], error: null }
 }
 
+async function selectPolygonCropNames(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  userId: string,
+  pointId?: string
+) {
+  let query = supabase
+    .from('custom_point_polygons')
+    .select(SELECT_POLYGON_CROPS)
+    .eq('user_id', userId)
+    .order('created_at', { ascending: true })
+
+  if (pointId) {
+    query = query.eq('custom_point_id', pointId)
+  }
+
+  const { data, error } = await query
+  if (error) {
+    if (isMissingRelationError(error, 'custom_point_polygons')) {
+      return { data: [] as any[], error: null as null }
+    }
+    return { data: [] as any[], error }
+  }
+  return { data: data || [], error: null as null }
+}
+
 export async function GET(request: Request) {
   const supabase = await createClient()
   const { searchParams } = new URL(request.url)
@@ -144,13 +172,58 @@ export async function GET(request: Request) {
   }
 
   const { data, error } = await selectInsights(supabase, user.id, pointId || undefined)
-  if (error) {
-    if (isMissingRelationError(error, 'farm_crop_insights')) {
-      return NextResponse.json([])
-    }
+  if (error && !isMissingRelationError(error, 'farm_crop_insights')) {
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
-  return NextResponse.json((data || []).map((row) => mapRowForResponse(row)))
+
+  const insightRows = (data || []).map((row) => mapRowForResponse(row))
+  const cropKeySet = new Set(
+    insightRows.map(
+      (row) => `${row.pointId}::${row.cropName.toLowerCase().trim()}`
+    )
+  )
+
+  const {
+    data: polygonCropRows,
+    error: polygonCropError,
+  } = await selectPolygonCropNames(supabase, user.id, pointId || undefined)
+  if (polygonCropError) {
+    return NextResponse.json({ error: polygonCropError.message }, { status: 500 })
+  }
+
+  const mergedRows = [...insightRows]
+  for (const polygonRow of polygonCropRows || []) {
+    const row = polygonRow as Record<string, unknown>
+    const polygonPointId =
+      typeof row.custom_point_id === 'string' ? row.custom_point_id.trim() : ''
+    const polygonCropName =
+      typeof row.crop_name === 'string' ? row.crop_name.trim() : ''
+    if (!polygonPointId || !polygonCropName) continue
+    const cropKey = `${polygonPointId}::${polygonCropName.toLowerCase()}`
+    if (cropKeySet.has(cropKey)) continue
+    cropKeySet.add(cropKey)
+    mergedRows.push({
+      id: `derived-${polygonPointId}-${polygonCropName.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`,
+      userId: user.id,
+      pointId: polygonPointId,
+      cropName: polygonCropName,
+      estimatedProductionTons: 0,
+      energyConsumptionKwh: 0,
+      waterConsumptionM3: 0,
+      externalUrl: '',
+      createdAt:
+        typeof row.created_at === 'string' && row.created_at.trim()
+          ? row.created_at
+          : new Date().toISOString(),
+    })
+  }
+
+  mergedRows.sort((a, b) => {
+    if (a.pointId !== b.pointId) return a.pointId.localeCompare(b.pointId)
+    return a.cropName.localeCompare(b.cropName)
+  })
+
+  return NextResponse.json(mergedRows)
 }
 
 export async function POST(request: Request) {
