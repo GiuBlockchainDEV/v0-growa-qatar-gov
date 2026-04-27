@@ -41,6 +41,7 @@ interface MapController {
   zoomOut: () => void
   flyTo: (coords: [number, number], zoom: number, options?: { duration?: number }) => void
   setView: (coords: [number, number], zoom: number) => void
+  closePopup?: () => void
   getZoom: () => number
   on: (event: string, handler: (...args: any[]) => void) => void
   off: (event: string, handler: (...args: any[]) => void) => void
@@ -1074,6 +1075,7 @@ export function SatelliteMap({
   const openPointInsightsModal = useCallback(async (pointId: string) => {
     const requestId = insightsRequestIdRef.current + 1
     insightsRequestIdRef.current = requestId
+    mapInstanceRef.current?.closePopup?.()
     setInsightsModalPointId(pointId)
     setIsInsightsModalOpen(true)
     setInsightsModalError(null)
@@ -1700,7 +1702,7 @@ export function SatelliteMap({
 
       {isInsightsModalOpen && (
         <div
-          className="absolute inset-0 z-[2200] flex items-center justify-center bg-black/65 px-4"
+          className="absolute inset-0 z-[2600] flex items-center justify-center bg-black/65 px-4"
           role="dialog"
           aria-modal="true"
           onClick={closePointInsightsModal}
@@ -1970,84 +1972,6 @@ export function SatelliteMap({
               ? `Showing ${cropFilteredPolygonCount} polygon${cropFilteredPolygonCount === 1 ? '' : 's'} for "${polygonCropFilterQuery.trim()}".`
               : 'Type a crop name to only show matching polygons on the map.'}
           </p>
-        </div>
-      )}
-
-      {isInsightsModalOpen && (
-        <div
-          className="absolute inset-0 z-[2200] flex items-center justify-center bg-black/65 px-4"
-          role="dialog"
-          aria-modal="true"
-          onClick={closePointInsightsModal}
-        >
-          <div
-            className="w-full max-w-3xl rounded-xl border border-white/10 bg-[#0c0c0e] p-4 shadow-2xl"
-            onClick={(event) => event.stopPropagation()}
-          >
-            <div className="flex items-start justify-between gap-3 border-b border-white/10 pb-3">
-              <div>
-                <p className="text-sm font-semibold text-white">Farm Crop Insights</p>
-                <p className="text-xs text-white/60">
-                  Point: <span className="text-[#07f880]">{activeInsightsPointLabel}</span>
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={closePointInsightsModal}
-                className="rounded border border-white/15 px-2 py-1 text-xs text-white/80 hover:border-[#07f880]/45 hover:text-[#07f880]"
-              >
-                Close
-              </button>
-            </div>
-
-            {isInsightsModalLoading ? (
-              <div className="py-8 text-center text-sm text-white/65">Loading insights...</div>
-            ) : insightsModalError ? (
-              <div className="py-8 text-center text-sm text-red-300">{insightsModalError}</div>
-            ) : activePointInsights.length === 0 ? (
-              <div className="py-8 text-center text-sm text-white/65">
-                No crop insight records found for this point.
-              </div>
-            ) : (
-              <div className="mt-3 max-h-[60vh] overflow-y-auto rounded-lg border border-white/10">
-                <table className="min-w-full divide-y divide-white/10 text-left">
-                  <thead className="bg-white/5">
-                    <tr className="text-[11px] uppercase tracking-wide text-white/60">
-                      <th className="px-3 py-2 font-medium">Crop</th>
-                      <th className="px-3 py-2 font-medium">Estimated Production</th>
-                      <th className="px-3 py-2 font-medium">Energy Consumption</th>
-                      <th className="px-3 py-2 font-medium">Water Consumption</th>
-                      <th className="px-3 py-2 font-medium">External Link</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-white/5">
-                    {activePointInsights.map((insight) => (
-                      <tr key={insight.id} className="text-xs text-white/85">
-                        <td className="px-3 py-2">{insight.cropName}</td>
-                        <td className="px-3 py-2">{formatMetric(insight.estimatedProductionTons, 'tons')}</td>
-                        <td className="px-3 py-2">{formatMetric(insight.energyConsumptionKwh, 'kWh')}</td>
-                        <td className="px-3 py-2">{formatMetric(insight.waterConsumptionM3, 'm³')}</td>
-                        <td className="px-3 py-2">
-                          {insight.externalUrl ? (
-                            <a
-                              href={insight.externalUrl}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="text-[#07f880] underline underline-offset-2 hover:text-[#8dffca]"
-                            >
-                              Open
-                            </a>
-                          ) : (
-                            <span className="text-white/45">-</span>
-                          )}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
         </div>
       )}
 
