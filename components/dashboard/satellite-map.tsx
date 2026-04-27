@@ -260,7 +260,7 @@ function scoreToPolygonColor(score: number) {
   const normalized = normalizePolygonScore(score, 50)
   // Requested scale: 0 -> red, mid -> yellow/orange, 100 -> green.
   const hue = (normalized / 100) * 120
-  return `hsl(${hue.toFixed(1)} 92% 52%)`
+  return `hsl(${hue.toFixed(1)} 100% 56%)`
 }
 
 function createRectangleVertices(start: PolygonVertex, end: PolygonVertex): PolygonVertex[] {
@@ -1273,10 +1273,10 @@ export function SatelliteMap({
           polygon.vertices.map((vertex) => [vertex.lat, vertex.lng]),
           {
             color: polygonColor,
-            weight: 2,
-            opacity: 0.9,
+            weight: 4,
+            opacity: 1,
             fillColor: polygonColor,
-            fillOpacity: 0.16,
+            fillOpacity: 0.4,
             interactive: true,
             bubblingMouseEvents: false,
           }
