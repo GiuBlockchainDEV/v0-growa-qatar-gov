@@ -1063,6 +1063,13 @@ export function SatelliteMap({
   const activeInsightsPointPolygonCount = insightsModalPointId
     ? (pointPolygons[insightsModalPointId] || []).length
     : 0
+  const activeInsightsFarmExternalUrl = useMemo(() => {
+    for (const insight of activePointInsights) {
+      const normalized = normalizeExternalLink(insight.externalUrl)
+      if (normalized) return normalized
+    }
+    return ''
+  }, [activePointInsights])
 
   const closePointInsightsModal = useCallback(() => {
     insightsRequestIdRef.current += 1
@@ -1757,6 +1764,22 @@ export function SatelliteMap({
               </button>
             </div>
 
+            <div className="mt-3 rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2">
+              <p className="text-[11px] uppercase tracking-wide text-white/55">Farm External Link</p>
+              {activeInsightsFarmExternalUrl ? (
+                <a
+                  href={activeInsightsFarmExternalUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="mt-1 inline-block text-xs text-[#07f880] underline underline-offset-2 hover:text-[#8dffca]"
+                >
+                  Open Farm Link
+                </a>
+              ) : (
+                <p className="mt-1 text-xs text-white/50">No farm link configured yet.</p>
+              )}
+            </div>
+
             {isInsightsModalLoading ? (
               <div className="py-8 text-center text-sm text-white/65">Loading insights...</div>
             ) : insightsModalError ? (
@@ -1774,7 +1797,6 @@ export function SatelliteMap({
                       <th className="px-3 py-2 font-medium">Estimated Production</th>
                       <th className="px-3 py-2 font-medium">Energy Consumption</th>
                       <th className="px-3 py-2 font-medium">Water Consumption</th>
-                      <th className="px-3 py-2 font-medium">External Link</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-white/5">
@@ -1784,20 +1806,6 @@ export function SatelliteMap({
                         <td className="px-3 py-2">{formatMetric(insight.estimatedProductionTons, 'tons')}</td>
                         <td className="px-3 py-2">{formatMetric(insight.energyConsumptionKwh, 'kWh')}</td>
                         <td className="px-3 py-2">{formatMetric(insight.waterConsumptionM3, 'm³')}</td>
-                        <td className="px-3 py-2">
-                          {insight.externalUrl ? (
-                            <a
-                              href={normalizeExternalLink(insight.externalUrl)}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="text-[#07f880] underline underline-offset-2 hover:text-[#8dffca]"
-                            >
-                              Open
-                            </a>
-                          ) : (
-                            <span className="text-white/45">-</span>
-                          )}
-                        </td>
                       </tr>
                     ))}
                   </tbody>
