@@ -559,7 +559,7 @@ export function DataAnalyticsWorkspace() {
                 </div>
               </div>
 
-              <div className="rounded-xl border border-destructive/35 bg-destructive/10 p-5">
+              <div className="rounded-xl border border-destructive/40 bg-destructive/20 p-5">
                 <h2 className="flex items-center gap-2 text-base font-semibold text-foreground">
                   <TrendingDown className="h-4 w-4 text-destructive" />
                   Least Efficient Producers
@@ -571,7 +571,7 @@ export function DataAnalyticsWorkspace() {
                     producerRanking.leastEfficient.map((entry, index) => (
                       <div
                         key={`${entry.pointId}-worst`}
-                        className="rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2.5"
+                        className="rounded-lg border border-destructive/35 bg-destructive/10 px-3 py-2.5"
                       >
                         <p className="text-sm font-medium text-foreground">
                           #{index + 1} {getProducerDisplayName(entry.pointId, producerLabelsById)}
