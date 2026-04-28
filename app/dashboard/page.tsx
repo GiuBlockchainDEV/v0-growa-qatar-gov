@@ -5,6 +5,7 @@ import { useSearchParams } from 'next/navigation'
 import { SatelliteMap } from '@/components/dashboard/satellite-map'
 import { ModuleWorkspace } from '@/components/dashboard/module-workspace'
 import { RssFeedWorkspace } from '@/components/dashboard/rss-feed-workspace'
+import { DataAnalyticsWorkspace } from '@/components/dashboard/data-analytics-workspace'
 
 export default function DashboardPage() {
   const { locale } = useI18n()
@@ -36,6 +37,10 @@ export default function DashboardPage() {
 
   if (module === 'rss-feed') {
     return <RssFeedWorkspace />
+  }
+
+  if (module === 'data-analytics') {
+    return <DataAnalyticsWorkspace />
   }
 
   return <ModuleWorkspace moduleKey={module} />

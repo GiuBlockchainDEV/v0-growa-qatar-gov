@@ -124,6 +124,7 @@ const unassignedNavigation: MenuItem[] = [
 const normalUserNavigation: MenuItem[] = [
   { key: 'live-map', label: 'Live Map', path: '/dashboard?module=live-map', icon: 'Map' },
   { key: 'rss-feed', label: 'RSS Feed', path: '/dashboard?module=rss-feed', icon: 'Globe' },
+  { key: 'data-analytics', label: 'Data Analytics', path: '/dashboard?module=data-analytics', icon: 'BarChart3' },
 ]
 
 // Role mapping for legacy roles to new roles
@@ -156,6 +157,13 @@ const HASSAD_SUPPLY_OVERVIEW_ITEM: MenuItem = {
   label: 'Supply Overview',
   path: '/dashboard/supply-overview',
   icon: 'ShoppingCart',
+}
+
+const DATA_ANALYTICS_ITEM: MenuItem = {
+  key: 'data-analytics',
+  label: 'Data Analytics',
+  path: '/dashboard?module=data-analytics',
+  icon: 'BarChart3',
 }
 
 function ensureHassadSupplyOverview(items: MenuItem[]): MenuItem[] {
@@ -207,6 +215,57 @@ function ensureHassadSupplyOverview(items: MenuItem[]): MenuItem[] {
 
   if (!hasSupplyOverview) {
     deduped.unshift(HASSAD_SUPPLY_OVERVIEW_ITEM)
+  }
+
+  return deduped
+}
+
+function ensureDataAnalytics(items: MenuItem[]): MenuItem[] {
+  const normalized = items.map((item) => {
+    const normalizedKey = item.key?.trim().toLowerCase()
+    const normalizedLabel = item.label?.trim().toLowerCase()
+    const normalizedPath = item.path?.trim().toLowerCase()
+    const isDataAnalytics =
+      normalizedKey === 'data-analytics' ||
+      normalizedKey === 'data_analytics' ||
+      normalizedKey === 'analytics' ||
+      normalizedKey === 'crop-analytics' ||
+      normalizedLabel === 'data analytics' ||
+      normalizedPath === '/dashboard?module=data-analytics' ||
+      normalizedPath === '/dashboard?module=data_analytics' ||
+      normalizedPath === '/dashboard/data-analytics'
+
+    if (!isDataAnalytics) return item
+    return {
+      ...item,
+      key: DATA_ANALYTICS_ITEM.key,
+      label: item.label || DATA_ANALYTICS_ITEM.label,
+      path: DATA_ANALYTICS_ITEM.path,
+      icon: item.icon || DATA_ANALYTICS_ITEM.icon,
+    }
+  })
+
+  const deduped: MenuItem[] = []
+  let hasDataAnalytics = false
+  for (const item of normalized) {
+    const isDataAnalytics =
+      item.key === DATA_ANALYTICS_ITEM.key || item.path === DATA_ANALYTICS_ITEM.path
+    if (isDataAnalytics) {
+      if (hasDataAnalytics) continue
+      hasDataAnalytics = true
+      deduped.push({
+        ...DATA_ANALYTICS_ITEM,
+        ...item,
+        key: DATA_ANALYTICS_ITEM.key,
+        path: DATA_ANALYTICS_ITEM.path,
+      })
+      continue
+    }
+    deduped.push(item)
+  }
+
+  if (!hasDataAnalytics) {
+    deduped.push(DATA_ANALYTICS_ITEM)
   }
 
   return deduped
@@ -351,7 +410,8 @@ export function useRoleNavigation() {
         // In "Normal User" mode for growa admins, always force a minimal
         // observer menu, regardless of backend membership role.
         if (isGrowaAdmin && !isGrowaImpersonating) {
-          const { primary, secondary } = splitNavigationSections(normalUserNavigation)
+          const roleAwareItems = ensureDataAnalytics(normalUserNavigation)
+          const { primary, secondary } = splitNavigationSections(roleAwareItems)
           const merged = [...primary, ...secondary]
           setNavigation({
             id: 'normal-user',
@@ -381,7 +441,8 @@ export function useRoleNavigation() {
         }
 
         if (!currentRole) {
-          const { primary, secondary } = splitNavigationSections(unassignedNavigation)
+          const roleAwareItems = ensureDataAnalytics(unassignedNavigation)
+          const { primary, secondary } = splitNavigationSections(roleAwareItems)
           setNavigation({
             id: 'unassigned',
             role_name: 'unassigned',
@@ -467,7 +528,9 @@ export function useRoleNavigation() {
           const resolvedSecondary = resolvedNavigation.secondary.map((item) =>
             toMenuItem(item, 'secondary')
           )
-          const resolvedMenuItems = [...resolvedPrimary, ...resolvedSecondary]
+          const roleAwareItems = ensureDataAnalytics([...resolvedPrimary, ...resolvedSecondary])
+          const { primary, secondary } = splitNavigationSections(roleAwareItems)
+          const resolvedMenuItems = [...primary, ...secondary]
 
           setNavigation({
             id: mappedProfile,
@@ -476,14 +539,14 @@ export function useRoleNavigation() {
               mappedProfile === 'ministry_admin' ? 'Ministry Admin Workspace' : 'Ministry Inspector Workspace',
             landing_page: resolvedNavigation.landingPage,
             menu_items: resolvedMenuItems,
-            primary_items: resolvedPrimary,
-            secondary_items: resolvedSecondary,
+            primary_items: primary,
+            secondary_items: secondary,
             role_profile: mappedProfile,
             source: 'registry',
             description: 'Route-first map-centric sovereign workspace',
           })
-          setPrimaryItems(resolvedPrimary)
-          setSecondaryItems(resolvedSecondary)
+          setPrimaryItems(primary)
+          setSecondaryItems(secondary)
           setMenuItems(resolvedMenuItems)
           setLandingPage(resolvedNavigation.landingPage)
           setRoleProfile(mappedProfile)
@@ -505,7 +568,8 @@ export function useRoleNavigation() {
               mappedRole === HASSAD_SUPPLY_ROLE
                 ? ensureHassadSupplyOverview(defaultNavigation)
                 : defaultNavigation
-            const { primary, secondary } = splitNavigationSections(fallbackItems)
+            const roleAwareFallbackItems = ensureDataAnalytics(fallbackItems)
+            const { primary, secondary } = splitNavigationSections(roleAwareFallbackItems)
             setPrimaryItems(primary)
             setSecondaryItems(secondary)
             setMenuItems([...primary, ...secondary])
@@ -520,8 +584,9 @@ export function useRoleNavigation() {
           const items = typeof data.menu_items === 'string'
             ? JSON.parse(data.menu_items)
             : data.menu_items
-          const roleAwareItems =
+          const roleAwareItems = ensureDataAnalytics(
             mappedRole === HASSAD_SUPPLY_ROLE ? ensureHassadSupplyOverview(items) : items
+          )
           const { primary, secondary } = splitNavigationSections(roleAwareItems)
           const merged = [...primary, ...secondary]
 
@@ -564,7 +629,8 @@ export function useRoleNavigation() {
         console.error('Error fetching role navigation:', err)
         setError(err instanceof Error ? err.message : 'Failed to fetch navigation')
         // Fallback to default navigation
-        const { primary, secondary } = splitNavigationSections(defaultNavigation)
+        const roleAwareFallbackItems = ensureDataAnalytics(defaultNavigation)
+        const { primary, secondary } = splitNavigationSections(roleAwareFallbackItems)
         setPrimaryItems(primary)
         setSecondaryItems(secondary)
         setMenuItems([...primary, ...secondary])
