@@ -354,30 +354,30 @@ export function DataAnalyticsWorkspace() {
   }, [cropAggregates, headline.totalEnergy, headline.totalProduction, headline.totalWater, polygons, producerRanking])
 
   return (
-    <div className="space-y-6 bg-[#03060b] p-6 pt-20 text-white">
-      <div className="relative overflow-hidden rounded-2xl border border-[#1f2a3b] bg-[#070d18] p-6 shadow-[0_0_0_1px_rgba(7,248,128,0.06),0_24px_60px_rgba(0,0,0,0.45)]">
-        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(7,248,128,0.14),transparent_45%),radial-gradient(circle_at_bottom_left,rgba(34,197,255,0.10),transparent_42%)]" />
+    <div className="space-y-7 p-6 pt-20 text-foreground">
+      <div className="relative overflow-hidden rounded-2xl border border-border bg-card p-7 shadow-[0_0_0_1px_rgba(7,248,128,0.08),0_24px_60px_rgba(0,0,0,0.38)]">
+        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(7,248,128,0.14),transparent_45%),radial-gradient(circle_at_bottom_left,rgba(7,248,128,0.08),transparent_42%)]" />
         <div className="pointer-events-none absolute inset-0 opacity-25 [background-image:linear-gradient(rgba(148,163,184,0.12)_1px,transparent_1px),linear-gradient(90deg,rgba(148,163,184,0.12)_1px,transparent_1px)] [background-size:28px_28px]" />
         <div className="relative">
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div>
-              <p className="text-[11px] uppercase tracking-[0.22em] text-[#07f880]">Operational Intelligence Layer</p>
-              <h1 className="mt-2 flex items-center gap-2 text-3xl font-semibold text-slate-100">
-                <BarChart3 className="h-6 w-6 text-[#07f880]" />
+              <p className="text-xs uppercase tracking-[0.22em] text-primary">Operational Intelligence Layer</p>
+              <h1 className="mt-2 flex items-center gap-2 text-4xl font-semibold text-foreground">
+                <BarChart3 className="h-7 w-7 text-primary" />
                 Data Analytics Command
               </h1>
-              <p className="mt-2 max-w-2xl text-sm text-slate-300/80">
+              <p className="mt-3 max-w-2xl text-base text-muted-foreground">
                 Unified command view for crop performance, resource pressure, and producer efficiency across all mapped
                 farm points.
               </p>
             </div>
-            <div className="grid grid-cols-2 gap-2 text-xs">
-              <div className="rounded-md border border-[#1f3f39] bg-[#0a1a19] px-3 py-2 text-[#91ffd0]">STATUS: LIVE</div>
-              <div className="rounded-md border border-[#26364f] bg-[#0b1626] px-3 py-2 text-sky-200">GRID: ONLINE</div>
-              <div className="rounded-md border border-[#353117] bg-[#181406] px-3 py-2 text-amber-200">
+            <div className="grid grid-cols-2 gap-2 text-sm">
+              <div className="rounded-md border border-primary/30 bg-primary/10 px-3 py-2 text-primary">STATUS: LIVE</div>
+              <div className="rounded-md border border-border bg-secondary/50 px-3 py-2 text-foreground">GRID: ONLINE</div>
+              <div className="rounded-md border border-border bg-secondary/50 px-3 py-2 text-foreground">
                 SIGNAL: {formatScore(analyticsMeta.avgPolygonScore)}
               </div>
-              <div className="rounded-md border border-[#213145] bg-[#0b1420] px-3 py-2 text-slate-200">
+              <div className="rounded-md border border-border bg-secondary/50 px-3 py-2 text-foreground">
                 TRACKED POLYGONS: {polygons.length}
               </div>
             </div>
@@ -386,7 +386,7 @@ export function DataAnalyticsWorkspace() {
       </div>
 
       {loading ? (
-        <div className="rounded-xl border border-slate-700/50 bg-slate-900/40 p-8 text-center text-sm text-slate-300">
+        <div className="rounded-xl border border-border bg-card/60 p-8 text-center text-base text-muted-foreground">
           Loading analytics...
         </div>
       ) : error ? (
@@ -396,52 +396,52 @@ export function DataAnalyticsWorkspace() {
       ) : (
         <>
           <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-6">
-            <div className="rounded-xl border border-slate-700/60 bg-gradient-to-b from-slate-900/90 to-slate-900/50 p-4 shadow-[inset_0_0_0_1px_rgba(148,163,184,0.08)]">
-              <p className="text-[11px] uppercase tracking-[0.14em] text-slate-400">Crops tracked</p>
-              <p className="mt-2 text-2xl font-semibold text-slate-100">{headline.cropCount}</p>
+            <div className="rounded-xl border border-border bg-card/80 p-5 shadow-[inset_0_0_0_1px_rgba(148,163,184,0.08)]">
+              <p className="text-xs uppercase tracking-[0.14em] text-muted-foreground">Crops tracked</p>
+              <p className="mt-2 text-3xl font-semibold text-foreground">{headline.cropCount}</p>
             </div>
-            <div className="rounded-xl border border-slate-700/60 bg-gradient-to-b from-slate-900/90 to-slate-900/50 p-4 shadow-[inset_0_0_0_1px_rgba(148,163,184,0.08)]">
-              <p className="text-[11px] uppercase tracking-[0.14em] text-slate-400">Producers</p>
-              <p className="mt-2 text-2xl font-semibold text-slate-100">{headline.producerCount}</p>
+            <div className="rounded-xl border border-border bg-card/80 p-5 shadow-[inset_0_0_0_1px_rgba(148,163,184,0.08)]">
+              <p className="text-xs uppercase tracking-[0.14em] text-muted-foreground">Producers</p>
+              <p className="mt-2 text-3xl font-semibold text-foreground">{headline.producerCount}</p>
             </div>
-            <div className="rounded-xl border border-[#1e4737] bg-gradient-to-b from-[#0a1a16] to-[#08130f] p-4 shadow-[inset_0_0_0_1px_rgba(7,248,128,0.16)]">
-              <p className="flex items-center gap-1.5 text-[11px] uppercase tracking-[0.14em] text-emerald-300/80">
+            <div className="rounded-xl border border-primary/30 bg-primary/10 p-5 shadow-[inset_0_0_0_1px_rgba(7,248,128,0.16)]">
+              <p className="flex items-center gap-1.5 text-xs uppercase tracking-[0.14em] text-primary/90">
                 <Activity className="h-3.5 w-3.5" /> Production
               </p>
-              <p className="mt-2 text-2xl font-semibold text-[#07f880]">{formatNumber(headline.totalProduction, ' t')}</p>
+              <p className="mt-2 text-3xl font-semibold text-primary">{formatNumber(headline.totalProduction, ' t')}</p>
             </div>
-            <div className="rounded-xl border border-sky-800/45 bg-gradient-to-b from-sky-950/40 to-slate-900/60 p-4 shadow-[inset_0_0_0_1px_rgba(56,189,248,0.14)]">
-              <p className="flex items-center gap-1.5 text-[11px] uppercase tracking-[0.14em] text-sky-200/85">
+            <div className="rounded-xl border border-border bg-card/80 p-5 shadow-[inset_0_0_0_1px_rgba(7,248,128,0.08)]">
+              <p className="flex items-center gap-1.5 text-xs uppercase tracking-[0.14em] text-muted-foreground">
                 <Cpu className="h-3.5 w-3.5" /> Energy
               </p>
-              <p className="mt-2 text-2xl font-semibold text-sky-300">{formatNumber(headline.totalEnergy, ' kWh')}</p>
+              <p className="mt-2 text-3xl font-semibold text-foreground">{formatNumber(headline.totalEnergy, ' kWh')}</p>
             </div>
-            <div className="rounded-xl border border-cyan-800/45 bg-gradient-to-b from-cyan-950/40 to-slate-900/60 p-4 shadow-[inset_0_0_0_1px_rgba(34,211,238,0.14)]">
-              <p className="flex items-center gap-1.5 text-[11px] uppercase tracking-[0.14em] text-cyan-200/85">
+            <div className="rounded-xl border border-border bg-card/80 p-5 shadow-[inset_0_0_0_1px_rgba(7,248,128,0.08)]">
+              <p className="flex items-center gap-1.5 text-xs uppercase tracking-[0.14em] text-muted-foreground">
                 <Droplets className="h-3.5 w-3.5" /> Water
               </p>
-              <p className="mt-2 text-2xl font-semibold text-cyan-300">{formatNumber(headline.totalWater, ' m³')}</p>
+              <p className="mt-2 text-3xl font-semibold text-foreground">{formatNumber(headline.totalWater, ' m³')}</p>
             </div>
-            <div className="rounded-xl border border-amber-700/40 bg-gradient-to-b from-amber-950/30 to-slate-900/60 p-4 shadow-[inset_0_0_0_1px_rgba(251,191,36,0.14)]">
-              <p className="flex items-center gap-1.5 text-[11px] uppercase tracking-[0.14em] text-amber-200/85">
+            <div className="rounded-xl border border-border bg-card/80 p-5 shadow-[inset_0_0_0_1px_rgba(7,248,128,0.08)]">
+              <p className="flex items-center gap-1.5 text-xs uppercase tracking-[0.14em] text-muted-foreground">
                 <Gauge className="h-3.5 w-3.5" /> Resource / Ton
               </p>
-              <p className="mt-2 text-2xl font-semibold text-amber-300">
+              <p className="mt-2 text-3xl font-semibold text-foreground">
                 {formatNumber(analyticsMeta.resourceIntensityPerTon)}
               </p>
             </div>
           </div>
 
           <div className="grid grid-cols-1 gap-4 xl:grid-cols-[1.4fr_0.8fr]">
-            <div className="rounded-xl border border-slate-700/50 bg-[#070d18] p-4 shadow-[inset_0_0_0_1px_rgba(148,163,184,0.06)]">
-              <h2 className="flex items-center gap-2 text-sm font-semibold text-slate-100">
-                <Leaf className="h-4 w-4 text-[#07f880]" />
+            <div className="rounded-xl border border-border bg-card p-5 shadow-[inset_0_0_0_1px_rgba(148,163,184,0.06)]">
+              <h2 className="flex items-center gap-2 text-lg font-semibold text-foreground">
+                <Leaf className="h-5 w-5 text-primary" />
                 Crop Intelligence Matrix
               </h2>
-              <p className="mt-1 text-xs text-slate-400">Resource and production profile by crop family.</p>
-              <div className="mt-3 overflow-x-auto rounded-lg border border-slate-700/50">
-                <table className="min-w-full divide-y divide-slate-700/50 text-left">
-                  <thead className="bg-slate-900/70 text-[11px] uppercase tracking-[0.12em] text-slate-400">
+              <p className="mt-1 text-sm text-muted-foreground">Resource and production profile by crop family.</p>
+              <div className="mt-4 overflow-x-auto rounded-lg border border-border">
+                <table className="min-w-full divide-y divide-border text-left">
+                  <thead className="bg-secondary/50 text-xs uppercase tracking-[0.12em] text-muted-foreground">
                     <tr>
                       <th className="px-3 py-2.5 font-medium">Crop</th>
                       <th className="px-3 py-2.5 font-medium">Farms</th>
@@ -452,13 +452,13 @@ export function DataAnalyticsWorkspace() {
                       <th className="px-3 py-2.5 font-medium">Score</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-800/60">
+                  <tbody className="divide-y divide-border/70">
                     {cropAggregates.map((crop, index) => (
                       <tr
                         key={crop.cropName}
-                        className={`text-xs text-slate-200 ${index % 2 === 0 ? 'bg-slate-900/35' : 'bg-slate-950/35'}`}
+                        className={`text-sm text-foreground ${index % 2 === 0 ? 'bg-card/60' : 'bg-secondary/20'}`}
                       >
-                        <td className="px-3 py-2.5 font-medium text-slate-100">{crop.cropName}</td>
+                        <td className="px-3 py-2.5 font-medium text-foreground">{crop.cropName}</td>
                         <td className="px-3 py-2.5">{crop.farmsCount}</td>
                         <td className="px-3 py-2.5">{crop.polygonsCount}</td>
                         <td className="px-3 py-2.5">{formatNumber(crop.totalProductionTons, ' t')}</td>
@@ -484,17 +484,17 @@ export function DataAnalyticsWorkspace() {
             </div>
 
             <div className="space-y-4">
-              <div className="rounded-xl border border-slate-700/60 bg-[#070d18] p-4 shadow-[inset_0_0_0_1px_rgba(148,163,184,0.06)]">
-                <h3 className="text-[11px] uppercase tracking-[0.14em] text-slate-400">System pulse</h3>
+              <div className="rounded-xl border border-border bg-card p-5 shadow-[inset_0_0_0_1px_rgba(148,163,184,0.06)]">
+                <h3 className="text-xs uppercase tracking-[0.14em] text-muted-foreground">System pulse</h3>
                 <div className="mt-3 space-y-3">
                   <div>
-                    <div className="mb-1 flex items-center justify-between text-xs text-slate-300">
+                    <div className="mb-1 flex items-center justify-between text-sm text-foreground">
                       <span>Average polygon score</span>
                       <span style={{ color: scoreColor(analyticsMeta.avgPolygonScore) }}>
                         {formatScore(analyticsMeta.avgPolygonScore)}
                       </span>
                     </div>
-                    <div className="h-2 rounded bg-slate-800">
+                    <div className="h-2 rounded bg-secondary/70">
                       <div
                         className="h-2 rounded"
                         style={{
@@ -504,53 +504,53 @@ export function DataAnalyticsWorkspace() {
                       />
                     </div>
                   </div>
-                  <div className="grid grid-cols-2 gap-2 text-xs">
-                    <div className="rounded-md border border-slate-700 bg-slate-900/60 px-2.5 py-2 text-slate-300">
-                      <p className="text-slate-400">Top crop</p>
-                      <p className="mt-1 font-medium text-slate-100">
+                  <div className="grid grid-cols-2 gap-2 text-sm">
+                    <div className="rounded-md border border-border bg-secondary/40 px-2.5 py-2 text-foreground">
+                      <p className="text-muted-foreground">Top crop</p>
+                      <p className="mt-1 font-medium text-foreground">
                         {analyticsMeta.topCrop?.cropName || 'N/A'}
                       </p>
                     </div>
-                    <div className="rounded-md border border-slate-700 bg-slate-900/60 px-2.5 py-2 text-slate-300">
-                      <p className="text-slate-400">Efficiency spread</p>
-                      <p className="mt-1 font-medium text-slate-100">
+                    <div className="rounded-md border border-border bg-secondary/40 px-2.5 py-2 text-foreground">
+                      <p className="text-muted-foreground">Efficiency spread</p>
+                      <p className="mt-1 font-medium text-foreground">
                         {formatNumber(analyticsMeta.efficiencySpread)}
                       </p>
                     </div>
                   </div>
-                  <div className="rounded-md border border-slate-700 bg-slate-900/60 px-2.5 py-2 text-xs text-slate-300">
-                    <p className="flex items-center gap-1 text-slate-400">
-                      <Flame className="h-3.5 w-3.5 text-amber-300" />
+                  <div className="rounded-md border border-border bg-secondary/40 px-2.5 py-2 text-sm text-foreground">
+                    <p className="flex items-center gap-1 text-muted-foreground">
+                      <Flame className="h-3.5 w-3.5 text-primary" />
                       Production efficiency
                     </p>
-                    <p className="mt-1 text-sm font-medium text-slate-100">
+                    <p className="mt-1 text-base font-medium text-foreground">
                       {formatNumber(analyticsMeta.productionEfficiency, ' t / resource-unit')}
                     </p>
                   </div>
                 </div>
               </div>
 
-              <div className="rounded-xl border border-emerald-500/25 bg-emerald-950/20 p-4">
-                <h2 className="flex items-center gap-2 text-sm font-semibold text-emerald-100">
-                  <TrendingUp className="h-4 w-4" />
+              <div className="rounded-xl border border-primary/30 bg-primary/10 p-5">
+                <h2 className="flex items-center gap-2 text-base font-semibold text-foreground">
+                  <TrendingUp className="h-4 w-4 text-primary" />
                   Most Efficient Producers
                 </h2>
                 <div className="mt-3 space-y-2">
                   {producerRanking.mostEfficient.length === 0 ? (
-                    <p className="text-xs text-emerald-100/70">No producers available.</p>
+                    <p className="text-sm text-muted-foreground">No producers available.</p>
                   ) : (
                     producerRanking.mostEfficient.map((entry, index) => (
                       <div
                         key={`${entry.pointId}-best`}
-                        className="rounded-lg border border-emerald-400/25 bg-emerald-950/30 px-3 py-2.5"
+                        className="rounded-lg border border-primary/30 bg-card/70 px-3 py-2.5"
                       >
-                        <p className="text-xs font-medium text-emerald-100">
+                        <p className="text-sm font-medium text-foreground">
                           #{index + 1} {getProducerDisplayName(entry.pointId, producerLabelsById)}
                         </p>
-                        <p className="mt-1 text-[11px] text-emerald-100/85">
+                        <p className="mt-1 text-sm text-muted-foreground">
                           Efficiency {entry.efficiencyScore.toFixed(2)} • Score {formatScore(entry.averagePolygonScore)}
                         </p>
-                        <p className="mt-1 text-[11px] text-emerald-200/70">
+                        <p className="mt-1 text-sm text-muted-foreground">
                           Variety {entry.cropVarietyCount} • Production {formatNumber(entry.productionTons, ' t')}
                         </p>
                       </div>
@@ -559,27 +559,27 @@ export function DataAnalyticsWorkspace() {
                 </div>
               </div>
 
-              <div className="rounded-xl border border-rose-500/25 bg-rose-950/20 p-4">
-                <h2 className="flex items-center gap-2 text-sm font-semibold text-rose-100">
-                  <TrendingDown className="h-4 w-4" />
+              <div className="rounded-xl border border-border bg-card p-5">
+                <h2 className="flex items-center gap-2 text-base font-semibold text-foreground">
+                  <TrendingDown className="h-4 w-4 text-primary" />
                   Least Efficient Producers
                 </h2>
                 <div className="mt-3 space-y-2">
                   {producerRanking.leastEfficient.length === 0 ? (
-                    <p className="text-xs text-rose-100/70">No producers available.</p>
+                    <p className="text-sm text-muted-foreground">No producers available.</p>
                   ) : (
                     producerRanking.leastEfficient.map((entry, index) => (
                       <div
                         key={`${entry.pointId}-worst`}
-                        className="rounded-lg border border-rose-400/25 bg-rose-950/30 px-3 py-2.5"
+                        className="rounded-lg border border-border bg-secondary/30 px-3 py-2.5"
                       >
-                        <p className="text-xs font-medium text-rose-100">
+                        <p className="text-sm font-medium text-foreground">
                           #{index + 1} {getProducerDisplayName(entry.pointId, producerLabelsById)}
                         </p>
-                        <p className="mt-1 text-[11px] text-rose-100/85">
+                        <p className="mt-1 text-sm text-muted-foreground">
                           Efficiency {entry.efficiencyScore.toFixed(2)} • Score {formatScore(entry.averagePolygonScore)}
                         </p>
-                        <p className="mt-1 text-[11px] text-rose-200/70">
+                        <p className="mt-1 text-sm text-muted-foreground">
                           Variety {entry.cropVarietyCount} • Production {formatNumber(entry.productionTons, ' t')}
                         </p>
                       </div>
