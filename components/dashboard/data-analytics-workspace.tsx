@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import { BarChart3, Leaf, TrendingDown, TrendingUp } from 'lucide-react'
+import { Activity, BarChart3, Cpu, Droplets, Flame, Gauge, Leaf, TrendingDown, TrendingUp } from 'lucide-react'
 import { useAuth } from '@/hooks/use-auth'
 
 interface InsightRow {
@@ -120,6 +120,22 @@ function formatScore(value: number) {
 
 function formatNumber(value: number, suffix = '') {
   return `${value.toLocaleString('en-US', { maximumFractionDigits: 2 })}${suffix}`
+}
+
+function clampScore(value: number) {
+  return Math.max(0, Math.min(100, value))
+}
+
+function scoreColor(value: number) {
+  const normalized = clampScore(value)
+  const hue = (normalized / 100) * 120
+  return `hsl(${hue} 100% 56%)`
+}
+
+function scoreSurface(value: number, alpha = 0.16) {
+  const normalized = clampScore(value)
+  const hue = (normalized / 100) * 120
+  return `hsl(${hue} 100% 56% / ${alpha})`
 }
 
 function readPointLabelsById(userId?: string) {
@@ -318,20 +334,59 @@ export function DataAnalyticsWorkspace() {
     }
   }, [cropAggregates.length, insights])
 
+  const analyticsMeta = useMemo(() => {
+    const avgPolygonScore =
+      polygons.length > 0 ? polygons.reduce((sum, polygon) => sum + polygon.score, 0) / polygons.length : 0
+    const totalResources = headline.totalEnergy + headline.totalWater
+    const resourceIntensityPerTon = totalResources / Math.max(1, headline.totalProduction)
+    const productionEfficiency = headline.totalProduction / Math.max(1, totalResources)
+    const topCrop = cropAggregates[0] ?? null
+    const topEfficiency = producerRanking.mostEfficient[0]?.efficiencyScore ?? 0
+    const lowEfficiency = producerRanking.leastEfficient[0]?.efficiencyScore ?? 0
+    return {
+      avgPolygonScore,
+      totalResources,
+      resourceIntensityPerTon,
+      productionEfficiency,
+      topCrop,
+      efficiencySpread: Math.max(0, topEfficiency - lowEfficiency),
+    }
+  }, [cropAggregates, headline.totalEnergy, headline.totalProduction, headline.totalWater, polygons, producerRanking])
+
   return (
-    <div className="space-y-5 p-6 pt-20">
-      <div className="rounded-xl border border-white/10 bg-white/[0.03] p-5">
-        <h1 className="flex items-center gap-2 text-2xl font-semibold text-white">
-          <BarChart3 className="h-5 w-5 text-[#07f880]" />
-          Data Analytics
-        </h1>
-        <p className="mt-2 text-sm text-white/65">
-          Cross-farm crop statistics with efficiency ranking of producers.
-        </p>
+    <div className="space-y-6 bg-[#03060b] p-6 pt-20 text-white">
+      <div className="relative overflow-hidden rounded-2xl border border-[#1f2a3b] bg-[#070d18] p-6 shadow-[0_0_0_1px_rgba(7,248,128,0.06),0_24px_60px_rgba(0,0,0,0.45)]">
+        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(7,248,128,0.14),transparent_45%),radial-gradient(circle_at_bottom_left,rgba(34,197,255,0.10),transparent_42%)]" />
+        <div className="pointer-events-none absolute inset-0 opacity-25 [background-image:linear-gradient(rgba(148,163,184,0.12)_1px,transparent_1px),linear-gradient(90deg,rgba(148,163,184,0.12)_1px,transparent_1px)] [background-size:28px_28px]" />
+        <div className="relative">
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div>
+              <p className="text-[11px] uppercase tracking-[0.22em] text-[#07f880]">Operational Intelligence Layer</p>
+              <h1 className="mt-2 flex items-center gap-2 text-3xl font-semibold text-slate-100">
+                <BarChart3 className="h-6 w-6 text-[#07f880]" />
+                Data Analytics Command
+              </h1>
+              <p className="mt-2 max-w-2xl text-sm text-slate-300/80">
+                Unified command view for crop performance, resource pressure, and producer efficiency across all mapped
+                farm points.
+              </p>
+            </div>
+            <div className="grid grid-cols-2 gap-2 text-xs">
+              <div className="rounded-md border border-[#1f3f39] bg-[#0a1a19] px-3 py-2 text-[#91ffd0]">STATUS: LIVE</div>
+              <div className="rounded-md border border-[#26364f] bg-[#0b1626] px-3 py-2 text-sky-200">GRID: ONLINE</div>
+              <div className="rounded-md border border-[#353117] bg-[#181406] px-3 py-2 text-amber-200">
+                SIGNAL: {formatScore(analyticsMeta.avgPolygonScore)}
+              </div>
+              <div className="rounded-md border border-[#213145] bg-[#0b1420] px-3 py-2 text-slate-200">
+                TRACKED POLYGONS: {polygons.length}
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
 
       {loading ? (
-        <div className="rounded-xl border border-white/10 bg-white/[0.03] p-8 text-center text-sm text-white/65">
+        <div className="rounded-xl border border-slate-700/50 bg-slate-900/40 p-8 text-center text-sm text-slate-300">
           Loading analytics...
         </div>
       ) : error ? (
@@ -340,111 +395,197 @@ export function DataAnalyticsWorkspace() {
         </div>
       ) : (
         <>
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-5">
-            <div className="rounded-xl border border-white/10 bg-white/[0.03] p-4">
-              <p className="text-xs uppercase tracking-wide text-white/50">Crops tracked</p>
-              <p className="mt-2 text-2xl font-semibold text-white">{headline.cropCount}</p>
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-6">
+            <div className="rounded-xl border border-slate-700/60 bg-gradient-to-b from-slate-900/90 to-slate-900/50 p-4 shadow-[inset_0_0_0_1px_rgba(148,163,184,0.08)]">
+              <p className="text-[11px] uppercase tracking-[0.14em] text-slate-400">Crops tracked</p>
+              <p className="mt-2 text-2xl font-semibold text-slate-100">{headline.cropCount}</p>
             </div>
-            <div className="rounded-xl border border-white/10 bg-white/[0.03] p-4">
-              <p className="text-xs uppercase tracking-wide text-white/50">Producers</p>
-              <p className="mt-2 text-2xl font-semibold text-white">{headline.producerCount}</p>
+            <div className="rounded-xl border border-slate-700/60 bg-gradient-to-b from-slate-900/90 to-slate-900/50 p-4 shadow-[inset_0_0_0_1px_rgba(148,163,184,0.08)]">
+              <p className="text-[11px] uppercase tracking-[0.14em] text-slate-400">Producers</p>
+              <p className="mt-2 text-2xl font-semibold text-slate-100">{headline.producerCount}</p>
             </div>
-            <div className="rounded-xl border border-white/10 bg-white/[0.03] p-4">
-              <p className="text-xs uppercase tracking-wide text-white/50">Production</p>
+            <div className="rounded-xl border border-[#1e4737] bg-gradient-to-b from-[#0a1a16] to-[#08130f] p-4 shadow-[inset_0_0_0_1px_rgba(7,248,128,0.16)]">
+              <p className="flex items-center gap-1.5 text-[11px] uppercase tracking-[0.14em] text-emerald-300/80">
+                <Activity className="h-3.5 w-3.5" /> Production
+              </p>
               <p className="mt-2 text-2xl font-semibold text-[#07f880]">{formatNumber(headline.totalProduction, ' t')}</p>
             </div>
-            <div className="rounded-xl border border-white/10 bg-white/[0.03] p-4">
-              <p className="text-xs uppercase tracking-wide text-white/50">Energy</p>
+            <div className="rounded-xl border border-sky-800/45 bg-gradient-to-b from-sky-950/40 to-slate-900/60 p-4 shadow-[inset_0_0_0_1px_rgba(56,189,248,0.14)]">
+              <p className="flex items-center gap-1.5 text-[11px] uppercase tracking-[0.14em] text-sky-200/85">
+                <Cpu className="h-3.5 w-3.5" /> Energy
+              </p>
               <p className="mt-2 text-2xl font-semibold text-sky-300">{formatNumber(headline.totalEnergy, ' kWh')}</p>
             </div>
-            <div className="rounded-xl border border-white/10 bg-white/[0.03] p-4">
-              <p className="text-xs uppercase tracking-wide text-white/50">Water</p>
+            <div className="rounded-xl border border-cyan-800/45 bg-gradient-to-b from-cyan-950/40 to-slate-900/60 p-4 shadow-[inset_0_0_0_1px_rgba(34,211,238,0.14)]">
+              <p className="flex items-center gap-1.5 text-[11px] uppercase tracking-[0.14em] text-cyan-200/85">
+                <Droplets className="h-3.5 w-3.5" /> Water
+              </p>
               <p className="mt-2 text-2xl font-semibold text-cyan-300">{formatNumber(headline.totalWater, ' m³')}</p>
             </div>
-          </div>
-
-          <div className="rounded-xl border border-white/10 bg-white/[0.03] p-4">
-            <h2 className="flex items-center gap-2 text-sm font-semibold text-white">
-              <Leaf className="h-4 w-4 text-[#07f880]" />
-              Crop Portfolio Statistics
-            </h2>
-            <div className="mt-3 overflow-x-auto rounded-lg border border-white/10">
-              <table className="min-w-full divide-y divide-white/10 text-left">
-                <thead className="bg-white/[0.05] text-[11px] uppercase tracking-wide text-white/60">
-                  <tr>
-                    <th className="px-3 py-2.5 font-medium">Crop</th>
-                    <th className="px-3 py-2.5 font-medium">Farms</th>
-                    <th className="px-3 py-2.5 font-medium">Polygons</th>
-                    <th className="px-3 py-2.5 font-medium">Production</th>
-                    <th className="px-3 py-2.5 font-medium">Energy</th>
-                    <th className="px-3 py-2.5 font-medium">Water</th>
-                    <th className="px-3 py-2.5 font-medium">Avg Score</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-white/5">
-                  {cropAggregates.map((crop, index) => (
-                    <tr
-                      key={crop.cropName}
-                      className={`text-xs text-white/85 ${index % 2 === 0 ? 'bg-white/[0.01]' : 'bg-transparent'}`}
-                    >
-                      <td className="px-3 py-2.5 font-medium text-white">{crop.cropName}</td>
-                      <td className="px-3 py-2.5">{crop.farmsCount}</td>
-                      <td className="px-3 py-2.5">{crop.polygonsCount}</td>
-                      <td className="px-3 py-2.5">{formatNumber(crop.totalProductionTons, ' t')}</td>
-                      <td className="px-3 py-2.5">{formatNumber(crop.totalEnergyKwh, ' kWh')}</td>
-                      <td className="px-3 py-2.5">{formatNumber(crop.totalWaterM3, ' m³')}</td>
-                      <td className="px-3 py-2.5 text-[#07f880]">{formatScore(crop.averageScore)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+            <div className="rounded-xl border border-amber-700/40 bg-gradient-to-b from-amber-950/30 to-slate-900/60 p-4 shadow-[inset_0_0_0_1px_rgba(251,191,36,0.14)]">
+              <p className="flex items-center gap-1.5 text-[11px] uppercase tracking-[0.14em] text-amber-200/85">
+                <Gauge className="h-3.5 w-3.5" /> Resource / Ton
+              </p>
+              <p className="mt-2 text-2xl font-semibold text-amber-300">
+                {formatNumber(analyticsMeta.resourceIntensityPerTon)}
+              </p>
             </div>
           </div>
 
-          <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
-            <div className="rounded-xl border border-emerald-400/30 bg-emerald-500/[0.08] p-4">
-              <h2 className="flex items-center gap-2 text-sm font-semibold text-emerald-200">
-                <TrendingUp className="h-4 w-4" />
-                Most Efficient Producers
+          <div className="grid grid-cols-1 gap-4 xl:grid-cols-[1.4fr_0.8fr]">
+            <div className="rounded-xl border border-slate-700/50 bg-[#070d18] p-4 shadow-[inset_0_0_0_1px_rgba(148,163,184,0.06)]">
+              <h2 className="flex items-center gap-2 text-sm font-semibold text-slate-100">
+                <Leaf className="h-4 w-4 text-[#07f880]" />
+                Crop Intelligence Matrix
               </h2>
-              <div className="mt-3 space-y-2">
-                {producerRanking.mostEfficient.length === 0 ? (
-                  <p className="text-xs text-emerald-100/70">No producers available.</p>
-                ) : (
-                  producerRanking.mostEfficient.map((entry, index) => (
-                    <div key={`${entry.pointId}-best`} className="rounded-lg border border-emerald-300/25 bg-black/20 px-3 py-2">
-                      <p className="text-xs font-medium text-emerald-100">
-                        #{index + 1} {getProducerDisplayName(entry.pointId, producerLabelsById)}
-                      </p>
-                      <p className="mt-1 text-[11px] text-emerald-100/80">
-                        Efficiency {entry.efficiencyScore.toFixed(2)} • Score {formatScore(entry.averagePolygonScore)}
-                      </p>
-                    </div>
-                  ))
-                )}
+              <p className="mt-1 text-xs text-slate-400">Resource and production profile by crop family.</p>
+              <div className="mt-3 overflow-x-auto rounded-lg border border-slate-700/50">
+                <table className="min-w-full divide-y divide-slate-700/50 text-left">
+                  <thead className="bg-slate-900/70 text-[11px] uppercase tracking-[0.12em] text-slate-400">
+                    <tr>
+                      <th className="px-3 py-2.5 font-medium">Crop</th>
+                      <th className="px-3 py-2.5 font-medium">Farms</th>
+                      <th className="px-3 py-2.5 font-medium">Polygons</th>
+                      <th className="px-3 py-2.5 font-medium">Production</th>
+                      <th className="px-3 py-2.5 font-medium">Energy</th>
+                      <th className="px-3 py-2.5 font-medium">Water</th>
+                      <th className="px-3 py-2.5 font-medium">Score</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-800/60">
+                    {cropAggregates.map((crop, index) => (
+                      <tr
+                        key={crop.cropName}
+                        className={`text-xs text-slate-200 ${index % 2 === 0 ? 'bg-slate-900/35' : 'bg-slate-950/35'}`}
+                      >
+                        <td className="px-3 py-2.5 font-medium text-slate-100">{crop.cropName}</td>
+                        <td className="px-3 py-2.5">{crop.farmsCount}</td>
+                        <td className="px-3 py-2.5">{crop.polygonsCount}</td>
+                        <td className="px-3 py-2.5">{formatNumber(crop.totalProductionTons, ' t')}</td>
+                        <td className="px-3 py-2.5">{formatNumber(crop.totalEnergyKwh, ' kWh')}</td>
+                        <td className="px-3 py-2.5">{formatNumber(crop.totalWaterM3, ' m³')}</td>
+                        <td className="px-3 py-2.5">
+                          <span
+                            className="rounded-md border px-2 py-1 font-semibold"
+                            style={{
+                              color: scoreColor(crop.averageScore),
+                              borderColor: scoreSurface(crop.averageScore, 0.4),
+                              backgroundColor: scoreSurface(crop.averageScore, 0.14),
+                            }}
+                          >
+                            {formatScore(crop.averageScore)}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
             </div>
 
-            <div className="rounded-xl border border-red-400/30 bg-red-500/[0.08] p-4">
-              <h2 className="flex items-center gap-2 text-sm font-semibold text-red-200">
-                <TrendingDown className="h-4 w-4" />
-                Least Efficient Producers
-              </h2>
-              <div className="mt-3 space-y-2">
-                {producerRanking.leastEfficient.length === 0 ? (
-                  <p className="text-xs text-red-100/70">No producers available.</p>
-                ) : (
-                  producerRanking.leastEfficient.map((entry, index) => (
-                    <div key={`${entry.pointId}-worst`} className="rounded-lg border border-red-300/25 bg-black/20 px-3 py-2">
-                      <p className="text-xs font-medium text-red-100">
-                        #{index + 1} {getProducerDisplayName(entry.pointId, producerLabelsById)}
-                      </p>
-                      <p className="mt-1 text-[11px] text-red-100/80">
-                        Efficiency {entry.efficiencyScore.toFixed(2)} • Score {formatScore(entry.averagePolygonScore)}
+            <div className="space-y-4">
+              <div className="rounded-xl border border-slate-700/60 bg-[#070d18] p-4 shadow-[inset_0_0_0_1px_rgba(148,163,184,0.06)]">
+                <h3 className="text-[11px] uppercase tracking-[0.14em] text-slate-400">System pulse</h3>
+                <div className="mt-3 space-y-3">
+                  <div>
+                    <div className="mb-1 flex items-center justify-between text-xs text-slate-300">
+                      <span>Average polygon score</span>
+                      <span style={{ color: scoreColor(analyticsMeta.avgPolygonScore) }}>
+                        {formatScore(analyticsMeta.avgPolygonScore)}
+                      </span>
+                    </div>
+                    <div className="h-2 rounded bg-slate-800">
+                      <div
+                        className="h-2 rounded"
+                        style={{
+                          width: `${clampScore(analyticsMeta.avgPolygonScore)}%`,
+                          backgroundColor: scoreColor(analyticsMeta.avgPolygonScore),
+                        }}
+                      />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 text-xs">
+                    <div className="rounded-md border border-slate-700 bg-slate-900/60 px-2.5 py-2 text-slate-300">
+                      <p className="text-slate-400">Top crop</p>
+                      <p className="mt-1 font-medium text-slate-100">
+                        {analyticsMeta.topCrop?.cropName || 'N/A'}
                       </p>
                     </div>
-                  ))
-                )}
+                    <div className="rounded-md border border-slate-700 bg-slate-900/60 px-2.5 py-2 text-slate-300">
+                      <p className="text-slate-400">Efficiency spread</p>
+                      <p className="mt-1 font-medium text-slate-100">
+                        {formatNumber(analyticsMeta.efficiencySpread)}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="rounded-md border border-slate-700 bg-slate-900/60 px-2.5 py-2 text-xs text-slate-300">
+                    <p className="flex items-center gap-1 text-slate-400">
+                      <Flame className="h-3.5 w-3.5 text-amber-300" />
+                      Production efficiency
+                    </p>
+                    <p className="mt-1 text-sm font-medium text-slate-100">
+                      {formatNumber(analyticsMeta.productionEfficiency, ' t / resource-unit')}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="rounded-xl border border-emerald-500/25 bg-emerald-950/20 p-4">
+                <h2 className="flex items-center gap-2 text-sm font-semibold text-emerald-100">
+                  <TrendingUp className="h-4 w-4" />
+                  Most Efficient Producers
+                </h2>
+                <div className="mt-3 space-y-2">
+                  {producerRanking.mostEfficient.length === 0 ? (
+                    <p className="text-xs text-emerald-100/70">No producers available.</p>
+                  ) : (
+                    producerRanking.mostEfficient.map((entry, index) => (
+                      <div
+                        key={`${entry.pointId}-best`}
+                        className="rounded-lg border border-emerald-400/25 bg-emerald-950/30 px-3 py-2.5"
+                      >
+                        <p className="text-xs font-medium text-emerald-100">
+                          #{index + 1} {getProducerDisplayName(entry.pointId, producerLabelsById)}
+                        </p>
+                        <p className="mt-1 text-[11px] text-emerald-100/85">
+                          Efficiency {entry.efficiencyScore.toFixed(2)} • Score {formatScore(entry.averagePolygonScore)}
+                        </p>
+                        <p className="mt-1 text-[11px] text-emerald-200/70">
+                          Variety {entry.cropVarietyCount} • Production {formatNumber(entry.productionTons, ' t')}
+                        </p>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+
+              <div className="rounded-xl border border-rose-500/25 bg-rose-950/20 p-4">
+                <h2 className="flex items-center gap-2 text-sm font-semibold text-rose-100">
+                  <TrendingDown className="h-4 w-4" />
+                  Least Efficient Producers
+                </h2>
+                <div className="mt-3 space-y-2">
+                  {producerRanking.leastEfficient.length === 0 ? (
+                    <p className="text-xs text-rose-100/70">No producers available.</p>
+                  ) : (
+                    producerRanking.leastEfficient.map((entry, index) => (
+                      <div
+                        key={`${entry.pointId}-worst`}
+                        className="rounded-lg border border-rose-400/25 bg-rose-950/30 px-3 py-2.5"
+                      >
+                        <p className="text-xs font-medium text-rose-100">
+                          #{index + 1} {getProducerDisplayName(entry.pointId, producerLabelsById)}
+                        </p>
+                        <p className="mt-1 text-[11px] text-rose-100/85">
+                          Efficiency {entry.efficiencyScore.toFixed(2)} • Score {formatScore(entry.averagePolygonScore)}
+                        </p>
+                        <p className="mt-1 text-[11px] text-rose-200/70">
+                          Variety {entry.cropVarietyCount} • Production {formatNumber(entry.productionTons, ' t')}
+                        </p>
+                      </div>
+                    ))
+                  )}
+                </div>
               </div>
             </div>
           </div>
