@@ -559,27 +559,27 @@ export function DataAnalyticsWorkspace() {
                 </div>
               </div>
 
-              <div className="rounded-xl border border-border bg-card p-5">
-                <h2 className="flex items-center gap-2 text-base font-semibold text-foreground">
-                  <TrendingDown className="h-4 w-4 text-primary" />
+              <div className="rounded-xl border border-destructive/35 bg-destructive/10 p-5">
+                <h2 className="flex items-center gap-2 text-base font-semibold text-destructive">
+                  <TrendingDown className="h-4 w-4 text-destructive" />
                   Least Efficient Producers
                 </h2>
                 <div className="mt-3 space-y-2">
                   {producerRanking.leastEfficient.length === 0 ? (
-                    <p className="text-sm text-muted-foreground">No producers available.</p>
+                    <p className="text-sm text-destructive/80">No producers available.</p>
                   ) : (
                     producerRanking.leastEfficient.map((entry, index) => (
                       <div
                         key={`${entry.pointId}-worst`}
-                        className="rounded-lg border border-border bg-secondary/30 px-3 py-2.5"
+                        className="rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2.5"
                       >
-                        <p className="text-sm font-medium text-foreground">
+                        <p className="text-sm font-medium text-destructive">
                           #{index + 1} {getProducerDisplayName(entry.pointId, producerLabelsById)}
                         </p>
-                        <p className="mt-1 text-sm text-muted-foreground">
+                        <p className="mt-1 text-sm text-destructive/85">
                           Efficiency {entry.efficiencyScore.toFixed(2)} • Score {formatScore(entry.averagePolygonScore)}
                         </p>
-                        <p className="mt-1 text-sm text-muted-foreground">
+                        <p className="mt-1 text-sm text-destructive/80">
                           Variety {entry.cropVarietyCount} • Production {formatNumber(entry.productionTons, ' t')}
                         </p>
                       </div>
