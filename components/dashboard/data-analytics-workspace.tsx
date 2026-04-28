@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { BarChart3, Leaf, TrendingDown, TrendingUp } from 'lucide-react'
+import { useAuth } from '@/hooks/use-auth'
 
 interface InsightRow {
   id: string
@@ -121,11 +122,57 @@ function formatNumber(value: number, suffix = '') {
   return `${value.toLocaleString('en-US', { maximumFractionDigits: 2 })}${suffix}`
 }
 
+function readPointLabelsById(userId?: string) {
+  if (typeof window === 'undefined') return {}
+
+  const keyCandidates = userId
+    ? [`growa-custom-map-points:${userId}`, 'growa-custom-map-points:anonymous']
+    : ['growa-custom-map-points:anonymous']
+
+  const labelsById: Record<string, string> = {}
+
+  for (const storageKey of keyCandidates) {
+    try {
+      const raw = window.localStorage.getItem(storageKey)
+      if (!raw) continue
+      const parsed = JSON.parse(raw)
+      if (!Array.isArray(parsed)) continue
+      for (const entry of parsed) {
+        if (!entry || typeof entry !== 'object') continue
+        const row = entry as Record<string, unknown>
+        const id = typeof row.id === 'string' ? row.id.trim() : ''
+        const label =
+          (typeof row.label === 'string' && row.label.trim()) ||
+          (typeof row.name === 'string' && row.name.trim()) ||
+          ''
+        if (!id || !label) continue
+        labelsById[id] = label
+      }
+    } catch {
+      // Ignore malformed local storage payloads.
+    }
+  }
+
+  return labelsById
+}
+
+function getProducerDisplayName(pointId: string, labelsById: Record<string, string>) {
+  const mapped = labelsById[pointId]
+  if (mapped) return mapped
+  return `Producer ${pointId.slice(0, 8)}`
+}
+
 export function DataAnalyticsWorkspace() {
+  const { user } = useAuth()
   const [insights, setInsights] = useState<InsightRow[]>([])
   const [polygons, setPolygons] = useState<PolygonRow[]>([])
+  const [producerLabelsById, setProducerLabelsById] = useState<Record<string, string>>({})
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    setProducerLabelsById(readPointLabelsById(user?.id))
+  }, [user?.id])
 
   useEffect(() => {
     let cancelled = false
@@ -367,7 +414,7 @@ export function DataAnalyticsWorkspace() {
                   producerRanking.mostEfficient.map((entry, index) => (
                     <div key={`${entry.pointId}-best`} className="rounded-lg border border-emerald-300/25 bg-black/20 px-3 py-2">
                       <p className="text-xs font-medium text-emerald-100">
-                        #{index + 1} Producer {entry.pointId.slice(0, 8)}
+                        #{index + 1} {getProducerDisplayName(entry.pointId, producerLabelsById)}
                       </p>
                       <p className="mt-1 text-[11px] text-emerald-100/80">
                         Efficiency {entry.efficiencyScore.toFixed(2)} • Score {formatScore(entry.averagePolygonScore)}
@@ -390,7 +437,7 @@ export function DataAnalyticsWorkspace() {
                   producerRanking.leastEfficient.map((entry, index) => (
                     <div key={`${entry.pointId}-worst`} className="rounded-lg border border-red-300/25 bg-black/20 px-3 py-2">
                       <p className="text-xs font-medium text-red-100">
-                        #{index + 1} Producer {entry.pointId.slice(0, 8)}
+                        #{index + 1} {getProducerDisplayName(entry.pointId, producerLabelsById)}
                       </p>
                       <p className="mt-1 text-[11px] text-red-100/80">
                         Efficiency {entry.efficiencyScore.toFixed(2)} • Score {formatScore(entry.averagePolygonScore)}
