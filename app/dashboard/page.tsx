@@ -1,11 +1,65 @@
 'use client'
 
+import { useEffect, useState } from 'react'
 import { useI18n } from '@/lib/i18n'
-import { useSearchParams } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { SatelliteMap } from '@/components/dashboard/satellite-map'
 import { ModuleWorkspace } from '@/components/dashboard/module-workspace'
 import { RssFeedWorkspace } from '@/components/dashboard/rss-feed-workspace'
 import { DataAnalyticsWorkspace } from '@/components/dashboard/data-analytics-workspace'
+
+function SlideFromLeftWorkspace({
+  children,
+  locale,
+  targetFarmId,
+  targetPointId,
+  targetFocusToken,
+  targetZoom,
+}: {
+  children: React.ReactNode
+  locale: string
+  targetFarmId: string | null
+  targetPointId: string | null
+  targetFocusToken: string | null
+  targetZoom?: number
+}) {
+  const router = useRouter()
+  const [panelVisible, setPanelVisible] = useState(false)
+
+  useEffect(() => {
+    const frame = window.requestAnimationFrame(() => setPanelVisible(true))
+    return () => window.cancelAnimationFrame(frame)
+  }, [])
+
+  return (
+    <div className="relative h-full w-full overflow-hidden">
+      <SatelliteMap
+        locale={locale}
+        targetFarmId={targetFarmId}
+        targetPointId={targetPointId}
+        targetFocusToken={targetFocusToken}
+        targetZoom={targetZoom}
+      />
+
+      <button
+        type="button"
+        aria-label="Return to live map"
+        className="absolute inset-y-0 right-0 z-30 w-1/4 bg-transparent"
+        onClick={() => router.push('/dashboard?module=live-map&zoom=10')}
+      />
+
+      <div
+        className={`absolute inset-y-0 left-0 z-40 w-3/4 transform transition-transform duration-300 ease-out ${
+          panelVisible ? 'translate-x-0' : '-translate-x-full'
+        }`}
+      >
+        <div className="h-full overflow-y-auto border-r border-white/10 bg-[#070a10]/95 backdrop-blur-md shadow-2xl">
+          {children}
+        </div>
+      </div>
+    </div>
+  )
+}
 
 export default function DashboardPage() {
   const { locale } = useI18n()
@@ -36,11 +90,33 @@ export default function DashboardPage() {
   }
 
   if (module === 'rss-feed') {
-    return <RssFeedWorkspace />
+    return (
+      <SlideFromLeftWorkspace
+        key="rss-feed-panel"
+        locale={locale}
+        targetFarmId={targetFarmId}
+        targetPointId={targetPointId}
+        targetFocusToken={targetFocusToken}
+        targetZoom={targetZoom}
+      >
+        <RssFeedWorkspace />
+      </SlideFromLeftWorkspace>
+    )
   }
 
   if (module === 'data-analytics') {
-    return <DataAnalyticsWorkspace />
+    return (
+      <SlideFromLeftWorkspace
+        key="data-analytics-panel"
+        locale={locale}
+        targetFarmId={targetFarmId}
+        targetPointId={targetPointId}
+        targetFocusToken={targetFocusToken}
+        targetZoom={targetZoom}
+      >
+        <DataAnalyticsWorkspace />
+      </SlideFromLeftWorkspace>
+    )
   }
 
   return <ModuleWorkspace moduleKey={module} />
