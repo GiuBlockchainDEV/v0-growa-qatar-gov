@@ -44,12 +44,12 @@ function SlideFromLeftWorkspace({
       <button
         type="button"
         aria-label="Return to live map"
-        className="absolute inset-y-0 right-0 z-30 w-1/4 bg-transparent"
+        className="absolute bottom-0 right-0 top-16 z-[1700] w-1/4 bg-transparent"
         onClick={() => router.push('/dashboard?module=live-map&zoom=10')}
       />
 
       <div
-        className={`absolute inset-y-0 left-0 z-40 w-3/4 transform transition-transform duration-300 ease-out ${
+        className={`absolute bottom-0 left-0 top-16 z-[1800] w-3/4 transform transition-transform duration-300 ease-out ${
           panelVisible ? 'translate-x-0' : '-translate-x-full'
         }`}
       >
