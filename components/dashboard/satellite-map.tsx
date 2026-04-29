@@ -155,6 +155,31 @@ const POLYGON_DRAW_METHOD_OPTIONS: Array<{ value: PolygonDrawMethod; label: stri
 const CUSTOM_POINTS_STORAGE_PREFIX = 'growa-custom-map-points:'
 const ANONYMOUS_CUSTOM_POINTS_STORAGE_KEY = `${CUSTOM_POINTS_STORAGE_PREFIX}anonymous`
 
+interface DbCustomPointRow {
+  id?: string
+  lat?: number | string
+  lng?: number | string
+  label?: string
+  pointType?: string
+  point_type?: string
+}
+
+interface CropTypeOption {
+  id: string
+  code: string
+  nameEn: string
+  nameAr: string
+}
+
+interface CropTypesApiRow {
+  id?: string
+  code?: string
+  nameEn?: string
+  name_en?: string
+  nameAr?: string
+  name_ar?: string
+}
+
 function normalizeStoredCustomPoints(rows: unknown): CustomPoint[] {
   if (!Array.isArray(rows)) return []
   return rows
@@ -193,6 +218,64 @@ function normalizeStoredCustomPoints(rows: unknown): CustomPoint[] {
       return { id, lat, lng, label: label.trim() || 'Custom Point', pointType } satisfies CustomPoint
     })
     .filter((row): row is CustomPoint => Boolean(row))
+}
+
+function normalizeDbCustomPointRows(rows: unknown): CustomPoint[] {
+  if (!Array.isArray(rows)) return []
+  return rows
+    .map((entry) => {
+      if (!entry || typeof entry !== 'object') return null
+      const row = entry as DbCustomPointRow
+      const id = typeof row.id === 'string' ? row.id.trim() : ''
+      const lat =
+        typeof row.lat === 'number' ? row.lat : typeof row.lat === 'string' ? Number(row.lat) : Number.NaN
+      const lng =
+        typeof row.lng === 'number' ? row.lng : typeof row.lng === 'string' ? Number(row.lng) : Number.NaN
+      const label = typeof row.label === 'string' ? row.label.trim() : ''
+      const rawPointType =
+        typeof row.pointType === 'string'
+          ? row.pointType
+          : typeof row.point_type === 'string'
+            ? row.point_type
+            : 'custom'
+      const normalizedPointType = rawPointType.trim().toLowerCase()
+      const pointType: MapPointType = POINT_TYPE_OPTIONS.some((option) => option.value === normalizedPointType)
+        ? (normalizedPointType as MapPointType)
+        : 'custom'
+      if (!id || !Number.isFinite(lat) || !Number.isFinite(lng)) return null
+      return {
+        id,
+        lat,
+        lng,
+        label: label || 'Custom Point',
+        pointType,
+      } satisfies CustomPoint
+    })
+    .filter((point): point is CustomPoint => Boolean(point))
+}
+
+function normalizeCropTypeRows(rows: unknown): CropTypeOption[] {
+  if (!Array.isArray(rows)) return []
+  return rows
+    .map((entry) => {
+      if (!entry || typeof entry !== 'object') return null
+      const row = entry as CropTypesApiRow
+      const id = typeof row.id === 'string' ? row.id.trim() : ''
+      const code = typeof row.code === 'string' ? row.code.trim() : ''
+      const nameEn =
+        (typeof row.nameEn === 'string' && row.nameEn.trim()) ||
+        (typeof row.name_en === 'string' && row.name_en.trim()) ||
+        (typeof (row as Record<string, unknown>).name === 'string' &&
+          ((row as Record<string, unknown>).name as string).trim()) ||
+        ''
+      const nameAr =
+        (typeof row.nameAr === 'string' && row.nameAr.trim()) ||
+        (typeof row.name_ar === 'string' && row.name_ar.trim()) ||
+        ''
+      if (!id || !code || !nameEn) return null
+      return { id, code, nameEn, nameAr } satisfies CropTypeOption
+    })
+    .filter((row): row is CropTypeOption => Boolean(row))
 }
 
 function readCustomPointsFromStorageKeys(keys: string[]): CustomPoint[] {
@@ -570,6 +653,7 @@ export function SatelliteMap({
   const polygonDrawPointIdRef = useRef<string | null>(null)
   const lastClearedFocusTokenRef = useRef<string | null>(null)
   const insightsRequestIdRef = useRef(0)
+  const migratedLegacyPointsRef = useRef(false)
 
   const [isLoading, setIsLoading] = useState(true)
   const [mapReady, setMapReady] = useState(false)
@@ -582,6 +666,7 @@ export function SatelliteMap({
   const [activePointId, setActivePointId] = useState<string | null>(null)
   const [polygonCropFilterQuery, setPolygonCropFilterQuery] = useState('')
   const [farmCropInsightsByPoint, setFarmCropInsightsByPoint] = useState<Record<string, FarmCropInsight[]>>({})
+  const [cropTypeOptions, setCropTypeOptions] = useState<CropTypeOption[]>([])
   const [insightsModalPointId, setInsightsModalPointId] = useState<string | null>(null)
   const [isInsightsModalOpen, setIsInsightsModalOpen] = useState(false)
   const [isInsightsModalLoading, setIsInsightsModalLoading] = useState(false)
@@ -619,41 +704,114 @@ export function SatelliteMap({
   const isFarmCompanyContext = organizationType === 'farm_company'
   const isGrowaAdmin = Boolean(user?.email?.toLowerCase().endsWith('@growa.ai'))
 
-  const customPointsStorageKey = useMemo(
-    () => `${CUSTOM_POINTS_STORAGE_PREFIX}${user?.id || 'anonymous'}`,
+  const customPointStorageKeys = useMemo(
+    () => getCustomPointStorageKeys(`${CUSTOM_POINTS_STORAGE_PREFIX}${user?.id || 'anonymous'}`),
     [user?.id]
   )
-  const customPointStorageKeys = useMemo(
-    () => getCustomPointStorageKeys(customPointsStorageKey),
-    [customPointsStorageKey]
+  const legacyCustomPointCache = useMemo(
+    () => readCustomPointsFromStorageKeys(customPointStorageKeys),
+    [customPointStorageKeys]
   )
+  const cropNameByNormalized = useMemo(() => {
+    const map = new Map<string, string>()
+    for (const cropType of cropTypeOptions) {
+      const normalizedName = cropType.nameEn.trim().toLowerCase()
+      if (!normalizedName) continue
+      map.set(normalizedName, cropType.nameEn)
+    }
+    return map
+  }, [cropTypeOptions])
+  const loadCustomPointsFromDb = useCallback(async () => {
+    try {
+      const response = await fetch('/api/operations/custom-map-points', { cache: 'no-store' })
+      const payload = await response.json().catch(() => null)
+      if (!response.ok) return [] as CustomPoint[]
+      return normalizeDbCustomPointRows(payload)
+    } catch {
+      return [] as CustomPoint[]
+    }
+  }, [])
+
+  const upsertCustomPointInDb = useCallback(async (point: CustomPoint) => {
+    const response = await fetch('/api/operations/custom-map-points', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        id: point.id,
+        label: point.label,
+        lat: point.lat,
+        lng: point.lng,
+        pointType: point.pointType,
+      }),
+    })
+    if (!response.ok) return null
+    const payload = await response.json().catch(() => null)
+    const normalized = normalizeDbCustomPointRows(payload ? [payload] : [])
+    return normalized[0] || null
+  }, [])
+
   useEffect(() => {
     if (!isGrowaAdmin) {
       setCustomPoints([])
       setIsAddPointMode(false)
       return
     }
-    const mergedPoints = readCustomPointsFromStorageKeys(customPointStorageKeys)
-    setCustomPoints(mergedPoints)
+    let cancelled = false
+    async function loadCustomPoints() {
+      const dbPoints = await loadCustomPointsFromDb()
+      if (cancelled) return
 
-    if (customPointsStorageKey !== ANONYMOUS_CUSTOM_POINTS_STORAGE_KEY) {
-      try {
-        // Keep a consolidated copy under the signed-in user key for stable deep-links.
-        window.localStorage.setItem(customPointsStorageKey, JSON.stringify(mergedPoints))
-      } catch {
-        // Ignore storage failures in restricted browser contexts.
+      if (!migratedLegacyPointsRef.current) {
+        const legacyPoints = readCustomPointsFromStorageKeys(customPointStorageKeys)
+        const knownIds = new Set(dbPoints.map((point) => point.id))
+        const missingLegacyPoints = legacyPoints.filter((point) => !knownIds.has(point.id))
+        if (missingLegacyPoints.length > 0) {
+          const migrated = await Promise.all(missingLegacyPoints.map((point) => upsertCustomPointInDb(point)))
+          if (!cancelled && migrated.some(Boolean)) {
+            const refreshed = await loadCustomPointsFromDb()
+            if (!cancelled) {
+              setCustomPoints(refreshed)
+            }
+            migratedLegacyPointsRef.current = true
+            return
+          }
+        }
+        migratedLegacyPointsRef.current = true
       }
+
+      setCustomPoints(dbPoints)
     }
-  }, [customPointStorageKeys, customPointsStorageKey, isGrowaAdmin])
+
+    loadCustomPoints()
+    return () => {
+      cancelled = true
+    }
+  }, [customPointStorageKeys, isGrowaAdmin, loadCustomPointsFromDb, upsertCustomPointInDb])
 
   useEffect(() => {
-    if (!isGrowaAdmin) return
-    try {
-      window.localStorage.setItem(customPointsStorageKey, JSON.stringify(customPoints))
-    } catch {
-      // Ignore storage failures in restricted browser contexts.
+    if (!isGrowaAdmin) {
+      setCropTypeOptions([])
+      return
     }
-  }, [customPoints, customPointsStorageKey, isGrowaAdmin])
+    let cancelled = false
+    async function loadCropTypes() {
+      try {
+        const response = await fetch('/api/operations/crop-types', { cache: 'no-store' })
+        const payload = await response.json().catch(() => null)
+        if (!response.ok || cancelled) {
+          if (!cancelled) setCropTypeOptions([])
+          return
+        }
+        setCropTypeOptions(normalizeCropTypeRows(payload))
+      } catch {
+        if (!cancelled) setCropTypeOptions([])
+      }
+    }
+    loadCropTypes()
+    return () => {
+      cancelled = true
+    }
+  }, [isGrowaAdmin])
 
   useEffect(() => {
     if (!isGrowaAdmin) {
@@ -791,7 +949,7 @@ export function SatelliteMap({
   }, [])
 
   const handleEditPoint = useCallback(
-    (pointId: string) => {
+    async (pointId: string) => {
       const target = customPoints.find((point) => point.id === pointId)
       if (!target) return
       const labelInput = window.prompt(
@@ -807,11 +965,27 @@ export function SatelliteMap({
         target.pointType
       )
       const nextType = parsePointTypeInput(typeInput, target.pointType)
+      const nextPoint = { ...target, label: nextLabel, pointType: nextType }
       setCustomPoints((prev) =>
         prev.map((entry) =>
           entry.id === pointId ? { ...entry, label: nextLabel, pointType: nextType } : entry
         )
       )
+      try {
+        await fetch('/api/operations/custom-map-points', {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            id: nextPoint.id,
+            label: nextPoint.label,
+            pointType: nextPoint.pointType,
+          }),
+        })
+      } catch {
+        // Keep UI responsive even if update fails.
+      }
     },
     [customPoints, locale, parsePointTypeInput]
   )
@@ -833,6 +1007,14 @@ export function SatelliteMap({
         })
       } catch {
         // Continue local cleanup even if remote delete fails.
+      }
+
+      try {
+        await fetch(`/api/operations/custom-map-points?id=${encodeURIComponent(pointId)}`, {
+          method: 'DELETE',
+        })
+      } catch {
+        // Continue local cleanup even if point delete fails.
       }
 
       setCustomPoints((prev) => prev.filter((entry) => entry.id !== pointId))
@@ -873,8 +1055,11 @@ export function SatelliteMap({
     if (!polygonDrawPointId || draftPolygon.length < 3) return
     const polygonName =
       draftPolygonName.trim() || `Polygon ${(pointPolygons[polygonDrawPointId]?.length || 0) + 1}`
+    const normalizedDraftCropName = draftCropName.trim()
+    const canonicalDraftCropName =
+      cropNameByNormalized.get(normalizedDraftCropName.toLowerCase()) || normalizedDraftCropName
     const cropPayload: PolygonCropData = {
-      cropName: draftCropName.trim(),
+      cropName: canonicalDraftCropName,
       variety: draftCropVariety.trim(),
       sowingDate: draftSowingDate.trim(),
       expectedHarvestDate: draftExpectedHarvestDate.trim(),
@@ -914,11 +1099,19 @@ export function SatelliteMap({
       setShapeSeedVertex(null)
       setDraftPolygon([])
       resetDraftMetadata()
+      if (canonicalDraftCropName) {
+        await fetch('/api/operations/crop-types', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name: canonicalDraftCropName }),
+        })
+      }
     } catch {
       // Keep draft in place so user can retry save.
     }
   }, [
     circleSegments,
+    cropNameByNormalized,
     draftCropName,
     draftCropNotes,
     draftCropVariety,
@@ -943,7 +1136,12 @@ export function SatelliteMap({
       if (nextScoreRaw === null) return
       const nextScore = normalizePolygonScore(nextScoreRaw, polygon.score)
 
-      const nextCropName = window.prompt('Crop name', polygon.crop.cropName || '') ?? polygon.crop.cropName
+      const nextCropPrompt = cropTypeOptions.length
+        ? `Crop name (available: ${cropTypeOptions.map((option) => option.nameEn).join(', ')})`
+        : 'Crop name'
+      const nextCropName = window.prompt(nextCropPrompt, polygon.crop.cropName || '') ?? polygon.crop.cropName
+      const normalizedCropName = nextCropName.trim()
+      const canonicalCropName = cropNameByNormalized.get(normalizedCropName.toLowerCase()) || normalizedCropName
       const nextVariety = window.prompt('Variety', polygon.crop.variety || '') ?? polygon.crop.variety
       const nextSowingDate =
         window.prompt('Sowing date (YYYY-MM-DD)', polygon.crop.sowingDate || '') ?? polygon.crop.sowingDate
@@ -961,7 +1159,7 @@ export function SatelliteMap({
             name: nextName,
             score: nextScore,
             crop: {
-              cropName: nextCropName,
+              cropName: canonicalCropName,
               variety: nextVariety,
               sowingDate: nextSowingDate,
               expectedHarvestDate: nextHarvestDate,
@@ -979,12 +1177,19 @@ export function SatelliteMap({
           const updated = current.map((entry) => (entry.id === normalized.id ? normalized : entry))
           return { ...prev, [pointId]: updated }
         })
+        if (canonicalCropName) {
+          await fetch('/api/operations/crop-types', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name: canonicalCropName }),
+          })
+        }
         window.location.reload()
       } catch {
         // Ignore network errors to keep map interactions responsive.
       }
     },
-    []
+    [cropNameByNormalized, cropTypeOptions]
   )
 
   const handleDeletePolygon = useCallback(
@@ -1052,29 +1257,38 @@ export function SatelliteMap({
 
   const explicitTargetPoint = useMemo(() => {
     if (!targetPointId) return null
-    const inMemoryPoint = customPoints.find((point) => point.id === targetPointId)
-    if (inMemoryPoint) return inMemoryPoint
-    return readCustomPointsFromStorageKeys(customPointStorageKeys).find((point) => point.id === targetPointId) || null
-  }, [customPointStorageKeys, customPoints, targetPointId])
+    return customPoints.find((point) => point.id === targetPointId) || null
+  }, [customPoints, targetPointId])
 
   useEffect(() => {
     if (!isGrowaAdmin || !targetPointId) return
     if (customPoints.some((point) => point.id === targetPointId)) return
-    const fromStorage = readCustomPointsFromStorageKeys(customPointStorageKeys).find(
-      (point) => point.id === targetPointId
-    )
-    if (!fromStorage) return
-    setCustomPoints((prev) => {
-      if (prev.some((point) => point.id === fromStorage.id)) return prev
-      return [...prev, fromStorage]
-    })
-  }, [customPointStorageKeys, customPoints, isGrowaAdmin, targetPointId])
+    let cancelled = false
+    async function hydrateTargetPointFromDb() {
+      const dbPoints = await loadCustomPointsFromDb()
+      if (cancelled || dbPoints.length === 0) return
+      const match = dbPoints.find((point) => point.id === targetPointId)
+      if (!match) return
+      setCustomPoints((prev) => {
+        if (prev.some((point) => point.id === match.id)) return prev
+        return [...prev, match]
+      })
+    }
+    hydrateTargetPointFromDb()
+    return () => {
+      cancelled = true
+    }
+  }, [customPoints, isGrowaAdmin, loadCustomPointsFromDb, targetPointId])
 
   const resolvedTargetZoom =
     resolvedTargetFarm || explicitTargetPoint ? targetZoom ?? DEFAULT_FARM_ZOOM : DEFAULT_ZOOM
   const normalizedCropFilter = polygonCropFilterQuery.trim().toLowerCase()
   const cropFilterOptions = useMemo(() => {
     const uniqueCrops = new Set<string>()
+    for (const cropType of cropTypeOptions) {
+      const cropName = cropType.nameEn.trim()
+      if (cropName) uniqueCrops.add(cropName)
+    }
     for (const polygonList of Object.values(pointPolygons)) {
       for (const polygon of polygonList) {
         const cropName = polygon.crop.cropName.trim()
@@ -1082,7 +1296,7 @@ export function SatelliteMap({
       }
     }
     return Array.from(uniqueCrops).sort((a, b) => a.localeCompare(b))
-  }, [pointPolygons])
+  }, [cropTypeOptions, pointPolygons])
   const cropFilteredPolygonCount = useMemo(() => {
     if (!normalizedCropFilter) return 0
     let count = 0
@@ -1561,30 +1775,49 @@ export function SatelliteMap({
     if (!mapReady || !mapInstanceRef.current) return
     const map = mapInstanceRef.current
 
-    const handleMapClick = (event: any) => {
+    const handleMapClick = async (event: any) => {
       if (isLeafletUiClick(event)) return
       const lat = Number(event?.latlng?.lat)
       const lng = Number(event?.latlng?.lng)
       if (!Number.isFinite(lat) || !Number.isFinite(lng)) return
       const pointLabelPrefix = locale === 'ar' ? 'نقطة' : POINT_TYPE_LABELS[newPointType]
       const label = `${pointLabelPrefix} ${customPoints.length + 1}`
-      setCustomPoints((prev) => [
-        ...prev,
-        {
-          id: `custom-${Date.now()}-${Math.floor(Math.random() * 10000)}`,
-          lat,
-          lng,
-          label,
-          pointType: newPointType,
-        },
-      ])
+      const pointId = `custom-${Date.now()}-${Math.floor(Math.random() * 10000)}`
+      const nextPoint: CustomPoint = {
+        id: pointId,
+        lat,
+        lng,
+        label,
+        pointType: newPointType,
+      }
+      setCustomPoints((prev) => [...prev, nextPoint])
+      try {
+        const response = await fetch('/api/operations/custom-map-points', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            id: nextPoint.id,
+            label: nextPoint.label,
+            lat: nextPoint.lat,
+            lng: nextPoint.lng,
+            pointType: nextPoint.pointType,
+          }),
+        })
+        if (!response.ok) {
+          setCustomPoints((prev) => prev.filter((entry) => entry.id !== nextPoint.id))
+        }
+      } catch {
+        setCustomPoints((prev) => prev.filter((entry) => entry.id !== nextPoint.id))
+      }
     }
 
     map.on('click', handleMapClick)
     return () => {
       map.off('click', handleMapClick)
     }
-  }, [customPoints.length, isAddPointMode, isGrowaAdmin, locale, mapReady, newPointType, polygonDrawPointId])
+  }, [isAddPointMode, isGrowaAdmin, locale, mapReady, newPointType, polygonDrawPointId])
 
   useEffect(() => {
     if (!isGrowaAdmin || !polygonDrawPointId) return
@@ -2005,8 +2238,14 @@ export function SatelliteMap({
               value={draftCropName}
               onChange={(event) => setDraftCropName(event.target.value)}
               placeholder="Crop name"
+              list="draft-crop-type-options"
               className="h-8 w-full rounded border border-white/10 bg-[#0b0b0c] px-2 text-[11px] text-white placeholder:text-white/35 focus:border-[#07f880]/60 focus:outline-none"
             />
+            <datalist id="draft-crop-type-options">
+              {cropTypeOptions.map((cropType) => (
+                <option key={cropType.id} value={cropType.nameEn} />
+              ))}
+            </datalist>
             <input
               value={draftCropVariety}
               onChange={(event) => setDraftCropVariety(event.target.value)}

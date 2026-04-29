@@ -158,8 +158,16 @@ export function DashboardHeader({
         polygonCountByPointId = {}
       }
       try {
-        const rawPoints = window.localStorage.getItem(`growa-custom-map-points:${user?.id || 'anonymous'}`)
-        pointMapped = mapPointRows(rawPoints ? JSON.parse(rawPoints) : [], polygonCountByPointId)
+        const pointResponse = await fetch('/api/operations/custom-map-points', {
+          cache: 'no-store',
+          signal,
+        })
+        const pointPayload = await pointResponse.json().catch(() => null)
+        if (pointResponse.ok) {
+          pointMapped = mapPointRows(pointPayload, polygonCountByPointId)
+        } else {
+          pointMapped = []
+        }
       } catch {
         pointMapped = []
       }
