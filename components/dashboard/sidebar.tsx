@@ -23,11 +23,13 @@ const adminItems = [
 interface DashboardSidebarProps {
   isOpen: boolean
   onClose: () => void
+  persistent?: boolean
 }
 
 export function DashboardSidebar({
   isOpen,
   onClose,
+  persistent = false,
 }: DashboardSidebarProps) {
   const { locale } = useI18n()
   const {
@@ -63,7 +65,7 @@ export function DashboardSidebar({
   return (
     <>
       {/* Overlay */}
-      {isOpen && (
+      {!persistent && isOpen && (
         <div
           className="fixed inset-0 z-[2000] bg-black/60 backdrop-blur-sm"
           onClick={onClose}
@@ -74,7 +76,7 @@ export function DashboardSidebar({
       <aside
         className={cn(
           'fixed top-16 left-0 bottom-0 z-[2100] w-64 bg-[#0c0c0e]/98 backdrop-blur-xl border-r border-white/5 transition-transform duration-300 ease-in-out flex flex-col',
-          isOpen ? 'translate-x-0' : '-translate-x-full'
+          persistent || isOpen ? 'translate-x-0' : '-translate-x-full'
         )}
       >
         {/* Navigation */}
@@ -95,7 +97,7 @@ export function DashboardSidebar({
                 <Link
                   key={item.key}
                   href={item.path}
-                  onClick={onClose}
+                  onClick={persistent ? undefined : onClose}
                   className={cn(
                     'flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all',
                     active
@@ -122,7 +124,7 @@ export function DashboardSidebar({
                   <Link
                     key={item.key}
                     href={item.path}
-                    onClick={onClose}
+                    onClick={persistent ? undefined : onClose}
                     className={cn(
                       'flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all',
                       active
@@ -151,7 +153,7 @@ export function DashboardSidebar({
                   <Link
                     key={item.href}
                     href={item.href}
-                    onClick={onClose}
+                    onClick={persistent ? undefined : onClose}
                     className={cn(
                       'flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all',
                       active

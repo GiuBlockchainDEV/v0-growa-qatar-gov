@@ -1,6 +1,6 @@
 'use client'
 
-import { Suspense, useEffect, useRef, useState } from 'react'
+import { Suspense, useEffect, useRef } from 'react'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { useAuth } from '@/hooks/use-auth'
 import { DashboardSidebar } from '@/components/dashboard/sidebar'
@@ -18,7 +18,7 @@ function DashboardShell({
   const pathname = usePathname()
   const searchParams = useSearchParams()
   const { landingPage, isMinistryWorkspace, isLoading: navLoading } = useRoleNavigation()
-  const [sidebarOpen, setSidebarOpen] = useState(false) // Closed by default
+  const sidebarOpen = true
   const handledReloadRedirectRef = useRef(false)
 
   useEffect(() => {
@@ -114,7 +114,7 @@ function DashboardShell({
   return (
     <div className="h-screen w-screen overflow-hidden bg-background relative">
       {/* Base content surface: map-first for ministry workspace */}
-      <main className="absolute inset-0">
+      <main className="absolute inset-y-0 right-0 left-64">
         {isMinistryWorkspace && shouldRenderMapSurface ? (
           <SatelliteMap
             targetFarmId={targetFarmId}
@@ -129,14 +129,17 @@ function DashboardShell({
 
       {/* Header - Always Visible on Top */}
       <DashboardHeader 
-        onMenuToggle={() => setSidebarOpen(!sidebarOpen)} 
+        onMenuToggle={() => {}} 
         menuOpen={sidebarOpen}
+        sidebarOffsetClassName="left-64"
+        hideMenuToggle
       />
 
-      {/* Sidebar - Slides in from left when open */}
+      {/* Sidebar - Persistently open on the left */}
       <DashboardSidebar 
         isOpen={sidebarOpen} 
-        onClose={() => setSidebarOpen(false)}
+        onClose={() => {}}
+        persistent
       />
     </div>
   )

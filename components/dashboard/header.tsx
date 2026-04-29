@@ -12,6 +12,8 @@ import { useAuth } from '@/hooks/use-auth'
 interface DashboardHeaderProps {
   onMenuToggle: () => void
   menuOpen: boolean
+  sidebarOffsetClassName?: string
+  hideMenuToggle?: boolean
 }
 
 type FarmSearchOption = {
@@ -21,7 +23,12 @@ type FarmSearchOption = {
   source: 'farm' | 'point'
 }
 
-export function DashboardHeader({ onMenuToggle, menuOpen }: DashboardHeaderProps) {
+export function DashboardHeader({
+  onMenuToggle,
+  menuOpen,
+  sidebarOffsetClassName = '',
+  hideMenuToggle = false,
+}: DashboardHeaderProps) {
   const { locale } = useI18n()
   const router = useRouter()
   const pathname = usePathname()
@@ -272,18 +279,22 @@ export function DashboardHeader({ onMenuToggle, menuOpen }: DashboardHeaderProps
     (isLoadingFarms || farmOptions.length > 0 || searchQuery.trim().length > 0)
 
   return (
-    <header className="fixed top-0 left-0 right-0 z-[1200] h-16 bg-[#0c0c0e]/95 backdrop-blur-xl border-b border-white/5">
+    <header
+      className={`fixed top-0 right-0 z-[1200] h-16 bg-[#0c0c0e]/95 backdrop-blur-xl border-b border-white/5 ${sidebarOffsetClassName}`}
+    >
       <div className="flex items-center justify-between h-full px-4">
         {/* Left - Menu Toggle + Logo */}
         <div className="flex items-center gap-3">
           {/* Menu Toggle Button */}
-          <button
-            onClick={onMenuToggle}
-            className="flex items-center justify-center h-10 w-10 rounded-lg border border-white/10 bg-white/5 hover:bg-white/10 hover:border-[#07f880]/50 transition-all"
-            title={menuOpen ? 'Close Menu' : 'Open Menu'}
-          >
-            <PanelLeft className={`h-5 w-5 transition-colors ${menuOpen ? 'text-[#07f880]' : 'text-white/70'}`} />
-          </button>
+          {!hideMenuToggle ? (
+            <button
+              onClick={onMenuToggle}
+              className="flex items-center justify-center h-10 w-10 rounded-lg border border-white/10 bg-white/5 hover:bg-white/10 hover:border-[#07f880]/50 transition-all"
+              title={menuOpen ? 'Close Menu' : 'Open Menu'}
+            >
+              <PanelLeft className={`h-5 w-5 transition-colors ${menuOpen ? 'text-[#07f880]' : 'text-white/70'}`} />
+            </button>
+          ) : null}
 
           {/* Logo */}
           <div className="flex items-center gap-2.5">
