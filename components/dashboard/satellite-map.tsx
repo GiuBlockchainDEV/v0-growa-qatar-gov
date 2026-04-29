@@ -723,15 +723,38 @@ export function SatelliteMap({
     const map = new Map<string, string>()
     for (const cropType of cropTypeOptions) {
       const normalizedName = cropType.nameEn.trim().toLowerCase()
-      if (!normalizedName) continue
-      map.set(normalizedName, cropType.nameEn)
+      const normalizedCode = cropType.code.trim().toLowerCase()
+      const normalizedArabicName = cropType.nameAr.trim().toLowerCase()
+      if (normalizedName) map.set(normalizedName, cropType.nameEn)
+      if (normalizedCode) map.set(normalizedCode, cropType.nameEn)
+      if (normalizedArabicName) map.set(normalizedArabicName, cropType.nameEn)
     }
     return map
   }, [cropTypeOptions])
   const cropVarietyOptionsForDraft = useMemo(() => {
     const normalizedDraftCropName = draftCropName.trim().toLowerCase()
     if (!normalizedDraftCropName) return [] as string[]
-    const match = cropTypeOptions.find((cropType) => cropType.nameEn.trim().toLowerCase() === normalizedDraftCropName)
+    const match =
+      cropTypeOptions.find((cropType) => {
+        const normalizedName = cropType.nameEn.trim().toLowerCase()
+        const normalizedCode = cropType.code.trim().toLowerCase()
+        const normalizedArabicName = cropType.nameAr.trim().toLowerCase()
+        return (
+          normalizedName === normalizedDraftCropName ||
+          normalizedCode === normalizedDraftCropName ||
+          normalizedArabicName === normalizedDraftCropName
+        )
+      }) ||
+      cropTypeOptions.find((cropType) => {
+        const normalizedName = cropType.nameEn.trim().toLowerCase()
+        const normalizedCode = cropType.code.trim().toLowerCase()
+        const normalizedArabicName = cropType.nameAr.trim().toLowerCase()
+        return (
+          normalizedName.includes(normalizedDraftCropName) ||
+          normalizedCode.includes(normalizedDraftCropName) ||
+          normalizedArabicName.includes(normalizedDraftCropName)
+        )
+      })
     if (!match || !Array.isArray(match.varieties)) return [] as string[]
     return match.varieties
   }, [cropTypeOptions, draftCropName])
