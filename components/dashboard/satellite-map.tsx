@@ -747,6 +747,19 @@ export function SatelliteMap({
     return [...dynamicFarmMarkers, ...custom]
   }, [customPoints, dynamicFarmMarkers])
 
+  const pointScoreStatsById = useMemo(() => {
+    const stats: Record<string, { count: number; average: number | null }> = {}
+    for (const [pointId, polygons] of Object.entries(pointPolygons)) {
+      if (!Array.isArray(polygons) || polygons.length === 0) {
+        stats[pointId] = { count: 0, average: null }
+        continue
+      }
+      const total = polygons.reduce((sum, polygon) => sum + normalizePolygonScore(polygon.score, 50), 0)
+      stats[pointId] = { count: polygons.length, average: total / polygons.length }
+    }
+    return stats
+  }, [pointPolygons])
+
   const parsePointTypeInput = useCallback((input: string | null, fallback: MapPointType) => {
     if (input === null) return fallback
     const normalized = input.trim().toLowerCase()
@@ -1300,14 +1313,19 @@ export function SatelliteMap({
     const L = leafletRef.current
     const map = mapInstanceRef.current
 
-    const createMarkerIcon = (type: MapMarker['type']) => {
+    const createMarkerIcon = (type: MapMarker['type'], markerId: string) => {
       const colors = {
         farm: '#07f880',
         facility: '#3B82F6',
         sensor: '#F59E0B',
-        custom: '#07f880',
+        custom: '#9ca3af',
       }
-      const color = colors[type] || colors.farm
+      const scoreStats = pointScoreStatsById[markerId]
+      const customColor =
+        scoreStats && scoreStats.count > 0 && scoreStats.average !== null
+          ? scoreToPolygonColor(scoreStats.average)
+          : '#9ca3af'
+      const color = type === 'custom' ? customColor : colors[type] || colors.farm
       return L.divIcon({
         className: 'custom-marker',
         html: `
@@ -1329,7 +1347,9 @@ export function SatelliteMap({
     markerInstancesRef.current.forEach((marker) => marker.remove?.())
     markerInstancesRef.current = mapMarkers.map((marker) => {
       const customPoint = customPoints.find((point) => point.id === marker.id) || null
-      const markerInstance = L.marker([marker.lat, marker.lng], { icon: createMarkerIcon(marker.type) }).addTo(map)
+      const markerInstance = L.marker([marker.lat, marker.lng], {
+        icon: createMarkerIcon(marker.type, marker.id),
+      }).addTo(map)
 
       if (customPoint) {
         markerInstance.on('click', (event: any) => {
@@ -1362,6 +1382,7 @@ export function SatelliteMap({
     mapMarkers,
     mapReady,
     openPointInsightsModal,
+    pointScoreStatsById,
   ])
 
   useEffect(() => {
