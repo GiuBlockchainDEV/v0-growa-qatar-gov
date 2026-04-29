@@ -79,22 +79,6 @@ export function DashboardSidebar({
           persistent || isOpen ? 'translate-x-0' : '-translate-x-full'
         )}
       >
-        <div className="border-b border-white/5 px-4 py-3">
-          <div className="flex items-center gap-2.5">
-            <img
-              src="https://hebbkx1anhila5yf.public.blob.vercel-storage.com/logo512-dN5LxVKBkzU9yWpc5ROgvoTj7C4wM5.png"
-              alt="Growa"
-              className="h-8 w-8"
-            />
-            <div className="flex flex-col">
-              <span className="font-bold text-white tracking-tight leading-none">GROWA</span>
-              <span className="text-[10px] text-[#07f880] uppercase tracking-widest font-medium">
-                Qatar Operations
-              </span>
-            </div>
-          </div>
-        </div>
-
         {/* Navigation */}
         <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-1">
           <p className="px-3 mb-3 text-[10px] uppercase tracking-widest text-white/40 font-semibold">
