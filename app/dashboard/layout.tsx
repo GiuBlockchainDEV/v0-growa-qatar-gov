@@ -133,6 +133,7 @@ function DashboardShell({
         menuOpen={sidebarOpen}
         sidebarOffsetClassName="left-64"
         hideMenuToggle
+        hideBrand
       />
 
       {/* Sidebar - Persistently open on the left */}

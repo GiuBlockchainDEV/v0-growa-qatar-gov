@@ -14,6 +14,7 @@ interface DashboardHeaderProps {
   menuOpen: boolean
   sidebarOffsetClassName?: string
   hideMenuToggle?: boolean
+  hideBrand?: boolean
 }
 
 type FarmSearchOption = {
@@ -28,6 +29,7 @@ export function DashboardHeader({
   menuOpen,
   sidebarOffsetClassName = '',
   hideMenuToggle = false,
+  hideBrand = false,
 }: DashboardHeaderProps) {
   const { locale } = useI18n()
   const router = useRouter()
@@ -296,18 +298,19 @@ export function DashboardHeader({
             </button>
           ) : null}
 
-          {/* Logo */}
-          <div className="flex items-center gap-2.5">
-            <img 
-              src="https://hebbkx1anhila5yf.public.blob.vercel-storage.com/logo512-dN5LxVKBkzU9yWpc5ROgvoTj7C4wM5.png" 
-              alt="Growa" 
-              className="h-8 w-8"
-            />
-            <div className="hidden sm:flex flex-col">
-              <span className="font-bold text-white tracking-tight leading-none">GROWA</span>
-              <span className="text-[10px] text-[#07f880] uppercase tracking-widest font-medium">Qatar Operations</span>
+          {!hideBrand ? (
+            <div className="flex items-center gap-2.5">
+              <img
+                src="https://hebbkx1anhila5yf.public.blob.vercel-storage.com/logo512-dN5LxVKBkzU9yWpc5ROgvoTj7C4wM5.png"
+                alt="Growa"
+                className="h-8 w-8"
+              />
+              <div className="hidden sm:flex flex-col">
+                <span className="font-bold text-white tracking-tight leading-none">GROWA</span>
+                <span className="text-[10px] text-[#07f880] uppercase tracking-widest font-medium">Qatar Operations</span>
+              </div>
             </div>
-          </div>
+          ) : null}
         </div>
 
         {/* Center - Search */}
