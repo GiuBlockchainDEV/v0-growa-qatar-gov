@@ -169,6 +169,7 @@ interface CropTypeOption {
   code: string
   nameEn: string
   nameAr: string
+  varieties: string[]
 }
 
 interface CropTypesApiRow {
@@ -178,6 +179,7 @@ interface CropTypesApiRow {
   name_en?: string
   nameAr?: string
   name_ar?: string
+  varieties?: unknown
 }
 
 function normalizeStoredCustomPoints(rows: unknown): CustomPoint[] {
@@ -272,8 +274,13 @@ function normalizeCropTypeRows(rows: unknown): CropTypeOption[] {
         (typeof row.nameAr === 'string' && row.nameAr.trim()) ||
         (typeof row.name_ar === 'string' && row.name_ar.trim()) ||
         ''
+      const varieties = Array.isArray(row.varieties)
+        ? row.varieties
+            .map((entry) => (typeof entry === 'string' ? entry.trim() : ''))
+            .filter((entry) => Boolean(entry))
+        : []
       if (!id || !code || !nameEn) return null
-      return { id, code, nameEn, nameAr } satisfies CropTypeOption
+      return { id, code, nameEn, nameAr, varieties } satisfies CropTypeOption
     })
     .filter((row): row is CropTypeOption => Boolean(row))
 }
@@ -721,6 +728,13 @@ export function SatelliteMap({
     }
     return map
   }, [cropTypeOptions])
+  const cropVarietyOptionsForDraft = useMemo(() => {
+    const normalizedDraftCropName = draftCropName.trim().toLowerCase()
+    if (!normalizedDraftCropName) return [] as string[]
+    const match = cropTypeOptions.find((cropType) => cropType.nameEn.trim().toLowerCase() === normalizedDraftCropName)
+    if (!match || !Array.isArray(match.varieties)) return [] as string[]
+    return match.varieties
+  }, [cropTypeOptions, draftCropName])
   const loadCustomPointsFromDb = useCallback(async () => {
     try {
       const response = await fetch('/api/operations/custom-map-points', { cache: 'no-store' })
@@ -1137,12 +1151,19 @@ export function SatelliteMap({
       const nextScore = normalizePolygonScore(nextScoreRaw, polygon.score)
 
       const nextCropPrompt = cropTypeOptions.length
-        ? `Crop name (available: ${cropTypeOptions.map((option) => option.nameEn).join(', ')})`
+        ? `Crop name (available: ${cropTypeOptions.map((option) => option.nameEn).slice(0, 24).join(', ')})`
         : 'Crop name'
       const nextCropName = window.prompt(nextCropPrompt, polygon.crop.cropName || '') ?? polygon.crop.cropName
       const normalizedCropName = nextCropName.trim()
       const canonicalCropName = cropNameByNormalized.get(normalizedCropName.toLowerCase()) || normalizedCropName
-      const nextVariety = window.prompt('Variety', polygon.crop.variety || '') ?? polygon.crop.variety
+      const matchingCropType = cropTypeOptions.find(
+        (cropType) => cropType.nameEn.trim().toLowerCase() === canonicalCropName.toLowerCase()
+      )
+      const nextVarietyPrompt =
+        matchingCropType && matchingCropType.varieties.length > 0
+          ? `Variety (available: ${matchingCropType.varieties.slice(0, 24).join(', ')})`
+          : 'Variety'
+      const nextVariety = window.prompt(nextVarietyPrompt, polygon.crop.variety || '') ?? polygon.crop.variety
       const nextSowingDate =
         window.prompt('Sowing date (YYYY-MM-DD)', polygon.crop.sowingDate || '') ?? polygon.crop.sowingDate
       const nextHarvestDate =
@@ -2250,8 +2271,14 @@ export function SatelliteMap({
               value={draftCropVariety}
               onChange={(event) => setDraftCropVariety(event.target.value)}
               placeholder="Variety"
+              list="draft-crop-variety-options"
               className="h-8 w-full rounded border border-white/10 bg-[#0b0b0c] px-2 text-[11px] text-white placeholder:text-white/35 focus:border-[#07f880]/60 focus:outline-none"
             />
+            <datalist id="draft-crop-variety-options">
+              {cropVarietyOptionsForDraft.map((variety) => (
+                <option key={variety} value={variety} />
+              ))}
+            </datalist>
             <div className="grid grid-cols-2 gap-2">
               <input
                 type="date"
