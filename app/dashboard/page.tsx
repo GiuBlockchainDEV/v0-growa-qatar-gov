@@ -33,13 +33,19 @@ function SlideFromLeftWorkspace({
 
   return (
     <div className="relative h-full w-full overflow-hidden">
-      <SatelliteMap
-        locale={locale}
-        targetFarmId={targetFarmId}
-        targetPointId={targetPointId}
-        targetFocusToken={targetFocusToken}
-        targetZoom={targetZoom}
-      />
+      <div
+        className={`absolute inset-0 transform transition-transform duration-300 ease-out ${
+          panelVisible ? 'translate-x-[37.5%]' : 'translate-x-0'
+        }`}
+      >
+        <SatelliteMap
+          locale={locale}
+          targetFarmId={targetFarmId}
+          targetPointId={targetPointId}
+          targetFocusToken={targetFocusToken}
+          targetZoom={targetZoom}
+        />
+      </div>
 
       <button
         type="button"
