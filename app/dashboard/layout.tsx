@@ -131,7 +131,7 @@ function DashboardShell({
       <DashboardHeader 
         onMenuToggle={() => {}} 
         menuOpen={sidebarOpen}
-        sidebarOffsetClassName="left-64"
+        sidebarOffsetClassName="left-0"
         hideMenuToggle
       />
 

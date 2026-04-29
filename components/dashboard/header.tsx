@@ -282,7 +282,7 @@ export function DashboardHeader({
 
   return (
     <header
-      className={`fixed top-0 right-0 z-[1200] h-16 bg-[#0c0c0e]/95 backdrop-blur-xl border-b border-white/5 ${sidebarOffsetClassName}`}
+      className={`fixed top-0 left-0 right-0 z-[1200] h-16 bg-[#0c0c0e]/95 backdrop-blur-xl border-b border-white/5 ${sidebarOffsetClassName}`}
     >
       <div className="flex items-center justify-between h-full px-4">
         {/* Left - Menu Toggle + Logo */}
