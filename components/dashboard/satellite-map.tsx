@@ -963,16 +963,19 @@ export function SatelliteMap({
 
   const pointScoreStatsById = useMemo(() => {
     const stats: Record<string, { count: number; average: number | null }> = {}
+    for (const point of customPoints) {
+      stats[point.id] = { count: 0, average: null }
+    }
     for (const [pointId, polygons] of Object.entries(pointPolygons)) {
       if (!Array.isArray(polygons) || polygons.length === 0) {
-        stats[pointId] = { count: 0, average: null }
+        if (!stats[pointId]) stats[pointId] = { count: 0, average: null }
         continue
       }
       const total = polygons.reduce((sum, polygon) => sum + normalizePolygonScore(polygon.score, 50), 0)
       stats[pointId] = { count: polygons.length, average: total / polygons.length }
     }
     return stats
-  }, [pointPolygons])
+  }, [customPoints, pointPolygons])
 
   const parsePointTypeInput = useCallback((input: string | null, fallback: MapPointType) => {
     if (input === null) return fallback
@@ -1590,11 +1593,11 @@ export function SatelliteMap({
         custom: '#9ca3af',
       }
       const scoreStats = pointScoreStatsById[markerId]
-      const customColor =
+      const scoreBasedColor =
         scoreStats && scoreStats.count > 0 && scoreStats.average !== null
           ? scoreToPolygonColor(scoreStats.average)
           : '#9ca3af'
-      const color = type === 'custom' ? customColor : colors[type] || colors.farm
+      const color = scoreStats ? scoreBasedColor : colors[type] || colors.farm
       return L.divIcon({
         className: 'custom-marker',
         html: `
