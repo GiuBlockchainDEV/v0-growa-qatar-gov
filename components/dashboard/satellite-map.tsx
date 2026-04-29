@@ -214,6 +214,25 @@ function readCustomPointsFromStorageKeys(keys: string[]): CustomPoint[] {
   return Array.from(merged.values())
 }
 
+function getCustomPointStorageKeys(primaryKey: string): string[] {
+  const keys = new Set<string>()
+  if (primaryKey) keys.add(primaryKey)
+  keys.add(ANONYMOUS_CUSTOM_POINTS_STORAGE_KEY)
+  if (typeof window !== 'undefined') {
+    try {
+      for (let index = 0; index < window.localStorage.length; index += 1) {
+        const key = window.localStorage.key(index)
+        if (key && key.startsWith(CUSTOM_POINTS_STORAGE_PREFIX)) {
+          keys.add(key)
+        }
+      }
+    } catch {
+      // Ignore storage access failures in restricted browser contexts.
+    }
+  }
+  return Array.from(keys)
+}
+
 function hashToRange(input: string, min: number, max: number) {
   let hash = 0
   for (let i = 0; i < input.length; i += 1) {
@@ -604,17 +623,17 @@ export function SatelliteMap({
     () => `${CUSTOM_POINTS_STORAGE_PREFIX}${user?.id || 'anonymous'}`,
     [user?.id]
   )
+  const customPointStorageKeys = useMemo(
+    () => getCustomPointStorageKeys(customPointsStorageKey),
+    [customPointsStorageKey]
+  )
   useEffect(() => {
     if (!isGrowaAdmin) {
       setCustomPoints([])
       setIsAddPointMode(false)
       return
     }
-    const storageKeys =
-      customPointsStorageKey === ANONYMOUS_CUSTOM_POINTS_STORAGE_KEY
-        ? [customPointsStorageKey]
-        : [customPointsStorageKey, ANONYMOUS_CUSTOM_POINTS_STORAGE_KEY]
-    const mergedPoints = readCustomPointsFromStorageKeys(storageKeys)
+    const mergedPoints = readCustomPointsFromStorageKeys(customPointStorageKeys)
     setCustomPoints(mergedPoints)
 
     if (customPointsStorageKey !== ANONYMOUS_CUSTOM_POINTS_STORAGE_KEY) {
@@ -625,7 +644,7 @@ export function SatelliteMap({
         // Ignore storage failures in restricted browser contexts.
       }
     }
-  }, [customPointsStorageKey, isGrowaAdmin])
+  }, [customPointStorageKeys, customPointsStorageKey, isGrowaAdmin])
 
   useEffect(() => {
     if (!isGrowaAdmin) return
@@ -1035,21 +1054,13 @@ export function SatelliteMap({
     if (!targetPointId) return null
     const inMemoryPoint = customPoints.find((point) => point.id === targetPointId)
     if (inMemoryPoint) return inMemoryPoint
-    const storageKeys =
-      customPointsStorageKey === ANONYMOUS_CUSTOM_POINTS_STORAGE_KEY
-        ? [customPointsStorageKey]
-        : [customPointsStorageKey, ANONYMOUS_CUSTOM_POINTS_STORAGE_KEY]
-    return readCustomPointsFromStorageKeys(storageKeys).find((point) => point.id === targetPointId) || null
-  }, [customPoints, customPointsStorageKey, targetPointId])
+    return readCustomPointsFromStorageKeys(customPointStorageKeys).find((point) => point.id === targetPointId) || null
+  }, [customPointStorageKeys, customPoints, targetPointId])
 
   useEffect(() => {
     if (!isGrowaAdmin || !targetPointId) return
     if (customPoints.some((point) => point.id === targetPointId)) return
-    const storageKeys =
-      customPointsStorageKey === ANONYMOUS_CUSTOM_POINTS_STORAGE_KEY
-        ? [customPointsStorageKey]
-        : [customPointsStorageKey, ANONYMOUS_CUSTOM_POINTS_STORAGE_KEY]
-    const fromStorage = readCustomPointsFromStorageKeys(storageKeys).find(
+    const fromStorage = readCustomPointsFromStorageKeys(customPointStorageKeys).find(
       (point) => point.id === targetPointId
     )
     if (!fromStorage) return
@@ -1057,7 +1068,7 @@ export function SatelliteMap({
       if (prev.some((point) => point.id === fromStorage.id)) return prev
       return [...prev, fromStorage]
     })
-  }, [customPoints, customPointsStorageKey, isGrowaAdmin, targetPointId])
+  }, [customPointStorageKeys, customPoints, isGrowaAdmin, targetPointId])
 
   const resolvedTargetZoom =
     resolvedTargetFarm || explicitTargetPoint ? targetZoom ?? DEFAULT_FARM_ZOOM : DEFAULT_ZOOM
