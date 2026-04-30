@@ -19,6 +19,13 @@ const SELECT_WITH_SCORE =
 const SELECT_BASE =
   'id, custom_point_id, name, vertices, crop_name, crop_variety, sowing_date, expected_harvest_date, notes, created_at'
 
+const INSIGHT_INSERT_WITH_ALL_FIELDS = {
+  estimated_production_tons: 0,
+  energy_consumption_kwh: 0,
+  water_consumption_m3: 0,
+  external_url: null,
+}
+
 function isMissingScoreColumnError(error: { message?: string } | null | undefined) {
   const message = error?.message?.toLowerCase() || ''
   return (
@@ -26,6 +33,28 @@ function isMissingScoreColumnError(error: { message?: string } | null | undefine
     message.includes('score') &&
     (message.includes('does not exist') || message.includes('schema cache'))
   )
+}
+
+function isMissingColumnError(error: { message?: string } | null | undefined, columnName: string) {
+  const message = error?.message?.toLowerCase() || ''
+  return (
+    message.includes('column') &&
+    message.includes(columnName.toLowerCase()) &&
+    (message.includes('does not exist') || message.includes('schema cache'))
+  )
+}
+
+function isMissingRelationError(error: { message?: string } | null | undefined, relationName: string) {
+  const message = error?.message?.toLowerCase() || ''
+  return (
+    message.includes('relation') &&
+    message.includes(relationName.toLowerCase()) &&
+    (message.includes('does not exist') || message.includes('schema cache'))
+  )
+}
+
+function isDuplicateError(error: { code?: string } | null | undefined) {
+  return error?.code === '23505'
 }
 
 function normalizeScore(input: unknown, fallback = 50): number {
@@ -91,6 +120,61 @@ function mapRowToResponse(row: Record<string, any>) {
     },
     createdAt: row.created_at,
   }
+}
+
+async function ensureFarmCropInsightFromPolygon(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  userId: string,
+  pointId: string,
+  cropName: string
+) {
+  const normalizedCropName = cropName.trim() || 'Unassigned crop'
+  const basePayload = {
+    user_id: userId,
+    custom_point_id: pointId,
+    crop_name: normalizedCropName,
+  }
+
+  const insertAttempts: Array<Record<string, unknown>> = [
+    { ...basePayload, ...INSIGHT_INSERT_WITH_ALL_FIELDS },
+    {
+      ...basePayload,
+      estimated_production_tons: 0,
+      energy_consumption_kwh: 0,
+      water_consumption_m3: 0,
+    },
+    {
+      ...basePayload,
+      estimated_production: 0,
+      energy_consumption: 0,
+      water_consumption: 0,
+      external_url: null,
+    },
+    basePayload,
+  ]
+
+  for (const payload of insertAttempts) {
+    const { error } = await supabase.from('farm_crop_insights').insert(payload)
+    if (!error || isDuplicateError(error)) {
+      return null
+    }
+
+    const retryable =
+      isMissingColumnError(error, 'external_url') ||
+      isMissingColumnError(error, 'estimated_production_tons') ||
+      isMissingColumnError(error, 'energy_consumption_kwh') ||
+      isMissingColumnError(error, 'water_consumption_m3')
+
+    if (retryable) {
+      continue
+    }
+    if (isMissingRelationError(error, 'farm_crop_insights')) {
+      return new Error('farm_crop_insights table is missing. Run migration 00023_farm_crop_insights.sql first.')
+    }
+    return new Error(error.message || 'Failed to sync farm crop insights')
+  }
+
+  return new Error('Failed to sync farm crop insights for polygon')
 }
 
 export async function GET(request: Request) {
@@ -186,6 +270,15 @@ export async function POST(request: Request) {
     .single()
 
   if (!error) {
+    const insightError = await ensureFarmCropInsightFromPolygon(supabase, user.id, pointId, crop.cropName)
+    if (insightError) {
+      await supabase
+        .from('custom_point_polygons')
+        .delete()
+        .eq('id', data.id)
+        .eq('user_id', user.id)
+      return NextResponse.json({ error: insightError.message }, { status: 500 })
+    }
     return NextResponse.json(mapRowToResponse(data), { status: 201 })
   }
   if (!isMissingScoreColumnError(error)) {
@@ -209,6 +302,15 @@ export async function POST(request: Request) {
     .single()
   if (fallbackError) {
     return NextResponse.json({ error: fallbackError.message }, { status: 500 })
+  }
+  const insightError = await ensureFarmCropInsightFromPolygon(supabase, user.id, pointId, crop.cropName)
+  if (insightError) {
+    await supabase
+      .from('custom_point_polygons')
+      .delete()
+      .eq('id', fallbackData.id)
+      .eq('user_id', user.id)
+    return NextResponse.json({ error: insightError.message }, { status: 500 })
   }
   return NextResponse.json(mapRowToResponse(fallbackData), { status: 201 })
 }
