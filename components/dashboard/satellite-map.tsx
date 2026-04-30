@@ -1683,6 +1683,7 @@ export function SatelliteMap({
 
   useEffect(() => {
     if (!mapReady || !mapInstanceRef.current || !resolvedTargetFarm || targetPointId) return
+    if (normalizedTargetCropName) return
     if (targetFocusToken) {
       mapInstanceRef.current.flyTo([resolvedTargetFarm.lat, resolvedTargetFarm.lng], resolvedTargetZoom, {
         duration: 1.2,
@@ -1691,7 +1692,35 @@ export function SatelliteMap({
       return
     }
     mapInstanceRef.current.setView([resolvedTargetFarm.lat, resolvedTargetFarm.lng], resolvedTargetZoom)
-  }, [clearFocusParamFromUrl, mapReady, resolvedTargetFarm, resolvedTargetZoom, targetPointId, targetFocusToken])
+  }, [
+    clearFocusParamFromUrl,
+    mapReady,
+    normalizedTargetCropName,
+    resolvedTargetFarm,
+    resolvedTargetZoom,
+    targetPointId,
+    targetFocusToken,
+  ])
+
+  useEffect(() => {
+    if (!mapReady || !mapInstanceRef.current) return
+    if (!normalizedTargetCropName || targetPointId) return
+    const cropFocusZoom = 11
+    if (targetFocusToken) {
+      mapInstanceRef.current.flyTo([QATAR_CENTER.lat, QATAR_CENTER.lng], cropFocusZoom, {
+        duration: 1.2,
+      })
+      clearFocusParamFromUrl()
+      return
+    }
+    mapInstanceRef.current.setView([QATAR_CENTER.lat, QATAR_CENTER.lng], cropFocusZoom)
+  }, [
+    clearFocusParamFromUrl,
+    mapReady,
+    normalizedTargetCropName,
+    targetPointId,
+    targetFocusToken,
+  ])
 
   useEffect(() => {
     if (!mapReady || !mapInstanceRef.current || !explicitTargetPoint) return
