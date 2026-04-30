@@ -1707,7 +1707,7 @@ export function SatelliteMap({
   useEffect(() => {
     if (!mapReady || !mapInstanceRef.current) return
     if (!normalizedTargetCropName || targetPointId) return
-    const cropFocusZoom = 11
+    const cropFocusZoom = 10
     if (targetFocusToken) {
       mapInstanceRef.current.flyTo([QATAR_CENTER.lat, QATAR_CENTER.lng], cropFocusZoom, {
         duration: 1.2,

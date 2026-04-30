@@ -353,7 +353,7 @@ export function DataAnalyticsWorkspace() {
     const params = new URLSearchParams({
       module: 'data-analytics',
       crop: normalized,
-      zoom: '11',
+      zoom: '10',
       focus: focusToken,
     })
     params.delete('pointId')
