@@ -1139,13 +1139,6 @@ export function SatelliteMap({
       setShapeSeedVertex(null)
       setDraftPolygon([])
       resetDraftMetadata()
-      if (canonicalDraftCropName) {
-        await fetch('/api/operations/crop-types', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ name: canonicalDraftCropName }),
-        })
-      }
     } catch {
       // Keep draft in place so user can retry save.
     }
@@ -1224,13 +1217,6 @@ export function SatelliteMap({
           const updated = current.map((entry) => (entry.id === normalized.id ? normalized : entry))
           return { ...prev, [pointId]: updated }
         })
-        if (canonicalCropName) {
-          await fetch('/api/operations/crop-types', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ name: canonicalCropName }),
-          })
-        }
         window.location.reload()
       } catch {
         // Ignore network errors to keep map interactions responsive.
