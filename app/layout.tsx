@@ -13,8 +13,8 @@ export const metadata: Metadata = {
   description: 'Sovereign agricultural operations platform for Qatar',
   generator: 'Growa',
   icons: {
-    icon: '/icogrowa.ico',
-    shortcut: '/icogrowa.ico',
+    icon: '/icogrowa.png',
+    shortcut: '/icogrowa.png',
     apple: '/apple-icon.png',
   },
 }
