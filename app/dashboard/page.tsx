@@ -11,17 +11,17 @@ import { DataAnalyticsWorkspace } from '@/components/dashboard/data-analytics-wo
 function SlideFromLeftWorkspace({
   children,
   locale,
-  targetFarmId,
   targetPointId,
   targetFocusToken,
   targetZoom,
+  targetCropFilter,
 }: {
   children: React.ReactNode
   locale: string
-  targetFarmId: string | null
   targetPointId: string | null
   targetFocusToken: string | null
   targetZoom?: number
+  targetCropFilter: string | null
 }) {
   const router = useRouter()
   const [panelVisible, setPanelVisible] = useState(false)
@@ -40,10 +40,10 @@ function SlideFromLeftWorkspace({
       >
         <SatelliteMap
           locale={locale}
-          targetFarmId={targetFarmId}
           targetPointId={targetPointId}
           targetFocusToken={targetFocusToken}
           targetZoom={targetZoom}
+          targetCropFilter={targetCropFilter}
         />
       </div>
 
@@ -71,9 +71,9 @@ export default function DashboardPage() {
   const { locale } = useI18n()
   const searchParams = useSearchParams()
   const module = searchParams.get('module')
-  const targetFarmId = searchParams.get('farmId')
   const targetPointId = searchParams.get('pointId')
   const targetFocusToken = searchParams.get('focus')
+  const targetCropFilter = searchParams.get('crop')
   const zoomParam = searchParams.get('zoom')
   const requestedZoom = zoomParam ? Number(zoomParam) : Number.NaN
   const targetZoom =
@@ -87,10 +87,10 @@ export default function DashboardPage() {
     return (
       <SatelliteMap
         locale={locale}
-        targetFarmId={targetFarmId}
         targetPointId={targetPointId}
         targetFocusToken={targetFocusToken}
         targetZoom={targetZoom}
+        targetCropFilter={targetCropFilter}
       />
     )
   }
@@ -100,10 +100,10 @@ export default function DashboardPage() {
       <SlideFromLeftWorkspace
         key="rss-feed-panel"
         locale={locale}
-        targetFarmId={targetFarmId}
         targetPointId={targetPointId}
         targetFocusToken={targetFocusToken}
         targetZoom={targetZoom}
+        targetCropFilter={targetCropFilter}
       >
         <RssFeedWorkspace />
       </SlideFromLeftWorkspace>
@@ -115,10 +115,10 @@ export default function DashboardPage() {
       <SlideFromLeftWorkspace
         key="data-analytics-panel"
         locale={locale}
-        targetFarmId={targetFarmId}
         targetPointId={targetPointId}
         targetFocusToken={targetFocusToken}
         targetZoom={targetZoom}
+        targetCropFilter={targetCropFilter}
       >
         <DataAnalyticsWorkspace />
       </SlideFromLeftWorkspace>

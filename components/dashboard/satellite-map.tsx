@@ -23,6 +23,7 @@ interface MapMarker {
 interface SatelliteMapProps {
   locale?: string
   targetPointId?: string | null
+  targetCropFilter?: string | null
   targetFocusToken?: string | null
   targetZoom?: number
 }
@@ -475,6 +476,7 @@ function isLeafletUiClick(event: any) {
 export function SatelliteMap({
   locale = 'en',
   targetPointId = null,
+  targetCropFilter = null,
   targetFocusToken = null,
   targetZoom,
 }: SatelliteMapProps) {
@@ -1070,6 +1072,18 @@ export function SatelliteMap({
   const resolvedTargetZoom =
     resolvedTargetFarm || explicitTargetPoint ? targetZoom ?? DEFAULT_FARM_ZOOM : DEFAULT_ZOOM
   const normalizedCropFilter = polygonCropFilterQuery.trim().toLowerCase()
+  const normalizedTargetCropName = targetCropFilter?.trim().toLowerCase() || ''
+  const lastAppliedTargetCropRef = useRef<string>('')
+
+  useEffect(() => {
+    if (!normalizedTargetCropName) {
+      lastAppliedTargetCropRef.current = ''
+      return
+    }
+    if (lastAppliedTargetCropRef.current === normalizedTargetCropName) return
+    lastAppliedTargetCropRef.current = normalizedTargetCropName
+    setPolygonCropFilterQuery(targetCropFilter?.trim() || '')
+  }, [normalizedTargetCropName, targetCropFilter])
   const cropFilterOptions = useMemo(() => {
     const uniqueCrops = new Set<string>()
     for (const cropType of cropTypeOptions) {

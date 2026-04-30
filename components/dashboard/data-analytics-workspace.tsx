@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { Activity, BarChart3, Cpu, Droplets, Flame, Gauge, Leaf, TrendingDown, TrendingUp } from 'lucide-react'
 
 interface InsightRow {
@@ -163,6 +164,7 @@ function getProducerDisplayName(pointId: string, labelsById: Record<string, stri
 }
 
 export function DataAnalyticsWorkspace() {
+  const router = useRouter()
   const [insights, setInsights] = useState<InsightRow[]>([])
   const [polygons, setPolygons] = useState<PolygonRow[]>([])
   const [producerLabelsById, setProducerLabelsById] = useState<Record<string, string>>({})
@@ -344,6 +346,32 @@ export function DataAnalyticsWorkspace() {
     }
   }, [cropAggregates, headline.totalEnergy, headline.totalProduction, headline.totalWater, polygons, producerRanking])
 
+  const navigateToCropOnMap = (cropName: string) => {
+    const normalized = cropName.trim()
+    if (!normalized) return
+    const focusToken = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+    const params = new URLSearchParams({
+      module: 'data-analytics',
+      zoom: '10',
+      focus: focusToken,
+      crop: normalized,
+    })
+    router.push(`/dashboard?${params.toString()}`)
+  }
+
+  const navigateToProducerPoint = (pointId: string) => {
+    const normalizedPointId = pointId.trim()
+    if (!normalizedPointId) return
+    const focusToken = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+    const params = new URLSearchParams({
+      module: 'data-analytics',
+      pointId: normalizedPointId,
+      zoom: '16',
+      focus: focusToken,
+    })
+    router.push(`/dashboard?${params.toString()}`)
+  }
+
   return (
     <div className="space-y-7 p-6 pt-20 text-foreground">
       <div className="relative overflow-hidden rounded-2xl border border-border bg-card p-7 shadow-[0_0_0_1px_rgba(7,248,128,0.08),0_24px_60px_rgba(0,0,0,0.38)]">
@@ -447,7 +475,10 @@ export function DataAnalyticsWorkspace() {
                     {cropAggregates.map((crop, index) => (
                       <tr
                         key={crop.cropName}
-                        className={`text-sm text-foreground ${index % 2 === 0 ? 'bg-card/60' : 'bg-secondary/20'}`}
+                        onClick={() => navigateToCropOnMap(crop.cropName)}
+                        className={`cursor-pointer text-sm text-foreground transition-colors hover:bg-primary/10 ${
+                          index % 2 === 0 ? 'bg-card/60' : 'bg-secondary/20'
+                        }`}
                       >
                         <td className="px-3 py-2.5 font-medium text-foreground">{crop.cropName}</td>
                         <td className="px-3 py-2.5">{crop.farmsCount}</td>
@@ -533,7 +564,8 @@ export function DataAnalyticsWorkspace() {
                     producerRanking.mostEfficient.map((entry, index) => (
                       <div
                         key={`${entry.pointId}-best`}
-                        className="rounded-lg border border-primary/30 bg-card/70 px-3 py-2.5"
+                        onClick={() => navigateToProducerPoint(entry.pointId)}
+                        className="cursor-pointer rounded-lg border border-primary/30 bg-card/70 px-3 py-2.5 transition-colors hover:bg-primary/10"
                       >
                         <p className="text-sm font-medium text-foreground">
                           #{index + 1} {getProducerDisplayName(entry.pointId, producerLabelsById)}
@@ -562,7 +594,8 @@ export function DataAnalyticsWorkspace() {
                     producerRanking.leastEfficient.map((entry, index) => (
                       <div
                         key={`${entry.pointId}-worst`}
-                        className="rounded-lg border border-destructive/30 bg-card/70 px-3 py-2.5"
+                        onClick={() => navigateToProducerPoint(entry.pointId)}
+                        className="cursor-pointer rounded-lg border border-destructive/30 bg-card/70 px-3 py-2.5 transition-colors hover:bg-destructive/20"
                       >
                         <p className="text-sm font-medium text-foreground">
                           #{index + 1} {getProducerDisplayName(entry.pointId, producerLabelsById)}
