@@ -1838,7 +1838,7 @@ export function SatelliteMap({
         <div
           className={`absolute inset-0 z-[2600] flex px-4 py-6 ${
             isLateralMode
-              ? 'items-start justify-end bg-black/35 pt-24 backdrop-blur-[1px]'
+              ? 'items-start justify-end bg-black/50 pt-24 backdrop-blur-[2px]'
               : 'items-center justify-center bg-black/75 backdrop-blur-sm'
           }`}
           role="dialog"
@@ -1848,7 +1848,7 @@ export function SatelliteMap({
           <div
             className={`w-full rounded-2xl border border-white/12 bg-gradient-to-b from-[#111216] to-[#090a0d] shadow-[0_20px_80px_rgba(0,0,0,0.65)] ${
               isLateralMode
-                ? 'max-w-[25rem] max-h-[calc(100vh-8rem)] overflow-y-auto p-3'
+                ? 'max-w-[34rem] max-h-[calc(100vh-7rem)] overflow-y-auto p-4'
                 : 'max-w-4xl p-5'
             }`}
             onClick={(event) => event.stopPropagation()}
@@ -1869,7 +1869,7 @@ export function SatelliteMap({
               </button>
             </div>
 
-            <div className={`mt-4 grid grid-cols-1 gap-2 ${isLateralMode ? 'md:grid-cols-1' : 'sm:grid-cols-2'}`}>
+            <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-2">
               <div className="rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2">
                 <p className="text-[10px] uppercase tracking-wide text-white/50">Linked polygons</p>
                 <p className="mt-1 text-sm font-semibold text-white">{activeInsightsPointPolygonCount}</p>
@@ -1943,46 +1943,91 @@ export function SatelliteMap({
                 No crop insight records found for this point.
               </div>
             ) : (
-              <div
-                className={`mt-4 overflow-y-auto rounded-lg border border-white/10 ${
-                  isLateralMode ? 'max-h-[40vh]' : 'max-h-[58vh]'
-                }`}
-              >
-                <table className="min-w-full divide-y divide-white/10 text-left">
-                  <thead className="sticky top-0 bg-[#14161b]">
-                    <tr className="text-[11px] uppercase tracking-wide text-white/60">
-                      <th className="px-3 py-2.5 font-medium">Crop</th>
-                      <th className="px-3 py-2.5 font-medium">Crop Score</th>
-                      <th className="px-3 py-2.5 font-medium">Estimated Production</th>
-                      <th className="px-3 py-2.5 font-medium">Energy Consumption</th>
-                      <th className="px-3 py-2.5 font-medium">Water Consumption</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-white/5">
-                    {activePointInsights.map((insight, index) => {
-                      const cropKey = insight.cropName.trim().toLowerCase()
-                      const cropScore = cropScoreByName.get(cropKey) ?? null
-                      return (
-                        <tr
-                          key={insight.id}
-                          className={`text-xs text-white/85 ${index % 2 === 0 ? 'bg-white/[0.01]' : 'bg-transparent'} hover:bg-white/[0.03]`}
-                        >
-                          <td className="px-3 py-2.5 font-medium text-white">{insight.cropName}</td>
-                          <td
-                            className="px-3 py-2.5 font-semibold"
-                            style={{ color: getScoreTextColor(cropScore) }}
+              isLateralMode ? (
+                <div className="mt-4 max-h-[44vh] space-y-2 overflow-y-auto pr-1">
+                  {activePointInsights.map((insight) => {
+                    const cropKey = insight.cropName.trim().toLowerCase()
+                    const cropScore = cropScoreByName.get(cropKey) ?? null
+                    return (
+                      <div
+                        key={insight.id}
+                        className="rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2.5 text-sm text-white/85"
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <p className="font-semibold text-white">{insight.cropName}</p>
+                          <span
+                            className="rounded-md border px-2 py-0.5 text-xs font-semibold"
+                            style={{
+                              color: getScoreTextColor(cropScore),
+                              borderColor: getScoreSurfaceColor(cropScore, 0.38),
+                              backgroundColor: getScoreSurfaceColor(cropScore, 0.12),
+                            }}
                           >
                             {formatScoreValue(cropScore)}
-                          </td>
-                          <td className="px-3 py-2.5">{formatMetric(insight.estimatedProductionTons, 'tons')}</td>
-                          <td className="px-3 py-2.5">{formatMetric(insight.energyConsumptionKwh, 'kWh')}</td>
-                          <td className="px-3 py-2.5">{formatMetric(insight.waterConsumptionM3, 'm³')}</td>
-                        </tr>
-                      )
-                    })}
-                  </tbody>
-                </table>
-              </div>
+                          </span>
+                        </div>
+                        <div className="mt-2 space-y-1.5 text-xs">
+                          <div className="flex items-center justify-between gap-3">
+                            <span className="text-white/60">Estimated production</span>
+                            <span className="font-medium text-white">
+                              {formatMetric(insight.estimatedProductionTons, 'tons')}
+                            </span>
+                          </div>
+                          <div className="flex items-center justify-between gap-3">
+                            <span className="text-white/60">Energy consumption</span>
+                            <span className="font-medium text-white">
+                              {formatMetric(insight.energyConsumptionKwh, 'kWh')}
+                            </span>
+                          </div>
+                          <div className="flex items-center justify-between gap-3">
+                            <span className="text-white/60">Water consumption</span>
+                            <span className="font-medium text-white">
+                              {formatMetric(insight.waterConsumptionM3, 'm³')}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              ) : (
+                <div className="mt-4 max-h-[58vh] overflow-y-auto rounded-lg border border-white/10">
+                  <table className="min-w-full divide-y divide-white/10 text-left">
+                    <thead className="sticky top-0 bg-[#14161b]">
+                      <tr className="text-[11px] uppercase tracking-wide text-white/60">
+                        <th className="px-3 py-2.5 font-medium">Crop</th>
+                        <th className="px-3 py-2.5 font-medium">Crop Score</th>
+                        <th className="px-3 py-2.5 font-medium">Estimated Production</th>
+                        <th className="px-3 py-2.5 font-medium">Energy Consumption</th>
+                        <th className="px-3 py-2.5 font-medium">Water Consumption</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-white/5">
+                      {activePointInsights.map((insight, index) => {
+                        const cropKey = insight.cropName.trim().toLowerCase()
+                        const cropScore = cropScoreByName.get(cropKey) ?? null
+                        return (
+                          <tr
+                            key={insight.id}
+                            className={`text-xs text-white/85 ${index % 2 === 0 ? 'bg-white/[0.01]' : 'bg-transparent'} hover:bg-white/[0.03]`}
+                          >
+                            <td className="px-3 py-2.5 font-medium text-white">{insight.cropName}</td>
+                            <td
+                              className="px-3 py-2.5 font-semibold"
+                              style={{ color: getScoreTextColor(cropScore) }}
+                            >
+                              {formatScoreValue(cropScore)}
+                            </td>
+                            <td className="px-3 py-2.5">{formatMetric(insight.estimatedProductionTons, 'tons')}</td>
+                            <td className="px-3 py-2.5">{formatMetric(insight.energyConsumptionKwh, 'kWh')}</td>
+                            <td className="px-3 py-2.5">{formatMetric(insight.waterConsumptionM3, 'm³')}</td>
+                          </tr>
+                        )
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )
             )}
           </div>
         </div>
