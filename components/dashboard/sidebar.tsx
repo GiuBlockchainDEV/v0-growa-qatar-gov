@@ -26,6 +26,19 @@ interface DashboardSidebarProps {
   persistent?: boolean
 }
 
+const arabicMenuLabels: Record<string, string> = {
+  'live-map': 'الخريطة المباشرة',
+  'rss-feed': 'موجز RSS',
+  'data-analytics': 'تحليلات البيانات',
+  monitoring: 'المراقبة',
+  alerts: 'التنبيهات',
+  reports: 'التقارير',
+  support: 'الدعم',
+  settings: 'الإعدادات',
+  'supply-overview': 'نظرة عامة على الإمداد',
+  overview: 'نظرة عامة',
+}
+
 export function DashboardSidebar({
   isOpen,
   onClose,
@@ -61,6 +74,11 @@ export function DashboardSidebar({
     'admin', 'super_admin', 'ministry_admin', 'ministry_super_admin', 
     'hassad_admin', 'qdb_admin', 'farm_company_admin'
   ].includes(effectiveRole)
+
+  const resolveItemLabel = (item: { key: string; label: string }) => {
+    if (locale !== 'ar') return item.label
+    return arabicMenuLabels[item.key] || item.label
+  }
 
   return (
     <>
@@ -106,7 +124,7 @@ export function DashboardSidebar({
                   )}
                 >
                   <Icon className={cn('h-4 w-4', active ? 'text-[#07f880]' : '')} />
-                  <span>{item.label}</span>
+                  <span>{resolveItemLabel(item)}</span>
                 </Link>
               )
             })
@@ -133,7 +151,7 @@ export function DashboardSidebar({
                     )}
                   >
                     <Icon className={cn('h-4 w-4', active ? 'text-[#07f880]' : '')} />
-                    <span>{item.label}</span>
+                    <span>{resolveItemLabel(item)}</span>
                   </Link>
                 )
               })}

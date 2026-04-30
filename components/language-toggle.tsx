@@ -36,7 +36,7 @@ export function LanguageToggle() {
         {Object.values(localeConfigs).map((config) => (
           <DropdownMenuItem
             key={config.code}
-            onClick={() => handleLocaleChange(config.code)}
+            onSelect={() => handleLocaleChange(config.code)}
             className={locale === config.code ? 'bg-accent' : ''}
           >
             <span className="font-medium">{config.nativeName}</span>

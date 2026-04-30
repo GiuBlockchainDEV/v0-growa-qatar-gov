@@ -9,6 +9,9 @@
 
 import { createContext, useContext, useState, useCallback, useEffect, type ReactNode } from 'react'
 import { type Locale, type Direction, localeConfigs, defaultLocale } from './types'
+import enTranslations from './locales/en'
+import arTranslations from './locales/ar'
+import { getPreferredLocale } from './utils'
 
 interface I18nContextValue {
   locale: Locale
@@ -24,25 +27,25 @@ interface I18nProviderProps {
   initialLocale?: Locale
 }
 
+const localeDictionaries: Record<Locale, Record<string, string>> = {
+  en: enTranslations,
+  ar: arTranslations,
+}
+
 export function I18nProvider({ children, initialLocale = defaultLocale }: I18nProviderProps) {
-  const [locale, setLocaleState] = useState<Locale>(initialLocale)
-  const [translations, setTranslations] = useState<Record<string, string>>({})
+  const [locale, setLocaleState] = useState<Locale>(() => {
+    if (typeof window === 'undefined') return initialLocale
+    return getPreferredLocale()
+  })
 
   const direction = localeConfigs[locale].direction
 
-  // Load translations when locale changes
+  // Sync locale from persisted preference on first client mount.
   useEffect(() => {
-    async function loadTranslations() {
-      try {
-        const module = await import(`./locales/${locale}.ts`)
-        setTranslations(module.default || {})
-      } catch {
-        console.warn(`Failed to load translations for locale: ${locale}`)
-        setTranslations({})
-      }
-    }
-    loadTranslations()
-  }, [locale])
+    if (typeof window === 'undefined') return
+    const preferred = getPreferredLocale()
+    setLocaleState((current) => (current === preferred ? current : preferred))
+  }, [])
 
   // Update document direction when locale changes
   useEffect(() => {
@@ -51,7 +54,7 @@ export function I18nProvider({ children, initialLocale = defaultLocale }: I18nPr
   }, [locale, direction])
 
   const setLocale = useCallback((newLocale: Locale) => {
-    setLocaleState(newLocale)
+    setLocaleState((current) => (current === newLocale ? current : newLocale))
     // Persist preference
     if (typeof window !== 'undefined') {
       localStorage.setItem('growa-locale', newLocale)
@@ -60,9 +63,10 @@ export function I18nProvider({ children, initialLocale = defaultLocale }: I18nPr
 
   const t = useCallback(
     (key: string): string => {
+      const translations = localeDictionaries[locale] || {}
       return translations[key] || key
     },
-    [translations]
+    [locale]
   )
 
   return (
