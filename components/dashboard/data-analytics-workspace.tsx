@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { Activity, BarChart3, Cpu, Droplets, Flame, Gauge, Leaf, TrendingDown, TrendingUp } from 'lucide-react'
-import { useAuth } from '@/hooks/use-auth'
 
 interface InsightRow {
   id: string
@@ -39,6 +38,11 @@ interface ProducerRanking {
   resourceIntensity: number
   averagePolygonScore: number
   cropVarietyCount: number
+}
+
+interface MapPointLabelRow {
+  id: string
+  label: string
 }
 
 function toPositiveNumber(input: unknown) {
@@ -138,48 +142,27 @@ function scoreSurface(value: number, alpha = 0.16) {
   return `hsl(${hue} 100% 56% / ${alpha})`
 }
 
-function readPointLabelsById(userId?: string) {
-  if (typeof window === 'undefined') return {}
-
-  const keyCandidates = userId
-    ? [`growa-custom-map-points:${userId}`, 'growa-custom-map-points:anonymous']
-    : ['growa-custom-map-points:anonymous']
-
-  const labelsById: Record<string, string> = {}
-
-  for (const storageKey of keyCandidates) {
-    try {
-      const raw = window.localStorage.getItem(storageKey)
-      if (!raw) continue
-      const parsed = JSON.parse(raw)
-      if (!Array.isArray(parsed)) continue
-      for (const entry of parsed) {
-        if (!entry || typeof entry !== 'object') continue
-        const row = entry as Record<string, unknown>
-        const id = typeof row.id === 'string' ? row.id.trim() : ''
-        const label =
-          (typeof row.label === 'string' && row.label.trim()) ||
-          (typeof row.name === 'string' && row.name.trim()) ||
-          ''
-        if (!id || !label) continue
-        labelsById[id] = label
-      }
-    } catch {
-      // Ignore malformed local storage payloads.
-    }
-  }
-
-  return labelsById
+function normalizePointLabelRows(input: unknown): MapPointLabelRow[] {
+  if (!Array.isArray(input)) return []
+  return input
+    .map((entry) => {
+      if (!entry || typeof entry !== 'object') return null
+      const row = entry as Record<string, unknown>
+      const id = typeof row.id === 'string' ? row.id.trim() : ''
+      const label = typeof row.label === 'string' ? row.label.trim() : ''
+      if (!id || !label) return null
+      return { id, label } satisfies MapPointLabelRow
+    })
+    .filter((row): row is MapPointLabelRow => Boolean(row))
 }
 
 function getProducerDisplayName(pointId: string, labelsById: Record<string, string>) {
   const mapped = labelsById[pointId]
   if (mapped) return mapped
-  return `Producer ${pointId.slice(0, 8)}`
+  return pointId
 }
 
 export function DataAnalyticsWorkspace() {
-  const { user } = useAuth()
   const [insights, setInsights] = useState<InsightRow[]>([])
   const [polygons, setPolygons] = useState<PolygonRow[]>([])
   const [producerLabelsById, setProducerLabelsById] = useState<Record<string, string>>({})
@@ -187,23 +170,21 @@ export function DataAnalyticsWorkspace() {
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    setProducerLabelsById(readPointLabelsById(user?.id))
-  }, [user?.id])
-
-  useEffect(() => {
     let cancelled = false
     async function load() {
       try {
         setLoading(true)
         setError(null)
-        const [insightsResponse, polygonsResponse] = await Promise.all([
+        const [insightsResponse, polygonsResponse, pointsResponse] = await Promise.all([
           fetch('/api/operations/farm-crop-insights', { cache: 'no-store' }),
           fetch('/api/operations/custom-point-polygons', { cache: 'no-store' }),
+          fetch('/api/operations/custom-map-points', { cache: 'no-store' }),
         ])
 
-        const [insightsPayload, polygonsPayload] = await Promise.all([
+        const [insightsPayload, polygonsPayload, pointsPayload] = await Promise.all([
           insightsResponse.json().catch(() => null),
           polygonsResponse.json().catch(() => null),
+          pointsResponse.json().catch(() => null),
         ])
 
         if (!insightsResponse.ok) {
@@ -216,10 +197,18 @@ export function DataAnalyticsWorkspace() {
             (polygonsPayload as { error?: string } | null)?.error || 'Failed to load polygons'
           )
         }
+        if (!pointsResponse.ok) {
+          throw new Error((pointsPayload as { error?: string } | null)?.error || 'Failed to load map points')
+        }
 
         if (cancelled) return
         setInsights(normalizeInsightRows(insightsPayload))
         setPolygons(normalizePolygonRows(polygonsPayload))
+        const labelsById = normalizePointLabelRows(pointsPayload).reduce<Record<string, string>>((acc, row) => {
+          acc[row.id] = row.label
+          return acc
+        }, {})
+        setProducerLabelsById(labelsById)
       } catch (loadError) {
         if (cancelled) return
         setError(loadError instanceof Error ? loadError.message : 'Failed to load analytics data')
@@ -239,7 +228,8 @@ export function DataAnalyticsWorkspace() {
     const polygonScoresByCrop = new Map<string, number[]>()
 
     for (const polygon of polygons) {
-      const cropName = polygon.crop.cropName.trim() || 'Unassigned crop'
+      const cropName = polygon.crop.cropName.trim()
+      if (!cropName) continue
       if (!polygonScoresByCrop.has(cropName)) {
         polygonScoresByCrop.set(cropName, [])
       }
@@ -247,7 +237,8 @@ export function DataAnalyticsWorkspace() {
     }
 
     for (const insight of insights) {
-      const cropName = insight.cropName.trim() || 'Unassigned crop'
+      const cropName = insight.cropName.trim()
+      if (!cropName) continue
       const current = map.get(cropName) || {
         cropName,
         farmsCount: 0,
@@ -266,7 +257,7 @@ export function DataAnalyticsWorkspace() {
     for (const [cropName, aggregate] of map.entries()) {
       const farms = new Set(insights.filter((item) => item.cropName === cropName).map((item) => item.pointId))
       aggregate.farmsCount = farms.size
-      const cropPolygons = polygons.filter((polygon) => (polygon.crop.cropName.trim() || 'Unassigned crop') === cropName)
+      const cropPolygons = polygons.filter((polygon) => polygon.crop.cropName.trim() === cropName)
       aggregate.polygonsCount = cropPolygons.length
       const scores = polygonScoresByCrop.get(cropName) || []
       aggregate.averageScore =
@@ -310,7 +301,7 @@ export function DataAnalyticsWorkspace() {
       entry.averagePolygonScore = avgScore
       entry.cropVarietyCount = cropVariety.size
       const denom = Math.max(1, entry.resourceIntensity)
-      entry.efficiencyScore = (entry.productionTons * 1000) / denom + avgScore * 0.4 + entry.cropVarietyCount * 2
+      entry.efficiencyScore = entry.productionTons / denom
       byPoint.set(pointId, entry)
     }
 
