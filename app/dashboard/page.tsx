@@ -50,7 +50,7 @@ function SlideFromLeftWorkspace({
       <button
         type="button"
         aria-label="Return to live map"
-        className="absolute bottom-0 right-0 top-16 z-[1700] w-1/4 bg-transparent"
+        className="absolute inset-y-16 left-[75%] z-[1700] w-[10%] bg-transparent"
         onClick={() => router.push('/dashboard?module=live-map&zoom=10')}
       />
 

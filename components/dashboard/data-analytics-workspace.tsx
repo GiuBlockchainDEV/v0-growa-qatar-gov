@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { useRouter } from 'next/navigation'
 import { Activity, BarChart3, Cpu, Droplets, Flame, Gauge, Leaf, TrendingDown, TrendingUp } from 'lucide-react'
 
 interface InsightRow {
@@ -165,7 +165,6 @@ function getProducerDisplayName(pointId: string, labelsById: Record<string, stri
 
 export function DataAnalyticsWorkspace() {
   const router = useRouter()
-  const searchParams = useSearchParams()
   const [insights, setInsights] = useState<InsightRow[]>([])
   const [polygons, setPolygons] = useState<PolygonRow[]>([])
   const [producerLabelsById, setProducerLabelsById] = useState<Record<string, string>>({})
@@ -350,17 +349,13 @@ export function DataAnalyticsWorkspace() {
   const navigateToCropOnMap = (cropName: string) => {
     const normalized = cropName.trim()
     if (!normalized) return
-    const activeCrop = (searchParams.get('crop') || '').trim().toLowerCase()
-    const isSameCrop = activeCrop === normalized.toLowerCase()
     const focusToken = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
     const params = new URLSearchParams({
       module: 'data-analytics',
+      crop: normalized,
       zoom: '11',
       focus: focusToken,
     })
-    if (!isSameCrop) {
-      params.set('crop', normalized)
-    }
     params.delete('pointId')
     router.push(`/dashboard?${params.toString()}`)
   }
