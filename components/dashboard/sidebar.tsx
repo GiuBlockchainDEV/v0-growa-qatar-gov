@@ -30,6 +30,8 @@ const arabicMenuLabels: Record<string, string> = {
   'live-map': 'الخريطة المباشرة',
   'rss-feed': 'موجز RSS',
   'data-analytics': 'تحليلات البيانات',
+  'water-intelligence': 'ذكاء المياه',
+  'energy-intelligence': 'ذكاء الطاقة',
   monitoring: 'المراقبة',
   alerts: 'التنبيهات',
   reports: 'التقارير',

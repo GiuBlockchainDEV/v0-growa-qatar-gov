@@ -7,6 +7,8 @@ import { SatelliteMap } from '@/components/dashboard/satellite-map'
 import { ModuleWorkspace } from '@/components/dashboard/module-workspace'
 import { RssFeedWorkspace } from '@/components/dashboard/rss-feed-workspace'
 import { DataAnalyticsWorkspace } from '@/components/dashboard/data-analytics-workspace'
+import { WaterIntelligenceWorkspace } from '@/components/dashboard/water-intelligence-workspace'
+import { EnergyIntelligenceWorkspace } from '@/components/dashboard/energy-intelligence-workspace'
 
 function SlideFromLeftWorkspace({
   children,
@@ -122,6 +124,36 @@ export default function DashboardPage() {
         targetCropFilter={targetCropFilter}
       >
         <DataAnalyticsWorkspace />
+      </SlideFromLeftWorkspace>
+    )
+  }
+
+  if (module === 'water-intelligence') {
+    return (
+      <SlideFromLeftWorkspace
+        key="water-intelligence-panel"
+        locale={locale}
+        targetPointId={targetPointId}
+        targetFocusToken={targetFocusToken}
+        targetZoom={targetZoom}
+        targetCropFilter={targetCropFilter}
+      >
+        <WaterIntelligenceWorkspace />
+      </SlideFromLeftWorkspace>
+    )
+  }
+
+  if (module === 'energy-intelligence') {
+    return (
+      <SlideFromLeftWorkspace
+        key="energy-intelligence-panel"
+        locale={locale}
+        targetPointId={targetPointId}
+        targetFocusToken={targetFocusToken}
+        targetZoom={targetZoom}
+        targetCropFilter={targetCropFilter}
+      >
+        <EnergyIntelligenceWorkspace />
       </SlideFromLeftWorkspace>
     )
   }
