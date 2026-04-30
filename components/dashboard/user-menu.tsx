@@ -62,8 +62,8 @@ export function UserMenu() {
               </div>
             </div>
             <div className="mt-3 flex items-center gap-1.5 text-xs">
-              <Shield className="h-3 w-3 text-green-500" />
-              <span className="text-green-500 font-medium">Verified Account</span>
+              <Shield className="h-3 w-3 text-[#07f880]" />
+              <span className="text-[#07f880] font-medium">Verified Account</span>
             </div>
           </div>
 

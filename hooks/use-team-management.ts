@@ -10,10 +10,11 @@ interface TeamMember {
   email: string
   first_name?: string
   last_name?: string
-  role: 'viewer' | 'editor' | 'admin' | 'super_admin'
-  status: 'active' | 'inactive' | 'invited'
-  joined_at: string
+  role: string
+  status?: 'active' | 'inactive' | 'invited'
+  joined_at?: string
   invited_at?: string
+  created_at?: string
 }
 
 export function useTeamManagement() {
@@ -29,17 +30,16 @@ export function useTeamManagement() {
           id,
           user_id,
           role,
-          status,
-          joined_at,
-          invited_at,
+          created_at,
           profiles:user_id (
+            email,
             first_name,
             last_name
           )
         `
         )
         .eq('organization_id', organizationId)
-        .order('joined_at', { ascending: false })
+        .order('created_at', { ascending: false })
 
       if (error) {
         console.error('[v0] Error fetching team members:', error)
@@ -50,13 +50,14 @@ export function useTeamManagement() {
       return data.map((member: any) => ({
         id: member.id,
         user_id: member.user_id,
-        email: member.email || '',
+        email: member.profiles?.email || '',
         first_name: member.profiles?.first_name,
         last_name: member.profiles?.last_name,
         role: member.role,
         status: member.status,
         joined_at: member.joined_at,
         invited_at: member.invited_at,
+        created_at: member.created_at,
       }))
     },
     [supabase]
@@ -66,7 +67,7 @@ export function useTeamManagement() {
     async (
       organizationId: string,
       memberId: string,
-      newRole: 'viewer' | 'editor' | 'admin' | 'super_admin'
+      newRole: string
     ) => {
       const { error } = await supabase
         .from('user_organization_members')
@@ -79,6 +80,47 @@ export function useTeamManagement() {
         return false
       }
       return true
+    },
+    [supabase]
+  )
+
+  const addMemberByEmail = useCallback(
+    async (organizationId: string, email: string, role: string) => {
+      const normalizedEmail = email.trim().toLowerCase()
+      if (!normalizedEmail) {
+        return { success: false, error: 'Email is required' }
+      }
+
+      const { data: profile, error: profileError } = await supabase
+        .from('profiles')
+        .select('id')
+        .eq('email', normalizedEmail)
+        .single()
+
+      if (profileError || !profile?.id) {
+        return {
+          success: false,
+          error:
+            'User not found. Ask the user to sign up first, then add them to this organization.',
+        }
+      }
+
+      const { error: insertError } = await supabase
+        .from('user_organization_members')
+        .insert({
+          user_id: profile.id,
+          organization_id: organizationId,
+          role,
+        })
+
+      if (insertError) {
+        if (insertError.code === '23505') {
+          return { success: false, error: 'User is already a member of this organization.' }
+        }
+        return { success: false, error: insertError.message }
+      }
+
+      return { success: true as const }
     },
     [supabase]
   )
@@ -102,27 +144,20 @@ export function useTeamManagement() {
 
   const inviteMember = useCallback(
     async (organizationId: string, email: string, role: string = 'viewer') => {
-      const { error } = await supabase.from('user_organization_members').insert({
-        organization_id: organizationId,
-        email,
-        role,
-        status: 'invited',
-        invited_at: new Date().toISOString(),
-      })
-
-      if (error) {
-        console.error('[v0] Error inviting member:', error)
-        return false
+      const result = await addMemberByEmail(organizationId, email, role)
+      if (!result.success) {
+        console.error('[v0] Error inviting member:', result.error)
       }
-      return true
+      return result.success
     },
-    [supabase]
+    [addMemberByEmail]
   )
 
   return {
     getTeamMembers,
     updateMemberRole,
     removeMember,
+    addMemberByEmail,
     inviteMember,
   }
 }

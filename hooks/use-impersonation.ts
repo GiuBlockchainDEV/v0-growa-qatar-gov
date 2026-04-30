@@ -64,6 +64,48 @@ export function useImpersonation() {
 
   const supabase = createClient()
 
+  const resolveEffectiveRoleWithFallback = useCallback(
+    async (userId: string) => {
+      const { data: effectiveRole, error: roleError } = await supabase.rpc('get_effective_role', {
+        user_id: userId,
+      })
+      if (roleError) {
+        console.error('Error getting effective role:', roleError)
+      }
+
+      const roleData = effectiveRole?.[0]
+      if (roleData?.is_impersonating && roleData?.org_id) {
+        return roleData
+      }
+
+      // Fallback for environments where RPC is missing/misaligned.
+      const { data: impState, error: impError } = await supabase
+        .from('user_impersonation_state')
+        .select('role_name, org_id, is_impersonating')
+        .eq('user_id', userId)
+        .maybeSingle()
+
+      if (impError || !impState?.is_impersonating || !impState?.org_id) {
+        return roleData || null
+      }
+
+      const { data: orgData } = await supabase
+        .from('organizations')
+        .select('id, name, type, organization_type')
+        .eq('id', impState.org_id)
+        .maybeSingle()
+
+      return {
+        role_name: impState.role_name,
+        org_id: impState.org_id,
+        org_name: orgData?.name || null,
+        org_type: (orgData as any)?.organization_type || (orgData as any)?.type || null,
+        is_impersonating: true,
+      }
+    },
+    [supabase]
+  )
+
   // Check if user is growa.ai admin and get current role
   const checkStatus = useCallback(async () => {
     try {
@@ -84,23 +126,55 @@ export function useImpersonation() {
       const isGrowaAdmin = user.email?.endsWith('@growa.ai') || false
 
       if (isGrowaAdmin) {
+        // Baseline "normal user" role/org from memberships.
+        // This is the default mode unless an explicit impersonation is active.
+        const { data: memberships } = await supabase
+          .from('user_organization_members')
+          .select(`
+            role,
+            organization:organizations(id, name, type)
+          `)
+          .eq('user_id', user.id)
+          .limit(1)
+
+        const baselineMembership = memberships?.[0] as {
+          role?: string | null
+          organization?: { id?: string; name?: string; type?: string } | null
+        } | undefined
+        const baselineOrg = baselineMembership?.organization || null
+
         // Get effective role (may be impersonated)
-        const { data: effectiveRole, error: roleError } = await supabase
-          .rpc('get_effective_role')
+        const roleData = await resolveEffectiveRoleWithFallback(user.id)
+        const isImpersonating = Boolean(roleData?.is_impersonating)
+        const metadataRole =
+          typeof user.user_metadata?.role === 'string'
+            ? user.user_metadata.role
+            : typeof user.app_metadata?.role === 'string'
+              ? user.app_metadata.role
+              : null
 
-        if (roleError) {
-          console.error('Error getting effective role:', roleError)
-        }
-
-        const roleData = effectiveRole?.[0]
+        // In normal mode, NEVER fallback to rpc role/org payload because that can be
+        // a default/effective profile unrelated to the admin's own account context.
+        const resolvedRole = isImpersonating
+          ? (roleData?.role_name as string | null) || null
+          : baselineMembership?.role || metadataRole
+        const resolvedOrgId = isImpersonating
+          ? (roleData?.org_id as string | null) || null
+          : baselineOrg?.id || null
+        const resolvedOrgName = isImpersonating
+          ? (roleData?.org_name as string | null) || null
+          : baselineOrg?.name || null
+        const resolvedOrgType = isImpersonating
+          ? (roleData?.org_type as string | null) || null
+          : baselineOrg?.type || null
 
         setState({
           isGrowaAdmin: true,
-          isImpersonating: roleData?.is_impersonating || false,
-          currentRole: roleData?.role_name || 'ministry_admin',
-          currentOrgId: roleData?.org_id || null,
-          currentOrgName: roleData?.org_name || 'Ministry of Municipality',
-          currentOrgType: roleData?.org_type || 'government_master',
+          isImpersonating,
+          currentRole: resolvedRole,
+          currentOrgId: resolvedOrgId,
+          currentOrgName: resolvedOrgName,
+          currentOrgType: resolvedOrgType,
         })
 
         // Fetch all organizations for the picker
@@ -139,7 +213,7 @@ export function useImpersonation() {
     } finally {
       setLoading(false)
     }
-  }, [supabase])
+  }, [supabase, resolveEffectiveRoleWithFallback])
 
   useEffect(() => {
     checkStatus()
@@ -217,6 +291,7 @@ export function useImpersonation() {
 
   return {
     ...state,
+    viewMode: state.isImpersonating ? 'impersonation' as const : 'normal' as const,
     organizations,
     loading,
     error,

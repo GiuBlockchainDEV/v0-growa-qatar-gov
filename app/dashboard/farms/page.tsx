@@ -56,7 +56,7 @@ export default function FarmsPage() {
   const getStatusStyles = (status: string) => {
     switch (status) {
       case 'active':
-        return 'bg-green-500/10 text-green-400 border-green-500/20'
+        return 'bg-[#07f880]/10 text-[#07f880] border-[#07f880]/20'
       case 'inactive':
         return 'bg-muted text-muted-foreground border-border'
       case 'maintenance':
@@ -216,7 +216,7 @@ export default function FarmsPage() {
                     </td>
                     <td className="px-6 py-4">
                       <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md border text-xs font-medium ${getStatusStyles(farm.status)}`}>
-                        <div className={`h-1.5 w-1.5 rounded-full ${farm.status === 'active' ? 'bg-green-400' : farm.status === 'maintenance' ? 'bg-amber-400' : 'bg-muted-foreground'}`} />
+                        <div className={`h-1.5 w-1.5 rounded-full ${farm.status === 'active' ? 'bg-[#07f880]' : farm.status === 'maintenance' ? 'bg-amber-400' : 'bg-muted-foreground'}`} />
                         {locale === 'ar' 
                           ? farm.status === 'active' ? 'نشط' : farm.status === 'inactive' ? 'غير نشط' : 'صيانة'
                           : farm.status.charAt(0).toUpperCase() + farm.status.slice(1)}
