@@ -12,7 +12,9 @@ import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuLabel,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { Globe } from 'lucide-react'
@@ -20,6 +22,7 @@ import { Globe } from 'lucide-react'
 export function LanguageToggle() {
   const { locale, setLocale } = useLocale()
   const { t } = useI18n()
+  const menuAlign = locale === 'ar' ? 'start' : 'end'
 
   const handleLocaleChange = (newLocale: Locale) => {
     setLocale(newLocale)
@@ -32,7 +35,16 @@ export function LanguageToggle() {
           <Globe className="h-5 w-5" />
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end">
+      <DropdownMenuContent
+        align={menuAlign}
+        side="bottom"
+        sideOffset={8}
+        collisionPadding={12}
+        dir="ltr"
+        className="z-[2600] min-w-[11rem]"
+      >
+        <DropdownMenuLabel>{t('language.switch')}</DropdownMenuLabel>
+        <DropdownMenuSeparator />
         {Object.values(localeConfigs).map((config) => (
           <DropdownMenuItem
             key={config.code}
