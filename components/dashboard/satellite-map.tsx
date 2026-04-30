@@ -26,6 +26,7 @@ interface SatelliteMapProps {
   targetCropFilter?: string | null
   targetFocusToken?: string | null
   targetZoom?: number
+  isLateralMode?: boolean
 }
 
 interface MapController {
@@ -479,6 +480,7 @@ export function SatelliteMap({
   targetCropFilter = null,
   targetFocusToken = null,
   targetZoom,
+  isLateralMode = false,
 }: SatelliteMapProps) {
   const { user } = useAuth()
   const { organization } = useOrganization()
@@ -1834,13 +1836,21 @@ export function SatelliteMap({
 
       {isInsightsModalOpen && (
         <div
-          className="absolute inset-0 z-[2600] flex items-center justify-center bg-black/75 backdrop-blur-sm px-4 py-6"
+          className={`absolute inset-0 z-[2600] flex px-4 py-6 ${
+            isLateralMode
+              ? 'items-start justify-end bg-black/35 pt-24 backdrop-blur-[1px]'
+              : 'items-center justify-center bg-black/75 backdrop-blur-sm'
+          }`}
           role="dialog"
           aria-modal="true"
           onClick={closePointInsightsModal}
         >
           <div
-            className="w-full max-w-4xl rounded-2xl border border-white/12 bg-gradient-to-b from-[#111216] to-[#090a0d] p-5 shadow-[0_20px_80px_rgba(0,0,0,0.65)]"
+            className={`w-full rounded-2xl border border-white/12 bg-gradient-to-b from-[#111216] to-[#090a0d] shadow-[0_20px_80px_rgba(0,0,0,0.65)] ${
+              isLateralMode
+                ? 'max-w-[25rem] max-h-[calc(100vh-8rem)] overflow-y-auto p-3'
+                : 'max-w-4xl p-5'
+            }`}
             onClick={(event) => event.stopPropagation()}
           >
             <div className="flex items-start justify-between gap-3 border-b border-white/10 pb-4">
@@ -1859,7 +1869,7 @@ export function SatelliteMap({
               </button>
             </div>
 
-            <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-2">
+            <div className={`mt-4 grid grid-cols-1 gap-2 ${isLateralMode ? 'md:grid-cols-1' : 'sm:grid-cols-2'}`}>
               <div className="rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2">
                 <p className="text-[10px] uppercase tracking-wide text-white/50">Linked polygons</p>
                 <p className="mt-1 text-sm font-semibold text-white">{activeInsightsPointPolygonCount}</p>
@@ -1933,7 +1943,11 @@ export function SatelliteMap({
                 No crop insight records found for this point.
               </div>
             ) : (
-              <div className="mt-4 max-h-[58vh] overflow-y-auto rounded-lg border border-white/10">
+              <div
+                className={`mt-4 overflow-y-auto rounded-lg border border-white/10 ${
+                  isLateralMode ? 'max-h-[40vh]' : 'max-h-[58vh]'
+                }`}
+              >
                 <table className="min-w-full divide-y divide-white/10 text-left">
                   <thead className="sticky top-0 bg-[#14161b]">
                     <tr className="text-[11px] uppercase tracking-wide text-white/60">

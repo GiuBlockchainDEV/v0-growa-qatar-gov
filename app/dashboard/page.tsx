@@ -44,6 +44,7 @@ function SlideFromLeftWorkspace({
           targetFocusToken={targetFocusToken}
           targetZoom={targetZoom}
           targetCropFilter={targetCropFilter}
+          isLateralMode
         />
       </div>
 
