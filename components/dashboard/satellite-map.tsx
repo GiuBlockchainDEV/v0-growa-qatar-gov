@@ -1086,6 +1086,14 @@ export function SatelliteMap({
     lastAppliedTargetCropRef.current = normalizedTargetCropName
     setPolygonCropFilterQuery(targetCropFilter?.trim() || '')
   }, [normalizedTargetCropName, targetCropFilter])
+
+  useEffect(() => {
+    if (!targetPointId) return
+    // Switching back to point focus (Top Gainer/Loser) must exit crop-only mode.
+    lastAppliedTargetCropRef.current = ''
+    setPolygonCropFilterQuery('')
+  }, [targetPointId])
+
   const cropFilterOptions = useMemo(() => {
     const uniqueCrops = new Set<string>()
     for (const cropType of cropTypeOptions) {
