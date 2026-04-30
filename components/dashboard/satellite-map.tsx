@@ -20,17 +20,8 @@ interface MapMarker {
   type: MapPointType
 }
 
-interface FarmApiRow {
-  id?: string
-  name_en?: string
-  name_ar?: string
-  name?: string
-  location?: string | null
-}
-
 interface SatelliteMapProps {
   locale?: string
-  targetFarmId?: string | null
   targetPointId?: string | null
   targetFocusToken?: string | null
   targetZoom?: number
@@ -67,20 +58,6 @@ interface PolygonCropData {
   sowingDate: string
   expectedHarvestDate: string
   notes: string
-}
-
-interface PolygonApiRow {
-  id: string
-  custom_point_id: string
-  name: string
-  vertices: unknown
-  score: number | null
-  crop_name: string | null
-  crop_variety: string | null
-  sowing_date: string | null
-  expected_harvest_date: string | null
-  notes: string | null
-  created_at: string | null
 }
 
 interface PointPolygon {
@@ -152,9 +129,6 @@ const POLYGON_DRAW_METHOD_OPTIONS: Array<{ value: PolygonDrawMethod; label: stri
   { value: 'circle', label: 'Circle' },
 ]
 
-const CUSTOM_POINTS_STORAGE_PREFIX = 'growa-custom-map-points:'
-const ANONYMOUS_CUSTOM_POINTS_STORAGE_KEY = `${CUSTOM_POINTS_STORAGE_PREFIX}anonymous`
-
 interface DbCustomPointRow {
   id?: string
   lat?: number | string
@@ -180,46 +154,6 @@ interface CropTypesApiRow {
   nameAr?: string
   name_ar?: string
   varieties?: unknown
-}
-
-function normalizeStoredCustomPoints(rows: unknown): CustomPoint[] {
-  if (!Array.isArray(rows)) return []
-  return rows
-    .map((entry: unknown) => {
-      if (!entry || typeof entry !== 'object') return null
-      const row = entry as Record<string, unknown>
-      const id = typeof row.id === 'string' ? row.id : ''
-      const lat =
-        typeof row.lat === 'number'
-          ? row.lat
-          : typeof row.lat === 'string'
-            ? Number(row.lat)
-            : Number.NaN
-      const lng =
-        typeof row.lng === 'number'
-          ? row.lng
-          : typeof row.lng === 'string'
-            ? Number(row.lng)
-            : Number.NaN
-      const label =
-        typeof row.label === 'string'
-          ? row.label
-          : typeof row.name === 'string'
-            ? row.name
-            : 'Custom Point'
-      const rawPointType =
-        typeof row.pointType === 'string'
-          ? row.pointType
-          : typeof row.type === 'string'
-            ? row.type
-            : 'custom'
-      const pointType: MapPointType = POINT_TYPE_OPTIONS.some((option) => option.value === rawPointType)
-        ? (rawPointType as MapPointType)
-        : 'custom'
-      if (!id || !Number.isFinite(lat) || !Number.isFinite(lng)) return null
-      return { id, lat, lng, label: label.trim() || 'Custom Point', pointType } satisfies CustomPoint
-    })
-    .filter((row): row is CustomPoint => Boolean(row))
 }
 
 function normalizeDbCustomPointRows(rows: unknown): CustomPoint[] {
@@ -285,53 +219,6 @@ function normalizeCropTypeRows(rows: unknown): CropTypeOption[] {
     .filter((row): row is CropTypeOption => Boolean(row))
 }
 
-function readCustomPointsFromStorageKeys(keys: string[]): CustomPoint[] {
-  if (typeof window === 'undefined') return []
-  const merged = new Map<string, CustomPoint>()
-  for (const key of keys) {
-    try {
-      const raw = window.localStorage.getItem(key)
-      if (!raw) continue
-      const parsed = JSON.parse(raw)
-      const normalized = normalizeStoredCustomPoints(parsed)
-      for (const point of normalized) {
-        merged.set(point.id, point)
-      }
-    } catch {
-      // Ignore malformed storage payloads.
-    }
-  }
-  return Array.from(merged.values())
-}
-
-function getCustomPointStorageKeys(primaryKey: string): string[] {
-  const keys = new Set<string>()
-  if (primaryKey) keys.add(primaryKey)
-  keys.add(ANONYMOUS_CUSTOM_POINTS_STORAGE_KEY)
-  if (typeof window !== 'undefined') {
-    try {
-      for (let index = 0; index < window.localStorage.length; index += 1) {
-        const key = window.localStorage.key(index)
-        if (key && key.startsWith(CUSTOM_POINTS_STORAGE_PREFIX)) {
-          keys.add(key)
-        }
-      }
-    } catch {
-      // Ignore storage access failures in restricted browser contexts.
-    }
-  }
-  return Array.from(keys)
-}
-
-function hashToRange(input: string, min: number, max: number) {
-  let hash = 0
-  for (let i = 0; i < input.length; i += 1) {
-    hash = (hash * 31 + input.charCodeAt(i)) % 100000
-  }
-  const normalized = hash / 100000
-  return min + normalized * (max - min)
-}
-
 function escapeHtml(value: string) {
   return value
     .replace(/&/g, '&amp;')
@@ -339,24 +226,6 @@ function escapeHtml(value: string) {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;')
-}
-
-function estimateFarmCoordinates(farmId: string, location?: string | null) {
-  const locationKey = (location || '').toLowerCase()
-  const cityBias: Record<string, { lat: number; lng: number }> = {
-    'al khor': { lat: 25.6839, lng: 51.5058 },
-    'al rayyan': { lat: 25.2919, lng: 51.4244 },
-    'umm salal': { lat: 25.4167, lng: 51.4065 },
-    'al daayen': { lat: 25.4476, lng: 51.5254 },
-    'al wakrah': { lat: 25.1682, lng: 51.6034 },
-    'madinat ash shamal': { lat: 26.1293, lng: 51.2068 },
-  }
-  const matchedCity = Object.entries(cityBias).find(([city]) => locationKey.includes(city))
-  const base = matchedCity?.[1] || QATAR_CENTER
-  return {
-    lat: base.lat + hashToRange(`${farmId}-lat`, -0.035, 0.035),
-    lng: base.lng + hashToRange(`${farmId}-lng`, -0.05, 0.05),
-  }
 }
 
 function calculatePolygonAreaHectares(vertices: PolygonVertex[]): number {
@@ -454,27 +323,7 @@ function normalizePolygonVertices(input: unknown): PolygonVertex[] {
     .filter((vertex): vertex is PolygonVertex => Boolean(vertex))
 }
 
-function normalizePointPolygon(
-  input: unknown,
-  fallbackId: string,
-  fallbackName: string,
-  fallbackCustomPointId = ''
-): PointPolygon | null {
-  // Backward compatibility with legacy format: polygon was an array of vertices.
-  if (Array.isArray(input)) {
-    const legacyVertices = normalizePolygonVertices(input)
-    if (legacyVertices.length < 3) return null
-    return {
-      id: fallbackId,
-      customPointId: fallbackCustomPointId,
-      name: fallbackName,
-      vertices: legacyVertices,
-      score: 50,
-      crop: { ...EMPTY_POLYGON_CROP },
-      createdAt: new Date().toISOString(),
-    }
-  }
-
+function normalizePointPolygon(input: unknown): PointPolygon | null {
   if (!input || typeof input !== 'object') return null
   const row = input as Record<string, unknown>
   const vertices = normalizePolygonVertices(row.vertices)
@@ -485,11 +334,14 @@ function normalizePointPolygon(
     (typeof row.customPointId === 'string' && row.customPointId.trim()) ||
     (typeof row.custom_point_id === 'string' && row.custom_point_id.trim()) ||
     (typeof row.pointId === 'string' && row.pointId.trim()) ||
-    fallbackCustomPointId
+    ''
+  const id = typeof row.id === 'string' && row.id.trim() ? row.id.trim() : ''
+  const name = typeof row.name === 'string' && row.name.trim() ? row.name.trim() : ''
+  if (!id || !customPointId || !name) return null
   return {
-    id: typeof row.id === 'string' && row.id.trim() ? row.id.trim() : fallbackId,
+    id,
     customPointId,
-    name: typeof row.name === 'string' && row.name.trim() ? row.name.trim() : fallbackName,
+    name,
     vertices,
     score: normalizePolygonScore(
       (row as Record<string, unknown>).score ??
@@ -533,26 +385,6 @@ function normalizePointPolygon(
       (typeof row.createdAt === 'string' && row.createdAt.trim() ? row.createdAt : null) ||
       (typeof row.created_at === 'string' && row.created_at.trim() ? row.created_at : null) ||
       new Date().toISOString(),
-  }
-}
-
-function fromApiPolygonRow(row: PolygonApiRow): PointPolygon | null {
-  const vertices = normalizePolygonVertices(row.vertices)
-  if (vertices.length < 3) return null
-  return {
-    id: row.id,
-    customPointId: row.custom_point_id,
-    name: row.name?.trim() || 'Polygon',
-    vertices,
-    score: normalizePolygonScore(row.score, 50),
-    crop: {
-      cropName: row.crop_name || '',
-      variety: row.crop_variety || '',
-      sowingDate: row.sowing_date || '',
-      expectedHarvestDate: row.expected_harvest_date || '',
-      notes: row.notes || '',
-    },
-    createdAt: row.created_at || new Date().toISOString(),
   }
 }
 
@@ -642,7 +474,6 @@ function isLeafletUiClick(event: any) {
 
 export function SatelliteMap({
   locale = 'en',
-  targetFarmId = null,
   targetPointId = null,
   targetFocusToken = null,
   targetZoom,
@@ -660,12 +491,10 @@ export function SatelliteMap({
   const polygonDrawPointIdRef = useRef<string | null>(null)
   const lastClearedFocusTokenRef = useRef<string | null>(null)
   const insightsRequestIdRef = useRef(0)
-  const migratedLegacyPointsRef = useRef(false)
 
   const [isLoading, setIsLoading] = useState(true)
   const [mapReady, setMapReady] = useState(false)
   const [currentZoom, setCurrentZoom] = useState(DEFAULT_ZOOM)
-  const [farmRows, setFarmRows] = useState<FarmApiRow[]>([])
   const [customPoints, setCustomPoints] = useState<CustomPoint[]>([])
   const [pointPolygons, setPointPolygons] = useState<PointPolygonsMap>({})
   const [isAddPointMode, setIsAddPointMode] = useState(false)
@@ -711,14 +540,6 @@ export function SatelliteMap({
   const isFarmCompanyContext = organizationType === 'farm_company'
   const isGrowaAdmin = Boolean(user?.email?.toLowerCase().endsWith('@growa.ai'))
 
-  const customPointStorageKeys = useMemo(
-    () => getCustomPointStorageKeys(`${CUSTOM_POINTS_STORAGE_PREFIX}${user?.id || 'anonymous'}`),
-    [user?.id]
-  )
-  const legacyCustomPointCache = useMemo(
-    () => readCustomPointsFromStorageKeys(customPointStorageKeys),
-    [customPointStorageKeys]
-  )
   const cropNameByNormalized = useMemo(() => {
     const map = new Map<string, string>()
     for (const cropType of cropTypeOptions) {
@@ -769,24 +590,6 @@ export function SatelliteMap({
     }
   }, [])
 
-  const upsertCustomPointInDb = useCallback(async (point: CustomPoint) => {
-    const response = await fetch('/api/operations/custom-map-points', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        id: point.id,
-        label: point.label,
-        lat: point.lat,
-        lng: point.lng,
-        pointType: point.pointType,
-      }),
-    })
-    if (!response.ok) return null
-    const payload = await response.json().catch(() => null)
-    const normalized = normalizeDbCustomPointRows(payload ? [payload] : [])
-    return normalized[0] || null
-  }, [])
-
   useEffect(() => {
     if (!isGrowaAdmin) {
       setCustomPoints([])
@@ -797,25 +600,6 @@ export function SatelliteMap({
     async function loadCustomPoints() {
       const dbPoints = await loadCustomPointsFromDb()
       if (cancelled) return
-
-      if (!migratedLegacyPointsRef.current) {
-        const legacyPoints = readCustomPointsFromStorageKeys(customPointStorageKeys)
-        const knownIds = new Set(dbPoints.map((point) => point.id))
-        const missingLegacyPoints = legacyPoints.filter((point) => !knownIds.has(point.id))
-        if (missingLegacyPoints.length > 0) {
-          const migrated = await Promise.all(missingLegacyPoints.map((point) => upsertCustomPointInDb(point)))
-          if (!cancelled && migrated.some(Boolean)) {
-            const refreshed = await loadCustomPointsFromDb()
-            if (!cancelled) {
-              setCustomPoints(refreshed)
-            }
-            migratedLegacyPointsRef.current = true
-            return
-          }
-        }
-        migratedLegacyPointsRef.current = true
-      }
-
       setCustomPoints(dbPoints)
     }
 
@@ -823,7 +607,7 @@ export function SatelliteMap({
     return () => {
       cancelled = true
     }
-  }, [customPointStorageKeys, isGrowaAdmin, loadCustomPointsFromDb, upsertCustomPointInDb])
+  }, [isGrowaAdmin, loadCustomPointsFromDb])
 
   useEffect(() => {
     if (!isGrowaAdmin) {
@@ -882,11 +666,9 @@ export function SatelliteMap({
             (typeof row?.customPointId === 'string' && row.customPointId) ||
             ''
           if (!pointId) return acc
-          const fallbackId =
-            typeof row?.id === 'string' && row.id.trim() ? row.id.trim() : `polygon-${Date.now()}`
-          const fallbackName =
-            typeof row?.name === 'string' && row.name.trim() ? row.name.trim() : 'Polygon'
-          const polygon = normalizePointPolygon(row, fallbackId, fallbackName, pointId)
+          if (typeof row?.id !== 'string' || !row.id.trim()) return acc
+          if (typeof row?.name !== 'string' || !row.name.trim()) return acc
+          const polygon = normalizePointPolygon(row)
           if (!polygon) return acc
           if (!acc[pointId]) acc[pointId] = []
           acc[pointId].push(polygon)
@@ -938,18 +720,6 @@ export function SatelliteMap({
     }
   }, [isGrowaAdmin])
 
-  const dynamicFarmMarkers = useMemo<MapMarker[]>(() => {
-    const markers: MapMarker[] = []
-    for (const farm of farmRows) {
-      if (!farm.id) continue
-      const coordinates = estimateFarmCoordinates(farm.id, farm.location || null)
-      const label =
-        (locale === 'ar' && farm.name_ar) || farm.name_en || farm.name || `Farm ${farm.id.slice(0, 8)}`
-      markers.push({ id: farm.id, lat: coordinates.lat, lng: coordinates.lng, label, type: 'farm' })
-    }
-    return markers
-  }, [farmRows, locale])
-
   const mapMarkers = useMemo<MapMarker[]>(() => {
     const custom = customPoints.map((point) => ({
       id: point.id,
@@ -958,8 +728,8 @@ export function SatelliteMap({
       label: point.label,
       type: point.pointType,
     }))
-    return [...dynamicFarmMarkers, ...custom]
-  }, [customPoints, dynamicFarmMarkers])
+    return custom
+  }, [customPoints])
 
   const pointScoreStatsById = useMemo(() => {
     const stats: Record<string, { count: number; average: number | null }> = {}
@@ -1123,12 +893,7 @@ export function SatelliteMap({
       const payload = await response.json()
       if (!response.ok) return
 
-      const normalized = normalizePointPolygon(
-        payload,
-        payload.id || `polygon-${Date.now()}`,
-        polygonName,
-        polygonDrawPointId
-      )
+      const normalized = normalizePointPolygon(payload)
       if (!normalized) return
 
       setPointPolygons((prev) => ({
@@ -1209,7 +974,7 @@ export function SatelliteMap({
         })
         const payload = await response.json()
         if (!response.ok) return
-        const normalized = normalizePointPolygon(payload, polygon.id, nextName, polygon.customPointId)
+        const normalized = normalizePointPolygon(payload)
         if (!normalized || !normalized.customPointId) return
         setPointPolygons((prev) => {
           const pointId = normalized.customPointId
@@ -1270,23 +1035,12 @@ export function SatelliteMap({
     }
   }, [polygonDrawMethod, shapeSeedVertex])
 
-  const explicitTargetFarm = useMemo(
-    () =>
-      targetFarmId
-        ? dynamicFarmMarkers.find((marker) => marker.id === targetFarmId) ||
-          mapMarkers.find((marker) => marker.id === targetFarmId) ||
-          null
-        : null,
-    [dynamicFarmMarkers, mapMarkers, targetFarmId]
-  )
-
   const resolvedTargetFarm = useMemo(() => {
-    if (explicitTargetFarm) return explicitTargetFarm
     // When a specific point is requested from search, keep point focus priority.
     if (targetPointId) return null
     if (!isFarmCompanyContext) return null
-    return dynamicFarmMarkers[0] || null
-  }, [dynamicFarmMarkers, explicitTargetFarm, isFarmCompanyContext, targetPointId])
+    return mapMarkers.find((marker) => marker.type === 'farm') || null
+  }, [mapMarkers, isFarmCompanyContext, targetPointId])
 
   const explicitTargetPoint = useMemo(() => {
     if (!targetPointId) return null
@@ -1483,24 +1237,6 @@ export function SatelliteMap({
     currentUrl.searchParams.delete('focus')
     const nextUrl = `${currentUrl.pathname}${currentUrl.search}${currentUrl.hash}`
     window.history.replaceState(window.history.state, '', nextUrl)
-  }, [])
-
-  useEffect(() => {
-    let cancelled = false
-    async function loadFarms() {
-      try {
-        const response = await fetch('/api/operations/farms', { cache: 'no-store' })
-        const payload = await response.json()
-        if (!response.ok) return
-        if (!cancelled) setFarmRows(Array.isArray(payload) ? (payload as FarmApiRow[]) : [])
-      } catch {
-        if (!cancelled) setFarmRows([])
-      }
-    }
-    loadFarms()
-    return () => {
-      cancelled = true
-    }
   }, [])
 
   useEffect(() => {
