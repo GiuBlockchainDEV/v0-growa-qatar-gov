@@ -1322,6 +1322,8 @@ export function SatelliteMap({
     if (!mapReady || !mapInstanceRef.current || !leafletRef.current) return
     const L = leafletRef.current
     const map = mapInstanceRef.current
+    const hideMarkersForCropFocus =
+      isLateralMode && (Boolean(normalizedTargetCropName) || Boolean(normalizedCropFilter))
 
     const createMarkerIcon = (type: MapMarker['type'], markerId: string) => {
       const colors = {
@@ -1355,6 +1357,11 @@ export function SatelliteMap({
     }
 
     markerInstancesRef.current.forEach((marker) => marker.remove?.())
+    if (hideMarkersForCropFocus) {
+      markerInstancesRef.current = []
+      return
+    }
+
     markerInstancesRef.current = mapMarkers.map((marker) => {
       const customPoint = customPoints.find((point) => point.id === marker.id) || null
       const markerInstance = L.marker([marker.lat, marker.lng], {
@@ -1389,8 +1396,11 @@ export function SatelliteMap({
     })
   }, [
     customPoints,
+    isLateralMode,
     mapMarkers,
     mapReady,
+    normalizedCropFilter,
+    normalizedTargetCropName,
     openPointInsightsModal,
     pointScoreStatsById,
   ])
