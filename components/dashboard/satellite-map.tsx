@@ -26,6 +26,7 @@ interface SatelliteMapProps {
   targetCropFilter?: string | null
   targetFocusToken?: string | null
   targetZoom?: number
+  isLateralMode?: boolean
 }
 
 interface MapController {
@@ -479,6 +480,7 @@ export function SatelliteMap({
   targetCropFilter = null,
   targetFocusToken = null,
   targetZoom,
+  isLateralMode = false,
 }: SatelliteMapProps) {
   const { user } = useAuth()
   const { organization } = useOrganization()
@@ -1084,6 +1086,14 @@ export function SatelliteMap({
     lastAppliedTargetCropRef.current = normalizedTargetCropName
     setPolygonCropFilterQuery(targetCropFilter?.trim() || '')
   }, [normalizedTargetCropName, targetCropFilter])
+
+  useEffect(() => {
+    if (!targetPointId) return
+    // Switching back to point focus (Top Gainer/Loser) must exit crop-only mode.
+    lastAppliedTargetCropRef.current = ''
+    setPolygonCropFilterQuery('')
+  }, [targetPointId])
+
   const cropFilterOptions = useMemo(() => {
     const uniqueCrops = new Set<string>()
     for (const cropType of cropTypeOptions) {
@@ -1320,6 +1330,8 @@ export function SatelliteMap({
     if (!mapReady || !mapInstanceRef.current || !leafletRef.current) return
     const L = leafletRef.current
     const map = mapInstanceRef.current
+    const hideMarkersForCropFocus =
+      isLateralMode && (Boolean(normalizedTargetCropName) || Boolean(normalizedCropFilter))
 
     const createMarkerIcon = (type: MapMarker['type'], markerId: string) => {
       const colors = {
@@ -1353,6 +1365,11 @@ export function SatelliteMap({
     }
 
     markerInstancesRef.current.forEach((marker) => marker.remove?.())
+    if (hideMarkersForCropFocus) {
+      markerInstancesRef.current = []
+      return
+    }
+
     markerInstancesRef.current = mapMarkers.map((marker) => {
       const customPoint = customPoints.find((point) => point.id === marker.id) || null
       const markerInstance = L.marker([marker.lat, marker.lng], {
@@ -1387,8 +1404,11 @@ export function SatelliteMap({
     })
   }, [
     customPoints,
+    isLateralMode,
     mapMarkers,
     mapReady,
+    normalizedCropFilter,
+    normalizedTargetCropName,
     openPointInsightsModal,
     pointScoreStatsById,
   ])
@@ -1683,6 +1703,7 @@ export function SatelliteMap({
 
   useEffect(() => {
     if (!mapReady || !mapInstanceRef.current || !resolvedTargetFarm || targetPointId) return
+    if (normalizedTargetCropName) return
     if (targetFocusToken) {
       mapInstanceRef.current.flyTo([resolvedTargetFarm.lat, resolvedTargetFarm.lng], resolvedTargetZoom, {
         duration: 1.2,
@@ -1691,7 +1712,35 @@ export function SatelliteMap({
       return
     }
     mapInstanceRef.current.setView([resolvedTargetFarm.lat, resolvedTargetFarm.lng], resolvedTargetZoom)
-  }, [clearFocusParamFromUrl, mapReady, resolvedTargetFarm, resolvedTargetZoom, targetPointId, targetFocusToken])
+  }, [
+    clearFocusParamFromUrl,
+    mapReady,
+    normalizedTargetCropName,
+    resolvedTargetFarm,
+    resolvedTargetZoom,
+    targetPointId,
+    targetFocusToken,
+  ])
+
+  useEffect(() => {
+    if (!mapReady || !mapInstanceRef.current) return
+    if (!normalizedTargetCropName || targetPointId) return
+    const cropFocusZoom = 10
+    if (targetFocusToken) {
+      mapInstanceRef.current.flyTo([QATAR_CENTER.lat, QATAR_CENTER.lng], cropFocusZoom, {
+        duration: 1.2,
+      })
+      clearFocusParamFromUrl()
+      return
+    }
+    mapInstanceRef.current.setView([QATAR_CENTER.lat, QATAR_CENTER.lng], cropFocusZoom)
+  }, [
+    clearFocusParamFromUrl,
+    mapReady,
+    normalizedTargetCropName,
+    targetPointId,
+    targetFocusToken,
+  ])
 
   useEffect(() => {
     if (!mapReady || !mapInstanceRef.current || !explicitTargetPoint) return
@@ -1805,13 +1854,21 @@ export function SatelliteMap({
 
       {isInsightsModalOpen && (
         <div
-          className="absolute inset-0 z-[2600] flex items-center justify-center bg-black/75 backdrop-blur-sm px-4 py-6"
+          className={`absolute inset-0 z-[2600] flex px-4 py-6 ${
+            isLateralMode
+              ? 'items-start justify-end bg-black/50 pt-24 backdrop-blur-[2px]'
+              : 'items-center justify-center bg-black/75 backdrop-blur-sm'
+          }`}
           role="dialog"
           aria-modal="true"
           onClick={closePointInsightsModal}
         >
           <div
-            className="w-full max-w-4xl rounded-2xl border border-white/12 bg-gradient-to-b from-[#111216] to-[#090a0d] p-5 shadow-[0_20px_80px_rgba(0,0,0,0.65)]"
+            className={`w-full rounded-2xl border border-white/12 bg-gradient-to-b from-[#111216] to-[#090a0d] shadow-[0_20px_80px_rgba(0,0,0,0.65)] ${
+              isLateralMode
+                ? 'max-w-[34rem] max-h-[calc(100vh-7rem)] overflow-y-auto p-4'
+                : 'max-w-4xl p-5'
+            }`}
             onClick={(event) => event.stopPropagation()}
           >
             <div className="flex items-start justify-between gap-3 border-b border-white/10 pb-4">
@@ -1904,42 +1961,91 @@ export function SatelliteMap({
                 No crop insight records found for this point.
               </div>
             ) : (
-              <div className="mt-4 max-h-[58vh] overflow-y-auto rounded-lg border border-white/10">
-                <table className="min-w-full divide-y divide-white/10 text-left">
-                  <thead className="sticky top-0 bg-[#14161b]">
-                    <tr className="text-[11px] uppercase tracking-wide text-white/60">
-                      <th className="px-3 py-2.5 font-medium">Crop</th>
-                      <th className="px-3 py-2.5 font-medium">Crop Score</th>
-                      <th className="px-3 py-2.5 font-medium">Estimated Production</th>
-                      <th className="px-3 py-2.5 font-medium">Energy Consumption</th>
-                      <th className="px-3 py-2.5 font-medium">Water Consumption</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-white/5">
-                    {activePointInsights.map((insight, index) => {
-                      const cropKey = insight.cropName.trim().toLowerCase()
-                      const cropScore = cropScoreByName.get(cropKey) ?? null
-                      return (
-                        <tr
-                          key={insight.id}
-                          className={`text-xs text-white/85 ${index % 2 === 0 ? 'bg-white/[0.01]' : 'bg-transparent'} hover:bg-white/[0.03]`}
-                        >
-                          <td className="px-3 py-2.5 font-medium text-white">{insight.cropName}</td>
-                          <td
-                            className="px-3 py-2.5 font-semibold"
-                            style={{ color: getScoreTextColor(cropScore) }}
+              isLateralMode ? (
+                <div className="mt-4 max-h-[44vh] space-y-2 overflow-y-auto pr-1">
+                  {activePointInsights.map((insight) => {
+                    const cropKey = insight.cropName.trim().toLowerCase()
+                    const cropScore = cropScoreByName.get(cropKey) ?? null
+                    return (
+                      <div
+                        key={insight.id}
+                        className="rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2.5 text-sm text-white/85"
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <p className="font-semibold text-white">{insight.cropName}</p>
+                          <span
+                            className="rounded-md border px-2 py-0.5 text-xs font-semibold"
+                            style={{
+                              color: getScoreTextColor(cropScore),
+                              borderColor: getScoreSurfaceColor(cropScore, 0.38),
+                              backgroundColor: getScoreSurfaceColor(cropScore, 0.12),
+                            }}
                           >
                             {formatScoreValue(cropScore)}
-                          </td>
-                          <td className="px-3 py-2.5">{formatMetric(insight.estimatedProductionTons, 'tons')}</td>
-                          <td className="px-3 py-2.5">{formatMetric(insight.energyConsumptionKwh, 'kWh')}</td>
-                          <td className="px-3 py-2.5">{formatMetric(insight.waterConsumptionM3, 'm³')}</td>
-                        </tr>
-                      )
-                    })}
-                  </tbody>
-                </table>
-              </div>
+                          </span>
+                        </div>
+                        <div className="mt-2 space-y-1.5 text-xs">
+                          <div className="flex items-center justify-between gap-3">
+                            <span className="text-white/60">Estimated production</span>
+                            <span className="font-medium text-white">
+                              {formatMetric(insight.estimatedProductionTons, 'tons')}
+                            </span>
+                          </div>
+                          <div className="flex items-center justify-between gap-3">
+                            <span className="text-white/60">Energy consumption</span>
+                            <span className="font-medium text-white">
+                              {formatMetric(insight.energyConsumptionKwh, 'kWh')}
+                            </span>
+                          </div>
+                          <div className="flex items-center justify-between gap-3">
+                            <span className="text-white/60">Water consumption</span>
+                            <span className="font-medium text-white">
+                              {formatMetric(insight.waterConsumptionM3, 'm³')}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              ) : (
+                <div className="mt-4 max-h-[58vh] overflow-y-auto rounded-lg border border-white/10">
+                  <table className="min-w-full divide-y divide-white/10 text-left">
+                    <thead className="sticky top-0 bg-[#14161b]">
+                      <tr className="text-[11px] uppercase tracking-wide text-white/60">
+                        <th className="px-3 py-2.5 font-medium">Crop</th>
+                        <th className="px-3 py-2.5 font-medium">Crop Score</th>
+                        <th className="px-3 py-2.5 font-medium">Estimated Production</th>
+                        <th className="px-3 py-2.5 font-medium">Energy Consumption</th>
+                        <th className="px-3 py-2.5 font-medium">Water Consumption</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-white/5">
+                      {activePointInsights.map((insight, index) => {
+                        const cropKey = insight.cropName.trim().toLowerCase()
+                        const cropScore = cropScoreByName.get(cropKey) ?? null
+                        return (
+                          <tr
+                            key={insight.id}
+                            className={`text-xs text-white/85 ${index % 2 === 0 ? 'bg-white/[0.01]' : 'bg-transparent'} hover:bg-white/[0.03]`}
+                          >
+                            <td className="px-3 py-2.5 font-medium text-white">{insight.cropName}</td>
+                            <td
+                              className="px-3 py-2.5 font-semibold"
+                              style={{ color: getScoreTextColor(cropScore) }}
+                            >
+                              {formatScoreValue(cropScore)}
+                            </td>
+                            <td className="px-3 py-2.5">{formatMetric(insight.estimatedProductionTons, 'tons')}</td>
+                            <td className="px-3 py-2.5">{formatMetric(insight.energyConsumptionKwh, 'kWh')}</td>
+                            <td className="px-3 py-2.5">{formatMetric(insight.waterConsumptionM3, 'm³')}</td>
+                          </tr>
+                        )
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )
             )}
           </div>
         </div>

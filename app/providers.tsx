@@ -9,7 +9,7 @@
  */
 
 import { type ReactNode } from 'react'
-import { I18nProvider, getPreferredLocale } from '@/lib/i18n'
+import { I18nProvider } from '@/lib/i18n'
 import { ThemeProvider } from '@/components/theme-provider'
 import { AuthProvider } from '@/features/auth-access'
 
@@ -18,9 +18,6 @@ interface ProvidersProps {
 }
 
 export function Providers({ children }: ProvidersProps) {
-  // Get preferred locale on client side
-  const initialLocale = typeof window !== 'undefined' ? getPreferredLocale() : 'en'
-
   return (
     <ThemeProvider
       attribute="class"
@@ -29,7 +26,7 @@ export function Providers({ children }: ProvidersProps) {
       disableTransitionOnChange
     >
       <AuthProvider>
-        <I18nProvider initialLocale={initialLocale}>
+        <I18nProvider>
           {children}
         </I18nProvider>
       </AuthProvider>

@@ -166,6 +166,20 @@ const DATA_ANALYTICS_ITEM: MenuItem = {
   icon: 'BarChart3',
 }
 
+const WATER_INTELLIGENCE_ITEM: MenuItem = {
+  key: 'water-intelligence',
+  label: 'Water Intelligence',
+  path: '/dashboard?module=water-intelligence',
+  icon: 'Droplets',
+}
+
+const ENERGY_INTELLIGENCE_ITEM: MenuItem = {
+  key: 'energy-intelligence',
+  label: 'Energy Intelligence',
+  path: '/dashboard?module=energy-intelligence',
+  icon: 'Zap',
+}
+
 function ensureHassadSupplyOverview(items: MenuItem[]): MenuItem[] {
   const normalized = items.map((item) => {
     const normalizedLabel = item.label?.trim().toLowerCase()
@@ -220,55 +234,76 @@ function ensureHassadSupplyOverview(items: MenuItem[]): MenuItem[] {
   return deduped
 }
 
-function ensureDataAnalytics(items: MenuItem[]): MenuItem[] {
+function ensureMenuModule(items: MenuItem[], moduleItem: MenuItem, aliases: string[]): MenuItem[] {
+  const normalizedAliases = aliases.map((alias) => alias.trim().toLowerCase())
+  const normalizedModuleKey = moduleItem.key.trim().toLowerCase()
+  const normalizedModulePath = moduleItem.path.trim().toLowerCase()
   const normalized = items.map((item) => {
     const normalizedKey = item.key?.trim().toLowerCase()
     const normalizedLabel = item.label?.trim().toLowerCase()
     const normalizedPath = item.path?.trim().toLowerCase()
-    const isDataAnalytics =
-      normalizedKey === 'data-analytics' ||
-      normalizedKey === 'data_analytics' ||
-      normalizedKey === 'analytics' ||
-      normalizedKey === 'crop-analytics' ||
-      normalizedLabel === 'data analytics' ||
-      normalizedPath === '/dashboard?module=data-analytics' ||
-      normalizedPath === '/dashboard?module=data_analytics' ||
-      normalizedPath === '/dashboard/data-analytics'
+    const isModule =
+      normalizedKey === normalizedModuleKey ||
+      normalizedPath === normalizedModulePath ||
+      normalizedAliases.includes(normalizedKey) ||
+      normalizedAliases.includes(normalizedLabel) ||
+      normalizedAliases.includes(normalizedPath)
 
-    if (!isDataAnalytics) return item
+    if (!isModule) return item
     return {
       ...item,
-      key: DATA_ANALYTICS_ITEM.key,
-      label: item.label || DATA_ANALYTICS_ITEM.label,
-      path: DATA_ANALYTICS_ITEM.path,
-      icon: item.icon || DATA_ANALYTICS_ITEM.icon,
+      key: moduleItem.key,
+      label: item.label || moduleItem.label,
+      path: moduleItem.path,
+      icon: item.icon || moduleItem.icon,
     }
   })
 
   const deduped: MenuItem[] = []
-  let hasDataAnalytics = false
+  let hasModule = false
   for (const item of normalized) {
-    const isDataAnalytics =
-      item.key === DATA_ANALYTICS_ITEM.key || item.path === DATA_ANALYTICS_ITEM.path
-    if (isDataAnalytics) {
-      if (hasDataAnalytics) continue
-      hasDataAnalytics = true
+    const isModule = item.key === moduleItem.key || item.path === moduleItem.path
+    if (isModule) {
+      if (hasModule) continue
+      hasModule = true
       deduped.push({
-        ...DATA_ANALYTICS_ITEM,
+        ...moduleItem,
         ...item,
-        key: DATA_ANALYTICS_ITEM.key,
-        path: DATA_ANALYTICS_ITEM.path,
+        key: moduleItem.key,
+        path: moduleItem.path,
       })
       continue
     }
     deduped.push(item)
   }
 
-  if (!hasDataAnalytics) {
-    deduped.push(DATA_ANALYTICS_ITEM)
+  if (!hasModule) {
+    deduped.push(moduleItem)
   }
 
   return deduped
+}
+
+function ensureIntelligenceModules(items: MenuItem[]): MenuItem[] {
+  const withDataAnalytics = ensureMenuModule(items, DATA_ANALYTICS_ITEM, [
+    'data_analytics',
+    'analytics',
+    'crop-analytics',
+    '/dashboard?module=data_analytics',
+    '/dashboard/data-analytics',
+  ])
+  const withWaterIntelligence = ensureMenuModule(withDataAnalytics, WATER_INTELLIGENCE_ITEM, [
+    'water_intelligence',
+    'water analytics',
+    '/dashboard?module=water_intelligence',
+    '/dashboard/water-intelligence',
+  ])
+  return ensureMenuModule(withWaterIntelligence, ENERGY_INTELLIGENCE_ITEM, [
+    'energy_intelligence',
+    'energy analytics',
+    '/dashboard?module=energy_intelligence',
+    '/dashboard/energy-intelligence',
+  ])
 }
 
 function toMenuItem(
@@ -410,7 +445,7 @@ export function useRoleNavigation() {
         // In "Normal User" mode for growa admins, always force a minimal
         // observer menu, regardless of backend membership role.
         if (isGrowaAdmin && !isGrowaImpersonating) {
-          const roleAwareItems = ensureDataAnalytics(normalUserNavigation)
+          const roleAwareItems = ensureIntelligenceModules(normalUserNavigation)
           const { primary, secondary } = splitNavigationSections(roleAwareItems)
           const merged = [...primary, ...secondary]
           setNavigation({
@@ -441,7 +476,7 @@ export function useRoleNavigation() {
         }
 
         if (!currentRole) {
-          const roleAwareItems = ensureDataAnalytics(unassignedNavigation)
+          const roleAwareItems = ensureIntelligenceModules(unassignedNavigation)
           const { primary, secondary } = splitNavigationSections(roleAwareItems)
           setNavigation({
             id: 'unassigned',
@@ -528,7 +563,7 @@ export function useRoleNavigation() {
           const resolvedSecondary = resolvedNavigation.secondary.map((item) =>
             toMenuItem(item, 'secondary')
           )
-          const roleAwareItems = ensureDataAnalytics([...resolvedPrimary, ...resolvedSecondary])
+          const roleAwareItems = ensureIntelligenceModules([...resolvedPrimary, ...resolvedSecondary])
           const { primary, secondary } = splitNavigationSections(roleAwareItems)
           const resolvedMenuItems = [...primary, ...secondary]
 
@@ -568,7 +603,7 @@ export function useRoleNavigation() {
               mappedRole === HASSAD_SUPPLY_ROLE
                 ? ensureHassadSupplyOverview(defaultNavigation)
                 : defaultNavigation
-            const roleAwareFallbackItems = ensureDataAnalytics(fallbackItems)
+            const roleAwareFallbackItems = ensureIntelligenceModules(fallbackItems)
             const { primary, secondary } = splitNavigationSections(roleAwareFallbackItems)
             setPrimaryItems(primary)
             setSecondaryItems(secondary)
@@ -584,7 +619,7 @@ export function useRoleNavigation() {
           const items = typeof data.menu_items === 'string'
             ? JSON.parse(data.menu_items)
             : data.menu_items
-          const roleAwareItems = ensureDataAnalytics(
+          const roleAwareItems = ensureIntelligenceModules(
             mappedRole === HASSAD_SUPPLY_ROLE ? ensureHassadSupplyOverview(items) : items
           )
           const { primary, secondary } = splitNavigationSections(roleAwareItems)
@@ -629,7 +664,7 @@ export function useRoleNavigation() {
         console.error('Error fetching role navigation:', err)
         setError(err instanceof Error ? err.message : 'Failed to fetch navigation')
         // Fallback to default navigation
-        const roleAwareFallbackItems = ensureDataAnalytics(defaultNavigation)
+        const roleAwareFallbackItems = ensureIntelligenceModules(defaultNavigation)
         const { primary, secondary } = splitNavigationSections(roleAwareFallbackItems)
         setPrimaryItems(primary)
         setSecondaryItems(secondary)

@@ -7,6 +7,8 @@ import { SatelliteMap } from '@/components/dashboard/satellite-map'
 import { ModuleWorkspace } from '@/components/dashboard/module-workspace'
 import { RssFeedWorkspace } from '@/components/dashboard/rss-feed-workspace'
 import { DataAnalyticsWorkspace } from '@/components/dashboard/data-analytics-workspace'
+import { WaterIntelligenceWorkspace } from '@/components/dashboard/water-intelligence-workspace'
+import { EnergyIntelligenceWorkspace } from '@/components/dashboard/energy-intelligence-workspace'
 
 function SlideFromLeftWorkspace({
   children,
@@ -44,13 +46,14 @@ function SlideFromLeftWorkspace({
           targetFocusToken={targetFocusToken}
           targetZoom={targetZoom}
           targetCropFilter={targetCropFilter}
+          isLateralMode
         />
       </div>
 
       <button
         type="button"
         aria-label="Return to live map"
-        className="absolute bottom-0 right-0 top-16 z-[1700] w-1/4 bg-transparent"
+        className="absolute inset-y-16 left-[75%] z-[1700] w-[10%] bg-transparent"
         onClick={() => router.push('/dashboard?module=live-map&zoom=10')}
       />
 
@@ -121,6 +124,36 @@ export default function DashboardPage() {
         targetCropFilter={targetCropFilter}
       >
         <DataAnalyticsWorkspace />
+      </SlideFromLeftWorkspace>
+    )
+  }
+
+  if (module === 'water-intelligence') {
+    return (
+      <SlideFromLeftWorkspace
+        key="water-intelligence-panel"
+        locale={locale}
+        targetPointId={targetPointId}
+        targetFocusToken={targetFocusToken}
+        targetZoom={targetZoom}
+        targetCropFilter={targetCropFilter}
+      >
+        <WaterIntelligenceWorkspace />
+      </SlideFromLeftWorkspace>
+    )
+  }
+
+  if (module === 'energy-intelligence') {
+    return (
+      <SlideFromLeftWorkspace
+        key="energy-intelligence-panel"
+        locale={locale}
+        targetPointId={targetPointId}
+        targetFocusToken={targetFocusToken}
+        targetZoom={targetZoom}
+        targetCropFilter={targetCropFilter}
+      >
+        <EnergyIntelligenceWorkspace />
       </SlideFromLeftWorkspace>
     )
   }
