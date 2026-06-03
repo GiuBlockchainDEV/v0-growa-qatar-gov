@@ -1464,7 +1464,7 @@ export function SatelliteMap({
       const outline = L.polyline(
         [...weatherBoundary, weatherBoundary[0]].map((point) => [point.lat, point.lng]),
         {
-          color: '#0b39ff',
+          color: '#07f880',
           weight: 2.4,
           opacity: 0.95,
           interactive: false,
@@ -1480,7 +1480,7 @@ export function SatelliteMap({
           [segment.end.lat, segment.end.lng],
         ],
         {
-          color: '#0b39ff',
+          color: '#07f880',
           weight: 1.35,
           opacity: 0.85,
           interactive: false,
@@ -1503,10 +1503,10 @@ export function SatelliteMap({
               [north, east],
             ],
             {
-              color: selected ? '#07f880' : '#0b39ff',
+              color: selected ? '#07f880' : '#07f880',
               weight: selected ? 3 : 0,
               opacity: selected ? 1 : 0,
-              fillColor: '#0b39ff',
+              fillColor: '#07f880',
               fillOpacity: selected ? 0.12 : 0.01,
               interactive: true,
               bubblingMouseEvents: false,
@@ -1514,9 +1514,9 @@ export function SatelliteMap({
           )
         : L.circleMarker([point.lat, point.lng], {
             radius: selected ? 7 : 5,
-            color: selected ? '#ffffff' : '#0b39ff',
+            color: selected ? '#ffffff' : '#07f880',
             weight: selected ? 3 : 1,
-            fillColor: selected ? '#07f880' : '#0b39ff',
+            fillColor: selected ? '#07f880' : '#07f880',
             fillOpacity: selected ? 1 : 0.2,
             interactive: true,
             bubblingMouseEvents: false,
