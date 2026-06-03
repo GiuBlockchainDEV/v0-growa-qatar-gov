@@ -10,7 +10,11 @@ import { DataAnalyticsWorkspace } from '@/components/dashboard/data-analytics-wo
 import { WaterIntelligenceWorkspace } from '@/components/dashboard/water-intelligence-workspace'
 import { EnergyIntelligenceWorkspace } from '@/components/dashboard/energy-intelligence-workspace'
 import { WeatherWorkspace } from '@/components/dashboard/weather-workspace'
-import { generateQatarWeatherGrid } from '@/lib/weather/qatar-grid'
+import {
+  generateQatarWeatherGrid,
+  generateQatarWeatherGridLines,
+  getQatarBoundaryCoordinates,
+} from '@/lib/weather/qatar-grid'
 
 function SlideFromLeftWorkspace({
   children,
@@ -38,6 +42,10 @@ function SlideFromLeftWorkspace({
             id: cell.id,
             lat: cell.latitude,
             lng: cell.longitude,
+            north: cell.north,
+            south: cell.south,
+            east: cell.east,
+            west: cell.west,
           }))
         : [],
     [moduleKey]
@@ -55,6 +63,14 @@ function SlideFromLeftWorkspace({
       return pointDistance < closestDistance ? point : closest
     }, weatherGridPoints[0]).id
   }, [moduleKey, searchParams, weatherGridPoints])
+  const weatherGridLines = useMemo(
+    () => (moduleKey === 'weather' ? generateQatarWeatherGridLines() : []),
+    [moduleKey]
+  )
+  const weatherBoundary = useMemo(
+    () => (moduleKey === 'weather' ? getQatarBoundaryCoordinates() : []),
+    [moduleKey]
+  )
   const [panelVisible, setPanelVisible] = useState(false)
 
   useEffect(() => {
@@ -79,6 +95,8 @@ function SlideFromLeftWorkspace({
           onMapClick={undefined}
           weatherGridPoints={weatherGridPoints}
           selectedWeatherGridPointId={selectedWeatherGridPointId}
+          weatherGridLines={weatherGridLines}
+          weatherBoundary={weatherBoundary}
           onWeatherGridPointClick={
             moduleKey === 'weather'
               ? (point) => {

@@ -1,3 +1,8 @@
+export interface QatarWeatherGridCoordinate {
+  lat: number
+  lng: number
+}
+
 export interface QatarWeatherGridCell {
   id: string
   latitude: number
@@ -5,6 +10,16 @@ export interface QatarWeatherGridCell {
   gridSizeM: number
   row: number
   col: number
+  north: number
+  south: number
+  east: number
+  west: number
+}
+
+export interface QatarWeatherGridLineSegment {
+  id: string
+  start: QatarWeatherGridCoordinate
+  end: QatarWeatherGridCoordinate
 }
 
 const GRID_SIZE_M = 5000
@@ -357,24 +372,109 @@ function cellIntersectsQatar(longitude: number, latitude: number, lonStep: numbe
   return polygonVerticesInsideCell(longitude, latitude, lonStep, latStep).length > 0
 }
 
-export function generateQatarWeatherGrid(): QatarWeatherGridCell[] {
+function getGridMetrics() {
   const latStep = GRID_SIZE_M * degreesPerMeterLatitude()
   const lonStep = GRID_SIZE_M * degreesPerMeterLongitude(QATAR_REFERENCE_LATITUDE)
   const bounds = getBounds()
+  const firstLatitude = Math.floor(bounds.minLat / latStep) * latStep
+  const firstLongitude = Math.floor(bounds.minLon / lonStep) * lonStep
+
+  return { latStep, lonStep, bounds, firstLatitude, firstLongitude }
+}
+
+function verticalIntersections(longitude: number) {
+  const intersections: number[] = []
+  let previousIndex = QATAR_BOUNDARY.length - 1
+
+  for (let index = 0; index < QATAR_BOUNDARY.length; index += 1) {
+    const [currentLon, currentLat] = QATAR_BOUNDARY[index]
+    const [previousLon, previousLat] = QATAR_BOUNDARY[previousIndex]
+    const crossesLongitude = currentLon > longitude !== previousLon > longitude
+
+    if (crossesLongitude) {
+      const latitude = currentLat + ((longitude - currentLon) * (previousLat - currentLat)) / (previousLon - currentLon)
+      if (Number.isFinite(latitude)) intersections.push(latitude)
+    }
+
+    previousIndex = index
+  }
+
+  return intersections.sort((a, b) => a - b)
+}
+
+function horizontalIntersections(latitude: number) {
+  const intersections: number[] = []
+  let previousIndex = QATAR_BOUNDARY.length - 1
+
+  for (let index = 0; index < QATAR_BOUNDARY.length; index += 1) {
+    const [currentLon, currentLat] = QATAR_BOUNDARY[index]
+    const [previousLon, previousLat] = QATAR_BOUNDARY[previousIndex]
+    const crossesLatitude = currentLat > latitude !== previousLat > latitude
+
+    if (crossesLatitude) {
+      const longitude = currentLon + ((latitude - currentLat) * (previousLon - currentLon)) / (previousLat - currentLat)
+      if (Number.isFinite(longitude)) intersections.push(longitude)
+    }
+
+    previousIndex = index
+  }
+
+  return intersections.sort((a, b) => a - b)
+}
+
+export function getQatarBoundaryCoordinates(): QatarWeatherGridCoordinate[] {
+  return QATAR_BOUNDARY.map(([lng, lat]) => ({
+    lat: Number(lat.toFixed(6)),
+    lng: Number(lng.toFixed(6)),
+  }))
+}
+
+export function generateQatarWeatherGridLines(): QatarWeatherGridLineSegment[] {
+  const { latStep, lonStep, bounds, firstLatitude, firstLongitude } = getGridMetrics()
+  const segments: QatarWeatherGridLineSegment[] = []
+  let lineIndex = 1
+
+  for (let longitude = firstLongitude - lonStep / 2; longitude <= bounds.maxLon + lonStep / 2; longitude += lonStep) {
+    const intersections = verticalIntersections(longitude)
+    for (let index = 0; index < intersections.length - 1; index += 2) {
+      const startLat = intersections[index]
+      const endLat = intersections[index + 1]
+      if (endLat - startLat <= 0.000001) continue
+      segments.push({
+        id: `V_${lineIndex}`,
+        start: { lat: Number(startLat.toFixed(6)), lng: Number(longitude.toFixed(6)) },
+        end: { lat: Number(endLat.toFixed(6)), lng: Number(longitude.toFixed(6)) },
+      })
+      lineIndex += 1
+    }
+  }
+
+  for (let latitude = firstLatitude - latStep / 2; latitude <= bounds.maxLat + latStep / 2; latitude += latStep) {
+    const intersections = horizontalIntersections(latitude)
+    for (let index = 0; index < intersections.length - 1; index += 2) {
+      const startLon = intersections[index]
+      const endLon = intersections[index + 1]
+      if (endLon - startLon <= 0.000001) continue
+      segments.push({
+        id: `H_${lineIndex}`,
+        start: { lat: Number(latitude.toFixed(6)), lng: Number(startLon.toFixed(6)) },
+        end: { lat: Number(latitude.toFixed(6)), lng: Number(endLon.toFixed(6)) },
+      })
+      lineIndex += 1
+    }
+  }
+
+  return segments
+}
+
+export function generateQatarWeatherGrid(): QatarWeatherGridCell[] {
+  const { latStep, lonStep, bounds, firstLatitude, firstLongitude } = getGridMetrics()
   const cells: QatarWeatherGridCell[] = []
 
   let row = 0
-  for (
-    let latitude = Math.floor(bounds.minLat / latStep) * latStep;
-    latitude <= bounds.maxLat;
-    latitude += latStep
-  ) {
+  for (let latitude = firstLatitude; latitude <= bounds.maxLat; latitude += latStep) {
     let col = 0
-    for (
-      let longitude = Math.floor(bounds.minLon / lonStep) * lonStep;
-      longitude <= bounds.maxLon;
-      longitude += lonStep
-    ) {
+    for (let longitude = firstLongitude; longitude <= bounds.maxLon; longitude += lonStep) {
       if (cellIntersectsQatar(longitude, latitude, lonStep, latStep)) {
         const representative = getCellRepresentativePoint(longitude, latitude, lonStep, latStep)
         cells.push({
@@ -384,6 +484,10 @@ export function generateQatarWeatherGrid(): QatarWeatherGridCell[] {
           gridSizeM: GRID_SIZE_M,
           row,
           col,
+          north: Number((latitude + latStep / 2).toFixed(6)),
+          south: Number((latitude - latStep / 2).toFixed(6)),
+          east: Number((longitude + lonStep / 2).toFixed(6)),
+          west: Number((longitude - lonStep / 2).toFixed(6)),
         })
       }
       col += 1

@@ -24,6 +24,21 @@ interface WeatherGridMapPoint {
   id: string
   lat: number
   lng: number
+  north?: number
+  south?: number
+  east?: number
+  west?: number
+}
+
+interface WeatherGridLineSegment {
+  id: string
+  start: { lat: number; lng: number }
+  end: { lat: number; lng: number }
+}
+
+interface WeatherBoundaryPoint {
+  lat: number
+  lng: number
 }
 
 interface SatelliteMapProps {
@@ -36,6 +51,8 @@ interface SatelliteMapProps {
   onMapClick?: (coords: { lat: number; lng: number }) => void
   weatherGridPoints?: WeatherGridMapPoint[]
   selectedWeatherGridPointId?: string | null
+  weatherGridLines?: WeatherGridLineSegment[]
+  weatherBoundary?: WeatherBoundaryPoint[]
   onWeatherGridPointClick?: (point: WeatherGridMapPoint) => void
 }
 
@@ -494,6 +511,8 @@ export function SatelliteMap({
   onMapClick,
   weatherGridPoints = [],
   selectedWeatherGridPointId = null,
+  weatherGridLines = [],
+  weatherBoundary = [],
   onWeatherGridPointClick,
 }: SatelliteMapProps) {
   const { user } = useAuth()
@@ -1434,45 +1453,99 @@ export function SatelliteMap({
     const L = leafletRef.current
     const map = mapInstanceRef.current
 
-    weatherGridMarkerInstancesRef.current.forEach((marker) => marker.remove?.())
+    weatherGridMarkerInstancesRef.current.forEach((layer) => layer.remove?.())
     weatherGridMarkerInstancesRef.current = []
 
     if (weatherGridPoints.length === 0) return
 
-    weatherGridMarkerInstancesRef.current = weatherGridPoints.map((point) => {
-      const selected = point.id === selectedWeatherGridPointId
-      const marker = L.circleMarker([point.lat, point.lng], {
-        radius: selected ? 7 : 4,
-        color: selected ? '#ffffff' : '#ef4444',
-        weight: selected ? 3 : 1.5,
-        fillColor: '#ef4444',
-        fillOpacity: selected ? 1 : 0.78,
-        opacity: 1,
-        interactive: true,
-        bubblingMouseEvents: false,
-      }).addTo(map)
+    const layers: any[] = []
 
-      marker.bindTooltip(point.id, {
+    if (weatherBoundary.length > 2) {
+      const outline = L.polyline(
+        [...weatherBoundary, weatherBoundary[0]].map((point) => [point.lat, point.lng]),
+        {
+          color: '#0b39ff',
+          weight: 2.4,
+          opacity: 0.95,
+          interactive: false,
+        }
+      ).addTo(map)
+      layers.push(outline)
+    }
+
+    for (const segment of weatherGridLines) {
+      const line = L.polyline(
+        [
+          [segment.start.lat, segment.start.lng],
+          [segment.end.lat, segment.end.lng],
+        ],
+        {
+          color: '#0b39ff',
+          weight: 1.35,
+          opacity: 0.85,
+          interactive: false,
+        }
+      ).addTo(map)
+      layers.push(line)
+    }
+
+    for (const point of weatherGridPoints) {
+      const selected = point.id === selectedWeatherGridPointId
+      const north = Number(point.north)
+      const south = Number(point.south)
+      const east = Number(point.east)
+      const west = Number(point.west)
+      const hasBounds = Number.isFinite(north) && Number.isFinite(south) && Number.isFinite(east) && Number.isFinite(west)
+      const clickLayer = hasBounds
+        ? L.rectangle(
+            [
+              [south, west],
+              [north, east],
+            ],
+            {
+              color: selected ? '#07f880' : '#0b39ff',
+              weight: selected ? 3 : 0,
+              opacity: selected ? 1 : 0,
+              fillColor: '#0b39ff',
+              fillOpacity: selected ? 0.12 : 0.01,
+              interactive: true,
+              bubblingMouseEvents: false,
+            }
+          )
+        : L.circleMarker([point.lat, point.lng], {
+            radius: selected ? 7 : 5,
+            color: selected ? '#ffffff' : '#0b39ff',
+            weight: selected ? 3 : 1,
+            fillColor: selected ? '#07f880' : '#0b39ff',
+            fillOpacity: selected ? 1 : 0.2,
+            interactive: true,
+            bubblingMouseEvents: false,
+          })
+
+      clickLayer.addTo(map)
+      clickLayer.bindTooltip(point.id, {
         direction: 'top',
         opacity: 0.9,
         className: 'custom-tooltip',
       })
-      marker.on('click', (event: any) => {
+      clickLayer.on('click', (event: any) => {
         event?.originalEvent?.preventDefault?.()
         event?.originalEvent?.stopPropagation?.()
         const lat = Number(point.lat)
         const lng = Number(point.lng)
         if (!Number.isFinite(lat) || !Number.isFinite(lng)) return
-        onWeatherGridPointClick?.({ id: point.id, lat, lng })
+        onWeatherGridPointClick?.({ ...point, lat, lng })
       })
-      return marker
-    })
+      layers.push(clickLayer)
+    }
+
+    weatherGridMarkerInstancesRef.current = layers
 
     return () => {
-      weatherGridMarkerInstancesRef.current.forEach((marker) => marker.remove?.())
+      weatherGridMarkerInstancesRef.current.forEach((layer) => layer.remove?.())
       weatherGridMarkerInstancesRef.current = []
     }
-  }, [mapReady, onWeatherGridPointClick, selectedWeatherGridPointId, weatherGridPoints])
+  }, [mapReady, onWeatherGridPointClick, selectedWeatherGridPointId, weatherBoundary, weatherGridLines, weatherGridPoints])
 
   useEffect(() => {
     if (!mapReady || !mapInstanceRef.current || !leafletRef.current) return
