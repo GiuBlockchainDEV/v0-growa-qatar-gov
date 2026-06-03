@@ -82,12 +82,17 @@ function SlideFromLeftWorkspace({
           onWeatherGridPointClick={
             moduleKey === 'weather'
               ? (point) => {
+                  const lat = Number(point.lat)
+                  const lng = Number(point.lng)
+                  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return
                   const params = new URLSearchParams(searchParams.toString())
                   params.set('module', 'weather')
                   params.set('weatherGridId', point.id)
-                  params.set('weatherLat', point.lat.toFixed(6))
-                  params.set('weatherLng', point.lng.toFixed(6))
+                  params.set('weatherLat', lat.toFixed(6))
+                  params.set('weatherLng', lng.toFixed(6))
                   params.set('zoom', String(targetZoom ?? 10))
+                  params.delete('pointId')
+                  params.delete('crop')
                   params.set('focus', `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`)
                   router.push(`/dashboard?${params.toString()}`)
                 }

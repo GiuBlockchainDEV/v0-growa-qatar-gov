@@ -1460,7 +1460,10 @@ export function SatelliteMap({
       marker.on('click', (event: any) => {
         event?.originalEvent?.preventDefault?.()
         event?.originalEvent?.stopPropagation?.()
-        onWeatherGridPointClick?.(point)
+        const lat = Number(point.lat)
+        const lng = Number(point.lng)
+        if (!Number.isFinite(lat) || !Number.isFinite(lng)) return
+        onWeatherGridPointClick?.({ id: point.id, lat, lng })
       })
       return marker
     })
