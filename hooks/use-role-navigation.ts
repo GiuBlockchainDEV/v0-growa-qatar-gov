@@ -12,7 +12,7 @@ import {
   Navigation, FileText, AlertCircle, CheckSquare, Paperclip,
   TrendingUp, Leaf, Link, ShoppingCart, PieChart, Briefcase,
   DollarSign, Droplets, Wifi, Home, ToggleRight, Clock,
-  Terminal, Cpu, Zap, Wrench, BookOpen, Lightbulb, type LucideIcon
+  Terminal, Cpu, Zap, Wrench, BookOpen, Lightbulb, CloudSun, type LucideIcon
 } from 'lucide-react'
 import {
   buildRoleNavigation,
@@ -95,6 +95,7 @@ const iconMap: Record<string, LucideIcon> = {
   Wrench,
   BookOpen,
   Lightbulb,
+  CloudSun,
   Harvest,
 }
 
@@ -178,6 +179,13 @@ const ENERGY_INTELLIGENCE_ITEM: MenuItem = {
   label: 'Energy Intelligence',
   path: '/dashboard?module=energy-intelligence',
   icon: 'Zap',
+}
+
+const WEATHER_ITEM: MenuItem = {
+  key: 'weather',
+  label: 'Weather',
+  path: '/dashboard?module=weather',
+  icon: 'CloudSun',
 }
 
 function ensureHassadSupplyOverview(items: MenuItem[]): MenuItem[] {
@@ -298,11 +306,19 @@ function ensureIntelligenceModules(items: MenuItem[]): MenuItem[] {
     '/dashboard?module=water_intelligence',
     '/dashboard/water-intelligence',
   ])
-  return ensureMenuModule(withWaterIntelligence, ENERGY_INTELLIGENCE_ITEM, [
+  const withEnergyIntelligence = ensureMenuModule(withWaterIntelligence, ENERGY_INTELLIGENCE_ITEM, [
     'energy_intelligence',
     'energy analytics',
     '/dashboard?module=energy_intelligence',
     '/dashboard/energy-intelligence',
+  ])
+  return ensureMenuModule(withEnergyIntelligence, WEATHER_ITEM, [
+    'weather-intelligence',
+    'weather_intelligence',
+    'weather risk',
+    'qatar weather',
+    '/dashboard?module=weather-intelligence',
+    '/dashboard/weather',
   ])
 }
 

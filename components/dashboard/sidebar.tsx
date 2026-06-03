@@ -32,6 +32,7 @@ const arabicMenuLabels: Record<string, string> = {
   'data-analytics': 'تحليلات البيانات',
   'water-intelligence': 'ذكاء المياه',
   'energy-intelligence': 'ذكاء الطاقة',
+  weather: 'الطقس',
   monitoring: 'المراقبة',
   alerts: 'التنبيهات',
   reports: 'التقارير',

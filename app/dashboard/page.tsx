@@ -9,6 +9,7 @@ import { RssFeedWorkspace } from '@/components/dashboard/rss-feed-workspace'
 import { DataAnalyticsWorkspace } from '@/components/dashboard/data-analytics-workspace'
 import { WaterIntelligenceWorkspace } from '@/components/dashboard/water-intelligence-workspace'
 import { EnergyIntelligenceWorkspace } from '@/components/dashboard/energy-intelligence-workspace'
+import { WeatherWorkspace } from '@/components/dashboard/weather-workspace'
 
 function SlideFromLeftWorkspace({
   children,
@@ -154,6 +155,21 @@ export default function DashboardPage() {
         targetCropFilter={targetCropFilter}
       >
         <EnergyIntelligenceWorkspace />
+      </SlideFromLeftWorkspace>
+    )
+  }
+
+  if (module === 'weather') {
+    return (
+      <SlideFromLeftWorkspace
+        key="weather-panel"
+        locale={locale}
+        targetPointId={targetPointId}
+        targetFocusToken={targetFocusToken}
+        targetZoom={targetZoom}
+        targetCropFilter={targetCropFilter}
+      >
+        <WeatherWorkspace />
       </SlideFromLeftWorkspace>
     )
   }
