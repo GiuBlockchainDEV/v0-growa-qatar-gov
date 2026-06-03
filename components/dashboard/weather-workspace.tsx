@@ -401,6 +401,8 @@ export function WeatherWorkspace() {
   const [gridError, setGridError] = useState<string | null>(null)
   const [historyError, setHistoryError] = useState<string | null>(null)
   const historyCacheRef = useRef<Record<string, HistoryPoint[]>>({})
+  const activeHistoryKeyRef = useRef<string>('')
+  const historyPrefetchAbortRef = useRef<AbortController | null>(null)
 
   const selectedMetric = useMemo(
     () => flatMetrics.find((metric) => metric.key === selectedMetricKey) || null,
@@ -411,52 +413,106 @@ export function WeatherWorkspace() {
     return `${Number(latValue).toFixed(5)}:${Number(lonValue).toFixed(5)}:${requestedAtValue.trim() || 'latest'}`
   }, [])
 
-  const loadHistory = useCallback(async (latValue: string, lonValue: string, requestedAtValue: string) => {
-    const cacheKey = getHistoryCacheKey(latValue, lonValue, requestedAtValue)
-    const cached = historyCacheRef.current[cacheKey]
-    if (cached) {
-      setHistoryPoints(cached)
-      setHistoryError(null)
-      return
-    }
-
-    setHistoryLoading(true)
-    setHistoryError(null)
-    try {
-      const params = new URLSearchParams({
-        latitude: latValue.trim(),
-        longitude: lonValue.trim(),
-        count: '24',
-        interval_hours: '1',
-      })
-      if (requestedAtValue.trim()) params.set('requested_at', requestedAtValue.trim())
-
-      const response = await fetch(`/api/weather/history/by-coordinates?${params.toString()}`, { cache: 'no-store' })
-      const payload = await response.json().catch(() => null)
-      if (!response.ok) {
-        const message = asRecord(payload)?.error
-        throw new Error(typeof message === 'string' ? message : 'Failed to load weather history')
+  const loadHistory = useCallback(
+    async (
+      latValue: string,
+      lonValue: string,
+      requestedAtValue: string,
+      options: { prefetch?: boolean; signal?: AbortSignal } = {}
+    ) => {
+      const cacheKey = getHistoryCacheKey(latValue, lonValue, requestedAtValue)
+      const cached = historyCacheRef.current[cacheKey]
+      if (cached) {
+        if (!options.prefetch) {
+          setHistoryPoints(cached)
+          setHistoryError(null)
+        }
+        return cached
       }
-      const points = Array.isArray(asRecord(payload)?.points) ? (asRecord(payload)?.points as HistoryPoint[]) : []
-      historyCacheRef.current[cacheKey] = points
-      setHistoryPoints(points)
-      if (points.length === 0) setHistoryError('No historical readings returned for this cell yet.')
-    } catch (historyLoadError) {
-      setHistoryPoints([])
-      setHistoryError(historyLoadError instanceof Error ? historyLoadError.message : 'Failed to load last 24h readings')
-    } finally {
-      setHistoryLoading(false)
-    }
-  }, [getHistoryCacheKey])
+
+      if (!options.prefetch) {
+        setHistoryLoading(true)
+        setHistoryError(null)
+      }
+
+      try {
+        const params = new URLSearchParams({
+          latitude: latValue.trim(),
+          longitude: lonValue.trim(),
+          count: '24',
+          interval_hours: '1',
+        })
+        if (requestedAtValue.trim()) params.set('requested_at', requestedAtValue.trim())
+
+        const response = await fetch(`/api/weather/history/by-coordinates?${params.toString()}`, {
+          cache: 'no-store',
+          signal: options.signal,
+        })
+        const payload = await response.json().catch(() => null)
+        if (!response.ok) {
+          const message = asRecord(payload)?.error
+          throw new Error(typeof message === 'string' ? message : 'Failed to load weather history')
+        }
+        const points = Array.isArray(asRecord(payload)?.points) ? (asRecord(payload)?.points as HistoryPoint[]) : []
+
+        if (options.prefetch && activeHistoryKeyRef.current !== cacheKey) {
+          return []
+        }
+
+        historyCacheRef.current[cacheKey] = points
+        if (!options.prefetch) {
+          setHistoryPoints(points)
+          if (points.length === 0) setHistoryError('No historical readings returned for this cell yet.')
+        }
+        return points
+      } catch (historyLoadError) {
+        if (options.signal?.aborted) return []
+        if (!options.prefetch) {
+          setHistoryPoints([])
+          setHistoryError(historyLoadError instanceof Error ? historyLoadError.message : 'Failed to load last 24h readings')
+        }
+        return []
+      } finally {
+        if (!options.prefetch) {
+          setHistoryLoading(false)
+        }
+      }
+    },
+    [getHistoryCacheKey]
+  )
+
+  const prefetchHistory = useCallback(
+    (latValue: string, lonValue: string, requestedAtValue: string) => {
+      const cacheKey = getHistoryCacheKey(latValue, lonValue, requestedAtValue)
+      activeHistoryKeyRef.current = cacheKey
+      if (historyCacheRef.current[cacheKey]) return
+
+      historyPrefetchAbortRef.current?.abort()
+      const controller = new AbortController()
+      historyPrefetchAbortRef.current = controller
+      void loadHistory(latValue, lonValue, requestedAtValue, {
+        prefetch: true,
+        signal: controller.signal,
+      })
+    },
+    [getHistoryCacheKey, loadHistory]
+  )
+
 
   const loadWeatherFor = useCallback(
     async (latValue: string, lonValue: string, requestedAtValue: string) => {
       if (!latValue.trim() || !lonValue.trim()) {
         setReading(null)
         setHistoryPoints([])
+        activeHistoryKeyRef.current = ''
+        historyPrefetchAbortRef.current?.abort()
         setError(null)
         return
       }
+
+      const selectionKey = getHistoryCacheKey(latValue, lonValue, requestedAtValue)
+      activeHistoryKeyRef.current = selectionKey
+      historyPrefetchAbortRef.current?.abort()
 
       try {
         setLoading(true)
@@ -472,9 +528,11 @@ export function WeatherWorkspace() {
           const hint = record?.hint
           throw new Error(`${typeof message === 'string' ? message : 'Failed to load weather data'}${typeof hint === 'string' ? `. ${hint}` : ''}`)
         }
+        if (activeHistoryKeyRef.current !== selectionKey) return
         setReading(asRecord(payload) as WeatherReadingResponse | null)
         setHistoryPoints([])
         setHistoryError(null)
+        prefetchHistory(latValue, lonValue, requestedAtValue)
       } catch (loadError) {
         setError(loadError instanceof Error ? loadError.message : 'Failed to load weather data')
         setReading(null)
@@ -483,7 +541,7 @@ export function WeatherWorkspace() {
         setLoading(false)
       }
     },
-    []
+    [getHistoryCacheKey, prefetchHistory]
   )
 
   useEffect(() => {
@@ -496,6 +554,8 @@ export function WeatherWorkspace() {
     if (!nextLatitude || !nextLongitude) {
       setReading(null)
       setHistoryPoints([])
+      activeHistoryKeyRef.current = ''
+      historyPrefetchAbortRef.current?.abort()
       setError(null)
       return
     }
@@ -608,7 +668,7 @@ export function WeatherWorkspace() {
                 Weather Command
               </h1>
               <p className="mt-3 max-w-3xl text-sm text-muted-foreground">
-                Select one of the 510 yellow grid points on the lateral map. The panel stays empty until a point is selected;
+                Select one of the 510 Growa-green grid cells on the lateral map. The panel stays empty until a point is selected;
                 after selection, click any metric card to plot its historical trend.
               </p>
             </div>
@@ -674,7 +734,14 @@ export function WeatherWorkspace() {
               setSelectedMetricKey(metric.key)
               setChartModalOpen(true)
               if (latitude.trim() && longitude.trim()) {
-                loadHistory(latitude, longitude, requestedAt)
+                const cacheKey = getHistoryCacheKey(latitude, longitude, requestedAt)
+                const cached = historyCacheRef.current[cacheKey]
+                if (cached) {
+                  setHistoryPoints(cached)
+                  setHistoryError(null)
+                } else {
+                  loadHistory(latitude, longitude, requestedAt)
+                }
               }
             }}
           />
