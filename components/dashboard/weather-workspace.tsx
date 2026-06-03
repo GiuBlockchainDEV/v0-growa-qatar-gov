@@ -270,7 +270,16 @@ function SectionCard({
   )
 }
 
-function TrendChart({ metric, historyPoints }: { metric: MetricDefinition | null; historyPoints: HistoryPoint[] }) {
+function TrendChart({
+  metric,
+  historyPoints,
+  loading = false,
+}: {
+  metric: MetricDefinition | null
+  historyPoints: HistoryPoint[]
+  loading?: boolean
+}) {
+  const [selectedPointIndex, setSelectedPointIndex] = useState<number | null>(null)
   const values = useMemo(() => {
     if (!metric) return []
     return historyPoints
@@ -281,6 +290,10 @@ function TrendChart({ metric, historyPoints }: { metric: MetricDefinition | null
       .filter((point): point is { label: string; value: number } => point.value !== null)
   }, [historyPoints, metric])
 
+  useEffect(() => {
+    setSelectedPointIndex(null)
+  }, [metric?.key, historyPoints])
+
   if (!metric) {
     return (
       <div className="rounded-lg border border-dashed border-border bg-secondary/20 p-6 text-sm text-muted-foreground">
@@ -289,10 +302,19 @@ function TrendChart({ metric, historyPoints }: { metric: MetricDefinition | null
     )
   }
 
+  if (loading) {
+    return (
+      <div className="flex min-h-72 flex-col items-center justify-center rounded-lg border border-border bg-secondary/20 p-8 text-primary">
+        <Loader2 className="h-10 w-10 animate-spin" />
+        <p className="mt-3 text-sm font-medium">Loading last 24h readings...</p>
+      </div>
+    )
+  }
+
   if (values.length < 2) {
     return (
       <div className="rounded-lg border border-border bg-secondary/20 p-6 text-sm text-muted-foreground">
-        Not enough historical points for {metric.label}. Select a weather grid point or load a cell first.
+        Not enough historical points for {metric.label}. Select a weather grid cell and try again.
       </div>
     )
   }
@@ -309,6 +331,7 @@ function TrendChart({ metric, historyPoints }: { metric: MetricDefinition | null
     const y = paddingY + (1 - (point.value - min) / spread) * (height - paddingY * 2)
     return { ...point, x, y }
   })
+  const selectedPoint = selectedPointIndex === null ? null : points[selectedPointIndex] || null
   const polyline = points.map((point) => `${point.x},${point.y}`).join(' ')
 
   return (
@@ -316,13 +339,19 @@ function TrendChart({ metric, historyPoints }: { metric: MetricDefinition | null
       <div className="flex items-center justify-between gap-3">
         <div>
           <p className="text-sm font-semibold text-foreground">{metric.label}</p>
-          <p className="text-xs text-muted-foreground">{metric.key}</p>
+          <p className="text-xs text-muted-foreground">Click a chart point to read its value.</p>
         </div>
         <div className="text-right text-xs text-muted-foreground">
           <p>Min {formatMetric(min, metric.decimals, metric.unit)}</p>
           <p>Max {formatMetric(max, metric.decimals, metric.unit)}</p>
         </div>
       </div>
+      {selectedPoint && (
+        <div className="mt-3 rounded-lg border border-primary/30 bg-primary/10 px-3 py-2 text-sm">
+          <p className="font-semibold text-primary">{formatMetric(selectedPoint.value, metric.decimals, metric.unit)}</p>
+          <p className="mt-1 text-xs text-muted-foreground">{selectedPoint.label}</p>
+        </div>
+      )}
       <svg viewBox={`0 0 ${width} ${height}`} className="mt-3 h-56 w-full overflow-visible">
         <line x1={paddingX} y1={height - paddingY} x2={width - paddingX} y2={height - paddingY} stroke="rgba(148,163,184,0.25)" />
         <line x1={paddingX} y1={paddingY} x2={paddingX} y2={height - paddingY} stroke="rgba(148,163,184,0.25)" />
@@ -331,12 +360,24 @@ function TrendChart({ metric, historyPoints }: { metric: MetricDefinition | null
           return <line key={ratio} x1={paddingX} y1={y} x2={width - paddingX} y2={y} stroke="rgba(148,163,184,0.12)" />
         })}
         <polyline points={polyline} fill="none" stroke={metric.accent} strokeWidth="3" strokeLinejoin="round" strokeLinecap="round" />
-        {points.map((point, index) => (
-          <g key={`${point.label}-${index}`}>
-            <circle cx={point.x} cy={point.y} r="4" fill={metric.accent} stroke="#0b0f14" strokeWidth="2" />
-            <title>{`${point.label}: ${formatMetric(point.value, metric.decimals, metric.unit)}`}</title>
-          </g>
-        ))}
+        {points.map((point, index) => {
+          const selected = selectedPointIndex === index
+          return (
+            <circle
+              key={`${point.label}-${index}`}
+              cx={point.x}
+              cy={point.y}
+              r={selected ? '7' : '5'}
+              fill={selected ? '#07f880' : metric.accent}
+              stroke={selected ? '#ffffff' : '#0b0f14'}
+              strokeWidth={selected ? '3' : '2'}
+              className="cursor-pointer"
+              onClick={() => setSelectedPointIndex(index)}
+            >
+              <title>{`${point.label}: ${formatMetric(point.value, metric.decimals, metric.unit)}`}</title>
+            </circle>
+          )
+        })}
       </svg>
     </div>
   )
@@ -385,7 +426,7 @@ export function WeatherWorkspace() {
       const params = new URLSearchParams({
         latitude: latValue.trim(),
         longitude: lonValue.trim(),
-        count: '90',
+        count: '24',
         interval_hours: '1',
       })
       if (requestedAtValue.trim()) params.set('requested_at', requestedAtValue.trim())
@@ -402,7 +443,7 @@ export function WeatherWorkspace() {
       if (points.length === 0) setHistoryError('No historical readings returned for this cell yet.')
     } catch (historyLoadError) {
       setHistoryPoints([])
-      setHistoryError(historyLoadError instanceof Error ? historyLoadError.message : 'Failed to load 90 historical readings')
+      setHistoryError(historyLoadError instanceof Error ? historyLoadError.message : 'Failed to load last 24h readings')
     } finally {
       setHistoryLoading(false)
     }
@@ -733,13 +774,13 @@ export function WeatherWorkspace() {
           <div className="max-h-[88vh] w-full max-w-5xl overflow-y-auto rounded-2xl border border-border bg-[#070a10] p-6 shadow-2xl">
             <div className="flex flex-wrap items-start justify-between gap-4">
               <div>
-                <p className="text-xs uppercase tracking-[0.22em] text-primary">Last 90 readings</p>
+                <p className="text-xs uppercase tracking-[0.22em] text-primary">Last 24h</p>
                 <h2 className="mt-1 flex items-center gap-2 text-2xl font-semibold text-foreground">
                   <BarChart3 className="h-5 w-5 text-primary" />
                   {selectedMetric?.label || 'Metric trend'}
                 </h2>
                 <p className="mt-1 text-sm text-muted-foreground">
-                  Historical trend for the selected cell based on the latest 90 hourly nearest snapshots.
+                  Historical trend for the selected cell based on the latest 24 hourly nearest snapshots.
                 </p>
               </div>
               <button
@@ -750,10 +791,10 @@ export function WeatherWorkspace() {
                 Close
               </button>
             </div>
-            {historyLoading && <div className="mt-4 text-sm text-primary">Loading 90 readings...</div>}
+            {historyLoading && <div className="mt-4 text-sm text-primary">Loading last 24h readings...</div>}
             {historyError && <div className="mt-4 rounded-lg border border-red-400/30 bg-red-500/10 p-3 text-sm text-red-200">{historyError}</div>}
             <div className="mt-5">
-              <TrendChart metric={selectedMetric} historyPoints={historyPoints} />
+              <TrendChart metric={selectedMetric} historyPoints={historyPoints} loading={historyLoading} />
             </div>
           </div>
         </div>
