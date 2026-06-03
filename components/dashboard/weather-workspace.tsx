@@ -69,7 +69,7 @@ interface MetricSection {
   metrics: MetricDefinition[]
 }
 
-const DEFAULT_REQUESTED_AT = '2026-06-02T05:30:00Z'
+const DEFAULT_REQUESTED_AT = ''
 const TOTAL_QATAR_GRID_CELLS = 510
 
 const metricSections: MetricSection[] = [
@@ -358,6 +358,7 @@ export function WeatherWorkspace() {
   const [gridLoading, setGridLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [gridError, setGridError] = useState<string | null>(null)
+  const [historyError, setHistoryError] = useState<string | null>(null)
 
   const selectedMetric = useMemo(
     () => flatMetrics.find((metric) => metric.key === selectedMetricKey) || null,
@@ -366,6 +367,7 @@ export function WeatherWorkspace() {
 
   const loadHistory = useCallback(async (latValue: string, lonValue: string, requestedAtValue: string) => {
     setHistoryLoading(true)
+    setHistoryError(null)
     try {
       const params = new URLSearchParams({
         latitude: latValue.trim(),
@@ -383,8 +385,10 @@ export function WeatherWorkspace() {
       }
       const points = Array.isArray(asRecord(payload)?.points) ? (asRecord(payload)?.points as HistoryPoint[]) : []
       setHistoryPoints(points)
-    } catch {
+      if (points.length === 0) setHistoryError('No historical readings returned for this cell yet.')
+    } catch (historyLoadError) {
       setHistoryPoints([])
+      setHistoryError(historyLoadError instanceof Error ? historyLoadError.message : 'Failed to load 90 historical readings')
     } finally {
       setHistoryLoading(false)
     }
@@ -581,7 +585,7 @@ export function WeatherWorkspace() {
           </label>
           <label className="space-y-1.5 text-sm">
             <span className="text-xs uppercase tracking-[0.12em] text-muted-foreground">Requested at</span>
-            <input value={requestedAt} onChange={(event) => setRequestedAt(event.target.value)} className="w-full rounded-lg border border-border bg-secondary/40 px-3 py-2 text-foreground outline-none focus:border-primary" placeholder="2026-06-02T05:30:00Z" />
+            <input value={requestedAt} onChange={(event) => setRequestedAt(event.target.value)} className="w-full rounded-lg border border-border bg-secondary/40 px-3 py-2 text-foreground outline-none focus:border-primary" placeholder="Latest available" />
           </label>
           <button type="button" onClick={loadSelectedWeather} disabled={loading} className="self-end rounded-lg border border-primary/40 bg-primary/10 px-4 py-2 text-sm font-semibold text-primary transition-colors hover:bg-primary/15 disabled:cursor-not-allowed disabled:opacity-60">
             {loading ? <span className="flex items-center gap-2"><Loader2 className="h-4 w-4 animate-spin" />Loading</span> : <span className="flex items-center gap-2"><RefreshCw className="h-4 w-4" />Load cell</span>}
@@ -729,6 +733,7 @@ export function WeatherWorkspace() {
               </button>
             </div>
             {historyLoading && <div className="mt-4 text-sm text-primary">Loading 90 readings...</div>}
+            {historyError && <div className="mt-4 rounded-lg border border-red-400/30 bg-red-500/10 p-3 text-sm text-red-200">{historyError}</div>}
             <div className="mt-5">
               <TrendChart metric={selectedMetric} historyPoints={historyPoints} />
             </div>

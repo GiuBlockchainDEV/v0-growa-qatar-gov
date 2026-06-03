@@ -17,11 +17,26 @@ function buildTimeline(endIso: string | null, count: number, intervalHours: numb
   const endDate = endIso ? new Date(endIso) : new Date()
   const endMs = Number.isNaN(endDate.getTime()) ? Date.now() : endDate.getTime()
   const intervalMs = intervalHours * 60 * 60 * 1000
+  const attempts = Math.min(count * 2, 180)
 
-  return Array.from({ length: count }, (_, index) => {
-    const offset = count - index - 1
-    return new Date(endMs - offset * intervalMs).toISOString()
-  })
+  return Array.from({ length: attempts }, (_, index) => new Date(endMs - index * intervalMs).toISOString())
+}
+
+function readingKey(reading: unknown, fallback: string) {
+  if (!reading || typeof reading !== 'object') return fallback
+  const record = reading as Record<string, unknown>
+  const candidates = [
+    record.matched_timestamp,
+    record.stored_at,
+    record.requested_at,
+    (record.weather && typeof record.weather === 'object' ? (record.weather as Record<string, unknown>).weather_timestamp_unix : null),
+  ]
+  const match = candidates.find((candidate) => typeof candidate === 'string' || typeof candidate === 'number')
+  return match === undefined || match === null ? fallback : String(match)
+}
+
+async function runBatch<T, R>(items: T[], worker: (item: T) => Promise<R>) {
+  return Promise.all(items.map((item) => worker(item)))
 }
 
 export async function GET(request: Request) {
@@ -47,8 +62,13 @@ export async function GET(request: Request) {
   const timeline = buildTimeline(requestedAt, count, intervalHours)
 
   try {
-    const points = await Promise.all(
-      timeline.map(async (timestamp) => {
+    const points: Array<{ requestedAt: string; reading: unknown; error: string | null }> = []
+    const seen = new Set<string>()
+    const batchSize = 12
+
+    for (let index = 0; index < timeline.length && points.length < count; index += batchSize) {
+      const batch = timeline.slice(index, index + batchSize)
+      const results = await runBatch(batch, async (timestamp) => {
         try {
           const reading = await fetchWeatherByCoordinates({
             latitude,
@@ -68,7 +88,18 @@ export async function GET(request: Request) {
           }
         }
       })
-    )
+
+      for (const result of results) {
+        if (!result.reading) continue
+        const key = readingKey(result.reading, result.requestedAt)
+        if (seen.has(key)) continue
+        seen.add(key)
+        points.push(result)
+        if (points.length >= count) break
+      }
+    }
+
+    const chronologicalPoints = [...points].reverse()
 
     return NextResponse.json(
       {
@@ -76,7 +107,8 @@ export async function GET(request: Request) {
         longitude,
         intervalHours,
         count,
-        points,
+        returnedCount: chronologicalPoints.length,
+        points: chronologicalPoints,
       },
       {
         headers: {
