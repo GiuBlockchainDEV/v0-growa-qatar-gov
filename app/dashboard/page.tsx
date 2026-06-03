@@ -14,6 +14,7 @@ import { WeatherWorkspace } from '@/components/dashboard/weather-workspace'
 function SlideFromLeftWorkspace({
   children,
   locale,
+  moduleKey,
   targetPointId,
   targetFocusToken,
   targetZoom,
@@ -21,12 +22,14 @@ function SlideFromLeftWorkspace({
 }: {
   children: React.ReactNode
   locale: string
+  moduleKey: string
   targetPointId: string | null
   targetFocusToken: string | null
   targetZoom?: number
   targetCropFilter: string | null
 }) {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const [panelVisible, setPanelVisible] = useState(false)
 
   useEffect(() => {
@@ -48,6 +51,19 @@ function SlideFromLeftWorkspace({
           targetZoom={targetZoom}
           targetCropFilter={targetCropFilter}
           isLateralMode
+          onMapClick={
+            moduleKey === 'weather'
+              ? ({ lat, lng }) => {
+                  const params = new URLSearchParams(searchParams.toString())
+                  params.set('module', 'weather')
+                  params.set('weatherLat', lat.toFixed(6))
+                  params.set('weatherLng', lng.toFixed(6))
+                  params.set('zoom', String(targetZoom ?? 10))
+                  params.set('focus', `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`)
+                  router.push(`/dashboard?${params.toString()}`)
+                }
+              : undefined
+          }
         />
       </div>
 
@@ -104,6 +120,7 @@ export default function DashboardPage() {
       <SlideFromLeftWorkspace
         key="rss-feed-panel"
         locale={locale}
+        moduleKey="rss-feed"
         targetPointId={targetPointId}
         targetFocusToken={targetFocusToken}
         targetZoom={targetZoom}
@@ -119,6 +136,7 @@ export default function DashboardPage() {
       <SlideFromLeftWorkspace
         key="data-analytics-panel"
         locale={locale}
+        moduleKey="data-analytics"
         targetPointId={targetPointId}
         targetFocusToken={targetFocusToken}
         targetZoom={targetZoom}
@@ -134,6 +152,7 @@ export default function DashboardPage() {
       <SlideFromLeftWorkspace
         key="water-intelligence-panel"
         locale={locale}
+        moduleKey="water-intelligence"
         targetPointId={targetPointId}
         targetFocusToken={targetFocusToken}
         targetZoom={targetZoom}
@@ -149,6 +168,7 @@ export default function DashboardPage() {
       <SlideFromLeftWorkspace
         key="energy-intelligence-panel"
         locale={locale}
+        moduleKey="energy-intelligence"
         targetPointId={targetPointId}
         targetFocusToken={targetFocusToken}
         targetZoom={targetZoom}
@@ -164,6 +184,7 @@ export default function DashboardPage() {
       <SlideFromLeftWorkspace
         key="weather-panel"
         locale={locale}
+        moduleKey="weather"
         targetPointId={targetPointId}
         targetFocusToken={targetFocusToken}
         targetZoom={targetZoom}

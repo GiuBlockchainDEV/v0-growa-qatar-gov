@@ -27,6 +27,7 @@ interface SatelliteMapProps {
   targetFocusToken?: string | null
   targetZoom?: number
   isLateralMode?: boolean
+  onMapClick?: (coords: { lat: number; lng: number }) => void
 }
 
 interface MapController {
@@ -481,6 +482,7 @@ export function SatelliteMap({
   targetFocusToken = null,
   targetZoom,
   isLateralMode = false,
+  onMapClick,
 }: SatelliteMapProps) {
   const { user } = useAuth()
   const { organization } = useOrganization()
@@ -1621,6 +1623,25 @@ export function SatelliteMap({
       map.off('click', handleMapClick)
     }
   }, [isAddPointMode, isGrowaAdmin, locale, mapReady, newPointType, polygonDrawPointId])
+
+  useEffect(() => {
+    if (!onMapClick || !mapReady || !mapInstanceRef.current) return
+    if (isAddPointMode || polygonDrawPointId) return
+    const map = mapInstanceRef.current
+
+    const handleMapClick = (event: any) => {
+      if (isLeafletUiClick(event)) return
+      const lat = Number(event?.latlng?.lat)
+      const lng = Number(event?.latlng?.lng)
+      if (!Number.isFinite(lat) || !Number.isFinite(lng)) return
+      onMapClick({ lat, lng })
+    }
+
+    map.on('click', handleMapClick)
+    return () => {
+      map.off('click', handleMapClick)
+    }
+  }, [isAddPointMode, mapReady, onMapClick, polygonDrawPointId])
 
   useEffect(() => {
     if (!isGrowaAdmin || !polygonDrawPointId) return
