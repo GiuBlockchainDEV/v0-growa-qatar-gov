@@ -20,6 +20,27 @@ interface MapMarker {
   type: MapPointType
 }
 
+interface WeatherGridMapPoint {
+  id: string
+  lat: number
+  lng: number
+  north?: number
+  south?: number
+  east?: number
+  west?: number
+}
+
+interface WeatherGridLineSegment {
+  id: string
+  start: { lat: number; lng: number }
+  end: { lat: number; lng: number }
+}
+
+interface WeatherBoundaryPoint {
+  lat: number
+  lng: number
+}
+
 interface SatelliteMapProps {
   locale?: string
   targetPointId?: string | null
@@ -27,6 +48,12 @@ interface SatelliteMapProps {
   targetFocusToken?: string | null
   targetZoom?: number
   isLateralMode?: boolean
+  onMapClick?: (coords: { lat: number; lng: number }) => void
+  weatherGridPoints?: WeatherGridMapPoint[]
+  selectedWeatherGridPointId?: string | null
+  weatherGridLines?: WeatherGridLineSegment[]
+  weatherBoundary?: WeatherBoundaryPoint[]
+  onWeatherGridPointClick?: (point: WeatherGridMapPoint) => void
 }
 
 interface MapController {
@@ -481,6 +508,12 @@ export function SatelliteMap({
   targetFocusToken = null,
   targetZoom,
   isLateralMode = false,
+  onMapClick,
+  weatherGridPoints = [],
+  selectedWeatherGridPointId = null,
+  weatherGridLines = [],
+  weatherBoundary = [],
+  onWeatherGridPointClick,
 }: SatelliteMapProps) {
   const { user } = useAuth()
   const { organization } = useOrganization()
@@ -489,6 +522,7 @@ export function SatelliteMap({
   const mapInstanceRef = useRef<MapController | null>(null)
   const leafletRef = useRef<any>(null)
   const markerInstancesRef = useRef<any[]>([])
+  const weatherGridMarkerInstancesRef = useRef<any[]>([])
   const polygonInstancesRef = useRef<any[]>([])
   const draftPolylineRef = useRef<any | null>(null)
   const draftVertexInstancesRef = useRef<any[]>([])
@@ -1413,6 +1447,106 @@ export function SatelliteMap({
     pointScoreStatsById,
   ])
 
+
+  useEffect(() => {
+    if (!mapReady || !mapInstanceRef.current || !leafletRef.current) return
+    const L = leafletRef.current
+    const map = mapInstanceRef.current
+
+    weatherGridMarkerInstancesRef.current.forEach((layer) => layer.remove?.())
+    weatherGridMarkerInstancesRef.current = []
+
+    if (weatherGridPoints.length === 0) return
+
+    const layers: any[] = []
+
+    if (weatherBoundary.length > 2) {
+      const outline = L.polyline(
+        [...weatherBoundary, weatherBoundary[0]].map((point) => [point.lat, point.lng]),
+        {
+          color: '#07f880',
+          weight: 2.4,
+          opacity: 0.95,
+          interactive: false,
+        }
+      ).addTo(map)
+      layers.push(outline)
+    }
+
+    for (const segment of weatherGridLines) {
+      const line = L.polyline(
+        [
+          [segment.start.lat, segment.start.lng],
+          [segment.end.lat, segment.end.lng],
+        ],
+        {
+          color: '#07f880',
+          weight: 1.35,
+          opacity: 0.85,
+          interactive: false,
+        }
+      ).addTo(map)
+      layers.push(line)
+    }
+
+    for (const point of weatherGridPoints) {
+      const selected = point.id === selectedWeatherGridPointId
+      const north = Number(point.north)
+      const south = Number(point.south)
+      const east = Number(point.east)
+      const west = Number(point.west)
+      const hasBounds = Number.isFinite(north) && Number.isFinite(south) && Number.isFinite(east) && Number.isFinite(west)
+      const clickLayer = hasBounds
+        ? L.rectangle(
+            [
+              [south, west],
+              [north, east],
+            ],
+            {
+              color: selected ? '#07f880' : '#07f880',
+              weight: selected ? 3 : 0,
+              opacity: selected ? 1 : 0,
+              fillColor: '#07f880',
+              fillOpacity: selected ? 0.12 : 0.01,
+              interactive: true,
+              bubblingMouseEvents: false,
+            }
+          )
+        : L.circleMarker([point.lat, point.lng], {
+            radius: selected ? 7 : 5,
+            color: selected ? '#ffffff' : '#07f880',
+            weight: selected ? 3 : 1,
+            fillColor: selected ? '#07f880' : '#07f880',
+            fillOpacity: selected ? 1 : 0.2,
+            interactive: true,
+            bubblingMouseEvents: false,
+          })
+
+      clickLayer.addTo(map)
+      clickLayer.bindTooltip(point.id, {
+        direction: 'top',
+        opacity: 0.9,
+        className: 'custom-tooltip',
+      })
+      clickLayer.on('click', (event: any) => {
+        event?.originalEvent?.preventDefault?.()
+        event?.originalEvent?.stopPropagation?.()
+        const lat = Number(point.lat)
+        const lng = Number(point.lng)
+        if (!Number.isFinite(lat) || !Number.isFinite(lng)) return
+        onWeatherGridPointClick?.({ ...point, lat, lng })
+      })
+      layers.push(clickLayer)
+    }
+
+    weatherGridMarkerInstancesRef.current = layers
+
+    return () => {
+      weatherGridMarkerInstancesRef.current.forEach((layer) => layer.remove?.())
+      weatherGridMarkerInstancesRef.current = []
+    }
+  }, [mapReady, onWeatherGridPointClick, selectedWeatherGridPointId, weatherBoundary, weatherGridLines, weatherGridPoints])
+
   useEffect(() => {
     if (!mapReady || !mapInstanceRef.current || !leafletRef.current) return
     const L = leafletRef.current
@@ -1621,6 +1755,25 @@ export function SatelliteMap({
       map.off('click', handleMapClick)
     }
   }, [isAddPointMode, isGrowaAdmin, locale, mapReady, newPointType, polygonDrawPointId])
+
+  useEffect(() => {
+    if (!onMapClick || !mapReady || !mapInstanceRef.current) return
+    if (isAddPointMode || polygonDrawPointId) return
+    const map = mapInstanceRef.current
+
+    const handleMapClick = (event: any) => {
+      if (isLeafletUiClick(event)) return
+      const lat = Number(event?.latlng?.lat)
+      const lng = Number(event?.latlng?.lng)
+      if (!Number.isFinite(lat) || !Number.isFinite(lng)) return
+      onMapClick({ lat, lng })
+    }
+
+    map.on('click', handleMapClick)
+    return () => {
+      map.off('click', handleMapClick)
+    }
+  }, [isAddPointMode, mapReady, onMapClick, polygonDrawPointId])
 
   useEffect(() => {
     if (!isGrowaAdmin || !polygonDrawPointId) return

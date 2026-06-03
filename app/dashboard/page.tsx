@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useI18n } from '@/lib/i18n'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { SatelliteMap } from '@/components/dashboard/satellite-map'
@@ -9,10 +9,17 @@ import { RssFeedWorkspace } from '@/components/dashboard/rss-feed-workspace'
 import { DataAnalyticsWorkspace } from '@/components/dashboard/data-analytics-workspace'
 import { WaterIntelligenceWorkspace } from '@/components/dashboard/water-intelligence-workspace'
 import { EnergyIntelligenceWorkspace } from '@/components/dashboard/energy-intelligence-workspace'
+import { WeatherWorkspace } from '@/components/dashboard/weather-workspace'
+import {
+  generateQatarWeatherGrid,
+  generateQatarWeatherGridLines,
+  getQatarBoundaryCoordinates,
+} from '@/lib/weather/qatar-grid'
 
 function SlideFromLeftWorkspace({
   children,
   locale,
+  moduleKey,
   targetPointId,
   targetFocusToken,
   targetZoom,
@@ -20,12 +27,50 @@ function SlideFromLeftWorkspace({
 }: {
   children: React.ReactNode
   locale: string
+  moduleKey: string
   targetPointId: string | null
   targetFocusToken: string | null
   targetZoom?: number
   targetCropFilter: string | null
 }) {
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const weatherGridPoints = useMemo(
+    () =>
+      moduleKey === 'weather'
+        ? generateQatarWeatherGrid().map((cell) => ({
+            id: cell.id,
+            lat: cell.latitude,
+            lng: cell.longitude,
+            north: cell.north,
+            south: cell.south,
+            east: cell.east,
+            west: cell.west,
+          }))
+        : [],
+    [moduleKey]
+  )
+  const selectedWeatherGridPointId = useMemo(() => {
+    if (moduleKey !== 'weather') return null
+    const explicitId = searchParams.get('weatherGridId')
+    if (explicitId) return explicitId
+    const lat = Number(searchParams.get('weatherLat'))
+    const lng = Number(searchParams.get('weatherLng'))
+    if (!Number.isFinite(lat) || !Number.isFinite(lng) || weatherGridPoints.length === 0) return null
+    return weatherGridPoints.reduce((closest, point) => {
+      const closestDistance = Math.hypot(closest.lat - lat, closest.lng - lng)
+      const pointDistance = Math.hypot(point.lat - lat, point.lng - lng)
+      return pointDistance < closestDistance ? point : closest
+    }, weatherGridPoints[0]).id
+  }, [moduleKey, searchParams, weatherGridPoints])
+  const weatherGridLines = useMemo(
+    () => (moduleKey === 'weather' ? generateQatarWeatherGridLines() : []),
+    [moduleKey]
+  )
+  const weatherBoundary = useMemo(
+    () => (moduleKey === 'weather' ? getQatarBoundaryCoordinates() : []),
+    [moduleKey]
+  )
   const [panelVisible, setPanelVisible] = useState(false)
 
   useEffect(() => {
@@ -47,15 +92,41 @@ function SlideFromLeftWorkspace({
           targetZoom={targetZoom}
           targetCropFilter={targetCropFilter}
           isLateralMode
+          onMapClick={undefined}
+          weatherGridPoints={weatherGridPoints}
+          selectedWeatherGridPointId={selectedWeatherGridPointId}
+          weatherGridLines={weatherGridLines}
+          weatherBoundary={weatherBoundary}
+          onWeatherGridPointClick={
+            moduleKey === 'weather'
+              ? (point) => {
+                  const lat = Number(point.lat)
+                  const lng = Number(point.lng)
+                  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return
+                  const params = new URLSearchParams(searchParams.toString())
+                  params.set('module', 'weather')
+                  params.set('weatherGridId', point.id)
+                  params.set('weatherLat', lat.toFixed(6))
+                  params.set('weatherLng', lng.toFixed(6))
+                  params.set('zoom', String(targetZoom ?? 10))
+                  params.delete('pointId')
+                  params.delete('crop')
+                  params.set('focus', `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`)
+                  router.push(`/dashboard?${params.toString()}`)
+                }
+              : undefined
+          }
         />
       </div>
 
-      <button
-        type="button"
-        aria-label="Return to live map"
-        className="absolute inset-y-16 left-[75%] z-[1700] w-[10%] bg-transparent"
-        onClick={() => router.push('/dashboard?module=live-map&zoom=10')}
-      />
+      {moduleKey !== 'weather' && (
+        <button
+          type="button"
+          aria-label="Return to live map"
+          className="absolute inset-y-16 left-[75%] z-[1700] w-[10%] bg-transparent"
+          onClick={() => router.push('/dashboard?module=live-map&zoom=10')}
+        />
+      )}
 
       <div
         className={`absolute bottom-0 left-0 top-16 z-[1800] w-3/4 transform transition-transform duration-300 ease-out ${
@@ -103,6 +174,7 @@ export default function DashboardPage() {
       <SlideFromLeftWorkspace
         key="rss-feed-panel"
         locale={locale}
+        moduleKey="rss-feed"
         targetPointId={targetPointId}
         targetFocusToken={targetFocusToken}
         targetZoom={targetZoom}
@@ -118,6 +190,7 @@ export default function DashboardPage() {
       <SlideFromLeftWorkspace
         key="data-analytics-panel"
         locale={locale}
+        moduleKey="data-analytics"
         targetPointId={targetPointId}
         targetFocusToken={targetFocusToken}
         targetZoom={targetZoom}
@@ -133,6 +206,7 @@ export default function DashboardPage() {
       <SlideFromLeftWorkspace
         key="water-intelligence-panel"
         locale={locale}
+        moduleKey="water-intelligence"
         targetPointId={targetPointId}
         targetFocusToken={targetFocusToken}
         targetZoom={targetZoom}
@@ -148,12 +222,29 @@ export default function DashboardPage() {
       <SlideFromLeftWorkspace
         key="energy-intelligence-panel"
         locale={locale}
+        moduleKey="energy-intelligence"
         targetPointId={targetPointId}
         targetFocusToken={targetFocusToken}
         targetZoom={targetZoom}
         targetCropFilter={targetCropFilter}
       >
         <EnergyIntelligenceWorkspace />
+      </SlideFromLeftWorkspace>
+    )
+  }
+
+  if (module === 'weather') {
+    return (
+      <SlideFromLeftWorkspace
+        key="weather-panel"
+        locale={locale}
+        moduleKey="weather"
+        targetPointId={targetPointId}
+        targetFocusToken={targetFocusToken}
+        targetZoom={targetZoom}
+        targetCropFilter={targetCropFilter}
+      >
+        <WeatherWorkspace />
       </SlideFromLeftWorkspace>
     )
   }
