@@ -234,15 +234,21 @@ function SectionCard({
   reading,
   selectedMetricKey,
   onMetricSelect,
+  highlighted = false,
 }: {
   section: MetricSection
   reading: WeatherReadingResponse | null
   selectedMetricKey: string | null
   onMetricSelect: (metric: MetricDefinition) => void
+  highlighted?: boolean
 }) {
   const Icon = section.icon
   return (
-    <section className="rounded-xl border border-border bg-card p-5 shadow-[inset_0_0_0_1px_rgba(148,163,184,0.06)]">
+    <section
+      className={`rounded-xl border p-5 shadow-[inset_0_0_0_1px_rgba(148,163,184,0.06)] ${
+        highlighted ? 'border-primary/40 bg-primary/10' : 'border-border bg-card'
+      }`}
+    >
       <div className="flex items-start justify-between gap-4">
         <div>
           <h2 className="flex items-center gap-2 text-lg font-semibold text-foreground">
@@ -255,7 +261,7 @@ function SectionCard({
           Click metric
         </div>
       </div>
-      <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2">
+      <div className={`mt-4 grid grid-cols-1 gap-3 ${highlighted ? 'md:grid-cols-2 xl:grid-cols-4' : 'md:grid-cols-2'}`}>
         {section.metrics.map((definition) => (
           <MetricCard
             key={definition.key}
@@ -504,6 +510,8 @@ export function WeatherWorkspace() {
       if (!latValue.trim() || !lonValue.trim()) {
         setReading(null)
         setHistoryPoints([])
+        setSelectedMetricKey(null)
+        setChartModalOpen(false)
         activeHistoryKeyRef.current = ''
         historyPrefetchAbortRef.current?.abort()
         setError(null)
@@ -517,6 +525,11 @@ export function WeatherWorkspace() {
       try {
         setLoading(true)
         setError(null)
+        setReading(null)
+        setHistoryPoints([])
+        setHistoryError(null)
+        setSelectedMetricKey(null)
+        setChartModalOpen(false)
         const params = new URLSearchParams({ latitude: latValue.trim(), longitude: lonValue.trim() })
         if (requestedAtValue.trim()) params.set('requested_at', requestedAtValue.trim())
 
@@ -554,6 +567,8 @@ export function WeatherWorkspace() {
     if (!nextLatitude || !nextLongitude) {
       setReading(null)
       setHistoryPoints([])
+      setSelectedMetricKey(null)
+      setChartModalOpen(false)
       activeHistoryKeyRef.current = ''
       historyPrefetchAbortRef.current?.abort()
       setError(null)
@@ -646,13 +661,7 @@ export function WeatherWorkspace() {
     }
   }, [gridCells])
 
-  const historyRows = historyPoints.map((point) => ({
-    timestamp: formatTimestamp(point.reading?.matched_timestamp || point.requestedAt),
-    temperature: formatMetric(metricValue(point.reading, 'temperature_c'), 1, ' C'),
-    humidity: formatMetric(metricValue(point.reading, 'humidity_percent'), 1, '%'),
-    solar: formatMetric(metricValue(point.reading, 'solar_ghi_w_m2'), 1, ' W/m2'),
-    stress: formatMetric(metricValue(point.reading, 'water_stress_index_0_100'), 1, '/100'),
-  }))
+
 
   return (
     <div className="space-y-6 p-6 pt-20 text-foreground">
@@ -723,71 +732,60 @@ export function WeatherWorkspace() {
         <SummaryCard icon={Sprout} label="Source" value={hasSelection ? summary.dataSource : 'Waiting'} detail="OpenWeather + Open-Meteo grid" smallValue />
       </div>
 
-      <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
-        {metricSections.map((section) => (
-          <SectionCard
-            key={section.title}
-            section={section}
-            reading={reading}
-            selectedMetricKey={selectedMetricKey}
-            onMetricSelect={(metric) => {
-              setSelectedMetricKey(metric.key)
-              setChartModalOpen(true)
-              if (latitude.trim() && longitude.trim()) {
-                const cacheKey = getHistoryCacheKey(latitude, longitude, requestedAt)
-                const cached = historyCacheRef.current[cacheKey]
-                if (cached) {
-                  setHistoryPoints(cached)
-                  setHistoryError(null)
-                } else {
-                  loadHistory(latitude, longitude, requestedAt)
+      <div className="space-y-4">
+        {metricSections
+          .filter((section) => section.title === 'Irrigation')
+          .map((section) => (
+            <SectionCard
+              key={section.title}
+              section={section}
+              reading={reading}
+              selectedMetricKey={selectedMetricKey}
+              highlighted
+              onMetricSelect={(metric) => {
+                setSelectedMetricKey(metric.key)
+                setChartModalOpen(true)
+                if (latitude.trim() && longitude.trim()) {
+                  const cacheKey = getHistoryCacheKey(latitude, longitude, requestedAt)
+                  const cached = historyCacheRef.current[cacheKey]
+                  if (cached) {
+                    setHistoryPoints(cached)
+                    setHistoryError(null)
+                  } else {
+                    loadHistory(latitude, longitude, requestedAt)
+                  }
                 }
-              }
-            }}
-          />
-        ))}
-      </div>
+              }}
+            />
+          ))}
 
-      <section className="rounded-xl border border-border bg-card p-5">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <h2 className="flex items-center gap-2 text-lg font-semibold text-foreground">
-              <BarChart3 className="h-5 w-5 text-muted-foreground" />
-              Historical table
-            </h2>
-            <p className="mt-1 text-sm text-muted-foreground">Nearest stored snapshots every 3 hours ending at the requested timestamp.</p>
-          </div>
-          {historyLoading && <Loader2 className="h-4 w-4 animate-spin text-primary" />}
+        <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+          {metricSections
+            .filter((section) => section.title !== 'Irrigation')
+            .map((section) => (
+              <SectionCard
+                key={section.title}
+                section={section}
+                reading={reading}
+                selectedMetricKey={selectedMetricKey}
+                onMetricSelect={(metric) => {
+                  setSelectedMetricKey(metric.key)
+                  setChartModalOpen(true)
+                  if (latitude.trim() && longitude.trim()) {
+                    const cacheKey = getHistoryCacheKey(latitude, longitude, requestedAt)
+                    const cached = historyCacheRef.current[cacheKey]
+                    if (cached) {
+                      setHistoryPoints(cached)
+                      setHistoryError(null)
+                    } else {
+                      loadHistory(latitude, longitude, requestedAt)
+                    }
+                  }
+                }}
+              />
+            ))}
         </div>
-        <div className="mt-4 overflow-x-auto rounded-lg border border-border">
-          <table className="min-w-full divide-y divide-border text-left text-sm">
-            <thead className="bg-secondary/50 text-xs uppercase tracking-[0.12em] text-muted-foreground">
-              <tr>
-                <th className="px-3 py-2.5 font-medium">Snapshot</th>
-                <th className="px-3 py-2.5 font-medium">Temp</th>
-                <th className="px-3 py-2.5 font-medium">Humidity</th>
-                <th className="px-3 py-2.5 font-medium">GHI</th>
-                <th className="px-3 py-2.5 font-medium">Water stress</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border/70">
-              {historyRows.length === 0 ? (
-                <tr><td className="px-3 py-4 text-muted-foreground" colSpan={5}>No historical snapshots loaded.</td></tr>
-              ) : (
-                historyRows.map((row, index) => (
-                  <tr key={`${row.timestamp}-${index}`} className={index % 2 === 0 ? 'bg-card/60' : 'bg-secondary/20'}>
-                    <td className="px-3 py-2.5 text-muted-foreground">{row.timestamp}</td>
-                    <td className="px-3 py-2.5">{row.temperature}</td>
-                    <td className="px-3 py-2.5">{row.humidity}</td>
-                    <td className="px-3 py-2.5">{row.solar}</td>
-                    <td className="px-3 py-2.5 text-primary">{row.stress}</td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-      </section>
+      </div>
 
       <section className="rounded-xl border border-border bg-card p-5">
         <div className="flex flex-wrap items-center justify-between gap-4">
