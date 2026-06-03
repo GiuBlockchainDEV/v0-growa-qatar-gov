@@ -76,20 +76,7 @@ function SlideFromLeftWorkspace({
           targetZoom={targetZoom}
           targetCropFilter={targetCropFilter}
           isLateralMode
-          onMapClick={
-            moduleKey === 'weather'
-              ? ({ lat, lng }) => {
-                  const params = new URLSearchParams(searchParams.toString())
-                  params.set('module', 'weather')
-                  params.set('weatherLat', lat.toFixed(6))
-                  params.set('weatherLng', lng.toFixed(6))
-                  params.delete('weatherGridId')
-                  params.set('zoom', String(targetZoom ?? 10))
-                  params.set('focus', `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`)
-                  router.push(`/dashboard?${params.toString()}`)
-                }
-              : undefined
-          }
+          onMapClick={undefined}
           weatherGridPoints={weatherGridPoints}
           selectedWeatherGridPointId={selectedWeatherGridPointId}
           onWeatherGridPointClick={
@@ -109,12 +96,14 @@ function SlideFromLeftWorkspace({
         />
       </div>
 
-      <button
-        type="button"
-        aria-label="Return to live map"
-        className="absolute inset-y-16 left-[75%] z-[1700] w-[10%] bg-transparent"
-        onClick={() => router.push('/dashboard?module=live-map&zoom=10')}
-      />
+      {moduleKey !== 'weather' && (
+        <button
+          type="button"
+          aria-label="Return to live map"
+          className="absolute inset-y-16 left-[75%] z-[1700] w-[10%] bg-transparent"
+          onClick={() => router.push('/dashboard?module=live-map&zoom=10')}
+        />
+      )}
 
       <div
         className={`absolute bottom-0 left-0 top-16 z-[1800] w-3/4 transform transition-transform duration-300 ease-out ${

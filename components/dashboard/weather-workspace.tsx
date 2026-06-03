@@ -352,6 +352,7 @@ export function WeatherWorkspace() {
   const [historyPoints, setHistoryPoints] = useState<HistoryPoint[]>([])
   const [gridCells, setGridCells] = useState<GridCellResult[]>([])
   const [selectedMetricKey, setSelectedMetricKey] = useState<string | null>(null)
+  const [chartModalOpen, setChartModalOpen] = useState(false)
   const [loading, setLoading] = useState(false)
   const [historyLoading, setHistoryLoading] = useState(false)
   const [gridLoading, setGridLoading] = useState(false)
@@ -369,8 +370,8 @@ export function WeatherWorkspace() {
       const params = new URLSearchParams({
         latitude: latValue.trim(),
         longitude: lonValue.trim(),
-        count: '8',
-        interval_hours: '3',
+        count: '90',
+        interval_hours: '1',
       })
       if (requestedAtValue.trim()) params.set('requested_at', requestedAtValue.trim())
 
@@ -609,26 +610,13 @@ export function WeatherWorkspace() {
             section={section}
             reading={reading}
             selectedMetricKey={selectedMetricKey}
-            onMetricSelect={(metric) => setSelectedMetricKey(metric.key)}
+            onMetricSelect={(metric) => {
+              setSelectedMetricKey(metric.key)
+              setChartModalOpen(true)
+            }}
           />
         ))}
       </div>
-
-      <section className="rounded-xl border border-border bg-card p-5">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <h2 className="flex items-center gap-2 text-lg font-semibold text-foreground">
-              <BarChart3 className="h-5 w-5 text-primary" />
-              Metric trend
-            </h2>
-            <p className="mt-1 text-sm text-muted-foreground">Click a metric card to plot its historical movement for the selected grid point.</p>
-          </div>
-          {historyLoading && <Loader2 className="h-4 w-4 animate-spin text-primary" />}
-        </div>
-        <div className="mt-4">
-          <TrendChart metric={selectedMetric} historyPoints={historyPoints} />
-        </div>
-      </section>
 
       <section className="rounded-xl border border-border bg-card p-5">
         <div className="flex flex-wrap items-center justify-between gap-3">
@@ -718,6 +706,35 @@ export function WeatherWorkspace() {
           </table>
         </div>
       </section>
+      {chartModalOpen && (
+        <div className="fixed inset-0 z-[2600] flex items-center justify-center bg-black/70 p-6 backdrop-blur-sm">
+          <div className="max-h-[88vh] w-full max-w-5xl overflow-y-auto rounded-2xl border border-border bg-[#070a10] p-6 shadow-2xl">
+            <div className="flex flex-wrap items-start justify-between gap-4">
+              <div>
+                <p className="text-xs uppercase tracking-[0.22em] text-primary">Last 90 readings</p>
+                <h2 className="mt-1 flex items-center gap-2 text-2xl font-semibold text-foreground">
+                  <BarChart3 className="h-5 w-5 text-primary" />
+                  {selectedMetric?.label || 'Metric trend'}
+                </h2>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Historical trend for the selected cell based on the latest 90 hourly nearest snapshots.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setChartModalOpen(false)}
+                className="rounded-lg border border-white/15 bg-white/5 px-3 py-2 text-sm text-white/70 transition-colors hover:bg-white/10 hover:text-white"
+              >
+                Close
+              </button>
+            </div>
+            {historyLoading && <div className="mt-4 text-sm text-primary">Loading 90 readings...</div>}
+            <div className="mt-5">
+              <TrendChart metric={selectedMetric} historyPoints={historyPoints} />
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

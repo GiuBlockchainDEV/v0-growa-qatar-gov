@@ -29,7 +29,7 @@ export async function GET(request: Request) {
   const latitude = parseCoordinate(searchParams.get('latitude'), -90, 90)
   const longitude = parseCoordinate(searchParams.get('longitude'), -180, 180)
   const requestedAt = parseRequestedAt(searchParams.get('requested_at') || searchParams.get('requestedAt'))
-  const count = parseInteger(searchParams.get('count'), 8, 2, 24)
+  const count = parseInteger(searchParams.get('count'), 90, 2, 90)
   const intervalHours = parseInteger(searchParams.get('interval_hours') || searchParams.get('intervalHours'), 3, 1, 24)
 
   if (latitude === null || longitude === null) {

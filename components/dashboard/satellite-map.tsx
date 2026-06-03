@@ -1443,9 +1443,9 @@ export function SatelliteMap({
       const selected = point.id === selectedWeatherGridPointId
       const marker = L.circleMarker([point.lat, point.lng], {
         radius: selected ? 7 : 4,
-        color: selected ? '#ffffff' : '#facc15',
+        color: selected ? '#ffffff' : '#ef4444',
         weight: selected ? 3 : 1.5,
-        fillColor: selected ? '#07f880' : '#facc15',
+        fillColor: '#ef4444',
         fillOpacity: selected ? 1 : 0.78,
         opacity: 1,
         interactive: true,
