@@ -74,28 +74,6 @@ const metricSections: MetricSection[] = [
     ],
   },
   {
-    title: 'Rain',
-    description: 'Short-window rain and total precipitation for the selected cell.',
-    icon: CloudRain,
-    accentClassName: 'text-sky-300',
-    metrics: [
-      { key: 'rain_1h_mm', label: 'Rain 1h', unit: ' mm', decimals: 2, max: 20, accent: '#38bdf8' },
-      { key: 'rain_3h_mm', label: 'Rain 3h', unit: ' mm', decimals: 2, max: 30, accent: '#0ea5e9' },
-      { key: 'precipitation_total_mm', label: 'Total Precipitation', unit: ' mm', decimals: 2, max: 40, accent: '#0284c7' },
-    ],
-  },
-  {
-    title: 'Wind',
-    description: 'Speed, gust and direction for spray and field operations.',
-    icon: Wind,
-    accentClassName: 'text-cyan-300',
-    metrics: [
-      { key: 'wind_gust_km_h', label: 'Wind Gust', unit: ' km/h', decimals: 1, max: 80, accent: '#22d3ee' },
-      { key: 'wind_speed_km_h', label: 'Wind Speed', unit: ' km/h', decimals: 1, max: 80, accent: '#06b6d4' },
-      { key: 'wind_direction_deg', label: 'Wind Direction', unit: ' deg', decimals: 0, max: 360, accent: '#67e8f9' },
-    ],
-  },
-  {
     title: 'Environment',
     description: 'Thermal, humidity, vapor pressure and fungal risk indicators.',
     icon: ThermometerSun,
@@ -112,6 +90,28 @@ const metricSections: MetricSection[] = [
     ],
   },
   {
+    title: 'Wind',
+    description: 'Speed, gust and direction for spray and field operations.',
+    icon: Wind,
+    accentClassName: 'text-cyan-300',
+    metrics: [
+      { key: 'wind_gust_km_h', label: 'Wind Gust', unit: ' km/h', decimals: 1, max: 80, accent: '#22d3ee' },
+      { key: 'wind_speed_km_h', label: 'Wind Speed', unit: ' km/h', decimals: 1, max: 80, accent: '#06b6d4' },
+      { key: 'wind_direction_deg', label: 'Wind Direction', unit: ' deg', decimals: 0, max: 360, accent: '#67e8f9' },
+    ],
+  },
+  {
+    title: 'Rain',
+    description: 'Short-window rain and total precipitation for the selected cell.',
+    icon: CloudRain,
+    accentClassName: 'text-sky-300',
+    metrics: [
+      { key: 'rain_1h_mm', label: 'Rain 1h', unit: ' mm', decimals: 2, max: 20, accent: '#38bdf8' },
+      { key: 'rain_3h_mm', label: 'Rain 3h', unit: ' mm', decimals: 2, max: 30, accent: '#0ea5e9' },
+      { key: 'precipitation_total_mm', label: 'Total Precipitation', unit: ' mm', decimals: 2, max: 40, accent: '#0284c7' },
+    ],
+  },
+  {
     title: 'Irrigation',
     description: 'Water stress, drift risk and ET0 estimates for irrigation decisions.',
     icon: Waves,
@@ -124,7 +124,6 @@ const metricSections: MetricSection[] = [
     ],
   },
 ]
-
 const flatMetrics = metricSections.flatMap((section) => section.metrics)
 
 function asRecord(input: unknown): WeatherRecord | null {
