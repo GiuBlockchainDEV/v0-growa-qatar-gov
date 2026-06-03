@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useI18n } from '@/lib/i18n'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { SatelliteMap } from '@/components/dashboard/satellite-map'
@@ -10,6 +10,7 @@ import { DataAnalyticsWorkspace } from '@/components/dashboard/data-analytics-wo
 import { WaterIntelligenceWorkspace } from '@/components/dashboard/water-intelligence-workspace'
 import { EnergyIntelligenceWorkspace } from '@/components/dashboard/energy-intelligence-workspace'
 import { WeatherWorkspace } from '@/components/dashboard/weather-workspace'
+import { generateQatarWeatherGrid } from '@/lib/weather/qatar-grid'
 
 function SlideFromLeftWorkspace({
   children,
@@ -30,6 +31,30 @@ function SlideFromLeftWorkspace({
 }) {
   const router = useRouter()
   const searchParams = useSearchParams()
+  const weatherGridPoints = useMemo(
+    () =>
+      moduleKey === 'weather'
+        ? generateQatarWeatherGrid().map((cell) => ({
+            id: cell.id,
+            lat: cell.latitude,
+            lng: cell.longitude,
+          }))
+        : [],
+    [moduleKey]
+  )
+  const selectedWeatherGridPointId = useMemo(() => {
+    if (moduleKey !== 'weather') return null
+    const explicitId = searchParams.get('weatherGridId')
+    if (explicitId) return explicitId
+    const lat = Number(searchParams.get('weatherLat'))
+    const lng = Number(searchParams.get('weatherLng'))
+    if (!Number.isFinite(lat) || !Number.isFinite(lng) || weatherGridPoints.length === 0) return null
+    return weatherGridPoints.reduce((closest, point) => {
+      const closestDistance = Math.hypot(closest.lat - lat, closest.lng - lng)
+      const pointDistance = Math.hypot(point.lat - lat, point.lng - lng)
+      return pointDistance < closestDistance ? point : closest
+    }, weatherGridPoints[0]).id
+  }, [moduleKey, searchParams, weatherGridPoints])
   const [panelVisible, setPanelVisible] = useState(false)
 
   useEffect(() => {
@@ -58,6 +83,23 @@ function SlideFromLeftWorkspace({
                   params.set('module', 'weather')
                   params.set('weatherLat', lat.toFixed(6))
                   params.set('weatherLng', lng.toFixed(6))
+                  params.delete('weatherGridId')
+                  params.set('zoom', String(targetZoom ?? 10))
+                  params.set('focus', `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`)
+                  router.push(`/dashboard?${params.toString()}`)
+                }
+              : undefined
+          }
+          weatherGridPoints={weatherGridPoints}
+          selectedWeatherGridPointId={selectedWeatherGridPointId}
+          onWeatherGridPointClick={
+            moduleKey === 'weather'
+              ? (point) => {
+                  const params = new URLSearchParams(searchParams.toString())
+                  params.set('module', 'weather')
+                  params.set('weatherGridId', point.id)
+                  params.set('weatherLat', point.lat.toFixed(6))
+                  params.set('weatherLng', point.lng.toFixed(6))
                   params.set('zoom', String(targetZoom ?? 10))
                   params.set('focus', `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`)
                   router.push(`/dashboard?${params.toString()}`)

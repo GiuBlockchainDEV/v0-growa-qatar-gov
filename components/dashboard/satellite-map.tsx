@@ -20,6 +20,12 @@ interface MapMarker {
   type: MapPointType
 }
 
+interface WeatherGridMapPoint {
+  id: string
+  lat: number
+  lng: number
+}
+
 interface SatelliteMapProps {
   locale?: string
   targetPointId?: string | null
@@ -28,6 +34,9 @@ interface SatelliteMapProps {
   targetZoom?: number
   isLateralMode?: boolean
   onMapClick?: (coords: { lat: number; lng: number }) => void
+  weatherGridPoints?: WeatherGridMapPoint[]
+  selectedWeatherGridPointId?: string | null
+  onWeatherGridPointClick?: (point: WeatherGridMapPoint) => void
 }
 
 interface MapController {
@@ -483,6 +492,9 @@ export function SatelliteMap({
   targetZoom,
   isLateralMode = false,
   onMapClick,
+  weatherGridPoints = [],
+  selectedWeatherGridPointId = null,
+  onWeatherGridPointClick,
 }: SatelliteMapProps) {
   const { user } = useAuth()
   const { organization } = useOrganization()
@@ -491,6 +503,7 @@ export function SatelliteMap({
   const mapInstanceRef = useRef<MapController | null>(null)
   const leafletRef = useRef<any>(null)
   const markerInstancesRef = useRef<any[]>([])
+  const weatherGridMarkerInstancesRef = useRef<any[]>([])
   const polygonInstancesRef = useRef<any[]>([])
   const draftPolylineRef = useRef<any | null>(null)
   const draftVertexInstancesRef = useRef<any[]>([])
@@ -1414,6 +1427,49 @@ export function SatelliteMap({
     openPointInsightsModal,
     pointScoreStatsById,
   ])
+
+
+  useEffect(() => {
+    if (!mapReady || !mapInstanceRef.current || !leafletRef.current) return
+    const L = leafletRef.current
+    const map = mapInstanceRef.current
+
+    weatherGridMarkerInstancesRef.current.forEach((marker) => marker.remove?.())
+    weatherGridMarkerInstancesRef.current = []
+
+    if (weatherGridPoints.length === 0) return
+
+    weatherGridMarkerInstancesRef.current = weatherGridPoints.map((point) => {
+      const selected = point.id === selectedWeatherGridPointId
+      const marker = L.circleMarker([point.lat, point.lng], {
+        radius: selected ? 7 : 4,
+        color: selected ? '#ffffff' : '#facc15',
+        weight: selected ? 3 : 1.5,
+        fillColor: selected ? '#07f880' : '#facc15',
+        fillOpacity: selected ? 1 : 0.78,
+        opacity: 1,
+        interactive: true,
+        bubblingMouseEvents: false,
+      }).addTo(map)
+
+      marker.bindTooltip(point.id, {
+        direction: 'top',
+        opacity: 0.9,
+        className: 'custom-tooltip',
+      })
+      marker.on('click', (event: any) => {
+        event?.originalEvent?.preventDefault?.()
+        event?.originalEvent?.stopPropagation?.()
+        onWeatherGridPointClick?.(point)
+      })
+      return marker
+    })
+
+    return () => {
+      weatherGridMarkerInstancesRef.current.forEach((marker) => marker.remove?.())
+      weatherGridMarkerInstancesRef.current = []
+    }
+  }, [mapReady, onWeatherGridPointClick, selectedWeatherGridPointId, weatherGridPoints])
 
   useEffect(() => {
     if (!mapReady || !mapInstanceRef.current || !leafletRef.current) return

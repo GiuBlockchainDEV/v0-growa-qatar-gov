@@ -7,11 +7,10 @@ import {
   CloudRain,
   CloudSun,
   Compass,
-  Droplets,
-  Gauge,
   Grid3X3,
   Loader2,
   MapPin,
+  MousePointer2,
   RefreshCw,
   Sprout,
   SunMedium,
@@ -70,8 +69,6 @@ interface MetricSection {
   metrics: MetricDefinition[]
 }
 
-const DEFAULT_LATITUDE = '25.2854'
-const DEFAULT_LONGITUDE = '51.5310'
 const DEFAULT_REQUESTED_AT = '2026-06-02T05:30:00Z'
 const TOTAL_QATAR_GRID_CELLS = 510
 
@@ -141,6 +138,8 @@ const metricSections: MetricSection[] = [
   },
 ]
 
+const flatMetrics = metricSections.flatMap((section) => section.metrics)
+
 function asRecord(input: unknown): WeatherRecord | null {
   if (!input || typeof input !== 'object' || Array.isArray(input)) return null
   return input as WeatherRecord
@@ -193,15 +192,31 @@ function readingNumber(reading: WeatherReadingResponse | null, key: string) {
   return toNumber(metricValue(reading, key))
 }
 
-function MetricCard({ definition, reading }: { definition: MetricDefinition; reading: WeatherReadingResponse | null }) {
+function MetricCard({
+  definition,
+  reading,
+  selected,
+  onSelect,
+}: {
+  definition: MetricDefinition
+  reading: WeatherReadingResponse | null
+  selected: boolean
+  onSelect: () => void
+}) {
   const value = metricValue(reading, definition.key)
   const completion = metricCompletion(value, definition.max)
 
   return (
-    <div className="rounded-lg border border-border bg-secondary/25 p-3">
+    <button
+      type="button"
+      onClick={onSelect}
+      className={`rounded-lg border p-3 text-left transition-colors hover:border-primary/50 hover:bg-primary/5 ${
+        selected ? 'border-primary/60 bg-primary/10' : 'border-border bg-secondary/25'
+      }`}
+    >
       <div className="flex items-start justify-between gap-2">
         <p className="text-xs text-muted-foreground">{definition.label}</p>
-        <Gauge className="h-3.5 w-3.5 text-muted-foreground" />
+        <BarChart3 className={`h-3.5 w-3.5 ${selected ? 'text-primary' : 'text-muted-foreground'}`} />
       </div>
       <p className="mt-2 text-xl font-semibold text-foreground">{formatMetric(value, definition.decimals, definition.unit)}</p>
       {completion !== null && (
@@ -210,11 +225,21 @@ function MetricCard({ definition, reading }: { definition: MetricDefinition; rea
         </div>
       )}
       <p className="mt-2 font-mono text-[10px] text-white/35">{definition.key}</p>
-    </div>
+    </button>
   )
 }
 
-function SectionCard({ section, reading }: { section: MetricSection; reading: WeatherReadingResponse | null }) {
+function SectionCard({
+  section,
+  reading,
+  selectedMetricKey,
+  onMetricSelect,
+}: {
+  section: MetricSection
+  reading: WeatherReadingResponse | null
+  selectedMetricKey: string | null
+  onMetricSelect: (metric: MetricDefinition) => void
+}) {
   const Icon = section.icon
   return (
     <section className="rounded-xl border border-border bg-card p-5 shadow-[inset_0_0_0_1px_rgba(148,163,184,0.06)]">
@@ -227,32 +252,116 @@ function SectionCard({ section, reading }: { section: MetricSection; reading: We
           <p className="mt-1 text-sm text-muted-foreground">{section.description}</p>
         </div>
         <div className="rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-[10px] uppercase tracking-[0.14em] text-white/50">
-          Live cell
+          Click metric
         </div>
       </div>
       <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2">
         {section.metrics.map((definition) => (
-          <MetricCard key={definition.key} definition={definition} reading={reading} />
+          <MetricCard
+            key={definition.key}
+            definition={definition}
+            reading={reading}
+            selected={selectedMetricKey === definition.key}
+            onSelect={() => onMetricSelect(definition)}
+          />
         ))}
       </div>
     </section>
   )
 }
 
+function TrendChart({ metric, historyPoints }: { metric: MetricDefinition | null; historyPoints: HistoryPoint[] }) {
+  const values = useMemo(() => {
+    if (!metric) return []
+    return historyPoints
+      .map((point) => ({
+        label: formatTimestamp(point.reading?.matched_timestamp || point.requestedAt),
+        value: readingNumber(point.reading, metric.key),
+      }))
+      .filter((point): point is { label: string; value: number } => point.value !== null)
+  }, [historyPoints, metric])
+
+  if (!metric) {
+    return (
+      <div className="rounded-lg border border-dashed border-border bg-secondary/20 p-6 text-sm text-muted-foreground">
+        Click any metric card above to show its historical trend here.
+      </div>
+    )
+  }
+
+  if (values.length < 2) {
+    return (
+      <div className="rounded-lg border border-border bg-secondary/20 p-6 text-sm text-muted-foreground">
+        Not enough historical points for {metric.label}. Select a weather grid point or load a cell first.
+      </div>
+    )
+  }
+
+  const width = 720
+  const height = 220
+  const paddingX = 36
+  const paddingY = 28
+  const min = Math.min(...values.map((point) => point.value))
+  const max = Math.max(...values.map((point) => point.value))
+  const spread = max - min || 1
+  const points = values.map((point, index) => {
+    const x = paddingX + (index / Math.max(1, values.length - 1)) * (width - paddingX * 2)
+    const y = paddingY + (1 - (point.value - min) / spread) * (height - paddingY * 2)
+    return { ...point, x, y }
+  })
+  const polyline = points.map((point) => `${point.x},${point.y}`).join(' ')
+
+  return (
+    <div className="rounded-lg border border-border bg-secondary/20 p-4">
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <p className="text-sm font-semibold text-foreground">{metric.label}</p>
+          <p className="text-xs text-muted-foreground">{metric.key}</p>
+        </div>
+        <div className="text-right text-xs text-muted-foreground">
+          <p>Min {formatMetric(min, metric.decimals, metric.unit)}</p>
+          <p>Max {formatMetric(max, metric.decimals, metric.unit)}</p>
+        </div>
+      </div>
+      <svg viewBox={`0 0 ${width} ${height}`} className="mt-3 h-56 w-full overflow-visible">
+        <line x1={paddingX} y1={height - paddingY} x2={width - paddingX} y2={height - paddingY} stroke="rgba(148,163,184,0.25)" />
+        <line x1={paddingX} y1={paddingY} x2={paddingX} y2={height - paddingY} stroke="rgba(148,163,184,0.25)" />
+        {[0.25, 0.5, 0.75].map((ratio) => {
+          const y = paddingY + ratio * (height - paddingY * 2)
+          return <line key={ratio} x1={paddingX} y1={y} x2={width - paddingX} y2={y} stroke="rgba(148,163,184,0.12)" />
+        })}
+        <polyline points={polyline} fill="none" stroke={metric.accent} strokeWidth="3" strokeLinejoin="round" strokeLinecap="round" />
+        {points.map((point, index) => (
+          <g key={`${point.label}-${index}`}>
+            <circle cx={point.x} cy={point.y} r="4" fill={metric.accent} stroke="#0b0f14" strokeWidth="2" />
+            <title>{`${point.label}: ${formatMetric(point.value, metric.decimals, metric.unit)}`}</title>
+          </g>
+        ))}
+      </svg>
+    </div>
+  )
+}
+
 export function WeatherWorkspace() {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const [latitude, setLatitude] = useState(DEFAULT_LATITUDE)
-  const [longitude, setLongitude] = useState(DEFAULT_LONGITUDE)
+  const [latitude, setLatitude] = useState('')
+  const [longitude, setLongitude] = useState('')
   const [requestedAt, setRequestedAt] = useState(DEFAULT_REQUESTED_AT)
   const [reading, setReading] = useState<WeatherReadingResponse | null>(null)
   const [historyPoints, setHistoryPoints] = useState<HistoryPoint[]>([])
   const [gridCells, setGridCells] = useState<GridCellResult[]>([])
+  const [selectedMetricKey, setSelectedMetricKey] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [historyLoading, setHistoryLoading] = useState(false)
   const [gridLoading, setGridLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [gridError, setGridError] = useState<string | null>(null)
+
+  const selectedMetric = useMemo(
+    () => flatMetrics.find((metric) => metric.key === selectedMetricKey) || null,
+    [selectedMetricKey]
+  )
 
   const loadHistory = useCallback(async (latValue: string, lonValue: string, requestedAtValue: string) => {
     setHistoryLoading(true)
@@ -282,6 +391,13 @@ export function WeatherWorkspace() {
 
   const loadWeatherFor = useCallback(
     async (latValue: string, lonValue: string, requestedAtValue: string) => {
+      if (!latValue.trim() || !lonValue.trim()) {
+        setReading(null)
+        setHistoryPoints([])
+        setError(null)
+        return
+      }
+
       try {
         setLoading(true)
         setError(null)
@@ -310,20 +426,31 @@ export function WeatherWorkspace() {
   )
 
   useEffect(() => {
-    const nextLatitude = searchParams.get('weatherLat') || DEFAULT_LATITUDE
-    const nextLongitude = searchParams.get('weatherLng') || DEFAULT_LONGITUDE
+    const nextLatitude = searchParams.get('weatherLat') || ''
+    const nextLongitude = searchParams.get('weatherLng') || ''
     const nextRequestedAt = searchParams.get('weatherRequestedAt') || searchParams.get('requested_at') || DEFAULT_REQUESTED_AT
     setLatitude(nextLatitude)
     setLongitude(nextLongitude)
     setRequestedAt(nextRequestedAt)
+    if (!nextLatitude || !nextLongitude) {
+      setReading(null)
+      setHistoryPoints([])
+      setError(null)
+      return
+    }
     loadWeatherFor(nextLatitude, nextLongitude, nextRequestedAt)
   }, [loadWeatherFor, searchParams])
 
   const loadSelectedWeather = useCallback(() => {
+    if (!latitude.trim() || !longitude.trim()) {
+      setError('Select one of the yellow grid points on the lateral map, or enter latitude and longitude manually.')
+      return
+    }
     const params = new URLSearchParams(searchParams.toString())
     params.set('module', 'weather')
     params.set('weatherLat', latitude.trim())
     params.set('weatherLng', longitude.trim())
+    params.delete('weatherGridId')
     if (requestedAt.trim()) params.set('weatherRequestedAt', requestedAt.trim())
     router.push(`/dashboard?${params.toString()}`)
     loadWeatherFor(latitude, longitude, requestedAt)
@@ -354,32 +481,34 @@ export function WeatherWorkspace() {
   }, [requestedAt])
 
   const selectCoordinate = useCallback(
-    (latValue: number, lonValue: number) => {
+    (latValue: number, lonValue: number, gridId?: string) => {
       const params = new URLSearchParams(searchParams.toString())
       params.set('module', 'weather')
       params.set('weatherLat', latValue.toFixed(6))
       params.set('weatherLng', lonValue.toFixed(6))
+      if (gridId) params.set('weatherGridId', gridId)
       if (requestedAt.trim()) params.set('weatherRequestedAt', requestedAt.trim())
       router.push(`/dashboard?${params.toString()}`)
     },
     [requestedAt, router, searchParams]
   )
 
+  const hasSelection = Boolean(latitude.trim() && longitude.trim())
   const summary = useMemo(() => {
     const displayLatitude = reading?.coordinate?.latitude ?? toNumber(latitude)
     const displayLongitude = reading?.coordinate?.longitude ?? toNumber(longitude)
     return {
-      cellId: reading?.cell_id || 'N/A',
+      cellId: reading?.cell_id || (hasSelection ? 'Resolving...' : 'None'),
       gridSize: reading?.grid_size_m ? `${reading.grid_size_m / 1000} km` : '5 km',
-      country: countryLabel(reading?.country),
-      matchedTimestamp: formatTimestamp(reading?.matched_timestamp || reading?.stored_at || reading?.requested_at),
+      country: hasSelection ? countryLabel(reading?.country) : 'No point selected',
+      matchedTimestamp: hasSelection ? formatTimestamp(reading?.matched_timestamp || reading?.stored_at || reading?.requested_at) : 'Select a point',
       dataSource: reading?.data_source || 'Weather API',
       coordinate:
         displayLatitude !== null && displayLongitude !== null
           ? `${displayLatitude.toFixed(4)}, ${displayLongitude.toFixed(4)}`
-          : 'N/A',
+          : 'Click grid point',
     }
-  }, [latitude, longitude, reading])
+  }, [hasSelection, latitude, longitude, reading])
 
   const gridStats = useMemo(() => {
     const successfulCells = gridCells.filter((cell) => cell.reading)
@@ -418,29 +547,36 @@ export function WeatherWorkspace() {
                 Weather Command
               </h1>
               <p className="mt-3 max-w-3xl text-sm text-muted-foreground">
-                Click the lateral map to resolve the nearest Qatar weather cell, inspect the historical trend, or load the
-                national 510-cell weather grid at 5 km resolution with solar values assigned from the 10 km light grid.
+                Select one of the 510 yellow grid points on the lateral map. The panel stays empty until a point is selected;
+                after selection, click any metric card to plot its historical trend.
               </p>
             </div>
             <div className="grid grid-cols-2 gap-2 text-xs">
               <div className="rounded-md border border-primary/30 bg-primary/10 px-3 py-2 text-primary">WEATHER: 5 KM</div>
               <div className="rounded-md border border-amber-400/30 bg-amber-500/10 px-3 py-2 text-amber-200">LIGHT: 10 KM</div>
-              <div className="rounded-md border border-border bg-secondary/50 px-3 py-2 text-foreground">CELLS: 510</div>
-              <div className="rounded-md border border-border bg-secondary/50 px-3 py-2 text-foreground">CLICK MAP: ON</div>
+              <div className="rounded-md border border-border bg-secondary/50 px-3 py-2 text-foreground">POINTS: 510</div>
+              <div className="rounded-md border border-border bg-secondary/50 px-3 py-2 text-foreground">SELECT: MAP</div>
             </div>
           </div>
         </div>
       </div>
 
+      {!hasSelection && (
+        <div className="rounded-xl border border-amber-400/30 bg-amber-500/10 p-4 text-sm text-amber-100">
+          <p className="flex items-center gap-2 font-semibold"><MousePointer2 className="h-4 w-4" />No weather cell selected.</p>
+          <p className="mt-1 text-amber-100/75">Click a yellow point on the map at right to load that 5 km Qatar grid cell.</p>
+        </div>
+      )}
+
       <div className="rounded-xl border border-border bg-card p-5">
         <div className="grid grid-cols-1 gap-3 xl:grid-cols-[1fr_1fr_1.2fr_auto_auto]">
           <label className="space-y-1.5 text-sm">
             <span className="text-xs uppercase tracking-[0.12em] text-muted-foreground">Latitude</span>
-            <input value={latitude} onChange={(event) => setLatitude(event.target.value)} className="w-full rounded-lg border border-border bg-secondary/40 px-3 py-2 text-foreground outline-none focus:border-primary" inputMode="decimal" />
+            <input value={latitude} onChange={(event) => setLatitude(event.target.value)} className="w-full rounded-lg border border-border bg-secondary/40 px-3 py-2 text-foreground outline-none focus:border-primary" inputMode="decimal" placeholder="Select point" />
           </label>
           <label className="space-y-1.5 text-sm">
             <span className="text-xs uppercase tracking-[0.12em] text-muted-foreground">Longitude</span>
-            <input value={longitude} onChange={(event) => setLongitude(event.target.value)} className="w-full rounded-lg border border-border bg-secondary/40 px-3 py-2 text-foreground outline-none focus:border-primary" inputMode="decimal" />
+            <input value={longitude} onChange={(event) => setLongitude(event.target.value)} className="w-full rounded-lg border border-border bg-secondary/40 px-3 py-2 text-foreground outline-none focus:border-primary" inputMode="decimal" placeholder="Select point" />
           </label>
           <label className="space-y-1.5 text-sm">
             <span className="text-xs uppercase tracking-[0.12em] text-muted-foreground">Requested at</span>
@@ -450,7 +586,7 @@ export function WeatherWorkspace() {
             {loading ? <span className="flex items-center gap-2"><Loader2 className="h-4 w-4 animate-spin" />Loading</span> : <span className="flex items-center gap-2"><RefreshCw className="h-4 w-4" />Load cell</span>}
           </button>
           <button type="button" onClick={loadNationalGrid} disabled={gridLoading} className="self-end rounded-lg border border-amber-400/40 bg-amber-500/10 px-4 py-2 text-sm font-semibold text-amber-200 transition-colors hover:bg-amber-500/15 disabled:cursor-not-allowed disabled:opacity-60">
-            {gridLoading ? <span className="flex items-center gap-2"><Loader2 className="h-4 w-4 animate-spin" />Grid</span> : <span className="flex items-center gap-2"><Grid3X3 className="h-4 w-4" />Load 510 grid</span>}
+            {gridLoading ? <span className="flex items-center gap-2"><Loader2 className="h-4 w-4 animate-spin" />Grid</span> : <span className="flex items-center gap-2"><Grid3X3 className="h-4 w-4" />Load grid data</span>}
           </button>
         </div>
         {error && <div className="mt-4 rounded-lg border border-red-400/30 bg-red-500/10 p-3 text-sm text-red-200">{error}</div>}
@@ -458,17 +594,23 @@ export function WeatherWorkspace() {
       </div>
 
       <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-6">
-        <SummaryCard icon={MapPin} label="Cell" value={summary.cellId} detail={summary.country} primary />
-        <SummaryCard label="Coordinate" value={summary.coordinate} detail="Selected map point" />
+        <SummaryCard icon={MapPin} label="Cell" value={summary.cellId} detail={summary.country} primary={hasSelection} />
+        <SummaryCard label="Coordinate" value={summary.coordinate} detail="Selected grid point" />
         <SummaryCard icon={Compass} label="Grid" value={summary.gridSize} detail="Weather/agro resolution" />
         <SummaryCard icon={SunMedium} label="Solar grid" value="10 km" detail="Light radiation layer" valueClassName="text-amber-300" />
         <SummaryCard label="Snapshot" value={summary.matchedTimestamp} detail="Nearest requested time" smallValue />
-        <SummaryCard icon={Sprout} label="Source" value={summary.dataSource} detail="OpenWeather + Open-Meteo grid" smallValue />
+        <SummaryCard icon={Sprout} label="Source" value={hasSelection ? summary.dataSource : 'Waiting'} detail="OpenWeather + Open-Meteo grid" smallValue />
       </div>
 
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
         {metricSections.map((section) => (
-          <SectionCard key={section.title} section={section} reading={reading} />
+          <SectionCard
+            key={section.title}
+            section={section}
+            reading={reading}
+            selectedMetricKey={selectedMetricKey}
+            onMetricSelect={(metric) => setSelectedMetricKey(metric.key)}
+          />
         ))}
       </div>
 
@@ -477,7 +619,23 @@ export function WeatherWorkspace() {
           <div>
             <h2 className="flex items-center gap-2 text-lg font-semibold text-foreground">
               <BarChart3 className="h-5 w-5 text-primary" />
-              Historical trend for selected cell
+              Metric trend
+            </h2>
+            <p className="mt-1 text-sm text-muted-foreground">Click a metric card to plot its historical movement for the selected grid point.</p>
+          </div>
+          {historyLoading && <Loader2 className="h-4 w-4 animate-spin text-primary" />}
+        </div>
+        <div className="mt-4">
+          <TrendChart metric={selectedMetric} historyPoints={historyPoints} />
+        </div>
+      </section>
+
+      <section className="rounded-xl border border-border bg-card p-5">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 className="flex items-center gap-2 text-lg font-semibold text-foreground">
+              <BarChart3 className="h-5 w-5 text-muted-foreground" />
+              Historical table
             </h2>
             <p className="mt-1 text-sm text-muted-foreground">Nearest stored snapshots every 3 hours ending at the requested timestamp.</p>
           </div>
@@ -518,9 +676,9 @@ export function WeatherWorkspace() {
           <div>
             <h2 className="flex items-center gap-2 text-lg font-semibold text-foreground">
               <Grid3X3 className="h-5 w-5 text-amber-300" />
-              Qatar 5 km weather grid
+              Qatar 5 km weather grid data
             </h2>
-            <p className="mt-1 text-sm text-muted-foreground">Loads all 510 operational cells. Click a row to inspect that cell in the panel.</p>
+            <p className="mt-1 text-sm text-muted-foreground">The map points are always visible. This table loads API values for all 510 cells on demand.</p>
           </div>
           <div className="grid grid-cols-2 gap-2 text-xs md:grid-cols-4">
             <div className="rounded-md border border-border bg-secondary/40 px-3 py-2">Loaded: {gridStats.loaded}/{TOTAL_QATAR_GRID_CELLS}</div>
@@ -543,10 +701,10 @@ export function WeatherWorkspace() {
             </thead>
             <tbody className="divide-y divide-border/70">
               {gridCells.length === 0 ? (
-                <tr><td className="px-3 py-4 text-muted-foreground" colSpan={6}>Click "Load 510 grid" to fetch Qatar-wide weather cells.</td></tr>
+                <tr><td className="px-3 py-4 text-muted-foreground" colSpan={6}>Click "Load grid data" to fetch API values for all cells.</td></tr>
               ) : (
                 gridCells.map((cell, index) => (
-                  <tr key={cell.id} onClick={() => selectCoordinate(cell.latitude, cell.longitude)} className={`cursor-pointer transition-colors hover:bg-primary/10 ${index % 2 === 0 ? 'bg-card/60' : 'bg-secondary/20'}`}>
+                  <tr key={cell.id} onClick={() => selectCoordinate(cell.latitude, cell.longitude, cell.id)} className={`cursor-pointer transition-colors hover:bg-primary/10 ${index % 2 === 0 ? 'bg-card/60' : 'bg-secondary/20'}`}>
                     <td className="px-3 py-2.5 font-medium text-foreground">{cell.id}</td>
                     <td className="px-3 py-2.5 text-muted-foreground">{cell.reading?.cell_id || (cell.error ? 'Error' : 'N/A')}</td>
                     <td className="px-3 py-2.5 text-muted-foreground">{cell.latitude.toFixed(4)}, {cell.longitude.toFixed(4)}</td>
