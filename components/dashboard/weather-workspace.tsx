@@ -1,6 +1,6 @@
 'use client'
 
-import { type ComponentType, useCallback, useEffect, useMemo, useState } from 'react'
+import { type ComponentType, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import {
   BarChart3,
@@ -359,13 +359,26 @@ export function WeatherWorkspace() {
   const [error, setError] = useState<string | null>(null)
   const [gridError, setGridError] = useState<string | null>(null)
   const [historyError, setHistoryError] = useState<string | null>(null)
+  const historyCacheRef = useRef<Record<string, HistoryPoint[]>>({})
 
   const selectedMetric = useMemo(
     () => flatMetrics.find((metric) => metric.key === selectedMetricKey) || null,
     [selectedMetricKey]
   )
 
+  const getHistoryCacheKey = useCallback((latValue: string, lonValue: string, requestedAtValue: string) => {
+    return `${Number(latValue).toFixed(5)}:${Number(lonValue).toFixed(5)}:${requestedAtValue.trim() || 'latest'}`
+  }, [])
+
   const loadHistory = useCallback(async (latValue: string, lonValue: string, requestedAtValue: string) => {
+    const cacheKey = getHistoryCacheKey(latValue, lonValue, requestedAtValue)
+    const cached = historyCacheRef.current[cacheKey]
+    if (cached) {
+      setHistoryPoints(cached)
+      setHistoryError(null)
+      return
+    }
+
     setHistoryLoading(true)
     setHistoryError(null)
     try {
@@ -384,6 +397,7 @@ export function WeatherWorkspace() {
         throw new Error(typeof message === 'string' ? message : 'Failed to load weather history')
       }
       const points = Array.isArray(asRecord(payload)?.points) ? (asRecord(payload)?.points as HistoryPoint[]) : []
+      historyCacheRef.current[cacheKey] = points
       setHistoryPoints(points)
       if (points.length === 0) setHistoryError('No historical readings returned for this cell yet.')
     } catch (historyLoadError) {
@@ -392,7 +406,7 @@ export function WeatherWorkspace() {
     } finally {
       setHistoryLoading(false)
     }
-  }, [])
+  }, [getHistoryCacheKey])
 
   const loadWeatherFor = useCallback(
     async (latValue: string, lonValue: string, requestedAtValue: string) => {
@@ -418,7 +432,8 @@ export function WeatherWorkspace() {
           throw new Error(`${typeof message === 'string' ? message : 'Failed to load weather data'}${typeof hint === 'string' ? `. ${hint}` : ''}`)
         }
         setReading(asRecord(payload) as WeatherReadingResponse | null)
-        loadHistory(latValue, lonValue, requestedAtValue)
+        setHistoryPoints([])
+        setHistoryError(null)
       } catch (loadError) {
         setError(loadError instanceof Error ? loadError.message : 'Failed to load weather data')
         setReading(null)
@@ -427,7 +442,7 @@ export function WeatherWorkspace() {
         setLoading(false)
       }
     },
-    [loadHistory]
+    []
   )
 
   useEffect(() => {
@@ -617,6 +632,9 @@ export function WeatherWorkspace() {
             onMetricSelect={(metric) => {
               setSelectedMetricKey(metric.key)
               setChartModalOpen(true)
+              if (latitude.trim() && longitude.trim()) {
+                loadHistory(latitude, longitude, requestedAt)
+              }
             }}
           />
         ))}

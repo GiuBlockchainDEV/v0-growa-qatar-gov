@@ -71,13 +71,17 @@ export async function fetchWeatherByCoordinates({
     upstreamUrl.searchParams.set('requested_at', requestedAt)
   }
 
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), 12_000)
+
   const upstreamResponse = await fetch(upstreamUrl, {
     headers: {
       Accept: 'application/json',
       'x-api-key': apiKey,
     },
     cache: 'no-store',
-  })
+    signal: controller.signal,
+  }).finally(() => clearTimeout(timeout))
   const payload = await upstreamResponse.json().catch(() => null)
 
   if (!upstreamResponse.ok) {

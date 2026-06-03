@@ -7,17 +7,24 @@ import {
   parseRequestedAt,
 } from '../../_shared'
 
+const HISTORY_CACHE_TTL_MS = 5 * 60 * 1000
+const historyCache = new Map<string, { expiresAt: number; payload: unknown }>()
+
 function parseInteger(input: string | null, fallback: number, min: number, max: number) {
   const value = input ? Number(input) : fallback
   if (!Number.isFinite(value)) return fallback
   return Math.max(min, Math.min(max, Math.floor(value)))
 }
 
+function buildCacheKey(latitude: number, longitude: number, requestedAt: string | null, count: number, intervalHours: number) {
+  return [latitude.toFixed(5), longitude.toFixed(5), requestedAt || 'latest', count, intervalHours].join(':')
+}
+
 function buildTimeline(endIso: string | null, count: number, intervalHours: number) {
   const endDate = endIso ? new Date(endIso) : new Date()
   const endMs = Number.isNaN(endDate.getTime()) ? Date.now() : endDate.getTime()
   const intervalMs = intervalHours * 60 * 60 * 1000
-  const attempts = Math.min(count * 2, 180)
+  const attempts = Math.min(count + 30, 140)
 
   return Array.from({ length: attempts }, (_, index) => new Date(endMs - index * intervalMs).toISOString())
 }
@@ -59,12 +66,23 @@ export async function GET(request: Request) {
     return NextResponse.json(missingWeatherApiKeyPayload(), { status: 500 })
   }
 
+  const cacheKey = buildCacheKey(latitude, longitude, requestedAt, count, intervalHours)
+  const cached = historyCache.get(cacheKey)
+  if (cached && cached.expiresAt > Date.now()) {
+    return NextResponse.json(cached.payload, {
+      headers: {
+        'Cache-Control': 'private, max-age=300',
+        'X-Weather-History-Cache': 'HIT',
+      },
+    })
+  }
+
   const timeline = buildTimeline(requestedAt, count, intervalHours)
 
   try {
     const points: Array<{ requestedAt: string; reading: unknown; error: string | null }> = []
     const seen = new Set<string>()
-    const batchSize = 12
+    const batchSize = 20
 
     for (let index = 0; index < timeline.length && points.length < count; index += batchSize) {
       const batch = timeline.slice(index, index + batchSize)
@@ -101,21 +119,26 @@ export async function GET(request: Request) {
 
     const chronologicalPoints = [...points].reverse()
 
-    return NextResponse.json(
-      {
-        latitude,
-        longitude,
-        intervalHours,
-        count,
-        returnedCount: chronologicalPoints.length,
-        points: chronologicalPoints,
+    const payload = {
+      latitude,
+      longitude,
+      intervalHours,
+      count,
+      returnedCount: chronologicalPoints.length,
+      points: chronologicalPoints,
+    }
+
+    historyCache.set(cacheKey, {
+      expiresAt: Date.now() + HISTORY_CACHE_TTL_MS,
+      payload,
+    })
+
+    return NextResponse.json(payload, {
+      headers: {
+        'Cache-Control': 'private, max-age=300',
+        'X-Weather-History-Cache': 'MISS',
       },
-      {
-        headers: {
-          'Cache-Control': 'no-store',
-        },
-      }
-    )
+    })
   } catch (error) {
     return NextResponse.json(
       {
