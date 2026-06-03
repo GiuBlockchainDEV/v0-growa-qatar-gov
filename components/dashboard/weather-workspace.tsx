@@ -7,7 +7,6 @@ import {
   CloudRain,
   CloudSun,
   Compass,
-  Grid3X3,
   Loader2,
   MapPin,
   MousePointer2,
@@ -41,17 +40,6 @@ interface HistoryPoint {
   error: string | null
 }
 
-interface GridCellResult {
-  id: string
-  latitude: number
-  longitude: number
-  gridSizeM: number
-  row: number
-  col: number
-  reading: WeatherReadingResponse | null
-  error: string | null
-}
-
 interface MetricDefinition {
   key: string
   label: string
@@ -70,7 +58,6 @@ interface MetricSection {
 }
 
 const DEFAULT_REQUESTED_AT = ''
-const TOTAL_QATAR_GRID_CELLS = 510
 
 const metricSections: MetricSection[] = [
   {
@@ -397,14 +384,11 @@ export function WeatherWorkspace() {
   const [requestedAt, setRequestedAt] = useState(DEFAULT_REQUESTED_AT)
   const [reading, setReading] = useState<WeatherReadingResponse | null>(null)
   const [historyPoints, setHistoryPoints] = useState<HistoryPoint[]>([])
-  const [gridCells, setGridCells] = useState<GridCellResult[]>([])
   const [selectedMetricKey, setSelectedMetricKey] = useState<string | null>(null)
   const [chartModalOpen, setChartModalOpen] = useState(false)
   const [loading, setLoading] = useState(false)
   const [historyLoading, setHistoryLoading] = useState(false)
-  const [gridLoading, setGridLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [gridError, setGridError] = useState<string | null>(null)
   const [historyError, setHistoryError] = useState<string | null>(null)
   const historyCacheRef = useRef<Record<string, HistoryPoint[]>>({})
   const activeHistoryKeyRef = useRef<string>('')
@@ -592,29 +576,7 @@ export function WeatherWorkspace() {
     loadWeatherFor(latitude, longitude, requestedAt)
   }, [latitude, loadWeatherFor, longitude, requestedAt, router, searchParams])
 
-  const loadNationalGrid = useCallback(async () => {
-    try {
-      setGridLoading(true)
-      setGridError(null)
-      const params = new URLSearchParams({ limit: String(TOTAL_QATAR_GRID_CELLS) })
-      if (requestedAt.trim()) params.set('requested_at', requestedAt.trim())
-      const response = await fetch(`/api/weather/grid?${params.toString()}`, { cache: 'no-store' })
-      const payload = await response.json().catch(() => null)
-      if (!response.ok) {
-        const record = asRecord(payload)
-        const message = record?.error
-        const hint = record?.hint
-        throw new Error(`${typeof message === 'string' ? message : 'Failed to load Qatar weather grid'}${typeof hint === 'string' ? `. ${hint}` : ''}`)
-      }
-      const cells = Array.isArray(asRecord(payload)?.cells) ? (asRecord(payload)?.cells as GridCellResult[]) : []
-      setGridCells(cells)
-    } catch (gridLoadError) {
-      setGridError(gridLoadError instanceof Error ? gridLoadError.message : 'Failed to load Qatar weather grid')
-      setGridCells([])
-    } finally {
-      setGridLoading(false)
-    }
-  }, [requestedAt])
+
 
   const selectCoordinate = useCallback(
     (latValue: number, lonValue: number, gridId?: string) => {
@@ -645,21 +607,6 @@ export function WeatherWorkspace() {
           : 'Click grid point',
     }
   }, [hasSelection, latitude, longitude, reading])
-
-  const gridStats = useMemo(() => {
-    const successfulCells = gridCells.filter((cell) => cell.reading)
-    const temperatures = successfulCells.map((cell) => readingNumber(cell.reading, 'temperature_c')).filter((value): value is number => value !== null)
-    const waterStressValues = successfulCells.map((cell) => readingNumber(cell.reading, 'water_stress_index_0_100')).filter((value): value is number => value !== null)
-    const averageTemperature = temperatures.length > 0 ? temperatures.reduce((sum, value) => sum + value, 0) / temperatures.length : null
-    const maxWaterStress = waterStressValues.length > 0 ? Math.max(...waterStressValues) : null
-    return {
-      loaded: gridCells.length,
-      successful: successfulCells.length,
-      failed: gridCells.length - successfulCells.length,
-      averageTemperature,
-      maxWaterStress,
-    }
-  }, [gridCells])
 
 
 
@@ -699,7 +646,7 @@ export function WeatherWorkspace() {
       )}
 
       <div className="rounded-xl border border-border bg-card p-5">
-        <div className="grid grid-cols-1 gap-3 xl:grid-cols-[1fr_1fr_1.2fr_auto_auto]">
+        <div className="grid grid-cols-1 gap-3 xl:grid-cols-[1fr_1fr_1.2fr_auto]">
           <label className="space-y-1.5 text-sm">
             <span className="text-xs uppercase tracking-[0.12em] text-muted-foreground">Latitude</span>
             <input value={latitude} onChange={(event) => setLatitude(event.target.value)} className="w-full rounded-lg border border-border bg-secondary/40 px-3 py-2 text-foreground outline-none focus:border-primary" inputMode="decimal" placeholder="Select point" />
@@ -715,12 +662,8 @@ export function WeatherWorkspace() {
           <button type="button" onClick={loadSelectedWeather} disabled={loading} className="self-end rounded-lg border border-primary/40 bg-primary/10 px-4 py-2 text-sm font-semibold text-primary transition-colors hover:bg-primary/15 disabled:cursor-not-allowed disabled:opacity-60">
             {loading ? <span className="flex items-center gap-2"><Loader2 className="h-4 w-4 animate-spin" />Loading</span> : <span className="flex items-center gap-2"><RefreshCw className="h-4 w-4" />Load cell</span>}
           </button>
-          <button type="button" onClick={loadNationalGrid} disabled={gridLoading} className="self-end rounded-lg border border-amber-400/40 bg-amber-500/10 px-4 py-2 text-sm font-semibold text-amber-200 transition-colors hover:bg-amber-500/15 disabled:cursor-not-allowed disabled:opacity-60">
-            {gridLoading ? <span className="flex items-center gap-2"><Loader2 className="h-4 w-4 animate-spin" />Grid</span> : <span className="flex items-center gap-2"><Grid3X3 className="h-4 w-4" />Load grid data</span>}
-          </button>
         </div>
         {error && <div className="mt-4 rounded-lg border border-red-400/30 bg-red-500/10 p-3 text-sm text-red-200">{error}</div>}
-        {gridError && <div className="mt-4 rounded-lg border border-red-400/30 bg-red-500/10 p-3 text-sm text-red-200">{gridError}</div>}
       </div>
 
       <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-6">
@@ -787,53 +730,7 @@ export function WeatherWorkspace() {
         </div>
       </div>
 
-      <section className="rounded-xl border border-border bg-card p-5">
-        <div className="flex flex-wrap items-center justify-between gap-4">
-          <div>
-            <h2 className="flex items-center gap-2 text-lg font-semibold text-foreground">
-              <Grid3X3 className="h-5 w-5 text-amber-300" />
-              Qatar 5 km weather grid data
-            </h2>
-            <p className="mt-1 text-sm text-muted-foreground">The map points are always visible. This table loads API values for all 510 cells on demand.</p>
-          </div>
-          <div className="grid grid-cols-2 gap-2 text-xs md:grid-cols-4">
-            <div className="rounded-md border border-border bg-secondary/40 px-3 py-2">Loaded: {gridStats.loaded}/{TOTAL_QATAR_GRID_CELLS}</div>
-            <div className="rounded-md border border-border bg-secondary/40 px-3 py-2">OK: {gridStats.successful}</div>
-            <div className="rounded-md border border-border bg-secondary/40 px-3 py-2">Avg temp: {formatMetric(gridStats.averageTemperature, 1, ' C')}</div>
-            <div className="rounded-md border border-border bg-secondary/40 px-3 py-2">Max stress: {formatMetric(gridStats.maxWaterStress, 1, '/100')}</div>
-          </div>
-        </div>
-        <div className="mt-4 max-h-96 overflow-auto rounded-lg border border-border">
-          <table className="min-w-full divide-y divide-border text-left text-sm">
-            <thead className="sticky top-0 bg-secondary text-xs uppercase tracking-[0.12em] text-muted-foreground">
-              <tr>
-                <th className="px-3 py-2.5 font-medium">Grid</th>
-                <th className="px-3 py-2.5 font-medium">API cell</th>
-                <th className="px-3 py-2.5 font-medium">Coordinate</th>
-                <th className="px-3 py-2.5 font-medium">Temp</th>
-                <th className="px-3 py-2.5 font-medium">GHI</th>
-                <th className="px-3 py-2.5 font-medium">Water stress</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border/70">
-              {gridCells.length === 0 ? (
-                <tr><td className="px-3 py-4 text-muted-foreground" colSpan={6}>Click "Load grid data" to fetch API values for all cells.</td></tr>
-              ) : (
-                gridCells.map((cell, index) => (
-                  <tr key={cell.id} onClick={() => selectCoordinate(cell.latitude, cell.longitude, cell.id)} className={`cursor-pointer transition-colors hover:bg-primary/10 ${index % 2 === 0 ? 'bg-card/60' : 'bg-secondary/20'}`}>
-                    <td className="px-3 py-2.5 font-medium text-foreground">{cell.id}</td>
-                    <td className="px-3 py-2.5 text-muted-foreground">{cell.reading?.cell_id || (cell.error ? 'Error' : 'N/A')}</td>
-                    <td className="px-3 py-2.5 text-muted-foreground">{cell.latitude.toFixed(4)}, {cell.longitude.toFixed(4)}</td>
-                    <td className="px-3 py-2.5">{formatMetric(metricValue(cell.reading, 'temperature_c'), 1, ' C')}</td>
-                    <td className="px-3 py-2.5">{formatMetric(metricValue(cell.reading, 'solar_ghi_w_m2'), 1, ' W/m2')}</td>
-                    <td className="px-3 py-2.5 text-primary">{formatMetric(metricValue(cell.reading, 'water_stress_index_0_100'), 1, '/100')}</td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-      </section>
+
       {chartModalOpen && (
         <div className="fixed inset-0 z-[2600] flex items-center justify-center bg-black/70 p-6 backdrop-blur-sm">
           <div className="max-h-[88vh] w-full max-w-5xl overflow-y-auto rounded-2xl border border-border bg-[#070a10] p-6 shadow-2xl">
