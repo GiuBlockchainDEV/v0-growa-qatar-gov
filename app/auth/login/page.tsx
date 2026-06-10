@@ -65,7 +65,7 @@ export default function Page() {
             </h1>
             <p className="text-lg text-muted-foreground max-w-md">
               Sovereign Agricultural Operations Platform. 
-              Access real-time monitoring and analytics for Qatar's agricultural resources.
+              Access real-time monitoring and analytics for Qatar&apos;s agricultural resources.
             </p>
             <div className="flex items-center gap-2 pt-4">
               <Activity className="h-4 w-4 text-primary" />
