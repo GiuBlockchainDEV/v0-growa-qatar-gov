@@ -70,18 +70,22 @@ export async function GET() {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  let { data, error } = await supabase
+  const initialResult = await supabase
     .from('custom_map_points')
     .select(SELECT_WITH_EXTERNAL_URL)
     .eq('user_id', user.id)
     .order('created_at', { ascending: true })
+  let data: Record<string, unknown>[] | null = initialResult.data
+  let error = initialResult.error
 
   if (error && isMissingColumnError(error, 'external_url')) {
-    ;({ data, error } = await supabase
+    const fallbackResult = await supabase
       .from('custom_map_points')
       .select(SELECT_BASE)
       .eq('user_id', user.id)
-      .order('created_at', { ascending: true }))
+      .order('created_at', { ascending: true })
+    data = fallbackResult.data as Record<string, unknown>[] | null
+    error = fallbackResult.error
   }
 
   if (error) {
@@ -132,11 +136,13 @@ export async function POST(request: Request) {
     ...(hasExternalUrlInput ? { external_url: externalUrl || null } : {}),
   }
 
-  let { data, error } = await supabase
+  const initialResult = await supabase
     .from('custom_map_points')
     .upsert(pointPayload, { onConflict: 'id' })
     .select(SELECT_WITH_EXTERNAL_URL)
     .single()
+  let data: Record<string, unknown> | null = initialResult.data
+  let error = initialResult.error
 
   if (error && isMissingColumnError(error, 'external_url')) {
     if (hasExternalUrlInput && externalUrl) {
@@ -147,15 +153,20 @@ export async function POST(request: Request) {
     }
     const fallbackPayload = { ...pointPayload }
     delete (fallbackPayload as { external_url?: string | null }).external_url
-    ;({ data, error } = await supabase
+    const fallbackResult = await supabase
       .from('custom_map_points')
       .upsert(fallbackPayload, { onConflict: 'id' })
       .select(SELECT_BASE)
-      .single())
+      .single()
+    data = fallbackResult.data as Record<string, unknown> | null
+    error = fallbackResult.error
   }
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 })
+  }
+  if (!data) {
+    return NextResponse.json({ error: 'Failed to save point' }, { status: 500 })
   }
 
   return NextResponse.json(mapRowToResponse(data), { status: 201 })
@@ -194,13 +205,15 @@ export async function PATCH(request: Request) {
     updated_at: new Date().toISOString(),
   }
 
-  let { data, error } = await supabase
+  const initialResult = await supabase
     .from('custom_map_points')
     .update(pointPayload)
     .eq('id', id)
     .eq('user_id', user.id)
     .select(SELECT_WITH_EXTERNAL_URL)
     .maybeSingle()
+  let data: Record<string, unknown> | null = initialResult.data
+  let error = initialResult.error
 
   if (error && isMissingColumnError(error, 'external_url')) {
     if (hasExternalUrlInput && externalUrl) {
@@ -211,13 +224,15 @@ export async function PATCH(request: Request) {
     }
     const fallbackPayload = { ...pointPayload }
     delete (fallbackPayload as { external_url?: string | null }).external_url
-    ;({ data, error } = await supabase
+    const fallbackResult = await supabase
       .from('custom_map_points')
       .update(fallbackPayload)
       .eq('id', id)
       .eq('user_id', user.id)
       .select(SELECT_BASE)
-      .maybeSingle())
+      .maybeSingle()
+    data = fallbackResult.data as Record<string, unknown> | null
+    error = fallbackResult.error
   }
 
   if (error) {
