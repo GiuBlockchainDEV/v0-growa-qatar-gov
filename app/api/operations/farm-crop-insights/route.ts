@@ -140,36 +140,48 @@ async function selectPolygonMetricRows(
   userId: string,
   pointId?: string
 ) {
-  const attempts = [SELECT_POLYGON_METRICS, SELECT_POLYGON_CROPS]
+  let metricQuery = supabase
+    .from('custom_point_polygons')
+    .select(SELECT_POLYGON_METRICS)
+    .eq('user_id', userId)
+    .order('created_at', { ascending: true })
 
-  for (const selectClause of attempts) {
-    let query = supabase
-      .from('custom_point_polygons')
-      .select(selectClause)
-      .eq('user_id', userId)
-      .order('created_at', { ascending: true })
-
-    if (pointId) {
-      query = query.eq('custom_point_id', pointId)
-    }
-
-    const { data, error } = await query
-    if (!error) {
-      return { data: data || [], error: null as null }
-    }
-
-    const retryable =
-      isMissingColumnError(error, 'estimated_production_tons') ||
-      isMissingColumnError(error, 'energy_consumption_kwh') ||
-      isMissingColumnError(error, 'water_consumption_m3')
-    if (retryable) continue
-    if (isMissingRelationError(error, 'custom_point_polygons')) {
-      return { data: [] as any[], error: null as null }
-    }
-    return { data: [] as any[], error }
+  if (pointId) {
+    metricQuery = metricQuery.eq('custom_point_id', pointId)
   }
 
-  return { data: [] as any[], error: null as null }
+  const { data, error } = await metricQuery
+  if (!error) {
+    return { data: data || [], hasMetrics: true, error: null as null }
+  }
+
+  const missingMetrics =
+    isMissingColumnError(error, 'estimated_production_tons') ||
+    isMissingColumnError(error, 'energy_consumption_kwh') ||
+    isMissingColumnError(error, 'water_consumption_m3')
+  if (isMissingRelationError(error, 'custom_point_polygons')) {
+    return { data: [] as any[], hasMetrics: false, error: null as null }
+  }
+  if (!missingMetrics) {
+    return { data: [] as any[], hasMetrics: false, error }
+  }
+
+  let cropQuery = supabase
+    .from('custom_point_polygons')
+    .select(SELECT_POLYGON_CROPS)
+    .eq('user_id', userId)
+    .order('created_at', { ascending: true })
+
+  if (pointId) {
+    cropQuery = cropQuery.eq('custom_point_id', pointId)
+  }
+
+  const { data: cropData, error: cropError } = await cropQuery
+  if (cropError) {
+    return { data: [] as any[], hasMetrics: false, error: cropError }
+  }
+
+  return { data: cropData || [], hasMetrics: false, error: null as null }
 }
 
 export async function GET(request: Request) {
@@ -201,6 +213,7 @@ export async function GET(request: Request) {
 
   const {
     data: polygonMetricRows,
+    hasMetrics: polygonRowsHaveMetrics,
     error: polygonMetricError,
   } = await selectPolygonMetricRows(supabase, user.id, pointId || undefined)
   if (polygonMetricError) {
@@ -208,33 +221,35 @@ export async function GET(request: Request) {
   }
 
   const aggregateRowsByCropKey = new Map<string, ReturnType<typeof mapRowForResponse>>()
-  for (const polygonRow of polygonMetricRows || []) {
-    const row = polygonRow as Record<string, unknown>
-    const polygonPointId =
-      typeof row.custom_point_id === 'string' ? row.custom_point_id.trim() : ''
-    const polygonCropName =
-      typeof row.crop_name === 'string' ? row.crop_name.trim() : ''
-    if (!polygonPointId || !polygonCropName) continue
-    const cropKey = `${polygonPointId}::${polygonCropName.toLowerCase()}`
-    const legacyRow = legacyRowsByCropKey.get(cropKey)
-    const current = aggregateRowsByCropKey.get(cropKey) || {
-      id: `aggregate-${polygonPointId}-${polygonCropName.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`,
-      userId: user.id,
-      pointId: polygonPointId,
-      cropName: polygonCropName,
-      estimatedProductionTons: 0,
-      energyConsumptionKwh: 0,
-      waterConsumptionM3: 0,
-      externalUrl: legacyRow?.externalUrl || '',
-      createdAt:
-        typeof row.created_at === 'string' && row.created_at.trim()
-          ? row.created_at
-          : new Date().toISOString(),
+  if (polygonRowsHaveMetrics) {
+    for (const polygonRow of polygonMetricRows || []) {
+      const row = polygonRow as Record<string, unknown>
+      const polygonPointId =
+        typeof row.custom_point_id === 'string' ? row.custom_point_id.trim() : ''
+      const polygonCropName =
+        typeof row.crop_name === 'string' ? row.crop_name.trim() : ''
+      if (!polygonPointId || !polygonCropName) continue
+      const cropKey = `${polygonPointId}::${polygonCropName.toLowerCase()}`
+      const legacyRow = legacyRowsByCropKey.get(cropKey)
+      const current = aggregateRowsByCropKey.get(cropKey) || {
+        id: `aggregate-${polygonPointId}-${polygonCropName.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`,
+        userId: user.id,
+        pointId: polygonPointId,
+        cropName: polygonCropName,
+        estimatedProductionTons: 0,
+        energyConsumptionKwh: 0,
+        waterConsumptionM3: 0,
+        externalUrl: legacyRow?.externalUrl || '',
+        createdAt:
+          typeof row.created_at === 'string' && row.created_at.trim()
+            ? row.created_at
+            : new Date().toISOString(),
+      }
+      current.estimatedProductionTons += toPositiveNumber(row.estimated_production_tons)
+      current.energyConsumptionKwh += toPositiveNumber(row.energy_consumption_kwh)
+      current.waterConsumptionM3 += toPositiveNumber(row.water_consumption_m3)
+      aggregateRowsByCropKey.set(cropKey, current)
     }
-    current.estimatedProductionTons += toPositiveNumber(row.estimated_production_tons)
-    current.energyConsumptionKwh += toPositiveNumber(row.energy_consumption_kwh)
-    current.waterConsumptionM3 += toPositiveNumber(row.water_consumption_m3)
-    aggregateRowsByCropKey.set(cropKey, current)
   }
 
   const mergedRows = Array.from(aggregateRowsByCropKey.values())

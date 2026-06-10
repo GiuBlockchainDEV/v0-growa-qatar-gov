@@ -944,6 +944,28 @@ export function SatelliteMap({
     resetDraftMetadata()
   }, [resetDraftMetadata])
 
+  const refreshPointInsights = useCallback(async (pointId: string) => {
+    try {
+      const response = await fetch(
+        `/api/operations/farm-crop-insights?pointId=${encodeURIComponent(pointId)}`,
+        { cache: 'no-store' }
+      )
+      const payload = await response.json().catch(() => null)
+      if (!response.ok || !Array.isArray(payload)) return false
+      const normalized = payload
+        .map((row) => normalizeFarmCropInsight(row))
+        .filter((row): row is FarmCropInsight => Boolean(row))
+        .sort((a, b) => a.cropName.localeCompare(b.cropName))
+      setFarmCropInsightsByPoint((prev) => ({
+        ...prev,
+        [pointId]: normalized,
+      }))
+      return true
+    } catch {
+      return false
+    }
+  }, [])
+
   const saveDraftPolygon = useCallback(async () => {
     if (!polygonDrawPointId || draftPolygon.length < 3) return
     const polygonName =
@@ -980,7 +1002,10 @@ export function SatelliteMap({
         }),
       })
       const payload = await response.json()
-      if (!response.ok) return
+      if (!response.ok) {
+        window.alert(payload?.error || 'Failed to save polygon metrics.')
+        return
+      }
 
       const normalized = normalizePointPolygon(payload)
       if (!normalized) return
@@ -989,6 +1014,7 @@ export function SatelliteMap({
         ...prev,
         [polygonDrawPointId]: [...(prev[polygonDrawPointId] || []), normalized],
       }))
+      await refreshPointInsights(normalized.customPointId)
       setPolygonDrawPointId(null)
       setShapeSeedVertex(null)
       setDraftPolygon([])
@@ -1013,6 +1039,7 @@ export function SatelliteMap({
     pointPolygons,
     polygonDrawPointId,
     polygonDrawMethod,
+    refreshPointInsights,
     resetDraftMetadata,
   ])
 
@@ -1085,7 +1112,10 @@ export function SatelliteMap({
           }),
         })
         const payload = await response.json()
-        if (!response.ok) return
+        if (!response.ok) {
+          window.alert(payload?.error || 'Failed to update polygon metrics.')
+          return
+        }
         const normalized = normalizePointPolygon(payload)
         if (!normalized || !normalized.customPointId) return
         setPointPolygons((prev) => {
@@ -1094,12 +1124,12 @@ export function SatelliteMap({
           const updated = current.map((entry) => (entry.id === normalized.id ? normalized : entry))
           return { ...prev, [pointId]: updated }
         })
-        window.location.reload()
+        await refreshPointInsights(normalized.customPointId)
       } catch {
-        // Ignore network errors to keep map interactions responsive.
+        window.alert('Failed to update polygon metrics.')
       }
     },
-    [cropNameByNormalized, cropTypeOptions]
+    [cropNameByNormalized, cropTypeOptions, refreshPointInsights]
   )
 
   const handleDeletePolygon = useCallback(
@@ -1128,11 +1158,12 @@ export function SatelliteMap({
           }
           return { ...prev, [pointId]: updated }
         })
+        await refreshPointInsights(polygon.customPointId)
       } catch {
         // Ignore network errors to keep map interactions responsive.
       }
     },
-    [locale]
+    [locale, refreshPointInsights]
   )
 
   const undoDraftVertex = useCallback(() => {
@@ -1267,6 +1298,15 @@ export function SatelliteMap({
       averages.set(cropName, stats.total / stats.count)
     }
     return averages
+  }, [activeInsightsPointPolygons])
+  const cropPolygonCountByName = useMemo(() => {
+    const counts = new Map<string, number>()
+    for (const polygon of activeInsightsPointPolygons) {
+      const cropName = polygon.crop.cropName.trim().toLowerCase()
+      if (!cropName) continue
+      counts.set(cropName, (counts.get(cropName) || 0) + 1)
+    }
+    return counts
   }, [activeInsightsPointPolygons])
   const activeInsightsFarmExternalUrl = useMemo(() => {
     for (const insight of activePointInsights) {
@@ -2201,6 +2241,7 @@ export function SatelliteMap({
                   {activePointInsights.map((insight) => {
                     const cropKey = insight.cropName.trim().toLowerCase()
                     const cropScore = cropScoreByName.get(cropKey) ?? null
+                    const cropPolygonCount = cropPolygonCountByName.get(cropKey) || 0
                     return (
                       <div
                         key={insight.id}
@@ -2220,6 +2261,10 @@ export function SatelliteMap({
                           </span>
                         </div>
                         <div className="mt-2 space-y-1.5 text-xs">
+                          <div className="flex items-center justify-between gap-3">
+                            <span className="text-white/60">Polygon contributors</span>
+                            <span className="font-medium text-white">{cropPolygonCount}</span>
+                          </div>
                           <div className="flex items-center justify-between gap-3">
                             <span className="text-white/60">Estimated production</span>
                             <span className="font-medium text-white">
@@ -2250,6 +2295,7 @@ export function SatelliteMap({
                       <tr className="text-[11px] uppercase tracking-wide text-white/60">
                         <th className="px-3 py-2.5 font-medium">Crop</th>
                         <th className="px-3 py-2.5 font-medium">Crop Score</th>
+                        <th className="px-3 py-2.5 font-medium">Polygons</th>
                         <th className="px-3 py-2.5 font-medium">Estimated Production</th>
                         <th className="px-3 py-2.5 font-medium">Energy Consumption</th>
                         <th className="px-3 py-2.5 font-medium">Water Consumption</th>
@@ -2259,6 +2305,7 @@ export function SatelliteMap({
                       {activePointInsights.map((insight, index) => {
                         const cropKey = insight.cropName.trim().toLowerCase()
                         const cropScore = cropScoreByName.get(cropKey) ?? null
+                        const cropPolygonCount = cropPolygonCountByName.get(cropKey) || 0
                         return (
                           <tr
                             key={insight.id}
@@ -2271,6 +2318,7 @@ export function SatelliteMap({
                             >
                               {formatScoreValue(cropScore)}
                             </td>
+                            <td className="px-3 py-2.5">{cropPolygonCount}</td>
                             <td className="px-3 py-2.5">{formatMetric(insight.estimatedProductionTons, 'tons')}</td>
                             <td className="px-3 py-2.5">{formatMetric(insight.energyConsumptionKwh, 'kWh')}</td>
                             <td className="px-3 py-2.5">{formatMetric(insight.waterConsumptionM3, 'm³')}</td>

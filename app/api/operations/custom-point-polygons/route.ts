@@ -47,6 +47,14 @@ function isMissingColumnError(error: { message?: string } | null | undefined, co
   )
 }
 
+function isMissingMetricsColumnError(error: { message?: string } | null | undefined) {
+  return (
+    isMissingColumnError(error, 'estimated_production_tons') ||
+    isMissingColumnError(error, 'energy_consumption_kwh') ||
+    isMissingColumnError(error, 'water_consumption_m3')
+  )
+}
+
 function normalizeScore(input: unknown, fallback = 50): number {
   if (typeof input === 'number' && Number.isFinite(input)) {
     return Math.max(0, Math.min(100, Math.round(input)))
@@ -166,11 +174,7 @@ async function selectPolygons(
       return { data: data || [], error: null as null }
     }
 
-    const retryable =
-      isMissingScoreColumnError(error) ||
-      isMissingColumnError(error, 'estimated_production_tons') ||
-      isMissingColumnError(error, 'energy_consumption_kwh') ||
-      isMissingColumnError(error, 'water_consumption_m3')
+    const retryable = isMissingScoreColumnError(error) || isMissingMetricsColumnError(error)
     if (!retryable) {
       return { data: [] as any[], error }
     }
@@ -183,7 +187,8 @@ async function insertPolygon(
   supabase: Awaited<ReturnType<typeof createClient>>,
   basePayload: Record<string, unknown>,
   score: number,
-  metrics: PolygonMetricsData
+  metrics: PolygonMetricsData,
+  requireMetrics: boolean
 ) {
   const metricPayload = {
     estimated_production_tons: metrics.estimatedProductionTons,
@@ -192,9 +197,13 @@ async function insertPolygon(
   }
   const attempts: Array<{ payload: Record<string, unknown>; select: string }> = [
     { payload: { ...basePayload, score, ...metricPayload }, select: SELECT_WITH_SCORE_AND_METRICS },
-    { payload: { ...basePayload, score }, select: SELECT_WITH_SCORE },
     { payload: { ...basePayload, ...metricPayload }, select: SELECT_WITH_METRICS },
-    { payload: basePayload, select: SELECT_BASE },
+    ...(requireMetrics
+      ? []
+      : [
+          { payload: { ...basePayload, score }, select: SELECT_WITH_SCORE },
+          { payload: basePayload, select: SELECT_BASE },
+        ]),
   ]
 
   for (const attempt of attempts) {
@@ -206,11 +215,16 @@ async function insertPolygon(
 
     if (!error) return { data, error: null as null }
 
-    const retryable =
-      isMissingScoreColumnError(error) ||
-      isMissingColumnError(error, 'estimated_production_tons') ||
-      isMissingColumnError(error, 'energy_consumption_kwh') ||
-      isMissingColumnError(error, 'water_consumption_m3')
+    if (requireMetrics && isMissingMetricsColumnError(error)) {
+      return {
+        data: null,
+        error: new Error(
+          'Polygon metric columns are missing. Run migration 00026_polygon_operational_metrics.sql before saving production, kWh, or m3 values.'
+        ),
+      }
+    }
+
+    const retryable = isMissingScoreColumnError(error) || isMissingMetricsColumnError(error)
     if (!retryable) return { data: null, error }
   }
 
@@ -223,7 +237,8 @@ async function updatePolygon(
   userId: string,
   basePayload: Record<string, unknown>,
   score: number,
-  metrics: PolygonMetricsData
+  metrics: PolygonMetricsData,
+  requireMetrics: boolean
 ) {
   const metricPayload = {
     estimated_production_tons: metrics.estimatedProductionTons,
@@ -232,9 +247,13 @@ async function updatePolygon(
   }
   const attempts: Array<{ payload: Record<string, unknown>; select: string }> = [
     { payload: { ...basePayload, score, ...metricPayload }, select: SELECT_WITH_SCORE_AND_METRICS },
-    { payload: { ...basePayload, score }, select: SELECT_WITH_SCORE },
     { payload: { ...basePayload, ...metricPayload }, select: SELECT_WITH_METRICS },
-    { payload: basePayload, select: SELECT_BASE },
+    ...(requireMetrics
+      ? []
+      : [
+          { payload: { ...basePayload, score }, select: SELECT_WITH_SCORE },
+          { payload: basePayload, select: SELECT_BASE },
+        ]),
   ]
 
   for (const attempt of attempts) {
@@ -248,11 +267,16 @@ async function updatePolygon(
 
     if (!error) return { data, error: null as null }
 
-    const retryable =
-      isMissingScoreColumnError(error) ||
-      isMissingColumnError(error, 'estimated_production_tons') ||
-      isMissingColumnError(error, 'energy_consumption_kwh') ||
-      isMissingColumnError(error, 'water_consumption_m3')
+    if (requireMetrics && isMissingMetricsColumnError(error)) {
+      return {
+        data: null,
+        error: new Error(
+          'Polygon metric columns are missing. Run migration 00026_polygon_operational_metrics.sql before saving production, kWh, or m3 values.'
+        ),
+      }
+    }
+
+    const retryable = isMissingScoreColumnError(error) || isMissingMetricsColumnError(error)
     if (!retryable) return { data: null, error }
   }
 
@@ -298,6 +322,7 @@ export async function POST(request: Request) {
   const vertices = normalizeVertices(body?.vertices)
   const crop = normalizeCrop(body?.crop)
   const metrics = normalizeMetrics(body?.metrics ?? body)
+  const requireMetrics = Boolean(body && typeof body === 'object' && 'metrics' in body)
 
   if (!pointId) {
     return NextResponse.json({ error: 'pointId is required' }, { status: 400 })
@@ -321,12 +346,13 @@ export async function POST(request: Request) {
     notes: crop.notes || null,
   }
 
-  const { data, error } = await insertPolygon(supabase, basePayload, score, metrics)
+  const { data, error } = await insertPolygon(supabase, basePayload, score, metrics, requireMetrics)
   if (!error && data) {
     return NextResponse.json(mapRowToResponse(data), { status: 201 })
   }
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 })
+    const status = error.message.includes('Polygon metric columns are missing') ? 400 : 500
+    return NextResponse.json({ error: error.message }, { status })
   }
   return NextResponse.json({ error: 'Failed to save polygon' }, { status: 500 })
 }
@@ -348,6 +374,7 @@ export async function PATCH(request: Request) {
   const score = normalizeScore(body?.score)
   const crop = normalizeCrop(body?.crop)
   const metrics = normalizeMetrics(body?.metrics ?? body)
+  const requireMetrics = Boolean(body && typeof body === 'object' && 'metrics' in body)
 
   if (!polygonId) {
     return NextResponse.json({ error: 'polygonId is required' }, { status: 400 })
@@ -366,9 +393,10 @@ export async function PATCH(request: Request) {
     updated_at: new Date().toISOString(),
   }
 
-  const { data, error } = await updatePolygon(supabase, polygonId, user.id, basePayload, score, metrics)
+  const { data, error } = await updatePolygon(supabase, polygonId, user.id, basePayload, score, metrics, requireMetrics)
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 })
+    const status = error.message.includes('Polygon metric columns are missing') ? 400 : 500
+    return NextResponse.json({ error: error.message }, { status })
   }
   if (!data) {
     return NextResponse.json({ error: 'Polygon not found' }, { status: 404 })
