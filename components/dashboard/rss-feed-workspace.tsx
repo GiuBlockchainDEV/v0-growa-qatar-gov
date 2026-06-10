@@ -3,7 +3,7 @@
 import { useMemo, useState } from 'react'
 import { ExternalLink, Globe, Newspaper, RefreshCw, Rss } from 'lucide-react'
 
-type FeedCategory = 'policy' | 'market' | 'weather' | 'technology'
+type FeedCategory = 'policy' | 'market' | 'water' | 'weather' | 'technology'
 
 interface FeedItem {
   id: string
@@ -19,75 +19,98 @@ interface FeedItem {
 const FEED_ITEMS: FeedItem[] = [
   {
     id: 'rss-1',
-    title: 'Qatar extends smart irrigation pilots in northern farms',
+    title: 'Qatar greenhouse expansion focuses on high-efficiency vegetable production',
     summary:
-      'The pilot expands telemetry-guided irrigation scheduling to reduce water usage while keeping yield stability for greenhouse crops.',
-    source: 'Ministry Agriculture Bulletin',
-    sourceUrl: 'https://www.mme.gov.qa',
+      'Protected agriculture programs continue to prioritize local vegetable supply, climate control, and measured irrigation in farm clusters.',
+    source: 'Qatar Ministry of Municipality',
+    sourceUrl: 'https://www.mm.gov.qa',
     category: 'policy',
-    publishedAt: '2026-04-18T07:20:00Z',
-    region: 'Al Khor',
+    publishedAt: '2026-06-10T06:30:00Z',
+    region: 'Qatar',
   },
   {
     id: 'rss-2',
-    title: 'Feed barley import prices soften across Gulf routes',
+    title: 'Gulf feed grain desks monitor barley and maize freight costs',
     summary:
-      'Regional commodity desks report lower shipping pressure this week, with barley and maize contracts showing moderate downward movement.',
-    source: 'Gulf Agri Markets',
-    sourceUrl: 'https://www.zawya.com',
+      'Regional importers are tracking feed barley, maize, and soybean meal landed costs as shipping and currency movements affect livestock margins.',
+    source: 'Zawya MENA Markets',
+    sourceUrl: 'https://www.zawya.com/en/mena',
     category: 'market',
-    publishedAt: '2026-04-18T10:40:00Z',
+    publishedAt: '2026-06-10T04:45:00Z',
     region: 'GCC',
   },
   {
     id: 'rss-3',
-    title: 'Dust and wind advisory issued for field operations',
+    title: 'Heat and dust advisory: adjust greenhouse ventilation and irrigation windows',
     summary:
-      'Farm operators are advised to postpone sensitive spraying windows and irrigation fine-tuning during high wind periods.',
+      'Farm operators should avoid peak afternoon irrigation, check pad-and-fan systems, and delay sensitive spraying during dusty wind periods.',
     source: 'Qatar Meteorology',
     sourceUrl: 'https://www.qweather.gov.qa',
     category: 'weather',
-    publishedAt: '2026-04-19T04:10:00Z',
-    region: 'National',
+    publishedAt: '2026-06-09T18:20:00Z',
+    region: 'Qatar',
   },
   {
     id: 'rss-4',
-    title: 'Autonomous scouting drones detect early pest hotspots',
+    title: 'Treated wastewater reuse remains a priority for Gulf farm clusters',
     summary:
-      'New multispectral scouting runs identified early stress patterns and localized pest clusters in open-field tomato blocks.',
-    source: 'AgriTech Review',
-    sourceUrl: 'https://www.agritechreview.com',
-    category: 'technology',
-    publishedAt: '2026-04-17T15:15:00Z',
-    region: 'Al Rayyan',
+      'Municipal and utility programs are pushing reclaimed water use for landscaping, fodder, and controlled farm applications to reduce pressure on desalinated supply.',
+    source: 'Ashghal',
+    sourceUrl: 'https://www.ashghal.gov.qa',
+    category: 'water',
+    publishedAt: '2026-06-09T11:05:00Z',
+    region: 'Qatar',
   },
   {
     id: 'rss-5',
-    title: 'Cold-chain handling guidance updated for leafy exports',
+    title: 'ICBA trials salt-tolerant crops for arid Gulf production systems',
     summary:
-      'New quality guidance introduces stricter pre-cooling checks and transport handoff windows for leafy vegetable exports.',
-    source: 'Food Logistics Update',
-    sourceUrl: 'https://www.foodlogistics.com',
-    category: 'policy',
-    publishedAt: '2026-04-16T09:05:00Z',
-    region: 'Doha',
+      'Biosaline agriculture research is relevant for farms managing brackish groundwater, salinity stress, and high summer evapotranspiration.',
+    source: 'International Center for Biosaline Agriculture',
+    sourceUrl: 'https://www.biosaline.org',
+    category: 'technology',
+    publishedAt: '2026-06-08T14:15:00Z',
+    region: 'UAE / GCC',
   },
   {
     id: 'rss-6',
-    title: 'Fertilizer spot market volatility eases after April peak',
+    title: 'Hydroponic capacity growth raises regional fresh produce competition',
     summary:
-      'Traders indicate that nitrogen products are stabilizing, helping growers improve budget forecasting for next month applications.',
-    source: 'MENA Inputs Desk',
-    sourceUrl: 'https://www.argusmedia.com',
+      'New greenhouse and vertical farming capacity across Saudi Arabia, the UAE, and Qatar is reshaping lettuce, tomato, cucumber, and herb supply windows.',
+    source: 'Gulf Agriculture',
+    sourceUrl: 'https://www.gulfagriculture.com',
     category: 'market',
-    publishedAt: '2026-04-15T13:30:00Z',
-    region: 'MENA',
+    publishedAt: '2026-06-07T09:30:00Z',
+    region: 'Gulf',
+  },
+  {
+    id: 'rss-7',
+    title: 'GCC food security teams review local production and import resilience',
+    summary:
+      'Regional coordination remains focused on strategic reserves, domestic production support, and import route resilience for priority food staples.',
+    source: 'GCC Secretariat',
+    sourceUrl: 'https://www.gcc-sg.org',
+    category: 'policy',
+    publishedAt: '2026-06-06T12:10:00Z',
+    region: 'GCC',
+  },
+  {
+    id: 'rss-8',
+    title: 'FAO NENA highlights water productivity for protected agriculture',
+    summary:
+      'Regional guidance emphasizes crop-per-drop performance, greenhouse monitoring, and climate-smart practices for arid country food systems.',
+    source: 'FAO Near East and North Africa',
+    sourceUrl: 'https://www.fao.org/neareast/en',
+    category: 'water',
+    publishedAt: '2026-06-05T08:00:00Z',
+    region: 'Gulf / MENA',
   },
 ]
 
 const CATEGORY_LABELS: Record<FeedCategory, string> = {
   policy: 'Policy',
   market: 'Market',
+  water: 'Water',
   weather: 'Weather',
   technology: 'Technology',
 }
@@ -113,7 +136,8 @@ export function RssFeedWorkspace() {
         !normalizedQuery ||
         item.title.toLowerCase().includes(normalizedQuery) ||
         item.summary.toLowerCase().includes(normalizedQuery) ||
-        item.source.toLowerCase().includes(normalizedQuery)
+        item.source.toLowerCase().includes(normalizedQuery) ||
+        item.region.toLowerCase().includes(normalizedQuery)
       return categoryOk && queryOk
     }).sort((a, b) => +new Date(b.publishedAt) - +new Date(a.publishedAt))
   }, [query, selectedCategory])
@@ -121,7 +145,8 @@ export function RssFeedWorkspace() {
   const highlights = useMemo(() => {
     return {
       total: filteredItems.length,
-      weather: filteredItems.filter((item) => item.category === 'weather').length,
+      qatar: filteredItems.filter((item) => item.region.toLowerCase().includes('qatar')).length,
+      waterWeather: filteredItems.filter((item) => item.category === 'water' || item.category === 'weather').length,
       market: filteredItems.filter((item) => item.category === 'market').length,
     }
   }, [filteredItems])
@@ -133,10 +158,10 @@ export function RssFeedWorkspace() {
           <div>
             <h1 className="flex items-center gap-2 text-2xl font-semibold text-white">
               <Rss className="h-5 w-5 text-[#07f880]" />
-              RSS Feed
+              Qatar & Gulf Agriculture RSS Feed
             </h1>
             <p className="mt-2 text-sm text-white/65">
-              Curated agriculture intelligence stream with policy, market, weather, and technology updates.
+              Curated agriculture intelligence for Qatar and the Gulf, covering policy, markets, water, weather, and agri-tech.
             </p>
           </div>
           <button
@@ -149,14 +174,18 @@ export function RssFeedWorkspace() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
         <div className="rounded-xl border border-white/10 bg-white/[0.03] p-4">
           <p className="text-xs uppercase tracking-wide text-white/50">Visible stories</p>
           <p className="mt-2 text-2xl font-semibold text-white">{highlights.total}</p>
         </div>
         <div className="rounded-xl border border-white/10 bg-white/[0.03] p-4">
-          <p className="text-xs uppercase tracking-wide text-white/50">Weather alerts</p>
-          <p className="mt-2 text-2xl font-semibold text-amber-300">{highlights.weather}</p>
+          <p className="text-xs uppercase tracking-wide text-white/50">Qatar stories</p>
+          <p className="mt-2 text-2xl font-semibold text-white">{highlights.qatar}</p>
+        </div>
+        <div className="rounded-xl border border-white/10 bg-white/[0.03] p-4">
+          <p className="text-xs uppercase tracking-wide text-white/50">Water & weather</p>
+          <p className="mt-2 text-2xl font-semibold text-amber-300">{highlights.waterWeather}</p>
         </div>
         <div className="rounded-xl border border-white/10 bg-white/[0.03] p-4">
           <p className="text-xs uppercase tracking-wide text-white/50">Market updates</p>
@@ -173,7 +202,7 @@ export function RssFeedWorkspace() {
           type="text"
           value={query}
           onChange={(event) => setQuery(event.target.value)}
-          placeholder="Search title, source, keyword..."
+          placeholder="Search title, source, region, keyword..."
           className="h-9 min-w-[220px] flex-1 rounded-lg border border-white/10 bg-white/5 px-3 text-sm text-white placeholder:text-white/35 focus:border-[#07f880]/50 focus:outline-none"
         />
         <div className="inline-flex items-center gap-1 rounded-lg border border-white/10 bg-white/5 p-1">
