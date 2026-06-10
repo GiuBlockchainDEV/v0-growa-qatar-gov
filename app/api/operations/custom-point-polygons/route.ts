@@ -14,17 +14,20 @@ interface PolygonCropData {
   notes: string
 }
 
+interface PolygonMetricsData {
+  estimatedProductionTons: number
+  energyConsumptionKwh: number
+  waterConsumptionM3: number
+}
+
+const SELECT_WITH_SCORE_AND_METRICS =
+  'id, custom_point_id, name, score, vertices, crop_name, crop_variety, sowing_date, expected_harvest_date, notes, estimated_production_tons, energy_consumption_kwh, water_consumption_m3, created_at'
 const SELECT_WITH_SCORE =
   'id, custom_point_id, name, score, vertices, crop_name, crop_variety, sowing_date, expected_harvest_date, notes, created_at'
+const SELECT_WITH_METRICS =
+  'id, custom_point_id, name, vertices, crop_name, crop_variety, sowing_date, expected_harvest_date, notes, estimated_production_tons, energy_consumption_kwh, water_consumption_m3, created_at'
 const SELECT_BASE =
   'id, custom_point_id, name, vertices, crop_name, crop_variety, sowing_date, expected_harvest_date, notes, created_at'
-
-const INSIGHT_INSERT_WITH_ALL_FIELDS = {
-  estimated_production_tons: 0,
-  energy_consumption_kwh: 0,
-  water_consumption_m3: 0,
-  external_url: null,
-}
 
 function isMissingScoreColumnError(error: { message?: string } | null | undefined) {
   const message = error?.message?.toLowerCase() || ''
@@ -44,19 +47,6 @@ function isMissingColumnError(error: { message?: string } | null | undefined, co
   )
 }
 
-function isMissingRelationError(error: { message?: string } | null | undefined, relationName: string) {
-  const message = error?.message?.toLowerCase() || ''
-  return (
-    message.includes('relation') &&
-    message.includes(relationName.toLowerCase()) &&
-    (message.includes('does not exist') || message.includes('schema cache'))
-  )
-}
-
-function isDuplicateError(error: { code?: string } | null | undefined) {
-  return error?.code === '23505'
-}
-
 function normalizeScore(input: unknown, fallback = 50): number {
   if (typeof input === 'number' && Number.isFinite(input)) {
     return Math.max(0, Math.min(100, Math.round(input)))
@@ -68,6 +58,12 @@ function normalizeScore(input: unknown, fallback = 50): number {
     }
   }
   return fallback
+}
+
+function toPositiveNumber(input: unknown): number {
+  const value = typeof input === 'number' ? input : typeof input === 'string' ? Number(input) : Number.NaN
+  if (!Number.isFinite(value) || value < 0) return 0
+  return Math.round(value * 100) / 100
 }
 
 function normalizeVertices(input: unknown): PolygonVertex[] {
@@ -104,7 +100,23 @@ function normalizeCrop(input: unknown): PolygonCropData {
   }
 }
 
+function normalizeMetrics(input: unknown): PolygonMetricsData {
+  const row = input && typeof input === 'object' ? (input as Record<string, unknown>) : {}
+  return {
+    estimatedProductionTons: toPositiveNumber(
+      row.estimatedProductionTons ?? row.estimated_production_tons ?? row.estimated_production
+    ),
+    energyConsumptionKwh: toPositiveNumber(
+      row.energyConsumptionKwh ?? row.energy_consumption_kwh ?? row.energy_consumption
+    ),
+    waterConsumptionM3: toPositiveNumber(
+      row.waterConsumptionM3 ?? row.water_consumption_m3 ?? row.water_consumption
+    ),
+  }
+}
+
 function mapRowToResponse(row: Record<string, any>) {
+  const metrics = normalizeMetrics(row)
   return {
     id: row.id,
     pointId: row.custom_point_id,
@@ -118,63 +130,133 @@ function mapRowToResponse(row: Record<string, any>) {
       expectedHarvestDate: row.expected_harvest_date || '',
       notes: row.notes || '',
     },
+    metrics,
+    estimatedProductionTons: metrics.estimatedProductionTons,
+    energyConsumptionKwh: metrics.energyConsumptionKwh,
+    waterConsumptionM3: metrics.waterConsumptionM3,
     createdAt: row.created_at,
   }
 }
 
-async function ensureFarmCropInsightFromPolygon(
+async function selectPolygons(
   supabase: Awaited<ReturnType<typeof createClient>>,
   userId: string,
-  pointId: string,
-  cropName: string
+  pointId?: string
 ) {
-  const normalizedCropName = cropName.trim() || 'Unassigned crop'
-  const basePayload = {
-    user_id: userId,
-    custom_point_id: pointId,
-    crop_name: normalizedCropName,
-  }
-
-  const insertAttempts: Array<Record<string, unknown>> = [
-    { ...basePayload, ...INSIGHT_INSERT_WITH_ALL_FIELDS },
-    {
-      ...basePayload,
-      estimated_production_tons: 0,
-      energy_consumption_kwh: 0,
-      water_consumption_m3: 0,
-    },
-    {
-      ...basePayload,
-      estimated_production: 0,
-      energy_consumption: 0,
-      water_consumption: 0,
-      external_url: null,
-    },
-    basePayload,
+  const attempts = [
+    SELECT_WITH_SCORE_AND_METRICS,
+    SELECT_WITH_SCORE,
+    SELECT_WITH_METRICS,
+    SELECT_BASE,
   ]
 
-  for (const payload of insertAttempts) {
-    const { error } = await supabase.from('farm_crop_insights').insert(payload)
-    if (!error || isDuplicateError(error)) {
-      return null
+  for (const selectClause of attempts) {
+    let query = supabase
+      .from('custom_point_polygons')
+      .select(selectClause)
+      .eq('user_id', userId)
+      .order('created_at', { ascending: true })
+
+    if (pointId) {
+      query = query.eq('custom_point_id', pointId)
+    }
+
+    const { data, error } = await query
+    if (!error) {
+      return { data: data || [], error: null as null }
     }
 
     const retryable =
-      isMissingColumnError(error, 'external_url') ||
+      isMissingScoreColumnError(error) ||
       isMissingColumnError(error, 'estimated_production_tons') ||
       isMissingColumnError(error, 'energy_consumption_kwh') ||
       isMissingColumnError(error, 'water_consumption_m3')
-
-    if (retryable) {
-      continue
+    if (!retryable) {
+      return { data: [] as any[], error }
     }
-    if (isMissingRelationError(error, 'farm_crop_insights')) {
-      return new Error('farm_crop_insights table is missing. Run migration 00023_farm_crop_insights.sql first.')
-    }
-    return new Error(error.message || 'Failed to sync farm crop insights')
   }
 
-  return new Error('Failed to sync farm crop insights for polygon')
+  return { data: [] as any[], error: null }
+}
+
+async function insertPolygon(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  basePayload: Record<string, unknown>,
+  score: number,
+  metrics: PolygonMetricsData
+) {
+  const metricPayload = {
+    estimated_production_tons: metrics.estimatedProductionTons,
+    energy_consumption_kwh: metrics.energyConsumptionKwh,
+    water_consumption_m3: metrics.waterConsumptionM3,
+  }
+  const attempts: Array<{ payload: Record<string, unknown>; select: string }> = [
+    { payload: { ...basePayload, score, ...metricPayload }, select: SELECT_WITH_SCORE_AND_METRICS },
+    { payload: { ...basePayload, score }, select: SELECT_WITH_SCORE },
+    { payload: { ...basePayload, ...metricPayload }, select: SELECT_WITH_METRICS },
+    { payload: basePayload, select: SELECT_BASE },
+  ]
+
+  for (const attempt of attempts) {
+    const { data, error } = await supabase
+      .from('custom_point_polygons')
+      .insert(attempt.payload)
+      .select(attempt.select)
+      .single()
+
+    if (!error) return { data, error: null as null }
+
+    const retryable =
+      isMissingScoreColumnError(error) ||
+      isMissingColumnError(error, 'estimated_production_tons') ||
+      isMissingColumnError(error, 'energy_consumption_kwh') ||
+      isMissingColumnError(error, 'water_consumption_m3')
+    if (!retryable) return { data: null, error }
+  }
+
+  return { data: null, error: new Error('Failed to save polygon') }
+}
+
+async function updatePolygon(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  polygonId: string,
+  userId: string,
+  basePayload: Record<string, unknown>,
+  score: number,
+  metrics: PolygonMetricsData
+) {
+  const metricPayload = {
+    estimated_production_tons: metrics.estimatedProductionTons,
+    energy_consumption_kwh: metrics.energyConsumptionKwh,
+    water_consumption_m3: metrics.waterConsumptionM3,
+  }
+  const attempts: Array<{ payload: Record<string, unknown>; select: string }> = [
+    { payload: { ...basePayload, score, ...metricPayload }, select: SELECT_WITH_SCORE_AND_METRICS },
+    { payload: { ...basePayload, score }, select: SELECT_WITH_SCORE },
+    { payload: { ...basePayload, ...metricPayload }, select: SELECT_WITH_METRICS },
+    { payload: basePayload, select: SELECT_BASE },
+  ]
+
+  for (const attempt of attempts) {
+    const { data, error } = await supabase
+      .from('custom_point_polygons')
+      .update(attempt.payload)
+      .eq('id', polygonId)
+      .eq('user_id', userId)
+      .select(attempt.select)
+      .maybeSingle()
+
+    if (!error) return { data, error: null as null }
+
+    const retryable =
+      isMissingScoreColumnError(error) ||
+      isMissingColumnError(error, 'estimated_production_tons') ||
+      isMissingColumnError(error, 'energy_consumption_kwh') ||
+      isMissingColumnError(error, 'water_consumption_m3')
+    if (!retryable) return { data: null, error }
+  }
+
+  return { data: null, error: new Error('Failed to update polygon') }
 }
 
 export async function GET(request: Request) {
@@ -191,37 +273,11 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  let query = supabase
-    .from('custom_point_polygons')
-    .select(SELECT_WITH_SCORE)
-    .eq('user_id', user.id)
-    .order('created_at', { ascending: true })
-
-  if (pointId) {
-    query = query.eq('custom_point_id', pointId)
-  }
-
-  const { data, error } = await query
-  if (!error) {
-    return NextResponse.json((data || []).map((row) => mapRowToResponse(row)))
-  }
-  if (!isMissingScoreColumnError(error)) {
+  const { data, error } = await selectPolygons(supabase, user.id, pointId || undefined)
+  if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
-
-  let fallbackQuery = supabase
-    .from('custom_point_polygons')
-    .select(SELECT_BASE)
-    .eq('user_id', user.id)
-    .order('created_at', { ascending: true })
-  if (pointId) {
-    fallbackQuery = fallbackQuery.eq('custom_point_id', pointId)
-  }
-  const { data: fallbackData, error: fallbackError } = await fallbackQuery
-  if (fallbackError) {
-    return NextResponse.json({ error: fallbackError.message }, { status: 500 })
-  }
-  return NextResponse.json((fallbackData || []).map((row) => mapRowToResponse(row)))
+  return NextResponse.json((data || []).map((row) => mapRowToResponse(row)))
 }
 
 export async function POST(request: Request) {
@@ -241,6 +297,7 @@ export async function POST(request: Request) {
   const score = normalizeScore(body?.score)
   const vertices = normalizeVertices(body?.vertices)
   const crop = normalizeCrop(body?.crop)
+  const metrics = normalizeMetrics(body?.metrics ?? body)
 
   if (!pointId) {
     return NextResponse.json({ error: 'pointId is required' }, { status: 400 })
@@ -252,67 +309,26 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'polygon requires at least 3 vertices' }, { status: 400 })
   }
 
-  const { data, error } = await supabase
-    .from('custom_point_polygons')
-    .insert({
-      user_id: user.id,
-      custom_point_id: pointId,
-      name,
-      score,
-      vertices,
-      crop_name: crop.cropName || null,
-      crop_variety: crop.variety || null,
-      sowing_date: crop.sowingDate || null,
-      expected_harvest_date: crop.expectedHarvestDate || null,
-      notes: crop.notes || null,
-    })
-    .select(SELECT_WITH_SCORE)
-    .single()
+  const basePayload = {
+    user_id: user.id,
+    custom_point_id: pointId,
+    name,
+    vertices,
+    crop_name: crop.cropName || null,
+    crop_variety: crop.variety || null,
+    sowing_date: crop.sowingDate || null,
+    expected_harvest_date: crop.expectedHarvestDate || null,
+    notes: crop.notes || null,
+  }
 
-  if (!error) {
-    const insightError = await ensureFarmCropInsightFromPolygon(supabase, user.id, pointId, crop.cropName)
-    if (insightError) {
-      await supabase
-        .from('custom_point_polygons')
-        .delete()
-        .eq('id', data.id)
-        .eq('user_id', user.id)
-      return NextResponse.json({ error: insightError.message }, { status: 500 })
-    }
+  const { data, error } = await insertPolygon(supabase, basePayload, score, metrics)
+  if (!error && data) {
     return NextResponse.json(mapRowToResponse(data), { status: 201 })
   }
-  if (!isMissingScoreColumnError(error)) {
+  if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
-
-  const { data: fallbackData, error: fallbackError } = await supabase
-    .from('custom_point_polygons')
-    .insert({
-      user_id: user.id,
-      custom_point_id: pointId,
-      name,
-      vertices,
-      crop_name: crop.cropName || null,
-      crop_variety: crop.variety || null,
-      sowing_date: crop.sowingDate || null,
-      expected_harvest_date: crop.expectedHarvestDate || null,
-      notes: crop.notes || null,
-    })
-    .select(SELECT_BASE)
-    .single()
-  if (fallbackError) {
-    return NextResponse.json({ error: fallbackError.message }, { status: 500 })
-  }
-  const insightError = await ensureFarmCropInsightFromPolygon(supabase, user.id, pointId, crop.cropName)
-  if (insightError) {
-    await supabase
-      .from('custom_point_polygons')
-      .delete()
-      .eq('id', fallbackData.id)
-      .eq('user_id', user.id)
-    return NextResponse.json({ error: insightError.message }, { status: 500 })
-  }
-  return NextResponse.json(mapRowToResponse(fallbackData), { status: 201 })
+  return NextResponse.json({ error: 'Failed to save polygon' }, { status: 500 })
 }
 
 export async function PATCH(request: Request) {
@@ -331,6 +347,7 @@ export async function PATCH(request: Request) {
   const name = typeof body?.name === 'string' ? body.name.trim() : ''
   const score = normalizeScore(body?.score)
   const crop = normalizeCrop(body?.crop)
+  const metrics = normalizeMetrics(body?.metrics ?? body)
 
   if (!polygonId) {
     return NextResponse.json({ error: 'polygonId is required' }, { status: 400 })
@@ -339,55 +356,24 @@ export async function PATCH(request: Request) {
     return NextResponse.json({ error: 'name is required' }, { status: 400 })
   }
 
-  const { data, error } = await supabase
-    .from('custom_point_polygons')
-    .update({
-      name,
-      score,
-      crop_name: crop.cropName || null,
-      crop_variety: crop.variety || null,
-      sowing_date: crop.sowingDate || null,
-      expected_harvest_date: crop.expectedHarvestDate || null,
-      notes: crop.notes || null,
-      updated_at: new Date().toISOString(),
-    })
-    .eq('id', polygonId)
-    .eq('user_id', user.id)
-    .select(SELECT_WITH_SCORE)
-    .maybeSingle()
-
-  if (!error) {
-    if (!data) {
-      return NextResponse.json({ error: 'Polygon not found' }, { status: 404 })
-    }
-    return NextResponse.json(mapRowToResponse(data))
+  const basePayload = {
+    name,
+    crop_name: crop.cropName || null,
+    crop_variety: crop.variety || null,
+    sowing_date: crop.sowingDate || null,
+    expected_harvest_date: crop.expectedHarvestDate || null,
+    notes: crop.notes || null,
+    updated_at: new Date().toISOString(),
   }
-  if (!isMissingScoreColumnError(error)) {
+
+  const { data, error } = await updatePolygon(supabase, polygonId, user.id, basePayload, score, metrics)
+  if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
-
-  const { data: fallbackData, error: fallbackError } = await supabase
-    .from('custom_point_polygons')
-    .update({
-      name,
-      crop_name: crop.cropName || null,
-      crop_variety: crop.variety || null,
-      sowing_date: crop.sowingDate || null,
-      expected_harvest_date: crop.expectedHarvestDate || null,
-      notes: crop.notes || null,
-      updated_at: new Date().toISOString(),
-    })
-    .eq('id', polygonId)
-    .eq('user_id', user.id)
-    .select(SELECT_BASE)
-    .maybeSingle()
-  if (fallbackError) {
-    return NextResponse.json({ error: fallbackError.message }, { status: 500 })
-  }
-  if (!fallbackData) {
+  if (!data) {
     return NextResponse.json({ error: 'Polygon not found' }, { status: 404 })
   }
-  return NextResponse.json(mapRowToResponse(fallbackData))
+  return NextResponse.json(mapRowToResponse(data))
 }
 
 export async function DELETE(request: Request) {

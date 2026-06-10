@@ -89,6 +89,12 @@ interface PolygonCropData {
   notes: string
 }
 
+interface PolygonMetricsData {
+  estimatedProductionTons: number
+  energyConsumptionKwh: number
+  waterConsumptionM3: number
+}
+
 interface PointPolygon {
   id: string
   customPointId: string
@@ -96,6 +102,7 @@ interface PointPolygon {
   vertices: PolygonVertex[]
   score: number
   crop: PolygonCropData
+  metrics: PolygonMetricsData
   createdAt: string
 }
 
@@ -136,6 +143,12 @@ const EMPTY_POLYGON_CROP: PolygonCropData = {
   sowingDate: '',
   expectedHarvestDate: '',
   notes: '',
+}
+
+const EMPTY_POLYGON_METRICS: PolygonMetricsData = {
+  estimatedProductionTons: 0,
+  energyConsumptionKwh: 0,
+  waterConsumptionM3: 0,
 }
 
 const POINT_TYPE_OPTIONS: Array<{ value: MapPointType; label: string }> = [
@@ -352,6 +365,37 @@ function normalizePolygonVertices(input: unknown): PolygonVertex[] {
     .filter((vertex): vertex is PolygonVertex => Boolean(vertex))
 }
 
+function normalizeMetricValue(input: unknown): number {
+  const value =
+    typeof input === 'number' ? input : typeof input === 'string' ? Number(input) : Number.NaN
+  if (!Number.isFinite(value) || value < 0) return 0
+  return Math.round(value * 100) / 100
+}
+
+function normalizePolygonMetrics(input: unknown, fallback: PolygonMetricsData = EMPTY_POLYGON_METRICS): PolygonMetricsData {
+  const row = input && typeof input === 'object' ? (input as Record<string, unknown>) : {}
+  return {
+    estimatedProductionTons: normalizeMetricValue(
+      row.estimatedProductionTons ??
+        row.estimated_production_tons ??
+        row.estimated_production ??
+        fallback.estimatedProductionTons
+    ),
+    energyConsumptionKwh: normalizeMetricValue(
+      row.energyConsumptionKwh ??
+        row.energy_consumption_kwh ??
+        row.energy_consumption ??
+        fallback.energyConsumptionKwh
+    ),
+    waterConsumptionM3: normalizeMetricValue(
+      row.waterConsumptionM3 ??
+        row.water_consumption_m3 ??
+        row.water_consumption ??
+        fallback.waterConsumptionM3
+    ),
+  }
+}
+
 function normalizePointPolygon(input: unknown): PointPolygon | null {
   if (!input || typeof input !== 'object') return null
   const row = input as Record<string, unknown>
@@ -359,6 +403,7 @@ function normalizePointPolygon(input: unknown): PointPolygon | null {
   if (vertices.length < 3) return null
 
   const cropRow = row.crop && typeof row.crop === 'object' ? (row.crop as Record<string, unknown>) : null
+  const metricsRow = row.metrics && typeof row.metrics === 'object' ? (row.metrics as Record<string, unknown>) : row
   const customPointId =
     (typeof row.customPointId === 'string' && row.customPointId.trim()) ||
     (typeof row.custom_point_id === 'string' && row.custom_point_id.trim()) ||
@@ -410,18 +455,12 @@ function normalizePointPolygon(input: unknown): PointPolygon | null {
         (typeof row.notes === 'string' && row.notes) ||
         '',
     },
+    metrics: normalizePolygonMetrics(metricsRow),
     createdAt:
       (typeof row.createdAt === 'string' && row.createdAt.trim() ? row.createdAt : null) ||
       (typeof row.created_at === 'string' && row.created_at.trim() ? row.created_at : null) ||
       new Date().toISOString(),
   }
-}
-
-function normalizeMetricValue(input: unknown): number {
-  const value =
-    typeof input === 'number' ? input : typeof input === 'string' ? Number(input) : Number.NaN
-  if (!Number.isFinite(value) || value < 0) return 0
-  return Math.round(value * 100) / 100
 }
 
 function normalizeFarmCropInsight(input: unknown): FarmCropInsight | null {
@@ -557,6 +596,9 @@ export function SatelliteMap({
   const [draftSowingDate, setDraftSowingDate] = useState('')
   const [draftExpectedHarvestDate, setDraftExpectedHarvestDate] = useState('')
   const [draftCropNotes, setDraftCropNotes] = useState('')
+  const [draftEstimatedProductionTons, setDraftEstimatedProductionTons] = useState('')
+  const [draftEnergyConsumptionKwh, setDraftEnergyConsumptionKwh] = useState('')
+  const [draftWaterConsumptionM3, setDraftWaterConsumptionM3] = useState('')
 
   const resetDraftMetadata = useCallback(() => {
     setDraftPolygonName('')
@@ -566,6 +608,9 @@ export function SatelliteMap({
     setDraftSowingDate('')
     setDraftExpectedHarvestDate('')
     setDraftCropNotes('')
+    setDraftEstimatedProductionTons('')
+    setDraftEnergyConsumptionKwh('')
+    setDraftWaterConsumptionM3('')
   }, [])
 
   useEffect(() => {
@@ -913,6 +958,11 @@ export function SatelliteMap({
       expectedHarvestDate: draftExpectedHarvestDate.trim(),
       notes: draftCropNotes.trim(),
     }
+    const metricsPayload: PolygonMetricsData = {
+      estimatedProductionTons: normalizeMetricValue(draftEstimatedProductionTons),
+      energyConsumptionKwh: normalizeMetricValue(draftEnergyConsumptionKwh),
+      waterConsumptionM3: normalizeMetricValue(draftWaterConsumptionM3),
+    }
 
     try {
       const response = await fetch('/api/operations/custom-point-polygons', {
@@ -926,6 +976,7 @@ export function SatelliteMap({
           score: normalizePolygonScore(draftPolygonScore, 50),
           vertices: draftPolygon,
           crop: cropPayload,
+          metrics: metricsPayload,
         }),
       })
       const payload = await response.json()
@@ -949,6 +1000,8 @@ export function SatelliteMap({
     circleSegments,
     cropNameByNormalized,
     draftCropName,
+    draftEnergyConsumptionKwh,
+    draftEstimatedProductionTons,
     draftCropNotes,
     draftCropVariety,
     draftExpectedHarvestDate,
@@ -956,6 +1009,7 @@ export function SatelliteMap({
     draftPolygonName,
     draftPolygonScore,
     draftSowingDate,
+    draftWaterConsumptionM3,
     pointPolygons,
     polygonDrawPointId,
     polygonDrawMethod,
@@ -992,6 +1046,21 @@ export function SatelliteMap({
         window.prompt('Expected harvest date (YYYY-MM-DD)', polygon.crop.expectedHarvestDate || '') ??
         polygon.crop.expectedHarvestDate
       const nextNotes = window.prompt('Notes', polygon.crop.notes || '') ?? polygon.crop.notes
+      const nextProductionRaw = window.prompt(
+        'Estimated production for this polygon (tons)',
+        String(polygon.metrics.estimatedProductionTons)
+      )
+      if (nextProductionRaw === null) return
+      const nextEnergyRaw = window.prompt(
+        'Energy consumption for this polygon (kWh)',
+        String(polygon.metrics.energyConsumptionKwh)
+      )
+      if (nextEnergyRaw === null) return
+      const nextWaterRaw = window.prompt(
+        'Water consumption for this polygon (m3)',
+        String(polygon.metrics.waterConsumptionM3)
+      )
+      if (nextWaterRaw === null) return
 
       try {
         const response = await fetch('/api/operations/custom-point-polygons', {
@@ -1007,6 +1076,11 @@ export function SatelliteMap({
               sowingDate: nextSowingDate,
               expectedHarvestDate: nextHarvestDate,
               notes: nextNotes,
+            },
+            metrics: {
+              estimatedProductionTons: normalizeMetricValue(nextProductionRaw),
+              energyConsumptionKwh: normalizeMetricValue(nextEnergyRaw),
+              waterConsumptionM3: normalizeMetricValue(nextWaterRaw),
             },
           }),
         })
@@ -1577,12 +1651,16 @@ export function SatelliteMap({
         const polygonScore = normalizePolygonScore(polygon.score, 50)
         const polygonColor = scoreToPolygonColor(polygonScore)
         const areaHectares = calculatePolygonAreaHectares(polygon.vertices)
+        const metrics = polygon.metrics
         const popupLines = [
           `<strong style="color:#07f880;font-size:13px;">${escapeHtml(polygon.name)}</strong>`,
           `<br/><span style="font-size:11px;color:${escapeHtml(polygonColor)};">Score: ${polygonScore}/100</span>`,
           `<br/><span style="font-size:11px;color:#9ca3af;">Area: ${escapeHtml(formatHectares(areaHectares))} ha</span>`,
           crop.cropName ? `<br/><span style="font-size:11px;color:#ddd;">Crop: ${escapeHtml(crop.cropName)}</span>` : '',
           crop.variety ? `<br/><span style="font-size:11px;color:#bbb;">Variety: ${escapeHtml(crop.variety)}</span>` : '',
+          `<br/><span style="font-size:11px;color:#ddd;">Production: ${escapeHtml(formatMetric(metrics.estimatedProductionTons, 'tons'))}</span>`,
+          `<br/><span style="font-size:11px;color:#ddd;">Energy: ${escapeHtml(formatMetric(metrics.energyConsumptionKwh, 'kWh'))}</span>`,
+          `<br/><span style="font-size:11px;color:#ddd;">Water: ${escapeHtml(formatMetric(metrics.waterConsumptionM3, 'm³'))}</span>`,
           crop.sowingDate ? `<br/><span style="font-size:11px;color:#bbb;">Sowing: ${escapeHtml(crop.sowingDate)}</span>` : '',
           crop.expectedHarvestDate
             ? `<br/><span style="font-size:11px;color:#bbb;">Harvest: ${escapeHtml(crop.expectedHarvestDate)}</span>`
@@ -2030,6 +2108,9 @@ export function SatelliteMap({
                 <p className="mt-1 text-xs text-white/60">
                   Point: <span className="font-medium text-[#07f880]">{activeInsightsPointLabel}</span>
                 </p>
+                <p className="mt-1 text-[11px] text-white/45">
+                  Totals are summed from the linked polygon metrics for each crop.
+                </p>
               </div>
               <button
                 type="button"
@@ -2312,6 +2393,35 @@ export function SatelliteMap({
                 value={draftExpectedHarvestDate}
                 onChange={(event) => setDraftExpectedHarvestDate(event.target.value)}
                 className="h-8 w-full rounded border border-white/10 bg-[#0b0b0c] px-2 text-[11px] text-white focus:border-[#07f880]/60 focus:outline-none"
+              />
+            </div>
+            <div className="grid grid-cols-3 gap-2">
+              <input
+                type="number"
+                min={0}
+                step="0.01"
+                value={draftEstimatedProductionTons}
+                onChange={(event) => setDraftEstimatedProductionTons(event.target.value)}
+                placeholder="Tons"
+                className="h-8 w-full rounded border border-white/10 bg-[#0b0b0c] px-2 text-[11px] text-white placeholder:text-white/35 focus:border-[#07f880]/60 focus:outline-none"
+              />
+              <input
+                type="number"
+                min={0}
+                step="0.01"
+                value={draftEnergyConsumptionKwh}
+                onChange={(event) => setDraftEnergyConsumptionKwh(event.target.value)}
+                placeholder="kWh"
+                className="h-8 w-full rounded border border-white/10 bg-[#0b0b0c] px-2 text-[11px] text-white placeholder:text-white/35 focus:border-[#07f880]/60 focus:outline-none"
+              />
+              <input
+                type="number"
+                min={0}
+                step="0.01"
+                value={draftWaterConsumptionM3}
+                onChange={(event) => setDraftWaterConsumptionM3(event.target.value)}
+                placeholder="m3"
+                className="h-8 w-full rounded border border-white/10 bg-[#0b0b0c] px-2 text-[11px] text-white placeholder:text-white/35 focus:border-[#07f880]/60 focus:outline-none"
               />
             </div>
             <textarea
