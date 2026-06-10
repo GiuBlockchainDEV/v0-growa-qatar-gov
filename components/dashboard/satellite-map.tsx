@@ -74,6 +74,7 @@ interface CustomPoint {
   lng: number
   label: string
   pointType: MapPointType
+  externalUrl: string
 }
 
 interface PolygonVertex {
@@ -178,6 +179,8 @@ interface DbCustomPointRow {
   label?: string
   pointType?: string
   point_type?: string
+  externalUrl?: string
+  external_url?: string
 }
 
 interface CropTypeOption {
@@ -210,6 +213,10 @@ function normalizeDbCustomPointRows(rows: unknown): CustomPoint[] {
       const lng =
         typeof row.lng === 'number' ? row.lng : typeof row.lng === 'string' ? Number(row.lng) : Number.NaN
       const label = typeof row.label === 'string' ? row.label.trim() : ''
+      const externalUrl =
+        (typeof row.externalUrl === 'string' && row.externalUrl.trim()) ||
+        (typeof row.external_url === 'string' && row.external_url.trim()) ||
+        ''
       const rawPointType =
         typeof row.pointType === 'string'
           ? row.pointType
@@ -227,6 +234,7 @@ function normalizeDbCustomPointRows(rows: unknown): CustomPoint[] {
         lng,
         label: label || 'Custom Point',
         pointType,
+        externalUrl,
       } satisfies CustomPoint
     })
     .filter((point): point is CustomPoint => Boolean(point))
@@ -858,14 +866,22 @@ export function SatelliteMap({
         target.pointType
       )
       const nextType = parsePointTypeInput(typeInput, target.pointType)
-      const nextPoint = { ...target, label: nextLabel, pointType: nextType }
+      const linkInput = window.prompt(
+        locale === 'ar' ? 'رابط صفحة خارجية للنقطة/المزرعة' : 'External page link for this point/farm',
+        target.externalUrl || ''
+      )
+      if (linkInput === null) return
+      const nextExternalUrl = normalizeExternalLink(linkInput)
+      const nextPoint = { ...target, label: nextLabel, pointType: nextType, externalUrl: nextExternalUrl }
       setCustomPoints((prev) =>
         prev.map((entry) =>
-          entry.id === pointId ? { ...entry, label: nextLabel, pointType: nextType } : entry
+          entry.id === pointId
+            ? { ...entry, label: nextLabel, pointType: nextType, externalUrl: nextExternalUrl }
+            : entry
         )
       )
       try {
-        await fetch('/api/operations/custom-map-points', {
+        const response = await fetch('/api/operations/custom-map-points', {
           method: 'PATCH',
           headers: {
             'Content-Type': 'application/json',
@@ -874,10 +890,22 @@ export function SatelliteMap({
             id: nextPoint.id,
             label: nextPoint.label,
             pointType: nextPoint.pointType,
+            externalUrl: nextPoint.externalUrl,
           }),
         })
+        const payload = await response.json().catch(() => null)
+        if (!response.ok) {
+          window.alert(payload?.error || 'Failed to update point link.')
+          setCustomPoints((prev) => prev.map((entry) => (entry.id === pointId ? target : entry)))
+          return
+        }
+        const [normalized] = normalizeDbCustomPointRows([payload])
+        if (normalized) {
+          setCustomPoints((prev) => prev.map((entry) => (entry.id === pointId ? normalized : entry)))
+        }
       } catch {
-        // Keep UI responsive even if update fails.
+        window.alert('Failed to update point link.')
+        setCustomPoints((prev) => prev.map((entry) => (entry.id === pointId ? target : entry)))
       }
     },
     [customPoints, locale, parsePointTypeInput]
@@ -1309,12 +1337,14 @@ export function SatelliteMap({
     return counts
   }, [activeInsightsPointPolygons])
   const activeInsightsFarmExternalUrl = useMemo(() => {
+    const pointLink = normalizeExternalLink(insightsModalPoint?.externalUrl || '')
+    if (pointLink) return pointLink
     for (const insight of activePointInsights) {
       const normalized = normalizeExternalLink(insight.externalUrl)
       if (normalized) return normalized
     }
     return ''
-  }, [activePointInsights])
+  }, [activePointInsights, insightsModalPoint?.externalUrl])
 
   const closePointInsightsModal = useCallback(() => {
     insightsRequestIdRef.current += 1
@@ -1845,6 +1875,7 @@ export function SatelliteMap({
         lng,
         label,
         pointType: newPointType,
+        externalUrl: '',
       }
       setCustomPoints((prev) => [...prev, nextPoint])
       try {
@@ -1859,6 +1890,7 @@ export function SatelliteMap({
             lat: nextPoint.lat,
             lng: nextPoint.lng,
             pointType: nextPoint.pointType,
+            externalUrl: nextPoint.externalUrl,
           }),
         })
         if (!response.ok) {
