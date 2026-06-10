@@ -1384,18 +1384,19 @@ export function SatelliteMap({
       const L = (await import('leaflet')).default as any
       await import('leaflet/dist/leaflet.css')
       leafletRef.current = L
-      map = L.map(mapRef.current, {
+      const createdMap = L.map(mapRef.current, {
         center: [QATAR_CENTER.lat, QATAR_CENTER.lng],
         zoom: DEFAULT_ZOOM,
         zoomControl: false,
         attributionControl: false,
-      })
+      }) as MapController
+      map = createdMap
       L.tileLayer(
         'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
         { maxZoom: 19 }
-      ).addTo(map)
-      map.on('zoomend', () => setCurrentZoom(map.getZoom()))
-      mapInstanceRef.current = map
+      ).addTo(createdMap)
+      createdMap.on('zoomend', () => setCurrentZoom(createdMap.getZoom()))
+      mapInstanceRef.current = createdMap
       setIsLoading(false)
       setMapReady(true)
     }

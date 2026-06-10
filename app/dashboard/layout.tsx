@@ -98,7 +98,6 @@ function DashboardShell({
   }
 
   const activeModule = searchParams.get('module')
-  const targetFarmId = searchParams.get('farmId')
   const targetPointId = searchParams.get('pointId')
   const targetFocusToken = searchParams.get('focus')
   const zoomParam = searchParams.get('zoom')
@@ -117,7 +116,6 @@ function DashboardShell({
       <main className="absolute inset-y-0 right-0 left-64">
         {isMinistryWorkspace && shouldRenderMapSurface ? (
           <SatelliteMap
-            targetFarmId={targetFarmId}
             targetPointId={targetPointId}
             targetFocusToken={targetFocusToken}
             targetZoom={targetZoom}

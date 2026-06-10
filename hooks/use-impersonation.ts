@@ -196,7 +196,13 @@ export function useImpersonation() {
           .eq('user_id', user.id)
           .single()
 
-        const org = membership?.organization as { id: string; name: string; type: string } | null
+        const organizationRecord = Array.isArray(membership?.organization)
+          ? membership?.organization[0]
+          : membership?.organization
+        const org =
+          organizationRecord && typeof organizationRecord === 'object'
+            ? (organizationRecord as { id?: string; name?: string; type?: string })
+            : null
 
         setState({
           isGrowaAdmin: false,

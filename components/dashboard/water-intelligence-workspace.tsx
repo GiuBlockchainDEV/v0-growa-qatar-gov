@@ -7,6 +7,7 @@ import {
   clampScore,
   formatNumber,
   formatScore,
+  normalizePointLabel,
   scoreColor,
   scoreSurface,
   useIntelligenceData,
@@ -14,7 +15,8 @@ import {
 } from './intelligence-metrics-shared'
 
 export function WaterIntelligenceWorkspace() {
-  const { loading, error, cropAggregates, producerRanking, headline, analyticsMeta } = useIntelligenceData()
+  const { loading, error, cropAggregates, producerRanking, headline, analyticsMeta, producerLabelsById } =
+    useIntelligenceData()
   const { navigateToCropOnMap, navigateToProducerPoint } = useMapNavigation('water-intelligence')
 
   const waterMeta = useMemo(() => {
@@ -158,7 +160,9 @@ export function WaterIntelligenceWorkspace() {
                         onClick={() => navigateToProducerPoint(farm.pointId)}
                         className="w-full rounded-lg border border-primary/30 bg-primary/10 px-3 py-2 text-left hover:bg-primary/15"
                       >
-                        <p className="text-sm font-medium text-foreground">#{index + 1} {farm.label}</p>
+                        <p className="text-sm font-medium text-foreground">
+                          #{index + 1} {normalizePointLabel(farm.pointId, producerLabelsById)}
+                        </p>
                         <p className="mt-1 text-xs text-muted-foreground">
                           Efficiency {farm.efficiencyScore.toFixed(2)} • Score {formatScore(farm.averagePolygonScore)}
                         </p>
@@ -184,7 +188,9 @@ export function WaterIntelligenceWorkspace() {
                         onClick={() => navigateToProducerPoint(farm.pointId)}
                         className="w-full rounded-lg border border-amber-400/30 bg-amber-500/10 px-3 py-2 text-left hover:bg-amber-500/15"
                       >
-                        <p className="text-sm font-medium text-foreground">#{index + 1} {farm.label}</p>
+                        <p className="text-sm font-medium text-foreground">
+                          #{index + 1} {normalizePointLabel(farm.pointId, producerLabelsById)}
+                        </p>
                         <p className="mt-1 text-xs text-muted-foreground">
                           Resource {formatNumber(farm.resourceIntensity)} • Variety {farm.cropVarietyCount}
                         </p>

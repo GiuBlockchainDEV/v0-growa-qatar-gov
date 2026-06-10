@@ -10,6 +10,8 @@ export default function DataSharingPage() {
   const { organization } = useOrganization()
   const { getDataSharing, createSharing, removeSharing, getShareableOrganizations } = useDataSharing()
   const { canManageSharing } = useDataAccess()
+  const organizationId = organization?.id || ''
+  const organizationType = organization?.type || organization?.organization_type || ''
 
   const [sharings, setSharings] = useState<any[]>([])
   const [shareableOrgs, setShareableOrgs] = useState<any[]>([])
@@ -17,11 +19,14 @@ export default function DataSharingPage() {
 
   useEffect(() => {
     const loadData = async () => {
-      if (!organization?.id) return
+      if (!organizationId) {
+        setIsLoading(false)
+        return
+      }
 
       const [data, orgs] = await Promise.all([
-        getDataSharing(organization.id),
-        getShareableOrganizations(organization.type),
+        getDataSharing(organizationId),
+        getShareableOrganizations(organizationType),
       ])
 
       setSharings(data)
@@ -30,7 +35,7 @@ export default function DataSharingPage() {
     }
 
     loadData()
-  }, [organization?.id, organization?.type, getDataSharing, getShareableOrganizations])
+  }, [organizationId, organizationType, getDataSharing, getShareableOrganizations])
 
   if (!canManageSharing()) {
     return (
@@ -103,10 +108,11 @@ export default function DataSharingPage() {
               <button
                 key={org.id}
                 onClick={() =>
-                  createSharing(organization.id, org.id, 'all').then(() => {
-                    getDataSharing(organization.id).then(setSharings)
+                  createSharing(organizationId, org.id, 'all').then(() => {
+                    getDataSharing(organizationId).then(setSharings)
                   })
                 }
+                disabled={!organizationId}
                 className="w-full flex items-center justify-between p-3 rounded-lg border border-white/10 hover:border-[#07f880]/50 hover:bg-[#07f880]/5 transition-colors text-left"
               >
                 <div>
