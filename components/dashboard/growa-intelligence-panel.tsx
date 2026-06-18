@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Bot, Loader2, Sparkles } from 'lucide-react'
 import type { GrowaAnalysisContext, GrowaModule } from '@/lib/ai/growa-types'
 import { getGrowaModuleTitle, getGrowaPrompts } from '@/lib/ai/growa-prompts'
@@ -12,7 +12,7 @@ interface GrowaIntelligencePanelProps {
 }
 
 export function GrowaIntelligencePanel({ module, context, disabled = false }: GrowaIntelligencePanelProps) {
-  const promptOptions = useMemo(() => getGrowaPrompts(module), [module])
+  const promptOptions = useMemo(() => getGrowaPrompts(module, context), [module, context])
   const [selectedPromptId, setSelectedPromptId] = useState(promptOptions[0]?.id ?? '')
   const [customPrompt, setCustomPrompt] = useState('')
   const [analysis, setAnalysis] = useState('')
@@ -20,11 +20,16 @@ export function GrowaIntelligencePanel({ module, context, disabled = false }: Gr
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
 
-  const activePrompt =
-    customPrompt.trim() ||
-    promptOptions.find((option) => option.id === selectedPromptId)?.prompt ||
-    promptOptions[0]?.prompt ||
-    ''
+  const selectedOption =
+    promptOptions.find((option) => option.id === selectedPromptId) ?? promptOptions[0] ?? null
+
+  const activePrompt = customPrompt.trim() || selectedOption?.prompt || ''
+
+  useEffect(() => {
+    if (!promptOptions.some((option) => option.id === selectedPromptId)) {
+      setSelectedPromptId(promptOptions[0]?.id ?? '')
+    }
+  }, [promptOptions, selectedPromptId])
 
   async function runAnalysis() {
     if (!context || !activePrompt.trim()) return
@@ -74,7 +79,8 @@ export function GrowaIntelligencePanel({ module, context, disabled = false }: Gr
           <p className="mt-2 max-w-3xl text-sm text-muted-foreground">
             Ask Growa to generate an English-language government analysis for{' '}
             <span className="text-foreground">{getGrowaModuleTitle(module)}</span> using the live
-            operational dataset displayed on this page.
+            operational dataset displayed on this page. Suggested prompts are pre-filled with current
+            metrics from your dashboard.
           </p>
         </div>
         <div className="rounded-md border border-[#07f880]/30 bg-[#07f880]/10 px-3 py-1.5 text-xs text-[#07f880]">
@@ -134,7 +140,7 @@ export function GrowaIntelligencePanel({ module, context, disabled = false }: Gr
         {context ? (
           <p className="text-xs text-muted-foreground">
             Dataset snapshot: {context.headline.cropCount} crops, {context.headline.producerCount} producers,{' '}
-            {context.headline.trackedPolygons} polygons.
+            {context.headline.trackedPolygons} polygons • top crop {context.headline.topCropByProduction || 'n/a'}
           </p>
         ) : (
           <p className="text-xs text-muted-foreground">Waiting for operational data...</p>

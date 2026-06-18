@@ -1,6 +1,7 @@
 import { GoogleGenerativeAI } from '@google/generative-ai'
 import type { GrowaAnalyzeRequest } from './growa-types'
 import { getGrowaModuleTitle } from './growa-prompts'
+import { getModuleAnalysisFramework } from './growa-digest'
 
 const DEFAULT_MODEL = 'gemini-2.5-flash'
 
@@ -12,37 +13,63 @@ function getGeminiModel() {
   return process.env.GEMINI_MODEL || DEFAULT_MODEL
 }
 
-function buildSystemInstruction(module: GrowaAnalyzeRequest['module']) {
-  const workspace = getGrowaModuleTitle(module)
+function buildSystemInstruction(request: GrowaAnalyzeRequest) {
+  const workspace = getGrowaModuleTitle(request.module)
+  const framework = getModuleAnalysisFramework(request.module)
 
   return `You are Growa, the AI intelligence analyst for the Qatar government agricultural operations platform (Growa Qatar).
 
-Your role is to produce clear, decision-ready analysis for government officials, ministry planners, and food security operators.
+Audience: ministry officials, food security planners, and government operators.
+Language: English only.
+Workspace: ${workspace}.
 
-Rules:
-- Always respond in English.
-- Base your analysis strictly on the operational dataset provided in the user message.
-- Do not invent farms, crops, metrics, or policy actions that are not supported by the data.
-- Use a professional government briefing tone: concise, structured, and actionable.
-- When data is limited or missing, state the limitation explicitly.
-- Prioritize Qatar national food security, resource sustainability, and producer accountability.
-- Format the response with short sections and bullet points where helpful.
-- Current workspace: ${workspace}.`
+Core rules:
+1. Treat the OPERATIONAL DIGEST as the single source of truth. Never invent farms, crops, metrics, or policies unsupported by the digest.
+2. Cite exact numbers from the digest when making claims (production tons, m³, kWh, scores, shares, ranks, producer names).
+3. Name specific crops and producers from the digest when discussing risk or opportunity.
+4. Separate facts (from digest) from interpretation (your analysis).
+5. When data is missing, zero, or inconsistent (see DATA ALERTS), state the limitation and avoid overconfident conclusions.
+6. Prioritize Qatar national food security, resource sustainability, and accountable producer oversight.
+7. Keep the briefing concise, decision-ready, and structured.
+
+${framework}
+
+Output format (use these headings):
+## Executive Summary
+## Evidence From Current Data
+## Risk Signals and Outliers
+## Recommended Government Actions
+## Monitoring KPIs and Data Gaps`
 }
 
 function buildUserMessage(request: GrowaAnalyzeRequest) {
-  return `Government analysis request:
+  const digest = request.context.digest?.trim() || 'No digest available.'
+
+  return `GOVERNMENT ANALYSIS REQUEST
 ${request.prompt.trim()}
 
-Operational dataset (JSON):
-${JSON.stringify(request.context, null, 2)}
+OPERATIONAL DIGEST
+${digest}
 
-Deliver a government-ready analysis with:
-1. Executive summary (3-5 sentences)
-2. Key findings grounded in the dataset
-3. Risk signals and outliers
-4. Recommended government actions (short-, medium-, and long-term)
-5. Data gaps or monitoring needs`
+STRUCTURED DATA (for exact lookups)
+${JSON.stringify(
+    {
+      headline: request.context.headline,
+      rankings: request.context.rankings,
+      alerts: request.context.alerts,
+      crops: request.context.crops,
+      topProducers: request.context.topProducers,
+      atRiskProducers: request.context.atRiskProducers,
+    },
+    null,
+    2
+  )}
+
+INSTRUCTIONS
+- Answer the analysis request using the digest and structured data above.
+- Quote at least 8 concrete metrics (with units) and at least 3 named crops/producers.
+- Use DATA ALERTS to explain uncertainty or monitoring gaps.
+- End with 3-5 measurable KPIs the government should track next cycle.`
 }
 
 export async function generateGrowaAnalysis(request: GrowaAnalyzeRequest): Promise<{
@@ -58,7 +85,7 @@ export async function generateGrowaAnalysis(request: GrowaAnalyzeRequest): Promi
   const client = new GoogleGenerativeAI(apiKey)
   const model = client.getGenerativeModel({
     model: modelName,
-    systemInstruction: buildSystemInstruction(request.module),
+    systemInstruction: buildSystemInstruction(request),
   })
 
   const result = await model.generateContent(buildUserMessage(request))
