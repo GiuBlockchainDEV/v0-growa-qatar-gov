@@ -1,9 +1,10 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import { Bot, Loader2 } from 'lucide-react'
+import { Bot, Loader2, Sparkles } from 'lucide-react'
 import type { GrowaAnalysisContext, GrowaModule } from '@/lib/ai/growa-types'
 import { getGrowaPrompts } from '@/lib/ai/growa-prompts'
+import { GrowaMarkdown } from '@/components/dashboard/growa-markdown'
 import { IntelligencePanel } from '@/components/dashboard/intelligence-workspace-ui'
 
 interface GrowaIntelligencePanelProps {
@@ -19,17 +20,18 @@ export function GrowaIntelligencePanel({ module, context, disabled = false }: Gr
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
 
+  const selectedOption =
+    promptOptions.find((option) => option.id === selectedPromptId) ?? promptOptions[0] ?? null
+
   useEffect(() => {
     if (!promptOptions.some((option) => option.id === selectedPromptId)) {
       setSelectedPromptId(promptOptions[0]?.id ?? '')
     }
   }, [promptOptions, selectedPromptId])
 
-  async function runAnalysis(promptId: string) {
-    const option = promptOptions.find((entry) => entry.id === promptId)
-    if (!context || !option?.prompt.trim()) return
+  async function runAnalysis() {
+    if (!context || !selectedOption?.prompt.trim()) return
 
-    setSelectedPromptId(promptId)
     setLoading(true)
     setError(null)
 
@@ -41,7 +43,7 @@ export function GrowaIntelligencePanel({ module, context, disabled = false }: Gr
         },
         body: JSON.stringify({
           module,
-          prompt: option.prompt,
+          prompt: selectedOption.prompt,
           context,
         }),
       })
@@ -61,6 +63,8 @@ export function GrowaIntelligencePanel({ module, context, disabled = false }: Gr
     }
   }
 
+  const canRun = Boolean(context && selectedOption?.prompt.trim() && !disabled && !loading)
+
   return (
     <IntelligencePanel
       title="Growa Assistant"
@@ -68,22 +72,38 @@ export function GrowaIntelligencePanel({ module, context, disabled = false }: Gr
       icon={Bot}
       className="h-full"
     >
-      <div className="flex flex-wrap gap-2">
-        {promptOptions.map((option) => (
-          <button
-            key={option.id}
-            type="button"
-            disabled={disabled || loading || !context}
-            onClick={() => runAnalysis(option.id)}
-            className={`rounded-lg border px-3 py-2 text-left text-xs transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
-              selectedPromptId === option.id
-                ? 'border-primary/40 bg-primary/15 text-primary'
-                : 'border-border bg-secondary/30 text-foreground hover:bg-secondary/50'
-            }`}
-          >
-            {option.label}
-          </button>
-        ))}
+      <div className="space-y-3">
+        <p className="text-xs uppercase tracking-[0.14em] text-muted-foreground">Suggested prompts</p>
+        <div className="flex flex-wrap gap-2">
+          {promptOptions.map((option) => (
+            <button
+              key={option.id}
+              type="button"
+              disabled={disabled || loading}
+              onClick={() => {
+                setSelectedPromptId(option.id)
+                setError(null)
+              }}
+              className={`rounded-lg border px-3 py-2 text-left text-xs transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
+                selectedPromptId === option.id
+                  ? 'border-primary/40 bg-primary/15 text-primary'
+                  : 'border-border bg-secondary/30 text-foreground hover:bg-secondary/50'
+              }`}
+            >
+              {option.label}
+            </button>
+          ))}
+        </div>
+
+        <button
+          type="button"
+          onClick={runAnalysis}
+          disabled={!canRun}
+          className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-primary/35 bg-primary/15 px-4 py-2.5 text-sm font-medium text-primary transition-colors hover:bg-primary/25 disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+          {loading ? 'Generating briefing...' : 'Run AI Analysis'}
+        </button>
       </div>
 
       <div className="mt-4 min-h-[280px] rounded-lg border border-border/80 bg-background/40 p-4">
@@ -95,10 +115,10 @@ export function GrowaIntelligencePanel({ module, context, disabled = false }: Gr
         ) : error ? (
           <div className="rounded-lg border border-red-400/30 bg-red-500/10 px-3 py-2 text-sm text-red-200">{error}</div>
         ) : analysis ? (
-          <div className="whitespace-pre-wrap text-sm leading-6 text-foreground">{analysis}</div>
+          <GrowaMarkdown content={analysis} />
         ) : (
           <div className="flex h-full min-h-[220px] flex-col justify-center text-sm text-muted-foreground">
-            <p>Select a briefing type to generate an English government analysis from the metrics on this page.</p>
+            <p>Select a briefing type, then run the AI analysis to generate a formatted government report.</p>
             {context ? (
               <p className="mt-2 text-xs">
                 {context.headline.cropCount} crops • {context.headline.producerCount} producers •{' '}
