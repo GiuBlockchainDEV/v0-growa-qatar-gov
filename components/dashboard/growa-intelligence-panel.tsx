@@ -84,7 +84,7 @@ export function GrowaIntelligencePanel({ module, context, disabled = false }: Gr
           </p>
         </div>
         <div className="rounded-md border border-[#07f880]/30 bg-[#07f880]/10 px-3 py-1.5 text-xs text-[#07f880]">
-          Powered by Gemini 2.5
+          Powered by Gemini 3.5 Flash
         </div>
       </div>
 

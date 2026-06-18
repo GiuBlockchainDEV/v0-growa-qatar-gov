@@ -3,7 +3,7 @@ import type { GrowaAnalyzeRequest } from './growa-types'
 import { getGrowaModuleTitle } from './growa-prompts'
 import { getModuleAnalysisFramework } from './growa-digest'
 
-const DEFAULT_MODEL = 'gemini-2.5-flash'
+const DEFAULT_MODEL = 'gemini-3.5-flash'
 
 function getGeminiApiKey() {
   return process.env.GEMINI_API_KEY || process.env.GOOGLE_GENERATIVE_AI_API_KEY || ''
