@@ -3,7 +3,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Bot, Loader2 } from 'lucide-react'
 import type { GrowaAnalysisContext, GrowaModule } from '@/lib/ai/growa-types'
-import { getGrowaModuleTitle, getGrowaPrompts } from '@/lib/ai/growa-prompts'
+import { getGrowaPrompts } from '@/lib/ai/growa-prompts'
+import { IntelligencePanel } from '@/components/dashboard/intelligence-workspace-ui'
 
 interface GrowaIntelligencePanelProps {
   module: GrowaModule
@@ -61,63 +62,54 @@ export function GrowaIntelligencePanel({ module, context, disabled = false }: Gr
   }
 
   return (
-    <div className="rounded-xl border border-[#07f880]/25 bg-[#07f880]/[0.04] p-5 shadow-[inset_0_0_0_1px_rgba(7,248,128,0.08)]">
-      <div>
-        <p className="text-xs uppercase tracking-[0.18em] text-[#07f880]/80">Growa AI Assistant</p>
-        <h2 className="mt-1 flex items-center gap-2 text-lg font-semibold text-foreground">
-          <Bot className="h-5 w-5 text-[#07f880]" />
-          Government Intelligence Briefing
-        </h2>
-        <p className="mt-2 max-w-3xl text-sm text-muted-foreground">
-          Select a briefing type for{' '}
-          <span className="text-foreground">{getGrowaModuleTitle(module)}</span>. Growa responds in
-          English using the live operational dataset on this page.
-        </p>
+    <IntelligencePanel
+      title="Growa Assistant"
+      subtitle="Government briefing powered by live dashboard data."
+      icon={Bot}
+      className="h-full"
+    >
+      <div className="flex flex-wrap gap-2">
+        {promptOptions.map((option) => (
+          <button
+            key={option.id}
+            type="button"
+            disabled={disabled || loading || !context}
+            onClick={() => runAnalysis(option.id)}
+            className={`rounded-lg border px-3 py-2 text-left text-xs transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
+              selectedPromptId === option.id
+                ? 'border-primary/40 bg-primary/15 text-primary'
+                : 'border-border bg-secondary/30 text-foreground hover:bg-secondary/50'
+            }`}
+          >
+            {option.label}
+          </button>
+        ))}
       </div>
 
-      <div className="mt-4 space-y-3">
-        <p className="text-xs uppercase tracking-[0.14em] text-muted-foreground">Suggested prompts</p>
-        <div className="flex flex-wrap gap-2">
-          {promptOptions.map((option) => (
-            <button
-              key={option.id}
-              type="button"
-              disabled={disabled || loading || !context}
-              onClick={() => runAnalysis(option.id)}
-              className={`rounded-lg border px-3 py-2 text-left text-xs transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
-                selectedPromptId === option.id
-                  ? 'border-[#07f880]/40 bg-[#07f880]/15 text-[#07f880]'
-                  : 'border-border bg-card/70 text-foreground hover:bg-white/5'
-              }`}
-            >
-              {option.label}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      <div className="mt-4 min-h-[220px] rounded-lg border border-border bg-card/80 p-4">
-        <p className="text-xs uppercase tracking-[0.14em] text-[#07f880]">AI Assistant</p>
-
+      <div className="mt-4 min-h-[280px] rounded-lg border border-border/80 bg-background/40 p-4">
         {loading ? (
-          <div className="mt-6 flex items-center justify-center gap-2 text-sm text-muted-foreground">
-            <Loader2 className="h-4 w-4 animate-spin text-[#07f880]" />
-            Growa is preparing your briefing...
+          <div className="flex h-full min-h-[220px] items-center justify-center gap-2 text-sm text-muted-foreground">
+            <Loader2 className="h-4 w-4 animate-spin text-primary" />
+            Preparing briefing...
           </div>
         ) : error ? (
-          <div className="mt-4 rounded-lg border border-red-400/30 bg-red-500/10 px-3 py-2 text-sm text-red-200">
-            {error}
-          </div>
+          <div className="rounded-lg border border-red-400/30 bg-red-500/10 px-3 py-2 text-sm text-red-200">{error}</div>
         ) : analysis ? (
-          <div className="mt-4 whitespace-pre-wrap text-sm leading-6 text-foreground">{analysis}</div>
+          <div className="whitespace-pre-wrap text-sm leading-6 text-foreground">{analysis}</div>
         ) : (
-          <p className="mt-4 text-sm text-muted-foreground">
-            {context
-              ? 'Choose a suggested prompt above to generate a government-ready analysis.'
-              : 'Waiting for operational data...'}
-          </p>
+          <div className="flex h-full min-h-[220px] flex-col justify-center text-sm text-muted-foreground">
+            <p>Select a briefing type to generate an English government analysis from the metrics on this page.</p>
+            {context ? (
+              <p className="mt-2 text-xs">
+                {context.headline.cropCount} crops • {context.headline.producerCount} producers •{' '}
+                {context.headline.trackedPolygons} polygons
+              </p>
+            ) : (
+              <p className="mt-2 text-xs">Waiting for operational data...</p>
+            )}
+          </div>
         )}
       </div>
-    </div>
+    </IntelligencePanel>
   )
 }
