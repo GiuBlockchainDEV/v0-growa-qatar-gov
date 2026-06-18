@@ -144,7 +144,7 @@ function SlideFromLeftWorkspace({
 export default function DashboardPage() {
   const { locale } = useI18n()
   const searchParams = useSearchParams()
-  const module = searchParams.get('module')
+  const moduleKey = searchParams.get('module')
   const targetPointId = searchParams.get('pointId')
   const targetFocusToken = searchParams.get('focus')
   const targetCropFilter = searchParams.get('crop')
@@ -157,7 +157,7 @@ export default function DashboardPage() {
 
   const mapModules = new Set(['live-map', 'map', 'national-map', 'inspection-map'])
 
-  if (!module || mapModules.has(module)) {
+  if (!moduleKey || mapModules.has(moduleKey)) {
     return (
       <SatelliteMap
         locale={locale}
@@ -169,7 +169,7 @@ export default function DashboardPage() {
     )
   }
 
-  if (module === 'rss-feed') {
+  if (moduleKey === 'rss-feed') {
     return (
       <SlideFromLeftWorkspace
         key="rss-feed-panel"
@@ -185,7 +185,7 @@ export default function DashboardPage() {
     )
   }
 
-  if (module === 'data-analytics') {
+  if (moduleKey === 'data-analytics') {
     return (
       <SlideFromLeftWorkspace
         key="data-analytics-panel"
@@ -201,7 +201,7 @@ export default function DashboardPage() {
     )
   }
 
-  if (module === 'water-intelligence') {
+  if (moduleKey === 'water-intelligence') {
     return (
       <SlideFromLeftWorkspace
         key="water-intelligence-panel"
@@ -217,7 +217,7 @@ export default function DashboardPage() {
     )
   }
 
-  if (module === 'energy-intelligence') {
+  if (moduleKey === 'energy-intelligence') {
     return (
       <SlideFromLeftWorkspace
         key="energy-intelligence-panel"
@@ -233,7 +233,7 @@ export default function DashboardPage() {
     )
   }
 
-  if (module === 'weather') {
+  if (moduleKey === 'weather') {
     return (
       <SlideFromLeftWorkspace
         key="weather-panel"
@@ -249,5 +249,5 @@ export default function DashboardPage() {
     )
   }
 
-  return <ModuleWorkspace moduleKey={module} />
+  return <ModuleWorkspace moduleKey={moduleKey} />
 }

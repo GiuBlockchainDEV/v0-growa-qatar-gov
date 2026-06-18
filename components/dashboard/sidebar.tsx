@@ -7,11 +7,9 @@ import { cn } from '@/lib/utils'
 import { 
   Building2,
   Share2,
-  Settings,
-  HelpCircle
+  Settings
 } from 'lucide-react'
 import { useRoleNavigation, getIconComponent } from '@/hooks/use-role-navigation'
-import { ViewAsSelector } from './view-as-selector'
 
 // Admin items are always the same
 const adminItems = [
@@ -190,11 +188,6 @@ export function DashboardSidebar({
             </>
           )}
         </nav>
-
-        {/* View As Selector (only for @growa.ai users) */}
-        <div className="border-t border-white/5 px-4 py-3">
-          <ViewAsSelector />
-        </div>
 
         {/* Footer */}
         <div className="border-t border-white/5 px-4 py-4">

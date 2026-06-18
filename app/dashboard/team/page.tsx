@@ -12,6 +12,7 @@ export default function TeamPage() {
   const { organization } = useOrganization()
   const { getTeamMembers, updateMemberRole, removeMember } = useTeamManagement()
   const { getUserRole } = usePermissions()
+  const organizationId = organization?.id || ''
 
   const [members, setMembers] = useState<any[]>([])
   const [isLoading, setIsLoading] = useState(true)
@@ -19,11 +20,14 @@ export default function TeamPage() {
 
   useEffect(() => {
     const loadData = async () => {
-      if (!organization?.id) return
+      if (!organizationId) {
+        setIsLoading(false)
+        return
+      }
 
       const [fetchedMembers, role] = await Promise.all([
-        getTeamMembers(organization.id),
-        getUserRole(organization.id),
+        getTeamMembers(organizationId),
+        getUserRole(organizationId),
       ])
 
       setMembers(fetchedMembers)
@@ -32,7 +36,7 @@ export default function TeamPage() {
     }
 
     loadData()
-  }, [organization?.id, getTeamMembers, getUserRole])
+  }, [organizationId, getTeamMembers, getUserRole])
 
   if (isLoading) {
     return (
@@ -125,9 +129,10 @@ export default function TeamPage() {
 
                 {canManageUsers && member.user_id !== user?.id && (
                   <button
+                    disabled={!organizationId}
                     onClick={() => {
                       if (confirm('Remove this member?')) {
-                        removeMember(organization?.id, member.id).then(() => {
+                        removeMember(organizationId, member.id).then(() => {
                           setMembers(members.filter((m) => m.id !== member.id))
                         })
                       }

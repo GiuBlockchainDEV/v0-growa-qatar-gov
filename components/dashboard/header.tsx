@@ -71,7 +71,7 @@ export function DashboardHeader({
     polygonCountByPointId: Record<string, number> = {}
   ): FarmSearchOption[] =>
     (Array.isArray(rows) ? rows : [])
-      .map((entry: Record<string, unknown>) => {
+      .map((entry): FarmSearchOption | null => {
         if (!entry || typeof entry !== 'object') return null
         const row = entry as Record<string, unknown>
         const id = typeof row.id === 'string' ? row.id : ''

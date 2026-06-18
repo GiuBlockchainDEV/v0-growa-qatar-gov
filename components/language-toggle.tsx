@@ -40,7 +40,6 @@ export function LanguageToggle() {
         side="bottom"
         sideOffset={8}
         collisionPadding={12}
-        dir="ltr"
         className="z-[2600] min-w-[11rem]"
       >
         <DropdownMenuLabel>{t('language.switch')}</DropdownMenuLabel>
