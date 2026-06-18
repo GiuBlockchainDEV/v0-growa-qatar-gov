@@ -2,6 +2,21 @@
 
 import { useMemo } from 'react'
 import { Droplets, Gauge, Target, Waves } from 'lucide-react'
+import { buildGrowaContext } from '@/lib/ai/build-growa-context'
+import { GrowaIntelligencePanel } from '@/components/dashboard/growa-intelligence-panel'
+import {
+  IntelligenceCommandLayout,
+  IntelligenceDataTable,
+  IntelligenceErrorState,
+  IntelligenceHero,
+  IntelligenceKpiCard,
+  IntelligenceLoadingState,
+  IntelligencePanel,
+  IntelligenceProducerCard,
+  IntelligenceTableBody,
+  IntelligenceTableHead,
+  IntelligenceWorkspaceRoot,
+} from '@/components/dashboard/intelligence-workspace-ui'
 import {
   type IntelligenceAggregate,
   clampScore,
@@ -15,8 +30,17 @@ import {
 } from './intelligence-metrics-shared'
 
 export function WaterIntelligenceWorkspace() {
-  const { loading, error, cropAggregates, producerRanking, headline, analyticsMeta, producerLabelsById } =
-    useIntelligenceData()
+  const {
+    loading,
+    error,
+    insights,
+    polygons,
+    cropAggregates,
+    producerRanking,
+    headline,
+    analyticsMeta,
+    producerLabelsById,
+  } = useIntelligenceData()
   const { navigateToCropOnMap, navigateToProducerPoint } = useMapNavigation('water-intelligence')
 
   const waterMeta = useMemo(() => {
@@ -38,8 +62,31 @@ export function WaterIntelligenceWorkspace() {
     [cropAggregates]
   )
 
-  const topHydrationFarms = producerRanking.mostEfficient.slice(0, 5)
-  const atRiskFarms = producerRanking.leastEfficient.slice(0, 5)
+  const growaContext = useMemo(() => {
+    if (loading || error) return null
+    return buildGrowaContext({
+      module: 'water-intelligence',
+      insights,
+      polygons,
+      producerLabelsById,
+      cropAggregates,
+      producerRanking,
+      headline,
+      analyticsMeta,
+      waterMeta,
+    })
+  }, [
+    analyticsMeta,
+    cropAggregates,
+    error,
+    headline,
+    insights,
+    loading,
+    polygons,
+    producerLabelsById,
+    producerRanking,
+    waterMeta,
+  ])
 
   const renderCropRow = (crop: IntelligenceAggregate, index: number) => {
     const waterPerTon = crop.totalWaterM3 / Math.max(1, crop.totalProductionTons)
@@ -51,7 +98,7 @@ export function WaterIntelligenceWorkspace() {
           index % 2 === 0 ? 'bg-card/60' : 'bg-secondary/20'
         }`}
       >
-        <td className="px-3 py-2.5 font-medium text-foreground">{crop.cropName}</td>
+        <td className="px-3 py-2.5 font-medium">{crop.cropName}</td>
         <td className="px-3 py-2.5">{formatNumber(crop.totalWaterM3, ' m³')}</td>
         <td className="px-3 py-2.5">{formatNumber(waterPerTon, ' m³/t')}</td>
         <td className="px-3 py-2.5">{crop.polygonsCount}</td>
@@ -72,62 +119,54 @@ export function WaterIntelligenceWorkspace() {
   }
 
   return (
-    <div className="space-y-6 p-6 pt-20 text-foreground">
-      <div className="rounded-2xl border border-border bg-card p-6 shadow-[0_0_0_1px_rgba(7,248,128,0.08),0_20px_50px_rgba(0,0,0,0.35)]">
-        <h1 className="flex items-center gap-2 text-3xl font-semibold">
-          <Droplets className="h-6 w-6 text-primary" />
-          Water Intelligence
-        </h1>
-        <p className="mt-2 text-sm text-muted-foreground">
-          Live water intelligence with crop and farm focus actions. Click a crop or producer card to move the lateral
-          map to the relevant polygons/farm.
-        </p>
-      </div>
+    <IntelligenceWorkspaceRoot>
+      <IntelligenceHero
+        eyebrow="Resource Intelligence Layer"
+        title="Water Intelligence"
+        description="Monitor irrigation pressure, crop water intensity, and farm-level consumption. Click any row or producer to focus the map."
+        icon={Droplets}
+        statusItems={[
+          { label: 'Status', value: 'Live', accent: true },
+          { label: 'Polygons', value: String(polygons.length) },
+          { label: 'Signal', value: formatScore(analyticsMeta.avgPolygonScore) },
+          { label: 'Pressure', value: formatNumber(waterMeta.irrigationPressure, '%') },
+        ]}
+      />
 
       {loading ? (
-        <div className="rounded-xl border border-border bg-card/60 p-8 text-center text-base text-muted-foreground">
-          Loading water intelligence...
-        </div>
+        <IntelligenceLoadingState message="Loading water intelligence..." />
       ) : error ? (
-        <div className="rounded-xl border border-red-400/30 bg-red-500/10 p-4 text-sm text-red-200">{error}</div>
+        <IntelligenceErrorState message={error} />
       ) : (
         <>
           <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
-            <div className="rounded-xl border border-primary/30 bg-primary/10 p-4">
-              <p className="text-xs uppercase tracking-wide text-primary/90">Total Water</p>
-              <p className="mt-2 text-2xl font-semibold text-primary">{formatNumber(headline.totalWater, ' m³')}</p>
-            </div>
-            <div className="rounded-xl border border-border bg-card/80 p-4">
-              <p className="text-xs uppercase tracking-wide text-muted-foreground">Water Intensity</p>
-              <p className="mt-2 text-2xl font-semibold text-foreground">
-                {formatNumber(waterMeta.avgWaterPerTon, ' m³/t')}
-              </p>
-            </div>
-            <div className="rounded-xl border border-border bg-card/80 p-4">
-              <p className="text-xs uppercase tracking-wide text-muted-foreground">Irrigation Pressure</p>
-              <p className="mt-2 text-2xl font-semibold text-sky-300">{formatNumber(waterMeta.irrigationPressure, '%')}</p>
-            </div>
-            <div className="rounded-xl border border-border bg-card/80 p-4">
-              <p className="text-xs uppercase tracking-wide text-muted-foreground">Average Polygon Score</p>
-              <p
-                className="mt-2 text-2xl font-semibold"
-                style={{ color: scoreColor(analyticsMeta.avgPolygonScore) }}
-              >
-                {formatScore(analyticsMeta.avgPolygonScore)}
-              </p>
-            </div>
+            <IntelligenceKpiCard
+              label="Total Water"
+              value={formatNumber(headline.totalWater, ' m³')}
+              icon={Droplets}
+              accent
+            />
+            <IntelligenceKpiCard
+              label="Water Intensity"
+              value={formatNumber(waterMeta.avgWaterPerTon, ' m³/t')}
+            />
+            <IntelligenceKpiCard
+              label="Irrigation Pressure"
+              value={formatNumber(waterMeta.irrigationPressure, '%')}
+              tone="sky"
+            />
+            <IntelligenceKpiCard label="Polygon Score" value={formatScore(analyticsMeta.avgPolygonScore)} />
           </div>
 
-          <div className="grid grid-cols-1 gap-4 xl:grid-cols-[1.5fr_1fr]">
-            <div className="rounded-xl border border-border bg-card p-5 shadow-[inset_0_0_0_1px_rgba(148,163,184,0.06)]">
-              <h2 className="flex items-center gap-2 text-base font-semibold">
-                <Waves className="h-4 w-4 text-primary" />
-                Crop Water Matrix
-              </h2>
-              <p className="mt-2 text-sm text-muted-foreground">Sorted by water intensity (m³ per production ton).</p>
-              <div className="mt-3 overflow-x-auto rounded-lg border border-border">
-                <table className="min-w-full divide-y divide-border text-left">
-                  <thead className="bg-secondary/50 text-xs uppercase tracking-[0.12em] text-muted-foreground">
+          <IntelligenceCommandLayout
+            main={
+              <IntelligencePanel
+                title="Crop Water Matrix"
+                subtitle="Sorted by water intensity (m³ per production ton)."
+                icon={Waves}
+              >
+                <IntelligenceDataTable>
+                  <IntelligenceTableHead>
                     <tr>
                       <th className="px-3 py-2.5 font-medium">Crop</th>
                       <th className="px-3 py-2.5 font-medium">Water</th>
@@ -135,89 +174,77 @@ export function WaterIntelligenceWorkspace() {
                       <th className="px-3 py-2.5 font-medium">Polygons</th>
                       <th className="px-3 py-2.5 font-medium">Score</th>
                     </tr>
-                  </thead>
-                  <tbody className="divide-y divide-border/70">
+                  </IntelligenceTableHead>
+                  <IntelligenceTableBody>
                     {waterLeaders.map((crop, index) => renderCropRow(crop, index))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
+                  </IntelligenceTableBody>
+                </IntelligenceDataTable>
+              </IntelligencePanel>
+            }
+            insights={
+              <>
+                <IntelligencePanel title="System Baseline" icon={Gauge}>
+                  <div className="mb-2 h-2 rounded bg-secondary/70">
+                    <div
+                      className="h-2 rounded"
+                      style={{
+                        width: `${clampScore(analyticsMeta.avgPolygonScore)}%`,
+                        backgroundColor: scoreColor(analyticsMeta.avgPolygonScore),
+                      }}
+                    />
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Water performance baseline across {headline.producerCount} monitored producers.
+                  </p>
+                </IntelligencePanel>
 
-            <div className="space-y-4">
-              <div className="rounded-xl border border-border bg-card p-4">
-                <h3 className="flex items-center gap-2 text-sm font-semibold text-foreground">
-                  <Gauge className="h-4 w-4 text-primary" />
-                  Low-intensity leaders
-                </h3>
-                <div className="mt-3 space-y-2">
-                  {topHydrationFarms.length === 0 ? (
-                    <p className="text-sm text-muted-foreground">No farms available.</p>
-                  ) : (
-                    topHydrationFarms.map((farm, index) => (
-                      <button
-                        key={`${farm.pointId}-water-good`}
-                        type="button"
-                        onClick={() => navigateToProducerPoint(farm.pointId)}
-                        className="w-full rounded-lg border border-primary/30 bg-primary/10 px-3 py-2 text-left hover:bg-primary/15"
-                      >
-                        <p className="text-sm font-medium text-foreground">
-                          #{index + 1} {normalizePointLabel(farm.pointId, producerLabelsById)}
-                        </p>
-                        <p className="mt-1 text-xs text-muted-foreground">
-                          Efficiency {farm.efficiencyScore.toFixed(2)} • Score {formatScore(farm.averagePolygonScore)}
-                        </p>
-                      </button>
-                    ))
-                  )}
-                </div>
-              </div>
+                <IntelligencePanel title="Low-intensity Leaders" variant="success">
+                  <div className="space-y-2">
+                    {producerRanking.mostEfficient.length === 0 ? (
+                      <p className="text-sm text-muted-foreground">No farms available.</p>
+                    ) : (
+                      producerRanking.mostEfficient.map((farm, index) => (
+                        <IntelligenceProducerCard
+                          key={`${farm.pointId}-water-good`}
+                          rank={index + 1}
+                          name={normalizePointLabel(farm.pointId, producerLabelsById)}
+                          lines={[
+                            `Efficiency ${farm.efficiencyScore.toFixed(2)} • Score ${formatScore(farm.averagePolygonScore)}`,
+                          ]}
+                          onClick={() => navigateToProducerPoint(farm.pointId)}
+                          variant="success"
+                        />
+                      ))
+                    )}
+                  </div>
+                </IntelligencePanel>
 
-              <div className="rounded-xl border border-border bg-card p-4">
-                <h3 className="flex items-center gap-2 text-sm font-semibold text-foreground">
-                  <Target className="h-4 w-4 text-amber-300" />
-                  High-use farms
-                </h3>
-                <div className="mt-3 space-y-2">
-                  {atRiskFarms.length === 0 ? (
-                    <p className="text-sm text-muted-foreground">No farms available.</p>
-                  ) : (
-                    atRiskFarms.map((farm, index) => (
-                      <button
-                        key={`${farm.pointId}-water-risk`}
-                        type="button"
-                        onClick={() => navigateToProducerPoint(farm.pointId)}
-                        className="w-full rounded-lg border border-amber-400/30 bg-amber-500/10 px-3 py-2 text-left hover:bg-amber-500/15"
-                      >
-                        <p className="text-sm font-medium text-foreground">
-                          #{index + 1} {normalizePointLabel(farm.pointId, producerLabelsById)}
-                        </p>
-                        <p className="mt-1 text-xs text-muted-foreground">
-                          Resource {formatNumber(farm.resourceIntensity)} • Variety {farm.cropVarietyCount}
-                        </p>
-                      </button>
-                    ))
-                  )}
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div className="rounded-xl border border-border bg-card p-4">
-            <div className="mb-2 h-2 rounded bg-secondary/70">
-              <div
-                className="h-2 rounded"
-                style={{
-                  width: `${clampScore(analyticsMeta.avgPolygonScore)}%`,
-                  backgroundColor: scoreColor(analyticsMeta.avgPolygonScore),
-                }}
-              />
-            </div>
-            <p className="text-xs text-muted-foreground">
-              System water performance baseline follows polygon score distribution across all monitored farms.
-            </p>
-          </div>
+                <IntelligencePanel title="High-use Farms" icon={Target} variant="warning">
+                  <div className="space-y-2">
+                    {producerRanking.leastEfficient.length === 0 ? (
+                      <p className="text-sm text-muted-foreground">No farms available.</p>
+                    ) : (
+                      producerRanking.leastEfficient.map((farm, index) => (
+                        <IntelligenceProducerCard
+                          key={`${farm.pointId}-water-risk`}
+                          rank={index + 1}
+                          name={normalizePointLabel(farm.pointId, producerLabelsById)}
+                          lines={[
+                            `Resource ${formatNumber(farm.resourceIntensity)} • Variety ${farm.cropVarietyCount}`,
+                          ]}
+                          onClick={() => navigateToProducerPoint(farm.pointId)}
+                          variant="warning"
+                        />
+                      ))
+                    )}
+                  </div>
+                </IntelligencePanel>
+              </>
+            }
+            assistant={<GrowaIntelligencePanel module="water-intelligence" context={growaContext} />}
+          />
         </>
       )}
-    </div>
+    </IntelligenceWorkspaceRoot>
   )
 }

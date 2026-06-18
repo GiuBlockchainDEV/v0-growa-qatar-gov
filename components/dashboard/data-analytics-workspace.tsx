@@ -3,6 +3,21 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Activity, BarChart3, Cpu, Droplets, Flame, Gauge, Leaf, TrendingDown, TrendingUp } from 'lucide-react'
+import { buildGrowaContext } from '@/lib/ai/build-growa-context'
+import { GrowaIntelligencePanel } from '@/components/dashboard/growa-intelligence-panel'
+import {
+  IntelligenceCommandLayout,
+  IntelligenceDataTable,
+  IntelligenceErrorState,
+  IntelligenceHero,
+  IntelligenceKpiCard,
+  IntelligenceLoadingState,
+  IntelligencePanel,
+  IntelligenceProducerCard,
+  IntelligenceTableBody,
+  IntelligenceTableHead,
+  IntelligenceWorkspaceRoot,
+} from '@/components/dashboard/intelligence-workspace-ui'
 
 interface InsightRow {
   id: string
@@ -346,6 +361,30 @@ export function DataAnalyticsWorkspace() {
     }
   }, [cropAggregates, headline.totalEnergy, headline.totalProduction, headline.totalWater, polygons, producerRanking])
 
+  const growaContext = useMemo(() => {
+    if (loading || error) return null
+    return buildGrowaContext({
+      module: 'data-analytics',
+      insights,
+      polygons,
+      producerLabelsById,
+      cropAggregates,
+      producerRanking,
+      headline,
+      analyticsMeta,
+    })
+  }, [
+    analyticsMeta,
+    cropAggregates,
+    error,
+    headline,
+    insights,
+    loading,
+    polygons,
+    producerLabelsById,
+    producerRanking,
+  ])
+
   const navigateToCropOnMap = (cropName: string) => {
     const normalized = cropName.trim()
     if (!normalized) return
@@ -374,94 +413,61 @@ export function DataAnalyticsWorkspace() {
   }
 
   return (
-    <div className="space-y-7 p-6 pt-20 text-foreground">
-      <div className="relative overflow-hidden rounded-2xl border border-border bg-card p-7 shadow-[0_0_0_1px_rgba(7,248,128,0.08),0_24px_60px_rgba(0,0,0,0.38)]">
-        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(7,248,128,0.14),transparent_45%),radial-gradient(circle_at_bottom_left,rgba(7,248,128,0.08),transparent_42%)]" />
-        <div className="pointer-events-none absolute inset-0 opacity-25 [background-image:linear-gradient(rgba(148,163,184,0.12)_1px,transparent_1px),linear-gradient(90deg,rgba(148,163,184,0.12)_1px,transparent_1px)] [background-size:28px_28px]" />
-        <div className="relative">
-          <div className="flex flex-wrap items-start justify-between gap-4">
-            <div>
-              <p className="text-xs uppercase tracking-[0.22em] text-primary">Operational Intelligence Layer</p>
-              <h1 className="mt-2 flex items-center gap-2 text-4xl font-semibold text-foreground">
-                <BarChart3 className="h-7 w-7 text-primary" />
-                Data Analytics Command
-              </h1>
-              <p className="mt-3 max-w-2xl text-base text-muted-foreground">
-                Unified command view for crop performance, resource pressure, and producer efficiency across all mapped
-                farm points.
-              </p>
-            </div>
-            <div className="grid grid-cols-2 gap-2 text-sm">
-              <div className="rounded-md border border-primary/30 bg-primary/10 px-3 py-2 text-primary">STATUS: LIVE</div>
-              <div className="rounded-md border border-border bg-secondary/50 px-3 py-2 text-foreground">GRID: ONLINE</div>
-              <div className="rounded-md border border-border bg-secondary/50 px-3 py-2 text-foreground">
-                SIGNAL: {formatScore(analyticsMeta.avgPolygonScore)}
-              </div>
-              <div className="rounded-md border border-border bg-secondary/50 px-3 py-2 text-foreground">
-                TRACKED POLYGONS: {polygons.length}
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
+    <IntelligenceWorkspaceRoot>
+      <IntelligenceHero
+        eyebrow="Operational Intelligence Layer"
+        title="Data Analytics Command"
+        description="Unified command view for crop performance, resource pressure, and producer efficiency across all mapped farm points."
+        icon={BarChart3}
+        statusItems={[
+          { label: 'Status', value: 'Live', accent: true },
+          { label: 'Grid', value: 'Online' },
+          { label: 'Signal', value: formatScore(analyticsMeta.avgPolygonScore) },
+          { label: 'Polygons', value: String(polygons.length) },
+        ]}
+      />
 
       {loading ? (
-        <div className="rounded-xl border border-border bg-card/60 p-8 text-center text-base text-muted-foreground">
-          Loading analytics...
-        </div>
+        <IntelligenceLoadingState message="Loading analytics..." />
       ) : error ? (
-        <div className="rounded-xl border border-red-400/30 bg-red-500/10 p-4 text-sm text-red-200">
-          {error}
-        </div>
+        <IntelligenceErrorState message={error} />
       ) : (
         <>
           <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-6">
-            <div className="rounded-xl border border-border bg-card/80 p-5 shadow-[inset_0_0_0_1px_rgba(148,163,184,0.08)]">
-              <p className="text-xs uppercase tracking-[0.14em] text-muted-foreground">Crops tracked</p>
-              <p className="mt-2 text-3xl font-semibold text-foreground">{headline.cropCount}</p>
-            </div>
-            <div className="rounded-xl border border-border bg-card/80 p-5 shadow-[inset_0_0_0_1px_rgba(148,163,184,0.08)]">
-              <p className="text-xs uppercase tracking-[0.14em] text-muted-foreground">Producers</p>
-              <p className="mt-2 text-3xl font-semibold text-foreground">{headline.producerCount}</p>
-            </div>
-            <div className="rounded-xl border border-primary/30 bg-primary/10 p-5 shadow-[inset_0_0_0_1px_rgba(7,248,128,0.16)]">
-              <p className="flex items-center gap-1.5 text-xs uppercase tracking-[0.14em] text-primary/90">
-                <Activity className="h-3.5 w-3.5" /> Production
-              </p>
-              <p className="mt-2 text-3xl font-semibold text-primary">{formatNumber(headline.totalProduction, ' t')}</p>
-            </div>
-            <div className="rounded-xl border border-border bg-card/80 p-5 shadow-[inset_0_0_0_1px_rgba(7,248,128,0.08)]">
-              <p className="flex items-center gap-1.5 text-xs uppercase tracking-[0.14em] text-muted-foreground">
-                <Cpu className="h-3.5 w-3.5" /> Energy
-              </p>
-              <p className="mt-2 text-3xl font-semibold text-foreground">{formatNumber(headline.totalEnergy, ' kWh')}</p>
-            </div>
-            <div className="rounded-xl border border-border bg-card/80 p-5 shadow-[inset_0_0_0_1px_rgba(7,248,128,0.08)]">
-              <p className="flex items-center gap-1.5 text-xs uppercase tracking-[0.14em] text-muted-foreground">
-                <Droplets className="h-3.5 w-3.5" /> Water
-              </p>
-              <p className="mt-2 text-3xl font-semibold text-foreground">{formatNumber(headline.totalWater, ' m³')}</p>
-            </div>
-            <div className="rounded-xl border border-border bg-card/80 p-5 shadow-[inset_0_0_0_1px_rgba(7,248,128,0.08)]">
-              <p className="flex items-center gap-1.5 text-xs uppercase tracking-[0.14em] text-muted-foreground">
-                <Gauge className="h-3.5 w-3.5" /> Resource / Ton
-              </p>
-              <p className="mt-2 text-3xl font-semibold text-foreground">
-                {formatNumber(analyticsMeta.resourceIntensityPerTon)}
-              </p>
-            </div>
+            <IntelligenceKpiCard label="Crops tracked" value={String(headline.cropCount)} />
+            <IntelligenceKpiCard label="Producers" value={String(headline.producerCount)} />
+            <IntelligenceKpiCard
+              label="Production"
+              value={formatNumber(headline.totalProduction, ' t')}
+              icon={Activity}
+              accent
+            />
+            <IntelligenceKpiCard
+              label="Energy"
+              value={formatNumber(headline.totalEnergy, ' kWh')}
+              icon={Cpu}
+            />
+            <IntelligenceKpiCard
+              label="Water"
+              value={formatNumber(headline.totalWater, ' m³')}
+              icon={Droplets}
+            />
+            <IntelligenceKpiCard
+              label="Resource / Ton"
+              value={formatNumber(analyticsMeta.resourceIntensityPerTon)}
+              icon={Gauge}
+            />
           </div>
 
-          <div className="grid grid-cols-1 gap-4 xl:grid-cols-[1.4fr_0.8fr]">
-            <div className="rounded-xl border border-border bg-card p-5 shadow-[inset_0_0_0_1px_rgba(148,163,184,0.06)]">
-              <h2 className="flex items-center gap-2 text-lg font-semibold text-foreground">
-                <Leaf className="h-5 w-5 text-primary" />
-                Crop Intelligence Matrix
-              </h2>
-              <p className="mt-1 text-sm text-muted-foreground">Resource and production profile by crop family.</p>
-              <div className="mt-4 overflow-x-auto rounded-lg border border-border">
-                <table className="min-w-full divide-y divide-border text-left">
-                  <thead className="bg-secondary/50 text-xs uppercase tracking-[0.12em] text-muted-foreground">
+          <IntelligenceCommandLayout
+            main={
+              <IntelligencePanel
+                title="Crop Intelligence Matrix"
+                subtitle="Resource and production profile by crop family."
+                icon={Leaf}
+              >
+                <IntelligenceDataTable>
+                  <IntelligenceTableHead>
                     <tr>
                       <th className="px-3 py-2.5 font-medium">Crop</th>
                       <th className="px-3 py-2.5 font-medium">Farms</th>
@@ -471,8 +477,8 @@ export function DataAnalyticsWorkspace() {
                       <th className="px-3 py-2.5 font-medium">Water</th>
                       <th className="px-3 py-2.5 font-medium">Score</th>
                     </tr>
-                  </thead>
-                  <tbody className="divide-y divide-border/70">
+                  </IntelligenceTableHead>
+                  <IntelligenceTableBody>
                     {cropAggregates.map((crop, index) => (
                       <tr
                         key={crop.cropName}
@@ -481,7 +487,7 @@ export function DataAnalyticsWorkspace() {
                           index % 2 === 0 ? 'bg-card/60' : 'bg-secondary/20'
                         }`}
                       >
-                        <td className="px-3 py-2.5 font-medium text-foreground">{crop.cropName}</td>
+                        <td className="px-3 py-2.5 font-medium">{crop.cropName}</td>
                         <td className="px-3 py-2.5">{crop.farmsCount}</td>
                         <td className="px-3 py-2.5">{crop.polygonsCount}</td>
                         <td className="px-3 py-2.5">{formatNumber(crop.totalProductionTons, ' t')}</td>
@@ -501,121 +507,102 @@ export function DataAnalyticsWorkspace() {
                         </td>
                       </tr>
                     ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-
-            <div className="space-y-4">
-              <div className="rounded-xl border border-border bg-card p-5 shadow-[inset_0_0_0_1px_rgba(148,163,184,0.06)]">
-                <h3 className="text-xs uppercase tracking-[0.14em] text-muted-foreground">System pulse</h3>
-                <div className="mt-3 space-y-3">
-                  <div>
-                    <div className="mb-1 flex items-center justify-between text-sm text-foreground">
-                      <span>Average polygon score</span>
-                      <span style={{ color: scoreColor(analyticsMeta.avgPolygonScore) }}>
-                        {formatScore(analyticsMeta.avgPolygonScore)}
-                      </span>
+                  </IntelligenceTableBody>
+                </IntelligenceDataTable>
+              </IntelligencePanel>
+            }
+            insights={
+              <>
+                <IntelligencePanel title="System Pulse">
+                  <div className="space-y-3">
+                    <div>
+                      <div className="mb-1 flex items-center justify-between text-sm">
+                        <span>Average polygon score</span>
+                        <span style={{ color: scoreColor(analyticsMeta.avgPolygonScore) }}>
+                          {formatScore(analyticsMeta.avgPolygonScore)}
+                        </span>
+                      </div>
+                      <div className="h-2 rounded bg-secondary/70">
+                        <div
+                          className="h-2 rounded"
+                          style={{
+                            width: `${clampScore(analyticsMeta.avgPolygonScore)}%`,
+                            backgroundColor: scoreColor(analyticsMeta.avgPolygonScore),
+                          }}
+                        />
+                      </div>
                     </div>
-                    <div className="h-2 rounded bg-secondary/70">
-                      <div
-                        className="h-2 rounded"
-                        style={{
-                          width: `${clampScore(analyticsMeta.avgPolygonScore)}%`,
-                          backgroundColor: scoreColor(analyticsMeta.avgPolygonScore),
-                        }}
-                      />
+                    <div className="grid grid-cols-2 gap-2 text-sm">
+                      <div className="rounded-md border border-border bg-secondary/40 px-2.5 py-2">
+                        <p className="text-muted-foreground">Top crop</p>
+                        <p className="mt-1 font-medium">{analyticsMeta.topCrop?.cropName || 'N/A'}</p>
+                      </div>
+                      <div className="rounded-md border border-border bg-secondary/40 px-2.5 py-2">
+                        <p className="text-muted-foreground">Efficiency spread</p>
+                        <p className="mt-1 font-medium">{formatNumber(analyticsMeta.efficiencySpread)}</p>
+                      </div>
                     </div>
-                  </div>
-                  <div className="grid grid-cols-2 gap-2 text-sm">
-                    <div className="rounded-md border border-border bg-secondary/40 px-2.5 py-2 text-foreground">
-                      <p className="text-muted-foreground">Top crop</p>
-                      <p className="mt-1 font-medium text-foreground">
-                        {analyticsMeta.topCrop?.cropName || 'N/A'}
+                    <div className="rounded-md border border-border bg-secondary/40 px-2.5 py-2 text-sm">
+                      <p className="flex items-center gap-1 text-muted-foreground">
+                        <Flame className="h-3.5 w-3.5 text-primary" />
+                        Production efficiency
+                      </p>
+                      <p className="mt-1 font-medium">
+                        {formatNumber(analyticsMeta.productionEfficiency, ' t / resource-unit')}
                       </p>
                     </div>
-                    <div className="rounded-md border border-border bg-secondary/40 px-2.5 py-2 text-foreground">
-                      <p className="text-muted-foreground">Efficiency spread</p>
-                      <p className="mt-1 font-medium text-foreground">
-                        {formatNumber(analyticsMeta.efficiencySpread)}
-                      </p>
-                    </div>
                   </div>
-                  <div className="rounded-md border border-border bg-secondary/40 px-2.5 py-2 text-sm text-foreground">
-                    <p className="flex items-center gap-1 text-muted-foreground">
-                      <Flame className="h-3.5 w-3.5 text-primary" />
-                      Production efficiency
-                    </p>
-                    <p className="mt-1 text-base font-medium text-foreground">
-                      {formatNumber(analyticsMeta.productionEfficiency, ' t / resource-unit')}
-                    </p>
+                </IntelligencePanel>
+
+                <IntelligencePanel title="Most Efficient Producers" icon={TrendingUp} variant="success">
+                  <div className="space-y-2">
+                    {producerRanking.mostEfficient.length === 0 ? (
+                      <p className="text-sm text-muted-foreground">No producers available.</p>
+                    ) : (
+                      producerRanking.mostEfficient.map((entry, index) => (
+                        <IntelligenceProducerCard
+                          key={`${entry.pointId}-best`}
+                          rank={index + 1}
+                          name={getProducerDisplayName(entry.pointId, producerLabelsById)}
+                          lines={[
+                            `Efficiency ${entry.efficiencyScore.toFixed(2)} • Score ${formatScore(entry.averagePolygonScore)}`,
+                            `Variety ${entry.cropVarietyCount} • Production ${formatNumber(entry.productionTons, ' t')}`,
+                          ]}
+                          onClick={() => navigateToProducerPoint(entry.pointId)}
+                          variant="success"
+                        />
+                      ))
+                    )}
                   </div>
-                </div>
-              </div>
+                </IntelligencePanel>
 
-              <div className="rounded-xl border border-primary/30 bg-primary/10 p-5">
-                <h2 className="flex items-center gap-2 text-base font-semibold text-foreground">
-                  <TrendingUp className="h-4 w-4 text-primary" />
-                  Most Efficient Producers
-                </h2>
-                <div className="mt-3 space-y-2">
-                  {producerRanking.mostEfficient.length === 0 ? (
-                    <p className="text-sm text-muted-foreground">No producers available.</p>
-                  ) : (
-                    producerRanking.mostEfficient.map((entry, index) => (
-                      <div
-                        key={`${entry.pointId}-best`}
-                        onClick={() => navigateToProducerPoint(entry.pointId)}
-                        className="cursor-pointer rounded-lg border border-primary/30 bg-card/70 px-3 py-2.5 transition-colors hover:bg-primary/10"
-                      >
-                        <p className="text-sm font-medium text-foreground">
-                          #{index + 1} {getProducerDisplayName(entry.pointId, producerLabelsById)}
-                        </p>
-                        <p className="mt-1 text-sm text-muted-foreground">
-                          Efficiency {entry.efficiencyScore.toFixed(2)} • Score {formatScore(entry.averagePolygonScore)}
-                        </p>
-                        <p className="mt-1 text-sm text-muted-foreground">
-                          Variety {entry.cropVarietyCount} • Production {formatNumber(entry.productionTons, ' t')}
-                        </p>
-                      </div>
-                    ))
-                  )}
-                </div>
-              </div>
-
-              <div className="rounded-xl border border-destructive/30 bg-destructive/10 p-5">
-                <h2 className="flex items-center gap-2 text-base font-semibold text-foreground">
-                  <TrendingDown className="h-4 w-4 text-destructive" />
-                  Least Efficient Producers
-                </h2>
-                <div className="mt-3 space-y-2">
-                  {producerRanking.leastEfficient.length === 0 ? (
-                    <p className="text-sm text-muted-foreground">No producers available.</p>
-                  ) : (
-                    producerRanking.leastEfficient.map((entry, index) => (
-                      <div
-                        key={`${entry.pointId}-worst`}
-                        onClick={() => navigateToProducerPoint(entry.pointId)}
-                        className="cursor-pointer rounded-lg border border-destructive/30 bg-card/70 px-3 py-2.5 transition-colors hover:bg-destructive/20"
-                      >
-                        <p className="text-sm font-medium text-foreground">
-                          #{index + 1} {getProducerDisplayName(entry.pointId, producerLabelsById)}
-                        </p>
-                        <p className="mt-1 text-sm text-muted-foreground">
-                          Efficiency {entry.efficiencyScore.toFixed(2)} • Score {formatScore(entry.averagePolygonScore)}
-                        </p>
-                        <p className="mt-1 text-sm text-muted-foreground">
-                          Variety {entry.cropVarietyCount} • Production {formatNumber(entry.productionTons, ' t')}
-                        </p>
-                      </div>
-                    ))
-                  )}
-                </div>
-              </div>
-            </div>
-          </div>
+                <IntelligencePanel title="Least Efficient Producers" icon={TrendingDown} variant="warning">
+                  <div className="space-y-2">
+                    {producerRanking.leastEfficient.length === 0 ? (
+                      <p className="text-sm text-muted-foreground">No producers available.</p>
+                    ) : (
+                      producerRanking.leastEfficient.map((entry, index) => (
+                        <IntelligenceProducerCard
+                          key={`${entry.pointId}-worst`}
+                          rank={index + 1}
+                          name={getProducerDisplayName(entry.pointId, producerLabelsById)}
+                          lines={[
+                            `Efficiency ${entry.efficiencyScore.toFixed(2)} • Score ${formatScore(entry.averagePolygonScore)}`,
+                            `Variety ${entry.cropVarietyCount} • Production ${formatNumber(entry.productionTons, ' t')}`,
+                          ]}
+                          onClick={() => navigateToProducerPoint(entry.pointId)}
+                          variant="warning"
+                        />
+                      ))
+                    )}
+                  </div>
+                </IntelligencePanel>
+              </>
+            }
+            assistant={<GrowaIntelligencePanel module="data-analytics" context={growaContext} />}
+          />
         </>
       )}
-    </div>
+    </IntelligenceWorkspaceRoot>
   )
 }
