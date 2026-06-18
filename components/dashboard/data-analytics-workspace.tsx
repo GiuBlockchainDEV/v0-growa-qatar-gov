@@ -3,6 +3,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Activity, BarChart3, Cpu, Droplets, Flame, Gauge, Leaf, TrendingDown, TrendingUp } from 'lucide-react'
+import { buildGrowaContext } from '@/lib/ai/build-growa-context'
+import { GrowaIntelligencePanel } from '@/components/dashboard/growa-intelligence-panel'
 
 interface InsightRow {
   id: string
@@ -346,6 +348,30 @@ export function DataAnalyticsWorkspace() {
     }
   }, [cropAggregates, headline.totalEnergy, headline.totalProduction, headline.totalWater, polygons, producerRanking])
 
+  const growaContext = useMemo(() => {
+    if (loading || error) return null
+    return buildGrowaContext({
+      module: 'data-analytics',
+      insights,
+      polygons,
+      producerLabelsById,
+      cropAggregates,
+      producerRanking,
+      headline,
+      analyticsMeta,
+    })
+  }, [
+    analyticsMeta,
+    cropAggregates,
+    error,
+    headline,
+    insights,
+    loading,
+    polygons,
+    producerLabelsById,
+    producerRanking,
+  ])
+
   const navigateToCropOnMap = (cropName: string) => {
     const normalized = cropName.trim()
     if (!normalized) return
@@ -614,6 +640,8 @@ export function DataAnalyticsWorkspace() {
               </div>
             </div>
           </div>
+
+          <GrowaIntelligencePanel module="data-analytics" context={growaContext} disabled={loading} />
         </>
       )}
     </div>

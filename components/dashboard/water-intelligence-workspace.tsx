@@ -2,6 +2,8 @@
 
 import { useMemo } from 'react'
 import { Droplets, Gauge, Target, Waves } from 'lucide-react'
+import { buildGrowaContext } from '@/lib/ai/build-growa-context'
+import { GrowaIntelligencePanel } from '@/components/dashboard/growa-intelligence-panel'
 import {
   type IntelligenceAggregate,
   clampScore,
@@ -15,8 +17,17 @@ import {
 } from './intelligence-metrics-shared'
 
 export function WaterIntelligenceWorkspace() {
-  const { loading, error, cropAggregates, producerRanking, headline, analyticsMeta, producerLabelsById } =
-    useIntelligenceData()
+  const {
+    loading,
+    error,
+    insights,
+    polygons,
+    cropAggregates,
+    producerRanking,
+    headline,
+    analyticsMeta,
+    producerLabelsById,
+  } = useIntelligenceData()
   const { navigateToCropOnMap, navigateToProducerPoint } = useMapNavigation('water-intelligence')
 
   const waterMeta = useMemo(() => {
@@ -40,6 +51,36 @@ export function WaterIntelligenceWorkspace() {
 
   const topHydrationFarms = producerRanking.mostEfficient.slice(0, 5)
   const atRiskFarms = producerRanking.leastEfficient.slice(0, 5)
+
+  const growaContext = useMemo(() => {
+    if (loading || error) return null
+    return buildGrowaContext({
+      module: 'water-intelligence',
+      insights,
+      polygons,
+      producerLabelsById,
+      cropAggregates,
+      producerRanking,
+      headline,
+      analyticsMeta,
+      waterMeta: {
+        avgWaterPerTon: waterMeta.avgWaterPerTon,
+        irrigationPressure: waterMeta.irrigationPressure,
+      },
+    })
+  }, [
+    analyticsMeta,
+    cropAggregates,
+    error,
+    headline,
+    insights,
+    loading,
+    polygons,
+    producerLabelsById,
+    producerRanking,
+    waterMeta.avgWaterPerTon,
+    waterMeta.irrigationPressure,
+  ])
 
   const renderCropRow = (crop: IntelligenceAggregate, index: number) => {
     const waterPerTon = crop.totalWaterM3 / Math.max(1, crop.totalProductionTons)
@@ -216,6 +257,8 @@ export function WaterIntelligenceWorkspace() {
               System water performance baseline follows polygon score distribution across all monitored farms.
             </p>
           </div>
+
+          <GrowaIntelligencePanel module="water-intelligence" context={growaContext} disabled={loading} />
         </>
       )}
     </div>

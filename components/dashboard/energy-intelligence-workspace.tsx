@@ -1,6 +1,9 @@
 'use client'
 
+import { useMemo } from 'react'
 import { Bolt, Gauge, LineChart, Zap } from 'lucide-react'
+import { buildGrowaContext } from '@/lib/ai/build-growa-context'
+import { GrowaIntelligencePanel } from '@/components/dashboard/growa-intelligence-panel'
 import {
   normalizePointLabel,
   formatNumber,
@@ -11,8 +14,17 @@ import {
 } from './intelligence-metrics-shared'
 
 export function EnergyIntelligenceWorkspace() {
-  const { loading, error, cropAggregates, producerRanking, headline, producerLabelsById, polygons } =
-    useIntelligenceData()
+  const {
+    loading,
+    error,
+    insights,
+    cropAggregates,
+    producerRanking,
+    headline,
+    producerLabelsById,
+    polygons,
+    analyticsMeta,
+  } = useIntelligenceData()
   const { navigateToCropOnMap, navigateToProducerPoint } = useMapNavigation('energy-intelligence')
 
   const totalEnergy = headline.totalEnergy
@@ -21,6 +33,36 @@ export function EnergyIntelligenceWorkspace() {
   const energyPerTon = totalEnergy / Math.max(1, totalProduction)
   const avgPolygonScore =
     polygons.length > 0 ? polygons.reduce((sum, polygon) => sum + polygon.score, 0) / polygons.length : 0
+
+  const growaContext = useMemo(() => {
+    if (loading || error) return null
+    return buildGrowaContext({
+      module: 'energy-intelligence',
+      insights,
+      polygons,
+      producerLabelsById,
+      cropAggregates,
+      producerRanking,
+      headline,
+      analyticsMeta,
+      energyMeta: {
+        energyPerTon,
+        averageEnergyPerFarm: avgFarmEnergy,
+      },
+    })
+  }, [
+    analyticsMeta,
+    avgFarmEnergy,
+    cropAggregates,
+    energyPerTon,
+    error,
+    headline,
+    insights,
+    loading,
+    polygons,
+    producerLabelsById,
+    producerRanking,
+  ])
 
   return (
     <div className="space-y-6 p-6 pt-20 text-foreground">
@@ -175,6 +217,8 @@ export function EnergyIntelligenceWorkspace() {
               </div>
             </div>
           </div>
+
+          <GrowaIntelligencePanel module="energy-intelligence" context={growaContext} disabled={loading} />
         </>
       )}
     </div>
