@@ -7,7 +7,8 @@ import { cn } from '@/lib/utils'
 import { 
   Building2,
   Share2,
-  Settings
+  Settings,
+  PanelLeftClose,
 } from 'lucide-react'
 import { useRoleNavigation, getIconComponent } from '@/hooks/use-role-navigation'
 
@@ -21,7 +22,6 @@ const adminItems = [
 interface DashboardSidebarProps {
   isOpen: boolean
   onClose: () => void
-  persistent?: boolean
 }
 
 const arabicMenuLabels: Record<string, string> = {
@@ -43,7 +43,6 @@ const arabicMenuLabels: Record<string, string> = {
 export function DashboardSidebar({
   isOpen,
   onClose,
-  persistent = false,
 }: DashboardSidebarProps) {
   const { locale } = useI18n()
   const {
@@ -83,11 +82,12 @@ export function DashboardSidebar({
 
   return (
     <>
-      {/* Overlay */}
-      {!persistent && isOpen && (
+      {/* Overlay - click outside to collapse */}
+      {isOpen && (
         <div
-          className="fixed inset-0 z-[2000] bg-black/60 backdrop-blur-sm"
+          className="fixed inset-0 top-16 z-[2000] bg-black/40 backdrop-blur-[1px]"
           onClick={onClose}
+          aria-hidden="true"
         />
       )}
 
@@ -95,15 +95,26 @@ export function DashboardSidebar({
       <aside
         className={cn(
           'fixed top-16 left-0 bottom-0 z-[2100] w-64 bg-[#0c0c0e]/98 backdrop-blur-xl border-r border-white/5 transition-transform duration-300 ease-in-out flex flex-col',
-          persistent || isOpen ? 'translate-x-0' : '-translate-x-full'
+          isOpen ? 'translate-x-0' : '-translate-x-full'
         )}
       >
-        {/* Navigation */}
-        <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-1">
-          <p className="px-3 mb-3 text-[10px] uppercase tracking-widest text-white/40 font-semibold">
+        <div className="flex items-center justify-between border-b border-white/5 px-4 py-3">
+          <p className="text-[10px] uppercase tracking-widest text-white/40 font-semibold">
             {locale === 'ar' ? 'التنقل' : 'Navigation'}
           </p>
-          
+          <button
+            type="button"
+            onClick={onClose}
+            className="flex h-8 w-8 items-center justify-center rounded-lg border border-white/10 bg-white/5 text-white/70 transition-colors hover:border-[#07f880]/50 hover:text-[#07f880]"
+            aria-label={locale === 'ar' ? 'إخفاء القائمة' : 'Collapse menu'}
+            title={locale === 'ar' ? 'إخفاء القائمة' : 'Collapse menu'}
+          >
+            <PanelLeftClose className="h-4 w-4" />
+          </button>
+        </div>
+
+        {/* Navigation */}
+        <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-1">
           {navLoading ? (
             <div className="px-3 py-2">
               <div className="h-4 w-24 bg-white/10 rounded animate-pulse" />
@@ -116,7 +127,7 @@ export function DashboardSidebar({
                 <Link
                   key={item.key}
                   href={item.path}
-                  onClick={persistent ? undefined : onClose}
+                  onClick={onClose}
                   className={cn(
                     'flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all',
                     active
@@ -143,7 +154,7 @@ export function DashboardSidebar({
                   <Link
                     key={item.key}
                     href={item.path}
-                    onClick={persistent ? undefined : onClose}
+                    onClick={onClose}
                     className={cn(
                       'flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all',
                       active
@@ -172,7 +183,7 @@ export function DashboardSidebar({
                   <Link
                     key={item.href}
                     href={item.href}
-                    onClick={persistent ? undefined : onClose}
+                    onClick={onClose}
                     className={cn(
                       'flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all',
                       active
