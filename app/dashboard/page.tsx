@@ -81,8 +81,8 @@ function SlideFromLeftWorkspace({
   return (
     <div className="relative h-full w-full overflow-hidden">
       <div
-        className={`absolute inset-0 transform transition-transform duration-300 ease-out ${
-          panelVisible ? 'translate-x-[37.5%]' : 'translate-x-0'
+        className={`absolute bottom-0 right-0 top-0 transition-[left] duration-300 ease-out ${
+          panelVisible ? 'left-3/4' : 'left-0'
         }`}
       >
         <SatelliteMap
@@ -92,6 +92,7 @@ function SlideFromLeftWorkspace({
           targetZoom={targetZoom}
           targetCropFilter={targetCropFilter}
           isLateralMode
+          lateralPanelVisible={panelVisible}
           onMapClick={undefined}
           weatherGridPoints={weatherGridPoints}
           selectedWeatherGridPointId={selectedWeatherGridPointId}
@@ -111,15 +112,16 @@ function SlideFromLeftWorkspace({
                   params.set('zoom', String(targetZoom ?? 10))
                   params.delete('pointId')
                   params.delete('crop')
-                  params.set('focus', `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`)
-                  router.push(`/dashboard?${params.toString()}`)
+                  params.delete('focus')
+                  params.delete('farmId')
+                  router.replace(`/dashboard?${params.toString()}`)
                 }
               : undefined
           }
         />
       </div>
 
-      {moduleKey !== 'weather' && (
+      {moduleKey !== 'weather' && panelVisible && (
         <button
           type="button"
           aria-label="Return to live map"
