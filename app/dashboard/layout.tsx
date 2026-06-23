@@ -7,6 +7,11 @@ import { DashboardSidebar } from '@/components/dashboard/sidebar'
 import { DashboardHeader } from '@/components/dashboard/header'
 import { useRoleNavigation } from '@/hooks/use-role-navigation'
 import { SatelliteMap } from '@/components/dashboard/satellite-map'
+import {
+  hasTargetContextInUrl,
+  resolveDashboardModule,
+  shouldRenderDashboardMapSurface,
+} from '@/lib/navigation/dashboard-modules'
 
 function DashboardShell({
   children,
@@ -31,18 +36,11 @@ function DashboardShell({
     if (loading || navLoading || !user || pathname !== '/dashboard') return
 
     const moduleFromHook = searchParams.get('module')
-    const browserSearchParams =
-      typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null
-    const moduleFromUrl = browserSearchParams?.get('module') || null
-    const hasTargetContextInUrl = Boolean(
-      browserSearchParams?.get('farmId') ||
-        browserSearchParams?.get('pointId') ||
-        browserSearchParams?.get('zoom') ||
-        browserSearchParams?.get('focus')
-    )
+    const moduleFromUrl = resolveDashboardModule(searchParams)
+    const hasTargetContext = hasTargetContextInUrl(searchParams)
 
     // Avoid stripping deep-link params during hydration/race conditions.
-    if (!moduleFromHook && !moduleFromUrl && !hasTargetContextInUrl && landingPage && landingPage !== '/dashboard') {
+    if (!moduleFromHook && !moduleFromUrl && !hasTargetContext && landingPage && landingPage !== '/dashboard') {
       router.replace(landingPage)
     }
   }, [loading, navLoading, user, pathname, searchParams, landingPage, router])
@@ -97,7 +95,7 @@ function DashboardShell({
     return null
   }
 
-  const activeModule = searchParams.get('module')
+  const activeModule = resolveDashboardModule(searchParams)
   const targetPointId = searchParams.get('pointId')
   const targetFocusToken = searchParams.get('focus')
   const zoomParam = searchParams.get('zoom')
@@ -107,8 +105,7 @@ function DashboardShell({
       ? requestedZoom
       : undefined
   const shouldRenderMapSurface =
-    pathname === '/dashboard' &&
-    (!activeModule || ['live-map', 'map', 'national-map', 'inspection-map'].includes(activeModule))
+    pathname === '/dashboard' && shouldRenderDashboardMapSurface(activeModule)
 
   return (
     <div className="h-screen w-screen overflow-hidden bg-background relative">

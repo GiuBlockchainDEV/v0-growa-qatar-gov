@@ -11,6 +11,11 @@ import { WaterIntelligenceWorkspace } from '@/components/dashboard/water-intelli
 import { EnergyIntelligenceWorkspace } from '@/components/dashboard/energy-intelligence-workspace'
 import { WeatherWorkspace } from '@/components/dashboard/weather-workspace'
 import {
+  hasWeatherContextInUrl,
+  resolveDashboardModule,
+  shouldRenderDashboardMapSurface,
+} from '@/lib/navigation/dashboard-modules'
+import {
   generateQatarWeatherGrid,
   generateQatarWeatherGridLines,
   getQatarBoundaryCoordinates,
@@ -111,8 +116,9 @@ function SlideFromLeftWorkspace({
                   params.set('zoom', String(targetZoom ?? 10))
                   params.delete('pointId')
                   params.delete('crop')
-                  params.set('focus', `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`)
-                  router.push(`/dashboard?${params.toString()}`)
+                  params.delete('focus')
+                  params.delete('farmId')
+                  router.replace(`/dashboard?${params.toString()}`)
                 }
               : undefined
           }
@@ -144,7 +150,7 @@ function SlideFromLeftWorkspace({
 export default function DashboardPage() {
   const { locale } = useI18n()
   const searchParams = useSearchParams()
-  const moduleKey = searchParams.get('module')
+  const moduleKey = resolveDashboardModule(searchParams)
   const targetPointId = searchParams.get('pointId')
   const targetFocusToken = searchParams.get('focus')
   const targetCropFilter = searchParams.get('crop')
@@ -155,9 +161,9 @@ export default function DashboardPage() {
       ? requestedZoom
       : undefined
 
-  const mapModules = new Set(['live-map', 'map', 'national-map', 'inspection-map'])
+  const weatherModuleActive = moduleKey === 'weather' || hasWeatherContextInUrl(searchParams)
 
-  if (!moduleKey || mapModules.has(moduleKey)) {
+  if (shouldRenderDashboardMapSurface(moduleKey) && !weatherModuleActive) {
     return (
       <SatelliteMap
         locale={locale}
@@ -233,7 +239,7 @@ export default function DashboardPage() {
     )
   }
 
-  if (moduleKey === 'weather') {
+  if (weatherModuleActive) {
     return (
       <SlideFromLeftWorkspace
         key="weather-panel"

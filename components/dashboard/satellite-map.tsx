@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { Crosshair, Minus, Plus } from 'lucide-react'
 import { useAuth } from '@/hooks/use-auth'
 import { useOrganization } from '@/hooks/use-organization'
@@ -562,6 +563,7 @@ export function SatelliteMap({
   weatherBoundary = [],
   onWeatherGridPointClick,
 }: SatelliteMapProps) {
+  const router = useRouter()
   const { user } = useAuth()
   const { organization } = useOrganization()
 
@@ -1438,8 +1440,8 @@ export function SatelliteMap({
     }
     currentUrl.searchParams.delete('focus')
     const nextUrl = `${currentUrl.pathname}${currentUrl.search}${currentUrl.hash}`
-    window.history.replaceState(window.history.state, '', nextUrl)
-  }, [])
+    router.replace(nextUrl, { scroll: false })
+  }, [router])
 
   useEffect(() => {
     let map: MapController | null = null
@@ -1511,6 +1513,7 @@ export function SatelliteMap({
     const map = mapInstanceRef.current
     const hideMarkersForCropFocus =
       isLateralMode && (Boolean(normalizedTargetCropName) || Boolean(normalizedCropFilter))
+    const hideMarkersForWeatherGrid = weatherGridPoints.length > 0
 
     const createMarkerIcon = (type: MapMarker['type'], markerId: string) => {
       const colors = {
@@ -1544,7 +1547,7 @@ export function SatelliteMap({
     }
 
     markerInstancesRef.current.forEach((marker) => marker.remove?.())
-    if (hideMarkersForCropFocus) {
+    if (hideMarkersForCropFocus || hideMarkersForWeatherGrid) {
       markerInstancesRef.current = []
       return
     }
@@ -1590,6 +1593,7 @@ export function SatelliteMap({
     normalizedTargetCropName,
     openPointInsightsModal,
     pointScoreStatsById,
+    weatherGridPoints,
   ])
 
 
@@ -1681,6 +1685,9 @@ export function SatelliteMap({
         if (!Number.isFinite(lat) || !Number.isFinite(lng)) return
         onWeatherGridPointClick?.({ ...point, lat, lng })
       })
+      if (typeof clickLayer.bringToFront === 'function') {
+        clickLayer.bringToFront()
+      }
       layers.push(clickLayer)
     }
 
@@ -1693,7 +1700,27 @@ export function SatelliteMap({
   }, [mapReady, onWeatherGridPointClick, selectedWeatherGridPointId, weatherBoundary, weatherGridLines, weatherGridPoints])
 
   useEffect(() => {
+    if (!mapReady || !mapInstanceRef.current || weatherGridPoints.length === 0) return
+    if (!selectedWeatherGridPointId) return
+
+    const selectedPoint = weatherGridPoints.find((point) => point.id === selectedWeatherGridPointId)
+    if (!selectedPoint) return
+
+    const lat = Number(selectedPoint.lat)
+    const lng = Number(selectedPoint.lng)
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return
+
+    const weatherZoom =
+      Number.isFinite(targetZoom) && (targetZoom as number) >= 3 && (targetZoom as number) <= 19
+        ? (targetZoom as number)
+        : DEFAULT_ZOOM
+
+    mapInstanceRef.current.flyTo([lat, lng], weatherZoom, { duration: 0.8 })
+  }, [mapReady, selectedWeatherGridPointId, targetZoom, weatherGridPoints])
+
+  useEffect(() => {
     if (!mapReady || !mapInstanceRef.current || !leafletRef.current) return
+    if (weatherGridPoints.length > 0) return
     const L = leafletRef.current
     const map = mapInstanceRef.current
 
@@ -1854,6 +1881,7 @@ export function SatelliteMap({
     normalizedCropFilter,
     pointPolygons,
     polygonDrawPointId,
+    weatherGridPoints,
   ])
 
   useEffect(() => {
