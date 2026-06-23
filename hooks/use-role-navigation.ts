@@ -116,14 +116,14 @@ const defaultNavigation: MenuItem[] = [
 
 // Minimal navigation for users without organization/role assignment.
 const unassignedNavigation: MenuItem[] = [
-  { key: 'live-map', label: 'Live Map', path: '/dashboard?module=live-map', icon: 'Map' },
+  { key: 'live-map', label: 'Live Map', path: '/dashboard?module=live-map&zoom=10', icon: 'Map' },
   { key: 'support', label: 'Support', path: '/dashboard/support', icon: 'HelpCircle' },
   { key: 'settings', label: 'Settings', path: '/dashboard/settings', icon: 'Settings' },
 ]
 
 // Minimal menu for @growa.ai "Normal User" mode.
 const normalUserNavigation: MenuItem[] = [
-  { key: 'live-map', label: 'Live Map', path: '/dashboard?module=live-map', icon: 'Map' },
+  { key: 'live-map', label: 'Live Map', path: '/dashboard?module=live-map&zoom=10', icon: 'Map' },
   { key: 'rss-feed', label: 'RSS Feed', path: '/dashboard?module=rss-feed', icon: 'Globe' },
   { key: 'data-analytics', label: 'Data Analytics', path: '/dashboard?module=data-analytics', icon: 'BarChart3' },
 ]
@@ -468,7 +468,7 @@ export function useRoleNavigation() {
             id: 'normal-user',
             role_name: 'normal_user',
             display_name: 'Normal User',
-            landing_page: '/dashboard?module=live-map',
+            landing_page: '/dashboard?module=live-map&zoom=10',
             menu_items: merged,
             primary_items: primary,
             secondary_items: secondary,
@@ -479,7 +479,7 @@ export function useRoleNavigation() {
           setPrimaryItems(primary)
           setSecondaryItems(secondary)
           setMenuItems(merged)
-          setLandingPage('/dashboard?module=live-map')
+          setLandingPage('/dashboard?module=live-map&zoom=10')
           setEffectiveRole('normal_user')
           setRoleProfile(null)
           setSource('fallback')
@@ -498,7 +498,7 @@ export function useRoleNavigation() {
             id: 'unassigned',
             role_name: 'unassigned',
             display_name: 'Unassigned User',
-            landing_page: '/dashboard?module=live-map',
+            landing_page: '/dashboard?module=live-map&zoom=10',
             menu_items: [...primary, ...secondary],
             primary_items: primary,
             secondary_items: secondary,
@@ -509,7 +509,7 @@ export function useRoleNavigation() {
           setPrimaryItems(primary)
           setSecondaryItems(secondary)
           setMenuItems([...primary, ...secondary])
-          setLandingPage('/dashboard?module=live-map')
+          setLandingPage('/dashboard?module=live-map&zoom=10')
           setEffectiveRole(null)
           setRoleProfile(null)
           setSource('fallback')

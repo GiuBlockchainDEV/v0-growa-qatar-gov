@@ -561,6 +561,9 @@ const ROLE_MENU_BLUEPRINTS: Record<MinistryRoleProfile, RoleMenuBlueprint> = {
 function buildModuleHref(moduleId: string): string {
   if (moduleId === 'support') return '/dashboard/support'
   if (moduleId === 'settings') return '/dashboard/settings'
+  if (moduleId === 'live-map' || moduleId === 'map') {
+    return `/dashboard?module=${moduleId}&zoom=10`
+  }
   return `/dashboard?module=${moduleId}`
 }
 
