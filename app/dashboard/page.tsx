@@ -148,6 +148,8 @@ export default function DashboardPage() {
   const targetPointId = searchParams.get('pointId')
   const targetFocusToken = searchParams.get('focus')
   const targetCropFilter = searchParams.get('crop')
+  const targetFarmLat = Number(searchParams.get('farmLat'))
+  const targetFarmLng = Number(searchParams.get('farmLng'))
   const zoomParam = searchParams.get('zoom')
   const requestedZoom = zoomParam ? Number(zoomParam) : Number.NaN
   const targetZoom =
@@ -165,6 +167,8 @@ export default function DashboardPage() {
         targetFocusToken={targetFocusToken}
         targetZoom={targetZoom}
         targetCropFilter={targetCropFilter}
+        targetFarmLat={Number.isFinite(targetFarmLat) ? targetFarmLat : undefined}
+        targetFarmLng={Number.isFinite(targetFarmLng) ? targetFarmLng : undefined}
       />
     )
   }

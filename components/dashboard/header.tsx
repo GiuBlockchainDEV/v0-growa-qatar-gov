@@ -8,6 +8,7 @@ import { LanguageToggle } from '@/components/language-toggle'
 import { Bell, Search, Command, Activity, PanelLeft, Globe, MapPin } from 'lucide-react'
 import { useRoleNavigation } from '@/hooks/use-role-navigation'
 import { useAuth } from '@/hooks/use-auth'
+import { buildLiveMapTargetHref } from '@/lib/navigation/live-map-navigation'
 
 interface DashboardHeaderProps {
   onMenuToggle: () => void
@@ -22,6 +23,8 @@ type FarmSearchOption = {
   name: string
   location: string
   source: 'farm' | 'point'
+  lat?: number
+  lng?: number
 }
 
 export function DashboardHeader({
@@ -86,6 +89,8 @@ export function DashboardHeader({
           name: label || `Point ${id.slice(0, 8)}`,
           location: polygonLabel,
           source: 'point',
+          lat,
+          lng,
         } satisfies FarmSearchOption
       })
       .filter((point): point is FarmSearchOption => Boolean(point))
@@ -268,20 +273,17 @@ export function DashboardHeader({
   }, [])
 
   const handleSelectFarm = (farm: FarmSearchOption) => {
-    const focusToken = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
-    const params = new URLSearchParams({
-      module: 'live-map',
-      zoom: '17',
-      focus: focusToken,
-    })
-    if (farm.source === 'point') {
-      params.set('pointId', farm.id)
-    } else {
-      params.set('farmId', farm.id)
-    }
     setSearchQuery(farm.name)
     setIsSearchOpen(false)
-    router.push(`/dashboard?${params.toString()}`)
+    router.push(
+      buildLiveMapTargetHref({
+        pointId: farm.source === 'point' ? farm.id : undefined,
+        farmId: farm.source === 'farm' ? farm.id : undefined,
+        lat: farm.lat,
+        lng: farm.lng,
+        zoom: 17,
+      })
+    )
   }
 
   const shouldShowSearchDropdown =
