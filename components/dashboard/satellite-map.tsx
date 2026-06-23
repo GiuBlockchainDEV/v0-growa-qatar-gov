@@ -9,6 +9,12 @@ const QATAR_CENTER = { lat: 25.3548, lng: 51.1839 }
 const DEFAULT_ZOOM = 10
 const DEFAULT_FARM_ZOOM = 17
 
+function resolveLiveMapZoom(targetZoom?: number, fallback = DEFAULT_ZOOM) {
+  return Number.isFinite(targetZoom) && (targetZoom as number) >= 3 && (targetZoom as number) <= 19
+    ? (targetZoom as number)
+    : fallback
+}
+
 type MapPointType = 'farm' | 'facility' | 'sensor' | 'custom'
 type PolygonDrawMethod = 'vertex' | 'rectangle' | 'circle'
 
@@ -59,6 +65,7 @@ interface SatelliteMapProps {
 interface MapController {
   zoomIn: () => void
   zoomOut: () => void
+  invalidateSize?: () => void
   flyTo: (coords: [number, number], zoom: number, options?: { duration?: number }) => void
   setView: (coords: [number, number], zoom: number) => void
   closePopup?: () => void
@@ -1239,9 +1246,14 @@ export function SatelliteMap({
   }, [customPoints, isGrowaAdmin, loadCustomPointsFromDb, targetPointId])
 
   const resolvedTargetZoom =
-    resolvedTargetFarm || explicitTargetPoint ? targetZoom ?? DEFAULT_FARM_ZOOM : DEFAULT_ZOOM
+    resolvedTargetFarm || explicitTargetPoint
+      ? targetZoom ?? DEFAULT_FARM_ZOOM
+      : resolveLiveMapZoom(targetZoom, DEFAULT_ZOOM)
   const normalizedCropFilter = polygonCropFilterQuery.trim().toLowerCase()
   const normalizedTargetCropName = targetCropFilter?.trim().toLowerCase() || ''
+  const hasDeepLinkTarget = Boolean(
+    targetPointId || normalizedTargetCropName || (resolvedTargetFarm && !targetPointId)
+  )
   const lastAppliedTargetCropRef = useRef<string>('')
 
   useEffect(() => {
@@ -1423,9 +1435,22 @@ export function SatelliteMap({
     if (!mapInstanceRef.current) return
     const recenterLat = explicitTargetPoint?.lat ?? resolvedTargetFarm?.lat ?? QATAR_CENTER.lat
     const recenterLng = explicitTargetPoint?.lng ?? resolvedTargetFarm?.lng ?? QATAR_CENTER.lng
-    const recenterZoom = explicitTargetPoint || resolvedTargetFarm ? resolvedTargetZoom : DEFAULT_ZOOM
+    const recenterZoom =
+      explicitTargetPoint || resolvedTargetFarm
+        ? resolvedTargetZoom
+        : resolveLiveMapZoom(targetZoom, DEFAULT_ZOOM)
     mapInstanceRef.current.flyTo([recenterLat, recenterLng], recenterZoom, { duration: 1.5 })
-  }, [explicitTargetPoint, resolvedTargetFarm, resolvedTargetZoom])
+  }, [explicitTargetPoint, resolvedTargetFarm, resolvedTargetZoom, targetZoom])
+
+  const applyDefaultLiveMapViewport = useCallback(() => {
+    if (!mapReady || !mapInstanceRef.current || isLateralMode || weatherGridPoints.length > 0) return
+    if (hasDeepLinkTarget) return
+
+    const liveMapZoom = resolveLiveMapZoom(targetZoom, DEFAULT_ZOOM)
+    mapInstanceRef.current.invalidateSize?.()
+    mapInstanceRef.current.setView([QATAR_CENTER.lat, QATAR_CENTER.lng], liveMapZoom)
+    setCurrentZoom(liveMapZoom)
+  }, [hasDeepLinkTarget, isLateralMode, mapReady, targetZoom, weatherGridPoints.length])
 
   const clearFocusParamFromUrl = useCallback(() => {
     if (typeof window === 'undefined') return
@@ -1454,9 +1479,10 @@ export function SatelliteMap({
       const L = (await import('leaflet')).default as any
       await import('leaflet/dist/leaflet.css')
       leafletRef.current = L
+      const initialZoom = resolveLiveMapZoom(targetZoom, DEFAULT_ZOOM)
       const createdMap = L.map(mapRef.current, {
         center: [QATAR_CENTER.lat, QATAR_CENTER.lng],
-        zoom: DEFAULT_ZOOM,
+        zoom: initialZoom,
         zoomControl: false,
         attributionControl: false,
       }) as MapController
@@ -2062,6 +2088,47 @@ export function SatelliteMap({
     }
     setActivePointId(explicitTargetPoint.id)
   }, [clearFocusParamFromUrl, mapReady, explicitTargetPoint, targetZoom, targetFocusToken])
+
+  useEffect(() => {
+    if (!mapReady || !mapInstanceRef.current || isLateralMode || weatherGridPoints.length > 0) return
+    if (hasDeepLinkTarget) return
+
+    const liveMapZoom = resolveLiveMapZoom(targetZoom, DEFAULT_ZOOM)
+    if (targetFocusToken) {
+      mapInstanceRef.current.invalidateSize?.()
+      mapInstanceRef.current.flyTo([QATAR_CENTER.lat, QATAR_CENTER.lng], liveMapZoom, {
+        duration: 1.2,
+      })
+      clearFocusParamFromUrl()
+      return
+    }
+
+    applyDefaultLiveMapViewport()
+  }, [
+    applyDefaultLiveMapViewport,
+    clearFocusParamFromUrl,
+    hasDeepLinkTarget,
+    isLateralMode,
+    mapReady,
+    targetFocusToken,
+    targetZoom,
+    weatherGridPoints.length,
+  ])
+
+  useEffect(() => {
+    if (!mapReady || !mapRef.current || isLateralMode || weatherGridPoints.length > 0) return
+
+    const node = mapRef.current
+    const observer = new ResizeObserver(() => {
+      mapInstanceRef.current?.invalidateSize?.()
+      if (!hasDeepLinkTarget) {
+        applyDefaultLiveMapViewport()
+      }
+    })
+    observer.observe(node)
+
+    return () => observer.disconnect()
+  }, [applyDefaultLiveMapViewport, hasDeepLinkTarget, isLateralMode, mapReady, weatherGridPoints.length])
 
   return (
     <div className="absolute inset-0 pt-16">
