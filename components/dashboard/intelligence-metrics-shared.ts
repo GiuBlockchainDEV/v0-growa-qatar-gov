@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { buildLiveMapTargetHref } from '@/lib/navigation/live-map-navigation'
 
 export interface InsightRow {
   id: string
@@ -395,15 +396,12 @@ export function useMapNavigation(moduleKey: string) {
   const navigateToProducerPoint = (pointId: string) => {
     const normalizedPointId = pointId.trim()
     if (!normalizedPointId) return
-    const focusToken = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
-    const params = new URLSearchParams({
-      module: moduleKey,
-      pointId: normalizedPointId,
-      zoom: '16',
-      focus: focusToken,
-    })
-    params.delete('crop')
-    router.push(`/dashboard?${params.toString()}`)
+    router.push(
+      buildLiveMapTargetHref({
+        pointId: normalizedPointId,
+        zoom: 16,
+      })
+    )
   }
 
   return { navigateToCropOnMap, navigateToProducerPoint }

@@ -37,6 +37,8 @@ function DashboardShell({
     const hasTargetContextInUrl = Boolean(
       browserSearchParams?.get('farmId') ||
         browserSearchParams?.get('pointId') ||
+        browserSearchParams?.get('farmLat') ||
+        browserSearchParams?.get('farmLng') ||
         browserSearchParams?.get('zoom') ||
         browserSearchParams?.get('focus')
     )
@@ -100,6 +102,8 @@ function DashboardShell({
   const activeModule = searchParams.get('module')
   const targetPointId = searchParams.get('pointId')
   const targetFocusToken = searchParams.get('focus')
+  const targetFarmLat = Number(searchParams.get('farmLat'))
+  const targetFarmLng = Number(searchParams.get('farmLng'))
   const zoomParam = searchParams.get('zoom')
   const requestedZoom = zoomParam ? Number(zoomParam) : Number.NaN
   const targetZoom =
@@ -119,6 +123,8 @@ function DashboardShell({
             targetPointId={targetPointId}
             targetFocusToken={targetFocusToken}
             targetZoom={targetZoom}
+            targetFarmLat={Number.isFinite(targetFarmLat) ? targetFarmLat : undefined}
+            targetFarmLng={Number.isFinite(targetFarmLng) ? targetFarmLng : undefined}
           />
         ) : (
           children

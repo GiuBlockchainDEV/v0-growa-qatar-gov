@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Crosshair, Minus, Plus } from 'lucide-react'
 import { useAuth } from '@/hooks/use-auth'
 import { useOrganization } from '@/hooks/use-organization'
+import { useRoleNavigation } from '@/hooks/use-role-navigation'
 
 const QATAR_CENTER = { lat: 25.3548, lng: 51.1839 }
 const DEFAULT_ZOOM = 10
@@ -47,6 +48,8 @@ interface SatelliteMapProps {
   targetCropFilter?: string | null
   targetFocusToken?: string | null
   targetZoom?: number
+  targetFarmLat?: number
+  targetFarmLng?: number
   isLateralMode?: boolean
   onMapClick?: (coords: { lat: number; lng: number }) => void
   weatherGridPoints?: WeatherGridMapPoint[]
@@ -554,6 +557,8 @@ export function SatelliteMap({
   targetCropFilter = null,
   targetFocusToken = null,
   targetZoom,
+  targetFarmLat,
+  targetFarmLng,
   isLateralMode = false,
   onMapClick,
   weatherGridPoints = [],
@@ -564,6 +569,7 @@ export function SatelliteMap({
 }: SatelliteMapProps) {
   const { user } = useAuth()
   const { organization } = useOrganization()
+  const { isMinistryWorkspace } = useRoleNavigation()
 
   const mapRef = useRef<HTMLDivElement>(null)
   const mapInstanceRef = useRef<MapController | null>(null)
@@ -630,6 +636,7 @@ export function SatelliteMap({
     .toLowerCase()
   const isFarmCompanyContext = organizationType === 'farm_company'
   const isGrowaAdmin = Boolean(user?.email?.toLowerCase().endsWith('@growa.ai'))
+  const canLoadMapOperations = isGrowaAdmin || isMinistryWorkspace
 
   const cropNameByNormalized = useMemo(() => {
     const map = new Map<string, string>()
@@ -682,7 +689,7 @@ export function SatelliteMap({
   }, [])
 
   useEffect(() => {
-    if (!isGrowaAdmin) {
+    if (!canLoadMapOperations) {
       setCustomPoints([])
       setIsAddPointMode(false)
       return
@@ -698,7 +705,7 @@ export function SatelliteMap({
     return () => {
       cancelled = true
     }
-  }, [isGrowaAdmin, loadCustomPointsFromDb])
+  }, [canLoadMapOperations, loadCustomPointsFromDb])
 
   useEffect(() => {
     if (!isGrowaAdmin) {
@@ -726,7 +733,7 @@ export function SatelliteMap({
   }, [isGrowaAdmin])
 
   useEffect(() => {
-    if (!isGrowaAdmin) {
+    if (!canLoadMapOperations) {
       setPointPolygons({})
       setFarmCropInsightsByPoint({})
       setIsInsightsModalOpen(false)
@@ -774,10 +781,10 @@ export function SatelliteMap({
     return () => {
       cancelled = true
     }
-  }, [isGrowaAdmin, resetDraftMetadata])
+  }, [canLoadMapOperations, resetDraftMetadata])
 
   useEffect(() => {
-    if (!isGrowaAdmin) return
+    if (!canLoadMapOperations) return
     let cancelled = false
     async function loadFarmCropInsights() {
       try {
@@ -809,7 +816,7 @@ export function SatelliteMap({
     return () => {
       cancelled = true
     }
-  }, [isGrowaAdmin])
+  }, [canLoadMapOperations])
 
   const mapMarkers = useMemo<MapMarker[]>(() => {
     const custom = customPoints.map((point) => ({
@@ -1218,8 +1225,18 @@ export function SatelliteMap({
     return customPoints.find((point) => point.id === targetPointId) || null
   }, [customPoints, targetPointId])
 
+  const resolvedTargetCoordinates = useMemo(() => {
+    if (explicitTargetPoint) {
+      return { lat: explicitTargetPoint.lat, lng: explicitTargetPoint.lng }
+    }
+    if (Number.isFinite(targetFarmLat) && Number.isFinite(targetFarmLng)) {
+      return { lat: targetFarmLat as number, lng: targetFarmLng as number }
+    }
+    return null
+  }, [explicitTargetPoint, targetFarmLat, targetFarmLng])
+
   useEffect(() => {
-    if (!isGrowaAdmin || !targetPointId) return
+    if (!targetPointId) return
     if (customPoints.some((point) => point.id === targetPointId)) return
     let cancelled = false
     async function hydrateTargetPointFromDb() {
@@ -1236,7 +1253,7 @@ export function SatelliteMap({
     return () => {
       cancelled = true
     }
-  }, [customPoints, isGrowaAdmin, loadCustomPointsFromDb, targetPointId])
+  }, [customPoints, loadCustomPointsFromDb, targetPointId])
 
   const resolvedTargetZoom =
     resolvedTargetFarm || explicitTargetPoint ? targetZoom ?? DEFAULT_FARM_ZOOM : DEFAULT_ZOOM
@@ -2047,21 +2064,35 @@ export function SatelliteMap({
   ])
 
   useEffect(() => {
-    if (!mapReady || !mapInstanceRef.current || !explicitTargetPoint) return
+    if (!mapReady || !mapInstanceRef.current || !resolvedTargetCoordinates) return
     const pointZoom =
       Number.isFinite(targetZoom) && (targetZoom as number) >= 3 && (targetZoom as number) <= 19
         ? (targetZoom as number)
         : DEFAULT_FARM_ZOOM
     if (targetFocusToken) {
-      mapInstanceRef.current.flyTo([explicitTargetPoint.lat, explicitTargetPoint.lng], pointZoom, {
-        duration: 1.2,
-      })
+      mapInstanceRef.current.flyTo(
+        [resolvedTargetCoordinates.lat, resolvedTargetCoordinates.lng],
+        pointZoom,
+        {
+          duration: 1.2,
+        }
+      )
       clearFocusParamFromUrl()
     } else {
-      mapInstanceRef.current.setView([explicitTargetPoint.lat, explicitTargetPoint.lng], pointZoom)
+      mapInstanceRef.current.setView(
+        [resolvedTargetCoordinates.lat, resolvedTargetCoordinates.lng],
+        pointZoom
+      )
     }
-    setActivePointId(explicitTargetPoint.id)
-  }, [clearFocusParamFromUrl, mapReady, explicitTargetPoint, targetZoom, targetFocusToken])
+    setActivePointId(explicitTargetPoint?.id ?? null)
+  }, [
+    clearFocusParamFromUrl,
+    explicitTargetPoint,
+    mapReady,
+    resolvedTargetCoordinates,
+    targetFocusToken,
+    targetZoom,
+  ])
 
   return (
     <div className="absolute inset-0 pt-16">

@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Activity, BarChart3, Cpu, Droplets, Flame, Gauge, Leaf, TrendingDown, TrendingUp } from 'lucide-react'
 import { buildGrowaContext } from '@/lib/ai/build-growa-context'
+import { buildLiveMapTargetHref } from '@/lib/navigation/live-map-navigation'
 import { GrowaIntelligencePanel } from '@/components/dashboard/growa-intelligence-panel'
 import {
   IntelligenceCommandLayout,
@@ -402,14 +403,12 @@ export function DataAnalyticsWorkspace() {
   const navigateToProducerPoint = (pointId: string) => {
     const normalizedPointId = pointId.trim()
     if (!normalizedPointId) return
-    const focusToken = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
-    const params = new URLSearchParams({
-      module: 'data-analytics',
-      pointId: normalizedPointId,
-      zoom: '16',
-      focus: focusToken,
-    })
-    router.push(`/dashboard?${params.toString()}`)
+    router.push(
+      buildLiveMapTargetHref({
+        pointId: normalizedPointId,
+        zoom: 16,
+      })
+    )
   }
 
   return (
