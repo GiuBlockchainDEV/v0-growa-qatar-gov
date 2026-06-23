@@ -1,12 +1,15 @@
 'use client'
 
-import { Suspense, useEffect, useRef } from 'react'
+import { Suspense, useCallback, useEffect, useRef, useState } from 'react'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { useAuth } from '@/hooks/use-auth'
 import { DashboardSidebar } from '@/components/dashboard/sidebar'
 import { DashboardHeader } from '@/components/dashboard/header'
 import { useRoleNavigation } from '@/hooks/use-role-navigation'
 import { SatelliteMap } from '@/components/dashboard/satellite-map'
+import { cn } from '@/lib/utils'
+
+const SIDEBAR_STORAGE_KEY = 'growa-dashboard-sidebar-open'
 
 function DashboardShell({
   children,
@@ -18,8 +21,44 @@ function DashboardShell({
   const pathname = usePathname()
   const searchParams = useSearchParams()
   const { landingPage, isMinistryWorkspace, isLoading: navLoading } = useRoleNavigation()
-  const sidebarOpen = true
+  const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [sidebarHydrated, setSidebarHydrated] = useState(false)
   const handledReloadRedirectRef = useRef(false)
+
+  const toggleSidebar = useCallback(() => {
+    setSidebarOpen((open) => !open)
+  }, [])
+
+  const closeSidebar = useCallback(() => {
+    setSidebarOpen(false)
+  }, [])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const stored = window.localStorage.getItem(SIDEBAR_STORAGE_KEY)
+    if (stored === 'true' || stored === 'false') {
+      setSidebarOpen(stored === 'true')
+    }
+    setSidebarHydrated(true)
+  }, [])
+
+  useEffect(() => {
+    if (!sidebarHydrated || typeof window === 'undefined') return
+    window.localStorage.setItem(SIDEBAR_STORAGE_KEY, String(sidebarOpen))
+  }, [sidebarHydrated, sidebarOpen])
+
+  useEffect(() => {
+    if (!sidebarOpen) return
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        closeSidebar()
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [closeSidebar, sidebarOpen])
 
   useEffect(() => {
     if (!loading && !user) {
@@ -113,7 +152,12 @@ function DashboardShell({
   return (
     <div className="h-screen w-screen overflow-hidden bg-background relative">
       {/* Base content surface: map-first for ministry workspace */}
-      <main className="absolute inset-y-0 right-0 left-64">
+      <main
+        className={cn(
+          'absolute inset-y-0 right-0 transition-[left] duration-300 ease-in-out',
+          sidebarOpen ? 'left-64' : 'left-0'
+        )}
+      >
         {isMinistryWorkspace && shouldRenderMapSurface ? (
           <SatelliteMap
             targetPointId={targetPointId}
@@ -126,19 +170,14 @@ function DashboardShell({
       </main>
 
       {/* Header - Always Visible on Top */}
-      <DashboardHeader 
-        onMenuToggle={() => {}} 
+      <DashboardHeader
+        onMenuToggle={toggleSidebar}
         menuOpen={sidebarOpen}
         sidebarOffsetClassName="left-0"
-        hideMenuToggle
       />
 
-      {/* Sidebar - Persistently open on the left */}
-      <DashboardSidebar 
-        isOpen={sidebarOpen} 
-        onClose={() => {}}
-        persistent
-      />
+      {/* Sidebar - Collapsible navigation */}
+      <DashboardSidebar isOpen={sidebarOpen} onClose={closeSidebar} />
     </div>
   )
 }
