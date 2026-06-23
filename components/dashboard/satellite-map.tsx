@@ -48,6 +48,7 @@ interface SatelliteMapProps {
   targetFocusToken?: string | null
   targetZoom?: number
   isLateralMode?: boolean
+  lateralPanelVisible?: boolean
   onMapClick?: (coords: { lat: number; lng: number }) => void
   weatherGridPoints?: WeatherGridMapPoint[]
   selectedWeatherGridPointId?: string | null
@@ -61,6 +62,8 @@ interface MapController {
   zoomOut: () => void
   flyTo: (coords: [number, number], zoom: number, options?: { duration?: number }) => void
   setView: (coords: [number, number], zoom: number) => void
+  invalidateSize?: () => void
+  fitBounds?: (bounds: unknown, options?: { padding?: [number, number]; maxZoom?: number }) => void
   closePopup?: () => void
   getZoom: () => number
   on: (event: string, handler: (...args: any[]) => void) => void
@@ -555,6 +558,7 @@ export function SatelliteMap({
   targetFocusToken = null,
   targetZoom,
   isLateralMode = false,
+  lateralPanelVisible = false,
   onMapClick,
   weatherGridPoints = [],
   selectedWeatherGridPointId = null,
@@ -1441,6 +1445,36 @@ export function SatelliteMap({
     window.history.replaceState(window.history.state, '', nextUrl)
   }, [])
 
+  const focusWeatherViewport = useCallback(() => {
+    if (!mapReady || !mapInstanceRef.current || !leafletRef.current) return
+    if (weatherGridPoints.length === 0 || weatherBoundary.length < 3) return
+
+    const L = leafletRef.current
+    const map = mapInstanceRef.current
+    map.invalidateSize?.()
+
+    if (selectedWeatherGridPointId) {
+      const selectedPoint = weatherGridPoints.find((point) => point.id === selectedWeatherGridPointId)
+      if (selectedPoint) {
+        const lat = Number(selectedPoint.lat)
+        const lng = Number(selectedPoint.lng)
+        if (Number.isFinite(lat) && Number.isFinite(lng)) {
+          const zoom =
+            Number.isFinite(targetZoom) && (targetZoom as number) >= 3 && (targetZoom as number) <= 19
+              ? (targetZoom as number)
+              : 11
+          map.setView([lat, lng], zoom)
+          return
+        }
+      }
+    }
+
+    const bounds = L.latLngBounds(
+      weatherBoundary.map((point: WeatherBoundaryPoint) => [point.lat, point.lng])
+    )
+    map.fitBounds?.(bounds, { padding: [16, 16], maxZoom: 11 })
+  }, [mapReady, selectedWeatherGridPointId, targetZoom, weatherBoundary, weatherGridPoints])
+
   useEffect(() => {
     let map: MapController | null = null
     const initMap = async () => {
@@ -1693,7 +1727,55 @@ export function SatelliteMap({
   }, [mapReady, onWeatherGridPointClick, selectedWeatherGridPointId, weatherBoundary, weatherGridLines, weatherGridPoints])
 
   useEffect(() => {
+    if (!mapReady || !mapInstanceRef.current || weatherGridPoints.length === 0) return
+
+    if (selectedWeatherGridPointId) {
+      const selectedPoint = weatherGridPoints.find((point) => point.id === selectedWeatherGridPointId)
+      if (selectedPoint) {
+        const lat = Number(selectedPoint.lat)
+        const lng = Number(selectedPoint.lng)
+        if (Number.isFinite(lat) && Number.isFinite(lng)) {
+          mapInstanceRef.current.invalidateSize?.()
+          const zoom =
+            Number.isFinite(targetZoom) && (targetZoom as number) >= 3 && (targetZoom as number) <= 19
+              ? (targetZoom as number)
+              : 11
+          mapInstanceRef.current.flyTo([lat, lng], zoom, { duration: 0.8 })
+          return
+        }
+      }
+    }
+
+    focusWeatherViewport()
+  }, [focusWeatherViewport, mapReady, selectedWeatherGridPointId, targetZoom, weatherGridPoints])
+
+  useEffect(() => {
+    if (!mapReady || !lateralPanelVisible || weatherGridPoints.length === 0) return
+
+    const frame = window.requestAnimationFrame(() => focusWeatherViewport())
+    const timeout = window.setTimeout(() => focusWeatherViewport(), 320)
+
+    return () => {
+      window.cancelAnimationFrame(frame)
+      window.clearTimeout(timeout)
+    }
+  }, [focusWeatherViewport, lateralPanelVisible, mapReady, weatherGridPoints.length])
+
+  useEffect(() => {
+    if (!mapReady || !mapRef.current || weatherGridPoints.length === 0) return
+
+    const node = mapRef.current
+    const observer = new ResizeObserver(() => {
+      focusWeatherViewport()
+    })
+    observer.observe(node)
+
+    return () => observer.disconnect()
+  }, [focusWeatherViewport, mapReady, weatherGridPoints.length])
+
+  useEffect(() => {
     if (!mapReady || !mapInstanceRef.current || !leafletRef.current) return
+    if (weatherGridPoints.length > 0) return
     const L = leafletRef.current
     const map = mapInstanceRef.current
 
