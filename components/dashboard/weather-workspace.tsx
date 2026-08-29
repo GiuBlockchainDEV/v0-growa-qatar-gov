@@ -17,6 +17,7 @@ import {
   Waves,
   Wind,
 } from 'lucide-react'
+import { qatarConfig } from '@/lib/config/country-qatar'
 
 type WeatherRecord = Record<string, unknown>
 
@@ -159,7 +160,11 @@ function formatTimestamp(input?: string | null) {
   if (!input) return 'N/A'
   const date = new Date(input)
   if (Number.isNaN(date.getTime())) return input
-  return date.toLocaleString('en-GB', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'UTC' })
+  return date.toLocaleString('en-GB', {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+    timeZone: qatarConfig.timezone,
+  })
 }
 
 function countryLabel(country?: WeatherRecord) {

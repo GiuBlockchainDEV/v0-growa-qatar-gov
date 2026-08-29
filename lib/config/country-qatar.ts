@@ -38,6 +38,7 @@ export interface CountryConfig {
       west: number
     }
   }
+  timezone: string
   organizations: {
     // Placeholder for organization types allowed in Qatar
     // Will be populated in Phase 1
@@ -79,6 +80,7 @@ export const qatarConfig: CountryConfig = {
       west: 50.7,
     },
   },
+  timezone: 'Asia/Qatar',
   organizations: {
     // Will be populated with: ministry, sovereign_entity, state_operator,
     // financial_institution, research_entity, external_operator
