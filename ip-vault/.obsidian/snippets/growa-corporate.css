@@ -1,0 +1,151 @@
+/* Growa Corporate Knowledge System — Obsidian Snippet
+   Enable in Settings → Appearance → CSS snippets */
+
+:root {
+  --growa-off-white: #F6F6F2;
+  --growa-near-black: #191815;
+  --growa-green: #35A853;
+  --growa-card: #FFFFFF;
+  --growa-border: #E2E2DC;
+  --growa-muted: #6B6B66;
+}
+
+.theme-light {
+  --background-primary: var(--growa-off-white);
+  --background-secondary: var(--growa-card);
+  --text-normal: var(--growa-near-black);
+  --text-muted: var(--growa-muted);
+  --text-accent: var(--growa-green);
+  --interactive-accent: var(--growa-green);
+  --background-modifier-border: var(--growa-border);
+}
+
+.theme-dark {
+  --background-primary: var(--growa-near-black);
+  --background-secondary: #242220;
+  --text-normal: var(--growa-off-white);
+  --text-muted: #A8A8A2;
+  --text-accent: var(--growa-green);
+  --interactive-accent: var(--growa-green);
+  --background-modifier-border: #3A3A36;
+}
+
+/* Condensed headers */
+.markdown-preview-view h1,
+.markdown-source-view.mod-cm6 .cm-header-1 {
+  font-family: 'Barlow Condensed', 'Arial Narrow', sans-serif;
+  font-weight: 700;
+  font-size: 2.2em;
+  letter-spacing: -0.02em;
+  text-transform: uppercase;
+  color: var(--growa-near-black);
+  border-bottom: 3px solid var(--growa-green);
+  padding-bottom: 0.3em;
+}
+
+.theme-dark .markdown-preview-view h1 {
+  color: var(--growa-off-white);
+}
+
+.markdown-preview-view h2,
+.markdown-source-view.mod-cm6 .cm-header-2 {
+  font-family: 'Barlow Condensed', 'Arial Narrow', sans-serif;
+  font-weight: 700;
+  font-size: 1.5em;
+  letter-spacing: -0.01em;
+  text-transform: uppercase;
+  color: var(--growa-near-black);
+}
+
+.theme-dark .markdown-preview-view h2 {
+  color: var(--growa-off-white);
+}
+
+/* Card callouts */
+.markdown-preview-view .callout[data-callout="card"],
+.markdown-preview-view .callout[data-callout="blackbox"] {
+  background: var(--growa-card);
+  border: 1px solid var(--growa-border);
+  border-radius: 6px;
+  box-shadow: 0 1px 3px rgba(25, 24, 21, 0.04);
+  padding: 0;
+}
+
+.markdown-preview-view .callout[data-callout="card"] .callout-title,
+.markdown-preview-view .callout[data-callout="blackbox"] .callout-title {
+  background: var(--growa-off-white);
+  border-bottom: 1px solid var(--growa-border);
+  font-family: 'Barlow Condensed', sans-serif;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-size: 0.85em;
+  color: var(--growa-near-black);
+  padding: 10px 16px;
+}
+
+.markdown-preview-view .callout[data-callout="blackbox"] .callout-title {
+  border-left: 4px solid var(--growa-green);
+}
+
+.markdown-preview-view .callout[data-callout="card"] .callout-content,
+.markdown-preview-view .callout[data-callout="blackbox"] .callout-content {
+  padding: 16px;
+}
+
+/* Green accent blockquotes */
+.markdown-preview-view blockquote {
+  border-left: 4px solid var(--growa-green);
+  background: var(--growa-card);
+  border-radius: 0 6px 6px 0;
+  padding: 12px 20px;
+  font-style: normal;
+  color: var(--growa-muted);
+}
+
+/* Code blocks — sanitized abstract style */
+.markdown-preview-view pre {
+  background: var(--growa-near-black) !important;
+  border: 1px solid #2E2E2A;
+  border-radius: 6px;
+  border-left: 4px solid var(--growa-green);
+}
+
+.markdown-preview-view pre code {
+  color: #D4D4CF !important;
+  font-size: 0.85em;
+}
+
+/* Tables */
+.markdown-preview-view table {
+  border: 1px solid var(--growa-border);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.markdown-preview-view th {
+  background: var(--growa-near-black);
+  color: var(--growa-off-white);
+  font-family: 'Barlow Condensed', sans-serif;
+  font-weight: 700;
+  text-transform: uppercase;
+  font-size: 0.8em;
+  letter-spacing: 0.06em;
+}
+
+.markdown-preview-view td {
+  background: var(--growa-card);
+  border-color: var(--growa-border);
+}
+
+/* Tags */
+.tag {
+  background: rgba(53, 168, 83, 0.12) !important;
+  color: var(--growa-green) !important;
+  border: 1px solid rgba(53, 168, 83, 0.3);
+  font-family: 'Barlow Condensed', sans-serif;
+  font-weight: 600;
+  text-transform: uppercase;
+  font-size: 0.7em;
+  letter-spacing: 0.08em;
+}

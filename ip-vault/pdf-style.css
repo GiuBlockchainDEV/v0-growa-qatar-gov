@@ -1,120 +1,357 @@
-body {
-  font-family: 'Georgia', 'Times New Roman', serif;
-  font-size: 11pt;
-  line-height: 1.6;
-  color: #1a1a1a;
-  max-width: 100%;
+@import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=Source+Sans+3:wght@400;600&family=JetBrains+Mono:wght@400&display=swap');
+
+:root {
+  --growa-off-white: #F6F6F2;
+  --growa-near-black: #191815;
+  --growa-green: #35A853;
+  --growa-card: #FFFFFF;
+  --growa-border: #E2E2DC;
+  --growa-muted: #6B6B66;
 }
 
+@page {
+  margin: 0;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+
+body {
+  font-family: 'Source Sans 3', 'Helvetica Neue', sans-serif;
+  font-size: 10.5pt;
+  line-height: 1.65;
+  color: var(--growa-near-black);
+  background: var(--growa-off-white);
+  margin: 0;
+  padding: 0;
+}
+
+/* ── Cover page ── */
+.cover-page {
+  width: 100%;
+  min-height: 297mm;
+  background: var(--growa-near-black);
+  color: var(--growa-off-white);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 48px 56px;
+  page-break-after: always;
+}
+
+.cover-accent {
+  width: 64px;
+  height: 4px;
+  background: var(--growa-green);
+  margin-bottom: 32px;
+}
+
+.cover-brand {
+  font-family: 'Barlow Condensed', sans-serif;
+  font-weight: 700;
+  font-size: 14pt;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--growa-green);
+  margin-bottom: 24px;
+}
+
+.cover-title {
+  font-family: 'Barlow Condensed', sans-serif;
+  font-weight: 700;
+  font-size: 42pt;
+  line-height: 1.05;
+  letter-spacing: -0.02em;
+  text-transform: uppercase;
+  margin: 0 0 16px 0;
+  max-width: 80%;
+}
+
+.cover-subtitle {
+  font-size: 13pt;
+  color: #A8A8A2;
+  font-weight: 400;
+  max-width: 70%;
+  line-height: 1.5;
+  margin: 0;
+}
+
+.cover-meta {
+  border-top: 1px solid #3A3A36;
+  padding-top: 24px;
+  display: flex;
+  gap: 48px;
+}
+
+.cover-meta-item {
+  font-size: 9pt;
+  color: #A8A8A2;
+}
+
+.cover-meta-item strong {
+  display: block;
+  font-family: 'Barlow Condensed', sans-serif;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  font-size: 8pt;
+  color: var(--growa-green);
+  margin-bottom: 4px;
+}
+
+.cover-footer {
+  font-size: 8pt;
+  color: #6B6B66;
+  letter-spacing: 0.05em;
+}
+
+/* ── Content pages ── */
+.content-wrapper {
+  padding: 20mm 18mm;
+  background: var(--growa-off-white);
+}
+
+.page-section {
+  page-break-after: always;
+  padding-bottom: 12mm;
+}
+
+.page-section:last-child {
+  page-break-after: auto;
+}
+
+/* ── Typography ── */
 h1 {
-  font-size: 22pt;
-  color: #7a1f2e;
-  border-bottom: 2px solid #7a1f2e;
-  padding-bottom: 8px;
-  margin-top: 24px;
+  font-family: 'Barlow Condensed', sans-serif;
+  font-weight: 700;
+  font-size: 26pt;
+  letter-spacing: -0.02em;
+  text-transform: uppercase;
+  color: var(--growa-near-black);
+  border-bottom: 3px solid var(--growa-green);
+  padding-bottom: 10px;
+  margin: 0 0 20px 0;
   page-break-after: avoid;
 }
 
 h2 {
-  font-size: 16pt;
-  color: #2c3e50;
-  border-bottom: 1px solid #ddd;
-  padding-bottom: 4px;
-  margin-top: 20px;
+  font-family: 'Barlow Condensed', sans-serif;
+  font-weight: 700;
+  font-size: 15pt;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--growa-near-black);
+  margin: 28px 0 12px 0;
   page-break-after: avoid;
 }
 
 h3 {
-  font-size: 13pt;
-  color: #34495e;
-  margin-top: 16px;
+  font-family: 'Barlow Condensed', sans-serif;
+  font-weight: 600;
+  font-size: 11pt;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--growa-muted);
+  margin: 20px 0 8px 0;
   page-break-after: avoid;
 }
 
 h4 {
-  font-size: 11pt;
-  color: #555;
-  margin-top: 12px;
+  font-size: 10.5pt;
+  font-weight: 600;
+  color: var(--growa-near-black);
+  margin: 14px 0 6px 0;
 }
 
-table {
-  width: 100%;
-  border-collapse: collapse;
-  margin: 12px 0;
+p {
+  margin: 0 0 10px 0;
+}
+
+/* ── Cards (from callouts) ── */
+.growa-card,
+.growa-blackbox {
+  background: var(--growa-card);
+  border: 1px solid var(--growa-border);
+  border-radius: 6px;
+  margin: 14px 0;
+  overflow: hidden;
+  page-break-inside: avoid;
+  box-shadow: 0 1px 4px rgba(25, 24, 21, 0.05);
+}
+
+.growa-card-header,
+.growa-blackbox-header {
+  background: var(--growa-off-white);
+  border-bottom: 1px solid var(--growa-border);
+  padding: 10px 16px;
+  font-family: 'Barlow Condensed', sans-serif;
+  font-weight: 700;
+  font-size: 9pt;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--growa-near-black);
+}
+
+.growa-blackbox {
+  border-left: 4px solid var(--growa-green);
+}
+
+.growa-blackbox-header {
+  border-left: none;
+}
+
+.growa-card-body,
+.growa-blackbox-body {
+  padding: 14px 16px;
   font-size: 10pt;
+  line-height: 1.6;
+}
+
+/* ── Blockquotes ── */
+blockquote {
+  border-left: 4px solid var(--growa-green);
+  background: var(--growa-card);
+  border-radius: 0 6px 6px 0;
+  margin: 14px 0;
+  padding: 12px 18px;
+  font-style: italic;
+  color: var(--growa-muted);
+  border-top: 1px solid var(--growa-border);
+  border-right: 1px solid var(--growa-border);
+  border-bottom: 1px solid var(--growa-border);
   page-break-inside: avoid;
 }
 
-th {
-  background-color: #7a1f2e;
-  color: white;
-  padding: 8px 10px;
-  text-align: left;
-  font-weight: 600;
-}
-
-td {
-  padding: 6px 10px;
-  border-bottom: 1px solid #e0e0e0;
-}
-
-tr:nth-child(even) td {
-  background-color: #f9f9f9;
-}
-
+/* ── Code ── */
 code {
-  font-family: 'Consolas', 'Courier New', monospace;
-  font-size: 9.5pt;
-  background-color: #f4f4f4;
-  padding: 1px 4px;
+  font-family: 'JetBrains Mono', 'Consolas', monospace;
+  font-size: 8.5pt;
+  background: rgba(25, 24, 21, 0.06);
+  padding: 1px 5px;
   border-radius: 3px;
+  color: var(--growa-near-black);
 }
 
 pre {
-  background-color: #f4f4f4;
-  border: 1px solid #ddd;
-  border-radius: 4px;
-  padding: 12px;
-  font-size: 9pt;
-  line-height: 1.4;
+  background: var(--growa-near-black) !important;
+  border: 1px solid #2E2E2A;
+  border-left: 4px solid var(--growa-green);
+  border-radius: 6px;
+  padding: 16px 18px;
+  margin: 14px 0;
   overflow-x: auto;
   page-break-inside: avoid;
 }
 
 pre code {
-  background: none;
+  background: none !important;
   padding: 0;
+  color: #C8C8C2 !important;
+  font-size: 8pt;
+  line-height: 1.55;
 }
 
-blockquote {
-  border-left: 4px solid #7a1f2e;
-  margin: 12px 0;
-  padding: 8px 16px;
-  background-color: #fdf6f7;
-  font-style: italic;
+/* ── Tables ── */
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 14px 0;
+  font-size: 9.5pt;
+  border: 1px solid var(--growa-border);
+  border-radius: 6px;
+  overflow: hidden;
   page-break-inside: avoid;
 }
 
-hr {
-  border: none;
-  border-top: 1px solid #ccc;
-  margin: 20px 0;
+th {
+  background: var(--growa-near-black);
+  color: var(--growa-off-white);
+  padding: 9px 12px;
+  text-align: left;
+  font-family: 'Barlow Condensed', sans-serif;
+  font-weight: 700;
+  text-transform: uppercase;
+  font-size: 8pt;
+  letter-spacing: 0.08em;
 }
 
+td {
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--growa-border);
+  background: var(--growa-card);
+}
+
+tr:last-child td {
+  border-bottom: none;
+}
+
+tr:nth-child(even) td {
+  background: #FAFAF8;
+}
+
+/* ── Lists ── */
 ul, ol {
   margin: 8px 0;
-  padding-left: 24px;
+  padding-left: 22px;
 }
 
 li {
   margin: 4px 0;
 }
 
-a {
-  color: #7a1f2e;
-  text-decoration: none;
+/* ── Horizontal rule ── */
+hr {
+  border: none;
+  border-top: 1px solid var(--growa-border);
+  margin: 24px 0;
 }
 
+/* ── ASCII diagrams ── */
+pre:not([class]) {
+  background: var(--growa-card) !important;
+  border: 1px solid var(--growa-border);
+  border-left: 4px solid var(--growa-green);
+  color: var(--growa-near-black) !important;
+}
+
+pre:not([class]) code {
+  color: var(--growa-near-black) !important;
+  font-size: 7.5pt;
+}
+
+/* ── Section nav breadcrumb ── */
+em.nav {
+  font-size: 8.5pt;
+  color: var(--growa-muted);
+  font-style: normal;
+  display: block;
+  margin-bottom: 16px;
+  letter-spacing: 0.02em;
+}
+
+/* ── Tags ── */
+.tag-line {
+  margin-top: 24px;
+  font-family: 'Barlow Condensed', sans-serif;
+  font-size: 8pt;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--growa-green);
+}
+
+/* ── Protected label inline ── */
 strong {
-  color: #2c3e50;
+  font-weight: 600;
+  color: var(--growa-near-black);
+}
+
+a {
+  color: var(--growa-green);
+  text-decoration: none;
 }
