@@ -1674,13 +1674,26 @@ export function SatelliteMap({
   }, [harvestFields, mapReady, onHarvestFieldClick, selectedHarvestParcelId])
 
   useEffect(() => {
-    if (!mapReady || !mapInstanceRef.current || !selectedHarvestParcelId) return
+    if (!mapReady || !mapInstanceRef.current || !leafletRef.current || !selectedHarvestParcelId) return
     const selectedField = harvestFields.find((field) => field.parcel_id === selectedHarvestParcelId)
     if (!selectedField) return
-    mapInstanceRef.current.flyTo([selectedField.centroid.lat, selectedField.centroid.lng], 13, {
-      duration: 1.1,
-    })
-  }, [harvestFields, mapReady, selectedHarvestParcelId])
+
+    const map = mapInstanceRef.current
+    const L = leafletRef.current
+    const zoom =
+      Number.isFinite(targetZoom) && (targetZoom as number) >= 3 && (targetZoom as number) <= 19
+        ? (targetZoom as number)
+        : 13
+
+    const vertices = selectedField.rings.flat()
+    if (vertices.length >= 3) {
+      const bounds = L.latLngBounds(vertices.map((vertex) => [vertex.lat, vertex.lng]))
+      map.flyToBounds(bounds, { padding: [48, 48], duration: 1.1, maxZoom: zoom })
+      return
+    }
+
+    map.flyTo([selectedField.centroid.lat, selectedField.centroid.lng], zoom, { duration: 1.1 })
+  }, [harvestFields, mapReady, selectedHarvestParcelId, targetZoom])
 
   useEffect(() => {
     if (!mapReady || !mapInstanceRef.current || !leafletRef.current) return

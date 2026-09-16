@@ -104,6 +104,23 @@ export function geoJsonToHarvestFieldPolygon(
   }
 }
 
+export function extractBoundsFromGeoJson(geojson: unknown): [[number, number], [number, number]] | null {
+  const rings = ringsFromGeometry(geometryFromGeoJson(geojson))
+  if (rings.length === 0) return null
+  return boundsFromRings(rings)
+}
+
+function boundsFromRings(rings: LatLngVertex[][]): [[number, number], [number, number]] {
+  const vertices = rings.flat()
+  if (vertices.length === 0) return [[25.2, 51.1], [25.5, 51.4]]
+  const lats = vertices.map((vertex) => vertex.lat)
+  const lngs = vertices.map((vertex) => vertex.lng)
+  return [
+    [Math.min(...lats), Math.min(...lngs)],
+    [Math.max(...lats), Math.max(...lngs)],
+  ]
+}
+
 export function computeCentroid(vertices: LatLngVertex[]): LatLngVertex {
   if (vertices.length === 0) return { lat: 25.3548, lng: 51.1839 }
   const totals = vertices.reduce(

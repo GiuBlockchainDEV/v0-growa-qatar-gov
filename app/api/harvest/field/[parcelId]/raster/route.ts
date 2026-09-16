@@ -1,8 +1,13 @@
 import { NextResponse } from 'next/server'
-import { requireHarvestAccess, harvestErrorResponse } from '@/lib/harvest/auth'
-import { harvestGetFieldRaster, harvestGetFieldRasterMeta } from '@/lib/harvest/client'
-import { getDemoFieldRaster } from '@/lib/harvest/demo-data'
-import { harvestJsonResponse } from '@/lib/harvest/resolve'
+import { requireHarvestAccess } from '@/lib/harvest/auth'
+import { harvestGetAnalyticsFields, harvestGetFieldRaster, harvestGetFieldRasterMeta } from '@/lib/harvest/client'
+import { getDemoAnalyticsFields, getDemoFieldRaster } from '@/lib/harvest/demo-data'
+import {
+  buildFieldRasterFallback,
+  isLiveRasterMetric,
+} from '@/lib/harvest/field-raster-fallback'
+import { normalizePaginatedFieldsResponse } from '@/lib/harvest/normalize'
+import { harvestJsonResponse, resolveHarvestPayload } from '@/lib/harvest/resolve'
 import type { HarvestMetricKey, HarvestMode, HarvestTrendGranularity } from '@/lib/harvest/types'
 
 interface RouteContext {
@@ -10,6 +15,26 @@ interface RouteContext {
 }
 
 const METRIC_KEYS: HarvestMetricKey[] = ['aeti', 'npp', 'tbp', 'bwp', 'rwd', 'wcu', 'cost']
+
+async function resolveFieldName(parcelId: string, mode: HarvestMode, demoMode: boolean) {
+  const { payload } = await resolveHarvestPayload({
+    demoMode,
+    fetchLive: async () =>
+      normalizePaginatedFieldsResponse(
+        await harvestGetAnalyticsFields({
+          mode,
+          page: '1',
+          perpage: '50',
+          sort: 'name',
+          order: 'asc',
+        })
+      ),
+    fetchDemo: () => getDemoAnalyticsFields(mode),
+    validateLive: (data) => data.results.length > 0,
+  })
+
+  return payload.results.find((field) => field.parcel_id === parcelId)?.name || 'Field'
+}
 
 export async function GET(request: Request, context: RouteContext) {
   const access = await requireHarvestAccess()
@@ -35,12 +60,32 @@ export async function GET(request: Request, context: RouteContext) {
     return NextResponse.json({ error: 'season_id is required' }, { status: 400 })
   }
 
+  const fieldName = await resolveFieldName(parcelId, mode, access.demoMode)
+
   if (access.demoMode) {
     const demoRaster = getDemoFieldRaster(parcelId, mode, metric, granularity, period)
-    if (!demoRaster) {
-      return NextResponse.json({ error: 'Field not found' }, { status: 404 })
-    }
-    return harvestJsonResponse(demoRaster, true)
+    if (demoRaster) return harvestJsonResponse(demoRaster, true)
+    const fallback = await buildFieldRasterFallback({
+      parcelId,
+      fieldName,
+      metric,
+      granularity,
+      period,
+      demoMode: true,
+    })
+    return harvestJsonResponse(fallback, true)
+  }
+
+  if (!isLiveRasterMetric(metric)) {
+    const fallback = await buildFieldRasterFallback({
+      parcelId,
+      fieldName,
+      metric,
+      granularity,
+      period,
+      demoMode: false,
+    })
+    return harvestJsonResponse(fallback, true)
   }
 
   try {
@@ -56,7 +101,8 @@ export async function GET(request: Request, context: RouteContext) {
       harvestGetFieldRasterMeta(rasterMode, parcelId, seasonId, query),
     ])
 
-    const image_url = `data:image/png;base64,${Buffer.from(buffer).toString('base64')}`
+    const contentType = buffer.byteLength > 0 ? 'image/png' : 'image/png'
+    const image_url = `data:${contentType};base64,${Buffer.from(buffer).toString('base64')}`
     const payload = {
       metric,
       granularity,
@@ -71,8 +117,14 @@ export async function GET(request: Request, context: RouteContext) {
 
     return harvestJsonResponse(payload, false)
   } catch {
-    const demoRaster = getDemoFieldRaster(parcelId, mode, metric, granularity, period)
-    if (demoRaster) return harvestJsonResponse(demoRaster, true)
-    return harvestErrorResponse(new Error('HARVEST_RASTER_UNAVAILABLE'))
+    const fallback = await buildFieldRasterFallback({
+      parcelId,
+      fieldName,
+      metric,
+      granularity,
+      period,
+      demoMode: false,
+    })
+    return harvestJsonResponse(fallback, true)
   }
 }

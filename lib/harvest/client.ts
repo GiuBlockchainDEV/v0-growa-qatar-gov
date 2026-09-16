@@ -200,7 +200,7 @@ async function harvestFetch<T>(
     throw new Error(`HARVEST_REQUEST_FAILED:${response.status}:${details}`)
   }
 
-  if (response.status === 204) {
+  if (response.status === 204 || method === 'DELETE') {
     return undefined as T
   }
 
@@ -297,4 +297,8 @@ export async function harvestGetFieldRasterMeta(
     vmax?: number
     unit?: string
   }>(`entity/raster_meta/${mode}/${parcelId}/${seasonId}`, query)
+}
+
+export async function harvestDeleteEntity(parcelId: string) {
+  return harvestFetch(`entity/${parcelId}`, { method: 'DELETE' })
 }

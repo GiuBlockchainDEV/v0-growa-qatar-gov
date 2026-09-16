@@ -25,6 +25,8 @@ const DEMO_PARCEL_RINGS: Record<string, ReturnType<typeof createRectangleRing>[]
   [DEMO_PARCEL_UMM_SALAL]: [createRectangleRing(25.421, 51.408, 0.028, 0.036)],
 }
 
+const deletedDemoParcels = new Set<string>()
+
 const DEMO_FIELDS: HarvestAnalyticsField[] = [
   {
     parcel_id: DEMO_PARCEL_NORTH,
@@ -65,16 +67,25 @@ export function isHarvestDemoMode(): boolean {
   return shouldUseHarvestDemo()
 }
 
+function getActiveDemoFields() {
+  return DEMO_FIELDS.filter((field) => !deletedDemoParcels.has(field.parcel_id))
+}
+
+export function deleteDemoField(parcelId: string) {
+  deletedDemoParcels.add(parcelId)
+}
+
 export function getDemoAnalytics(mode: HarvestMode): HarvestAnalyticsResponse {
   const factor = mode === 'predict' ? 1.12 : 1
+  const activeFields = getActiveDemoFields()
   return {
     metrics: [
-      { key: 'aeti', agg: 'sum', value: Math.round(24581.2 * factor), field_count: 3 },
-      { key: 'tbp', agg: 'sum', value: Math.round(327.5 * factor * 10) / 10, field_count: 3 },
-      { key: 'bwp', agg: 'mean', value: 1.28, field_count: 3 },
-      { key: 'cost', agg: 'sum', value: Math.round(130322 * factor), field_count: 3 },
+      { key: 'aeti', agg: 'sum', value: Math.round(24581.2 * factor), field_count: activeFields.length },
+      { key: 'tbp', agg: 'sum', value: Math.round(327.5 * factor * 10) / 10, field_count: activeFields.length },
+      { key: 'bwp', agg: 'mean', value: 1.28, field_count: activeFields.length },
+      { key: 'cost', agg: 'sum', value: Math.round(130322 * factor), field_count: activeFields.length },
     ],
-    fields: DEMO_FIELDS.map((field) => ({
+    fields: activeFields.map((field) => ({
       ...field,
       metrics: Object.fromEntries(
         Object.entries(field.metrics).map(([key, value]) => [
@@ -131,7 +142,7 @@ export function getDemoParcelGeojson(parcelId: string) {
 }
 
 export function getDemoMapFields(): HarvestMapField[] {
-  return DEMO_FIELDS.map((field) => {
+  return getActiveDemoFields().map((field) => {
     const rings = DEMO_PARCEL_RINGS[field.parcel_id] || []
     const centroid = rings[0] ? computeCentroid(rings[0]) : { lat: 25.3548, lng: 51.1839 }
     return {

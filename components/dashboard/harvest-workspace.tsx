@@ -11,6 +11,7 @@ import {
   RefreshCw,
   Sprout,
   Target,
+  Trash2,
   TrendingUp,
 } from 'lucide-react'
 import {
@@ -176,6 +177,7 @@ export function HarvestWorkspace() {
   const [mapGranularity, setMapGranularity] = useState<HarvestTrendGranularity>('dekad')
   const [yieldTask, setYieldTask] = useState<HarvestTaskStatus | null>(null)
   const [yieldLoading, setYieldLoading] = useState(false)
+  const [deleteLoading, setDeleteLoading] = useState(false)
 
   const loadData = useCallback(async () => {
     setLoading(true)
@@ -337,7 +339,12 @@ export function HarvestWorkspace() {
       params.set('module', 'harvest')
       params.set('parcelId', field.parcel_id)
       params.set('harvestMode', mode)
-      router.push(`/dashboard?${params.toString()}`)
+      params.set('zoom', '13')
+      params.delete('pointId')
+      params.delete('farmId')
+      params.delete('crop')
+      params.delete('focus')
+      router.replace(`/dashboard?${params.toString()}`)
       setSelectedField(field)
     },
     [mode, router, searchParams]
@@ -354,6 +361,33 @@ export function HarvestWorkspace() {
     setFieldRaster(null)
     setYieldTask(null)
   }, [mode, router, searchParams])
+
+  const deleteSelectedField = useCallback(async () => {
+    if (!selectedField?.parcel_id) return
+    const confirmed = window.confirm(
+      `Delete field "${selectedField.name}"? This action cannot be undone.`
+    )
+    if (!confirmed) return
+
+    setDeleteLoading(true)
+    try {
+      const response = await fetch(`/api/harvest/entity/${selectedField.parcel_id}`, {
+        method: 'DELETE',
+      })
+      const payload = await response.json().catch(() => ({}))
+      if (!response.ok) {
+        throw new Error(typeof payload?.error === 'string' ? payload.error : 'Unable to delete field')
+      }
+
+      window.dispatchEvent(new Event('harvest:fields-updated'))
+      clearFieldSelection()
+      await loadData()
+    } catch (deleteError) {
+      setError(deleteError instanceof Error ? deleteError.message : 'Unable to delete field')
+    } finally {
+      setDeleteLoading(false)
+    }
+  }, [clearFieldSelection, loadData, selectedField])
 
   const runYieldEstimate = useCallback(async () => {
     if (!selectedField?.parcel_id || !selectedField.season_id) return
@@ -518,6 +552,15 @@ export function HarvestWorkspace() {
                       {yieldLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Target className="h-3.5 w-3.5" />}
                       Estimate yield
                     </button>
+                    <button
+                      type="button"
+                      onClick={() => void deleteSelectedField()}
+                      disabled={deleteLoading}
+                      className="inline-flex items-center gap-2 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs font-medium text-red-300 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      {deleteLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+                      Delete field
+                    </button>
                   </div>
 
                   {yieldTask ? (
@@ -593,6 +636,12 @@ export function HarvestWorkspace() {
                       </select>
                     ) : null}
                   </div>
+
+                  {selectedMapMetric === 'wcu' || selectedMapMetric === 'cost' ? (
+                    <p className="text-[11px] text-muted-foreground">
+                      WCU and cost maps are rendered from field analytics when satellite raster layers are unavailable.
+                    </p>
+                  ) : null}
 
                   {fieldRasterLoading || fieldDetailLoading ? (
                     <div className="flex items-center gap-2 text-sm text-muted-foreground">

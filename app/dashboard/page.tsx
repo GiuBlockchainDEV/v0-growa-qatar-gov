@@ -80,9 +80,16 @@ function SlideFromLeftWorkspace({
   const selectedHarvestParcelId = searchParams.get('parcelId')
   const [harvestFields, setHarvestFields] = useState<HarvestMapField[]>([])
   const [harvestTileUrl, setHarvestTileUrl] = useState<string | null>(null)
+  const [harvestMapRefreshKey, setHarvestMapRefreshKey] = useState(0)
   const [panelVisible, setPanelVisible] = useState(false)
 
   const isHarvestModule = moduleKey === 'harvest' || moduleKey === 'production-harvest'
+
+  useEffect(() => {
+    const handleHarvestFieldsUpdated = () => setHarvestMapRefreshKey((value) => value + 1)
+    window.addEventListener('harvest:fields-updated', handleHarvestFieldsUpdated)
+    return () => window.removeEventListener('harvest:fields-updated', handleHarvestFieldsUpdated)
+  }, [])
 
   useEffect(() => {
     if (!isHarvestModule) {
@@ -128,7 +135,7 @@ function SlideFromLeftWorkspace({
     return () => {
       cancelled = true
     }
-  }, [harvestMode, isHarvestModule])
+  }, [harvestMapRefreshKey, harvestMode, isHarvestModule])
 
   useEffect(() => {
     const frame = window.requestAnimationFrame(() => setPanelVisible(true))
@@ -196,7 +203,7 @@ function SlideFromLeftWorkspace({
         />
       </div>
 
-      {moduleKey !== 'weather' && !isHarvestModule && (
+      {moduleKey !== 'weather' && moduleKey !== 'harvest' && moduleKey !== 'production-harvest' && (
         <button
           type="button"
           aria-label="Return to live map"
