@@ -1,12 +1,18 @@
 import { shouldUseHarvestDemo } from '@/lib/harvest/config'
+import { parseHarvestFieldStatsCsv } from '@/lib/harvest/csv-stats'
 import { computeCentroid, createRectangleRing } from '@/lib/harvest/geojson'
+import { buildDemoRasterMeta, buildDemoRasterSvg } from '@/lib/harvest/raster'
 import type {
   HarvestAnalyticsField,
   HarvestAnalyticsResponse,
+  HarvestFieldStatsResponse,
   HarvestMapField,
+  HarvestMetricKey,
   HarvestMode,
+  HarvestRasterResponse,
   HarvestTaskStatus,
   HarvestTimeseriesResponse,
+  HarvestTrendGranularity,
 } from '@/lib/harvest/types'
 
 export const DEMO_PARCEL_NORTH = 'a1b2c3d4-e5f6-7890-abcd-ef1234567890'
@@ -189,4 +195,83 @@ export function getDemoYieldTask(mode: HarvestMode, parcelId: string, seasonId: 
 
 export function getDemoTaskStatus(taskId: string): HarvestTaskStatus | null {
   return demoYieldTasks.get(taskId) || null
+}
+
+const TREND_METRICS: HarvestMetricKey[] = ['aeti', 'npp', 'tbp', 'bwp', 'rwd', 'wcu', 'cost']
+
+function buildDemoFieldStatsCsv(field: HarvestAnalyticsField, mode: HarvestMode) {
+  const factor = mode === 'predict' ? 1.08 : 1
+  const periods = [
+    ['2025-09-01', '2025-09-10'],
+    ['2025-09-11', '2025-09-20'],
+    ['2025-09-21', '2025-09-30'],
+    ['2025-10-01', '2025-10-10'],
+    ['2025-10-11', '2025-10-20'],
+    ['2025-10-21', '2025-10-31'],
+    ['2025-11-01', '2025-11-10'],
+    ['2025-11-11', '2025-11-20'],
+    ['2025-11-21', '2025-11-30'],
+    ['2025-12-01', '2025-12-10'],
+    ['2025-12-11', '2025-12-20'],
+    ['2025-12-21', '2025-12-31'],
+  ]
+
+  const header = [
+    'granularity',
+    'period_start',
+    'period_end',
+    ...TREND_METRICS,
+  ].join(',')
+
+  const dekadRows = periods.map(([start, end], index) => {
+    const growth = 1 + index * 0.035
+    const values = TREND_METRICS.map((metric) => {
+      const base = field.metrics[metric] ?? 0
+      const scale = metric === 'wcu' || metric === 'rwd' || metric === 'bwp' ? 1 : growth
+      return Math.round(base * factor * scale * 10) / 10
+    })
+    return ['dekad', start, end, ...values].join(',')
+  })
+
+  const seasonValues = TREND_METRICS.map((metric) => {
+    const base = field.metrics[metric] ?? 0
+    return Math.round(base * factor * 12 * 10) / 10
+  })
+  const seasonRow = ['season', field.start_date, field.harvest_date, ...seasonValues].join(',')
+
+  return [header, ...dekadRows, seasonRow].join('\n')
+}
+
+export function getDemoFieldStats(parcelId: string, mode: HarvestMode): HarvestFieldStatsResponse | null {
+  const field = DEMO_FIELDS.find((entry) => entry.parcel_id === parcelId)
+  if (!field || !field.season_id) return null
+  return parseHarvestFieldStatsCsv(buildDemoFieldStatsCsv(field, mode), {
+    parcel_id: field.parcel_id,
+    season_id: field.season_id,
+  })
+}
+
+export function getDemoFieldRaster(
+  parcelId: string,
+  mode: HarvestMode,
+  metric: HarvestMetricKey,
+  granularity: HarvestTrendGranularity,
+  period: string | null
+): HarvestRasterResponse | null {
+  const field = DEMO_FIELDS.find((entry) => entry.parcel_id === parcelId)
+  if (!field) return null
+  const rings = DEMO_PARCEL_RINGS[field.parcel_id] || []
+  const meta = buildDemoRasterMeta(metric, rings)
+
+  return {
+    metric,
+    granularity,
+    period,
+    image_url: buildDemoRasterSvg(metric, field.name),
+    bounds: meta.bounds,
+    vmin: meta.vmin,
+    vmax: meta.vmax,
+    unit: meta.unit,
+    legend: meta.legend,
+  }
 }

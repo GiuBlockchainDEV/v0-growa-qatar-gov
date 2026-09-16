@@ -96,3 +96,37 @@ export interface HarvestMapField {
 export interface HarvestMapFieldsResponse {
   fields: HarvestMapField[]
 }
+
+export type HarvestTrendGranularity = 'dekad' | 'season'
+
+export interface HarvestFieldPeriodOption {
+  value: string
+  label: string
+}
+
+export interface HarvestFieldStatsResponse {
+  parcel_id: string
+  season_id: number
+  periods: HarvestFieldPeriodOption[]
+  timeseries: {
+    dekad: Partial<Record<HarvestMetricKey, HarvestTimeseriesPoint[]>>
+    season: Partial<Record<HarvestMetricKey, HarvestTimeseriesPoint[]>>
+  }
+}
+
+export interface HarvestRasterLegendItem {
+  color: string
+  label: string
+}
+
+export interface HarvestRasterResponse {
+  metric: HarvestMetricKey
+  granularity: HarvestTrendGranularity
+  period: string | null
+  image_url: string
+  bounds: [[number, number], [number, number]]
+  vmin: number
+  vmax: number
+  unit: string
+  legend: HarvestRasterLegendItem[]
+}
