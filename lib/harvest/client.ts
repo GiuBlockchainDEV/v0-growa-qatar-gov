@@ -232,6 +232,10 @@ export async function harvestGetEntity(parcelId: string) {
   return harvestFetch(`entity/${parcelId}`)
 }
 
+export async function harvestGetParcel(parcelId: string) {
+  return harvestFetch<{ geojson?: unknown }>(`parcel/${parcelId}`)
+}
+
 export async function harvestGetTaskStatus(taskId: string) {
   return harvestFetch(`task_status/${taskId}`)
 }

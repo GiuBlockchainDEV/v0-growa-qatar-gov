@@ -8,6 +8,8 @@ import { useOrganization } from '@/hooks/use-organization'
 const QATAR_CENTER = { lat: 25.3548, lng: 51.1839 }
 const DEFAULT_ZOOM = 10
 const DEFAULT_FARM_ZOOM = 17
+const DEFAULT_TILE_URL =
+  'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'
 
 type MapPointType = 'farm' | 'facility' | 'sensor' | 'custom'
 type PolygonDrawMethod = 'vertex' | 'rectangle' | 'circle'
@@ -41,6 +43,14 @@ interface WeatherBoundaryPoint {
   lng: number
 }
 
+interface HarvestMapField {
+  parcel_id: string
+  name: string
+  crop: string
+  rings: Array<Array<{ lat: number; lng: number }>>
+  centroid: { lat: number; lng: number }
+}
+
 interface SatelliteMapProps {
   locale?: string
   targetPointId?: string | null
@@ -54,6 +64,10 @@ interface SatelliteMapProps {
   weatherGridLines?: WeatherGridLineSegment[]
   weatherBoundary?: WeatherBoundaryPoint[]
   onWeatherGridPointClick?: (point: WeatherGridMapPoint) => void
+  harvestFields?: HarvestMapField[]
+  selectedHarvestParcelId?: string | null
+  onHarvestFieldClick?: (field: HarvestMapField) => void
+  mapTileUrl?: string | null
 }
 
 interface MapController {
@@ -561,6 +575,10 @@ export function SatelliteMap({
   weatherGridLines = [],
   weatherBoundary = [],
   onWeatherGridPointClick,
+  harvestFields = [],
+  selectedHarvestParcelId = null,
+  onHarvestFieldClick,
+  mapTileUrl = null,
 }: SatelliteMapProps) {
   const { user } = useAuth()
   const { organization } = useOrganization()
@@ -570,6 +588,8 @@ export function SatelliteMap({
   const leafletRef = useRef<any>(null)
   const markerInstancesRef = useRef<any[]>([])
   const weatherGridMarkerInstancesRef = useRef<any[]>([])
+  const harvestFieldLayerInstancesRef = useRef<any[]>([])
+  const tileLayerRef = useRef<any>(null)
   const polygonInstancesRef = useRef<any[]>([])
   const draftPolylineRef = useRef<any | null>(null)
   const draftVertexInstancesRef = useRef<any[]>([])
@@ -1461,10 +1481,7 @@ export function SatelliteMap({
         attributionControl: false,
       }) as MapController
       map = createdMap
-      L.tileLayer(
-        'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
-        { maxZoom: 19 }
-      ).addTo(createdMap)
+      tileLayerRef.current = L.tileLayer(DEFAULT_TILE_URL, { maxZoom: 19 }).addTo(createdMap)
       createdMap.on('zoomend', () => setCurrentZoom(createdMap.getZoom()))
       mapInstanceRef.current = createdMap
       setIsLoading(false)
@@ -1544,7 +1561,7 @@ export function SatelliteMap({
     }
 
     markerInstancesRef.current.forEach((marker) => marker.remove?.())
-    if (weatherGridPoints.length > 0 || hideMarkersForCropFocus) {
+    if (weatherGridPoints.length > 0 || harvestFields.length > 0 || hideMarkersForCropFocus) {
       markerInstancesRef.current = []
       return
     }
@@ -1591,8 +1608,79 @@ export function SatelliteMap({
     openPointInsightsModal,
     pointScoreStatsById,
     weatherGridPoints,
+    harvestFields,
   ])
 
+  useEffect(() => {
+    if (!mapReady || !mapInstanceRef.current || !leafletRef.current) return
+    const L = leafletRef.current
+    const map = mapInstanceRef.current
+    const nextTileUrl = mapTileUrl || DEFAULT_TILE_URL
+
+    if (tileLayerRef.current) {
+      tileLayerRef.current.remove?.()
+      tileLayerRef.current = null
+    }
+
+    tileLayerRef.current = L.tileLayer(nextTileUrl, { maxZoom: 19 }).addTo(map)
+  }, [mapReady, mapTileUrl])
+
+  useEffect(() => {
+    if (!mapReady || !mapInstanceRef.current || !leafletRef.current) return
+    const L = leafletRef.current
+    const map = mapInstanceRef.current
+
+    harvestFieldLayerInstancesRef.current.forEach((layer) => layer.remove?.())
+    harvestFieldLayerInstancesRef.current = []
+
+    if (harvestFields.length === 0) return
+
+    for (const field of harvestFields) {
+      const selected = field.parcel_id === selectedHarvestParcelId
+      for (const ring of field.rings) {
+        if (ring.length < 3) continue
+        const layer = L.polygon(
+          ring.map((vertex) => [vertex.lat, vertex.lng]),
+          {
+            color: selected ? '#ffffff' : '#07f880',
+            weight: selected ? 4 : 2,
+            opacity: 1,
+            fillColor: '#07f880',
+            fillOpacity: selected ? 0.28 : 0.14,
+            interactive: true,
+            bubblingMouseEvents: false,
+          }
+        ).addTo(map)
+
+        layer.bindTooltip(
+          `<strong style="color:#07f880;">${escapeHtml(field.name)}</strong><br/><span style="font-size:11px;color:#bbb;">${escapeHtml(field.crop)}</span>`,
+          { direction: 'top', opacity: 0.95, className: 'custom-tooltip' }
+        )
+
+        layer.on('click', (event: any) => {
+          event?.originalEvent?.preventDefault?.()
+          event?.originalEvent?.stopPropagation?.()
+          onHarvestFieldClick?.(field)
+        })
+
+        harvestFieldLayerInstancesRef.current.push(layer)
+      }
+    }
+
+    return () => {
+      harvestFieldLayerInstancesRef.current.forEach((layer) => layer.remove?.())
+      harvestFieldLayerInstancesRef.current = []
+    }
+  }, [harvestFields, mapReady, onHarvestFieldClick, selectedHarvestParcelId])
+
+  useEffect(() => {
+    if (!mapReady || !mapInstanceRef.current || !selectedHarvestParcelId) return
+    const selectedField = harvestFields.find((field) => field.parcel_id === selectedHarvestParcelId)
+    if (!selectedField) return
+    mapInstanceRef.current.flyTo([selectedField.centroid.lat, selectedField.centroid.lng], 13, {
+      duration: 1.1,
+    })
+  }, [harvestFields, mapReady, selectedHarvestParcelId])
 
   useEffect(() => {
     if (!mapReady || !mapInstanceRef.current || !leafletRef.current) return
@@ -1602,7 +1690,9 @@ export function SatelliteMap({
     weatherGridMarkerInstancesRef.current.forEach((layer) => layer.remove?.())
     weatherGridMarkerInstancesRef.current = []
 
-    if (weatherGridPoints.length === 0) return
+    if (weatherGridPoints.length === 0 && weatherGridLines.length === 0 && weatherBoundary.length <= 2) {
+      return
+    }
 
     const layers: any[] = []
 
@@ -1705,7 +1795,7 @@ export function SatelliteMap({
     draftVertexInstancesRef.current.forEach((marker) => marker.remove?.())
     draftVertexInstancesRef.current = []
 
-    if (weatherGridPoints.length > 0) return
+    if (weatherGridPoints.length > 0 || harvestFields.length > 0) return
 
     const polygonsToRender = normalizedCropFilter
       ? Object.values(pointPolygons)
@@ -1857,6 +1947,7 @@ export function SatelliteMap({
     normalizedCropFilter,
     pointPolygons,
     polygonDrawPointId,
+    harvestFields,
     weatherGridPoints,
   ])
 

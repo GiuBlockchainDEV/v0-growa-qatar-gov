@@ -79,3 +79,20 @@ export interface HarvestTimeseriesResponse {
   mode: HarvestMode
   points: HarvestTimeseriesPoint[]
 }
+
+export interface HarvestMapFieldRing {
+  lat: number
+  lng: number
+}
+
+export interface HarvestMapField {
+  parcel_id: string
+  name: string
+  crop: string
+  rings: HarvestMapFieldRing[][]
+  centroid: HarvestMapFieldRing
+}
+
+export interface HarvestMapFieldsResponse {
+  fields: HarvestMapField[]
+}

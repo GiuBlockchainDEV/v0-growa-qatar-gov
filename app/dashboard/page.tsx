@@ -16,6 +16,7 @@ import {
   generateQatarWeatherGridLines,
   getQatarBoundaryCoordinates,
 } from '@/lib/weather/qatar-grid'
+import type { HarvestMapField } from '@/lib/harvest/types'
 
 function SlideFromLeftWorkspace({
   children,
@@ -69,10 +70,65 @@ function SlideFromLeftWorkspace({
     [moduleKey]
   )
   const weatherBoundary = useMemo(
-    () => (moduleKey === 'weather' ? getQatarBoundaryCoordinates() : []),
+    () =>
+      moduleKey === 'weather' || moduleKey === 'harvest' || moduleKey === 'production-harvest'
+        ? getQatarBoundaryCoordinates()
+        : [],
     [moduleKey]
   )
+  const harvestMode = searchParams.get('harvestMode') === 'predict' ? 'predict' : 'current'
+  const selectedHarvestParcelId = searchParams.get('parcelId')
+  const [harvestFields, setHarvestFields] = useState<HarvestMapField[]>([])
+  const [harvestTileUrl, setHarvestTileUrl] = useState<string | null>(null)
   const [panelVisible, setPanelVisible] = useState(false)
+
+  const isHarvestModule = moduleKey === 'harvest' || moduleKey === 'production-harvest'
+
+  useEffect(() => {
+    if (!isHarvestModule) {
+      setHarvestFields([])
+      setHarvestTileUrl(null)
+      return
+    }
+
+    let cancelled = false
+
+    const loadHarvestMapData = async () => {
+      try {
+        const [fieldsResponse, tileResponse] = await Promise.all([
+          fetch(`/api/harvest/map/fields?mode=${harvestMode}&perpage=50`, { cache: 'no-store' }),
+          fetch('/api/harvest/map/tile-url', { cache: 'no-store' }),
+        ])
+
+        if (cancelled) return
+
+        if (fieldsResponse.ok) {
+          const fieldsPayload = await fieldsResponse.json()
+          setHarvestFields(Array.isArray(fieldsPayload?.fields) ? fieldsPayload.fields : [])
+        } else {
+          setHarvestFields([])
+        }
+
+        if (tileResponse.ok) {
+          const tilePayload = await tileResponse.json()
+          setHarvestTileUrl(typeof tilePayload?.url === 'string' ? tilePayload.url : null)
+        } else {
+          setHarvestTileUrl(null)
+        }
+      } catch {
+        if (!cancelled) {
+          setHarvestFields([])
+          setHarvestTileUrl(null)
+        }
+      }
+    }
+
+    void loadHarvestMapData()
+
+    return () => {
+      cancelled = true
+    }
+  }, [harvestMode, isHarvestModule])
 
   useEffect(() => {
     const frame = window.requestAnimationFrame(() => setPanelVisible(true))
@@ -96,8 +152,27 @@ function SlideFromLeftWorkspace({
           onMapClick={undefined}
           weatherGridPoints={weatherGridPoints}
           selectedWeatherGridPointId={selectedWeatherGridPointId}
-          weatherGridLines={weatherGridLines}
+          weatherGridLines={isHarvestModule ? [] : weatherGridLines}
           weatherBoundary={weatherBoundary}
+          harvestFields={isHarvestModule ? harvestFields : []}
+          selectedHarvestParcelId={isHarvestModule ? selectedHarvestParcelId : null}
+          mapTileUrl={isHarvestModule ? harvestTileUrl : null}
+          onHarvestFieldClick={
+            isHarvestModule
+              ? (field) => {
+                  const params = new URLSearchParams(searchParams.toString())
+                  params.set('module', 'harvest')
+                  params.set('parcelId', field.parcel_id)
+                  params.set('harvestMode', harvestMode)
+                  params.set('zoom', '13')
+                  params.delete('pointId')
+                  params.delete('farmId')
+                  params.delete('crop')
+                  params.delete('focus')
+                  router.replace(`/dashboard?${params.toString()}`)
+                }
+              : undefined
+          }
           onWeatherGridPointClick={
             moduleKey === 'weather'
               ? (point) => {
@@ -121,7 +196,7 @@ function SlideFromLeftWorkspace({
         />
       </div>
 
-      {moduleKey !== 'weather' && (
+      {moduleKey !== 'weather' && !isHarvestModule && (
         <button
           type="button"
           aria-label="Return to live map"

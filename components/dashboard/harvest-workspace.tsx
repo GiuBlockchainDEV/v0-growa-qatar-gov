@@ -113,7 +113,6 @@ export function HarvestWorkspace() {
   const [selectedField, setSelectedField] = useState<HarvestAnalyticsField | null>(null)
   const [yieldTask, setYieldTask] = useState<HarvestTaskStatus | null>(null)
   const [yieldLoading, setYieldLoading] = useState(false)
-  const [isSimulated, setIsSimulated] = useState(false)
 
   const loadData = useCallback(async () => {
     setLoading(true)
@@ -142,7 +141,6 @@ export function HarvestWorkspace() {
         fetchJson<HarvestTimeseriesResponse>(`/api/harvest/timeseries?${timeseriesParams.toString()}`),
       ])
 
-      setIsSimulated(analyticsResult.isDemo || fieldsResult.isDemo || timeseriesResult.isDemo)
       const analyticsPayload = analyticsResult.data
       const fieldsPayload = fieldsResult.data
       const timeseriesPayload = timeseriesResult.data
@@ -223,14 +221,11 @@ export function HarvestWorkspace() {
       const triggerResult = await fetchJson<{ task_id: string }>(
         `/api/harvest/yield/${mode}/${selectedField.parcel_id}/${selectedField.season_id}`
       )
-      if (triggerResult.isDemo) setIsSimulated(true)
-
       let attempts = 0
       while (attempts < 40) {
         const statusResult = await fetchJson<HarvestTaskStatus>(
           `/api/harvest/task/${triggerResult.data.task_id}`
         )
-        if (statusResult.isDemo) setIsSimulated(true)
         const status = statusResult.data
         setYieldTask(status)
         if (status.status === 'completed' || status.status === 'failed') break
@@ -274,15 +269,6 @@ export function HarvestWorkspace() {
           },
         ]}
       />
-
-      {isSimulated ? (
-        <div className="rounded-lg border border-amber-400/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-100">
-          Demo data — showing Qatar sample fields while live Harvest credentials are missing or the upstream API
-          returned incomplete data. Configure <span className="font-mono">HARVEST_SERVICE_USERNAME</span> and{' '}
-          <span className="font-mono">HARVEST_SERVICE_PASSWORD</span> on Vercel, then redeploy to load live data
-          from <span className="font-mono">harvest.growa.ai</span>.
-        </div>
-      ) : null}
 
       <div className="flex flex-wrap items-center gap-2">
         <button

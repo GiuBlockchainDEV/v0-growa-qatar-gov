@@ -34,7 +34,8 @@ function hasDeepLinkContext(params: URLSearchParams | null) {
       params.get('focus') ||
       params.get('weatherGridId') ||
       params.get('weatherLat') ||
-      params.get('weatherLng')
+      params.get('weatherLng') ||
+      params.get('parcelId')
   )
 }
 

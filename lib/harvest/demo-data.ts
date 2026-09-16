@@ -1,7 +1,9 @@
 import { shouldUseHarvestDemo } from '@/lib/harvest/config'
+import { computeCentroid, createRectangleRing } from '@/lib/harvest/geojson'
 import type {
   HarvestAnalyticsField,
   HarvestAnalyticsResponse,
+  HarvestMapField,
   HarvestMode,
   HarvestTaskStatus,
   HarvestTimeseriesResponse,
@@ -9,6 +11,13 @@ import type {
 
 export const DEMO_PARCEL_NORTH = 'a1b2c3d4-e5f6-7890-abcd-ef1234567890'
 export const DEMO_PARCEL_SOUTH = 'b2c3d4e5-f6a7-8901-bcde-f12345678901'
+export const DEMO_PARCEL_UMM_SALAL = 'c3d4e5f6-a7b8-9012-cdef-123456789012'
+
+const DEMO_PARCEL_RINGS: Record<string, ReturnType<typeof createRectangleRing>[]> = {
+  [DEMO_PARCEL_NORTH]: [createRectangleRing(26.102, 51.214, 0.034, 0.048)],
+  [DEMO_PARCEL_SOUTH]: [createRectangleRing(25.168, 51.603, 0.022, 0.031)],
+  [DEMO_PARCEL_UMM_SALAL]: [createRectangleRing(25.421, 51.408, 0.028, 0.036)],
+}
 
 const DEMO_FIELDS: HarvestAnalyticsField[] = [
   {
@@ -34,7 +43,7 @@ const DEMO_FIELDS: HarvestAnalyticsField[] = [
     metrics: { aeti: 4820.7, npp: 410.5, tbp: 68.2, bwp: 1.41, rwd: 0.12, wcu: 91.2, cost: 25550 },
   },
   {
-    parcel_id: 'c3d4e5f6-a7b8-9012-cdef-123456789012',
+    parcel_id: DEMO_PARCEL_UMM_SALAL,
     season_id: 7,
     name: 'Umm Salal Trial Plot',
     crop: 'sweet pepper',
@@ -91,6 +100,42 @@ export function getDemoTimeseries(mode: HarvestMode): HarvestTimeseriesResponse 
       value: Math.round(value * factor * (1 + index * 0.02)),
     })),
   }
+}
+
+function ringToGeoJson(ring: Array<{ lat: number; lng: number }>) {
+  return {
+    type: 'Polygon',
+    coordinates: [ring.map((vertex) => [vertex.lng, vertex.lat])],
+  }
+}
+
+export function getDemoParcelGeojson(parcelId: string) {
+  const rings = DEMO_PARCEL_RINGS[parcelId]
+  if (!rings || rings.length === 0) return null
+  return {
+    geojson: {
+      type: 'FeatureCollection',
+      features: rings.map((ring) => ({
+        type: 'Feature',
+        properties: { parcel_id: parcelId },
+        geometry: ringToGeoJson(ring),
+      })),
+    },
+  }
+}
+
+export function getDemoMapFields(): HarvestMapField[] {
+  return DEMO_FIELDS.map((field) => {
+    const rings = DEMO_PARCEL_RINGS[field.parcel_id] || []
+    const centroid = rings[0] ? computeCentroid(rings[0]) : { lat: 25.3548, lng: 51.1839 }
+    return {
+      parcel_id: field.parcel_id,
+      name: field.name,
+      crop: field.crop,
+      rings,
+      centroid,
+    }
+  })
 }
 
 export function getDemoEntity(parcelId: string) {
