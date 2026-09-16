@@ -18,7 +18,7 @@ export function isHarvestConfigured(): boolean {
 /**
  * Demo data is used when:
  * - HARVEST_DEMO_MODE=true, or
- * - credentials are missing (auto-fallback so the workspace does not 503)
+ * - credentials are missing (auto-fallback so the workspace does not error)
  *
  * Set HARVEST_DEMO_MODE=false together with valid credentials to force live API only.
  */

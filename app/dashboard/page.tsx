@@ -16,6 +16,8 @@ import {
   generateQatarWeatherGridLines,
   getQatarBoundaryCoordinates,
 } from '@/lib/weather/qatar-grid'
+import type { HarvestMapField, HarvestRasterOverlay } from '@/lib/harvest/types'
+import { extractBoundsFromGeoJson } from '@/lib/harvest/geojson'
 
 function SlideFromLeftWorkspace({
   children,
@@ -69,10 +71,135 @@ function SlideFromLeftWorkspace({
     [moduleKey]
   )
   const weatherBoundary = useMemo(
-    () => (moduleKey === 'weather' ? getQatarBoundaryCoordinates() : []),
+    () =>
+      moduleKey === 'weather' || moduleKey === 'harvest' || moduleKey === 'production-harvest'
+        ? getQatarBoundaryCoordinates()
+        : [],
     [moduleKey]
   )
+  const harvestMode = searchParams.get('harvestMode') === 'predict' ? 'predict' : 'current'
+  const selectedHarvestParcelId = searchParams.get('parcelId')
+  const [harvestFields, setHarvestFields] = useState<HarvestMapField[]>([])
+  const [harvestTileUrl, setHarvestTileUrl] = useState<string | null>(null)
+  const [harvestMapRefreshKey, setHarvestMapRefreshKey] = useState(0)
+  const [harvestRasterOverlay, setHarvestRasterOverlay] = useState<HarvestRasterOverlay | null>(null)
+  const [harvestFocusBounds, setHarvestFocusBounds] = useState<[[number, number], [number, number]] | null>(
+    null
+  )
   const [panelVisible, setPanelVisible] = useState(false)
+
+  const isHarvestModule = moduleKey === 'harvest' || moduleKey === 'production-harvest'
+
+  useEffect(() => {
+    const handleHarvestFieldsUpdated = () => setHarvestMapRefreshKey((value) => value + 1)
+    window.addEventListener('harvest:fields-updated', handleHarvestFieldsUpdated)
+    return () => window.removeEventListener('harvest:fields-updated', handleHarvestFieldsUpdated)
+  }, [])
+
+  useEffect(() => {
+    const handleRasterOverlay = (event: Event) => {
+      const detail = (event as CustomEvent<HarvestRasterOverlay | null>).detail ?? null
+      setHarvestRasterOverlay(detail)
+    }
+    window.addEventListener('harvest:raster-overlay', handleRasterOverlay)
+    return () => {
+      window.removeEventListener('harvest:raster-overlay', handleRasterOverlay)
+      setHarvestRasterOverlay(null)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!isHarvestModule) {
+      setHarvestFields([])
+      setHarvestTileUrl(null)
+      return
+    }
+
+    let cancelled = false
+
+    const loadHarvestMapData = async () => {
+      try {
+        const [fieldsResponse, tileResponse] = await Promise.all([
+          fetch(`/api/harvest/map/fields?mode=${harvestMode}&perpage=50`, { cache: 'no-store' }),
+          fetch('/api/harvest/map/tile-url', { cache: 'no-store' }),
+        ])
+
+        if (cancelled) return
+
+        if (fieldsResponse.ok) {
+          const fieldsPayload = await fieldsResponse.json()
+          setHarvestFields(Array.isArray(fieldsPayload?.fields) ? fieldsPayload.fields : [])
+        } else {
+          setHarvestFields([])
+        }
+
+        if (tileResponse.ok) {
+          const tilePayload = await tileResponse.json()
+          setHarvestTileUrl(typeof tilePayload?.url === 'string' ? tilePayload.url : null)
+        } else {
+          setHarvestTileUrl(null)
+        }
+      } catch {
+        if (!cancelled) {
+          setHarvestFields([])
+          setHarvestTileUrl(null)
+        }
+      }
+    }
+
+    void loadHarvestMapData()
+
+    return () => {
+      cancelled = true
+    }
+  }, [harvestMapRefreshKey, harvestMode, isHarvestModule])
+
+  useEffect(() => {
+    if (!isHarvestModule || !selectedHarvestParcelId) {
+      setHarvestFocusBounds(null)
+      return
+    }
+
+    const selectedField = harvestFields.find((field) => field.parcel_id === selectedHarvestParcelId)
+    if (selectedField) {
+      const vertices = selectedField.rings.flat()
+      if (vertices.length >= 3) {
+        const lats = vertices.map((vertex) => vertex.lat)
+        const lngs = vertices.map((vertex) => vertex.lng)
+        setHarvestFocusBounds([
+          [Math.min(...lats), Math.min(...lngs)],
+          [Math.max(...lats), Math.max(...lngs)],
+        ])
+        return
+      }
+
+      const { lat, lng } = selectedField.centroid
+      setHarvestFocusBounds([[lat - 0.008, lng - 0.01], [lat + 0.008, lng + 0.01]])
+      return
+    }
+
+    let cancelled = false
+
+    const loadParcelBounds = async () => {
+      try {
+        const response = await fetch(`/api/harvest/parcel/${selectedHarvestParcelId}`, { cache: 'no-store' })
+        if (!response.ok || cancelled) return
+        const payload = await response.json()
+        const bounds = extractBoundsFromGeoJson(payload?.geojson)
+        if (bounds && !cancelled) {
+          setHarvestFocusBounds(bounds)
+        }
+      } catch {
+        if (!cancelled) setHarvestFocusBounds(null)
+      }
+    }
+
+    void loadParcelBounds()
+
+    return () => {
+      cancelled = true
+    }
+  }, [harvestFields, isHarvestModule, selectedHarvestParcelId])
 
   useEffect(() => {
     const frame = window.requestAnimationFrame(() => setPanelVisible(true))
@@ -96,8 +223,40 @@ function SlideFromLeftWorkspace({
           onMapClick={undefined}
           weatherGridPoints={weatherGridPoints}
           selectedWeatherGridPointId={selectedWeatherGridPointId}
-          weatherGridLines={weatherGridLines}
+          weatherGridLines={isHarvestModule ? [] : weatherGridLines}
           weatherBoundary={weatherBoundary}
+          harvestFields={isHarvestModule ? harvestFields : []}
+          selectedHarvestParcelId={isHarvestModule ? selectedHarvestParcelId : null}
+          mapTileUrl={isHarvestModule ? harvestTileUrl : null}
+          harvestRasterOverlay={
+            isHarvestModule && harvestRasterOverlay
+              ? {
+                  imageUrl: harvestRasterOverlay.imageUrl,
+                  bounds: harvestRasterOverlay.bounds,
+                  opacity: harvestRasterOverlay.opacity,
+                }
+              : null
+          }
+          harvestFocusBounds={isHarvestModule ? harvestFocusBounds : null}
+          onHarvestFieldClick={
+            isHarvestModule
+              ? (field) => {
+                  const params = new URLSearchParams(searchParams.toString())
+                  params.set('module', 'harvest')
+                  params.set('parcelId', field.parcel_id)
+                  params.set('harvestMode', harvestMode)
+                  params.set('zoom', '13')
+                  params.set('focus', `harvest-${field.parcel_id}`)
+                  params.set('harvestMetric', searchParams.get('harvestMetric') || 'npp')
+                  params.set('harvestGranularity', searchParams.get('harvestGranularity') || 'dekad')
+                  params.delete('harvestPeriod')
+                  params.delete('pointId')
+                  params.delete('farmId')
+                  params.delete('crop')
+                  router.replace(`/dashboard?${params.toString()}`)
+                }
+              : undefined
+          }
           onWeatherGridPointClick={
             moduleKey === 'weather'
               ? (point) => {
@@ -111,16 +270,17 @@ function SlideFromLeftWorkspace({
                   params.set('weatherLng', lng.toFixed(6))
                   params.set('zoom', String(targetZoom ?? 10))
                   params.delete('pointId')
+                  params.delete('farmId')
                   params.delete('crop')
-                  params.set('focus', `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`)
-                  router.push(`/dashboard?${params.toString()}`)
+                  params.delete('focus')
+                  router.replace(`/dashboard?${params.toString()}`)
                 }
               : undefined
           }
         />
       </div>
 
-      {moduleKey !== 'weather' && (
+      {moduleKey !== 'weather' && moduleKey !== 'harvest' && moduleKey !== 'production-harvest' && (
         <button
           type="button"
           aria-label="Return to live map"

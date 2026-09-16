@@ -8,6 +8,37 @@ import { DashboardHeader } from '@/components/dashboard/header'
 import { useRoleNavigation } from '@/hooks/use-role-navigation'
 import { SatelliteMap } from '@/components/dashboard/satellite-map'
 
+const MAP_SURFACE_MODULES = new Set(['live-map', 'map', 'national-map', 'inspection-map'])
+const WORKSPACE_MODULES = new Set([
+  'rss-feed',
+  'data-analytics',
+  'water-intelligence',
+  'energy-intelligence',
+  'weather',
+  'harvest',
+  'production-harvest',
+])
+
+function readBrowserSearchParams() {
+  if (typeof window === 'undefined') return null
+  return new URLSearchParams(window.location.search)
+}
+
+function hasDeepLinkContext(params: URLSearchParams | null) {
+  if (!params) return false
+  return Boolean(
+    params.get('module') ||
+      params.get('farmId') ||
+      params.get('pointId') ||
+      params.get('zoom') ||
+      params.get('focus') ||
+      params.get('weatherGridId') ||
+      params.get('weatherLat') ||
+      params.get('weatherLng') ||
+      params.get('parcelId')
+  )
+}
+
 function DashboardShell({
   children,
 }: {
@@ -20,6 +51,13 @@ function DashboardShell({
   const { landingPage, isMinistryWorkspace, isLoading: navLoading } = useRoleNavigation()
   const sidebarOpen = true
   const handledReloadRedirectRef = useRef(false)
+  const lastModuleRef = useRef<string | null>(null)
+
+  const moduleFromHook = searchParams.get('module')
+  if (moduleFromHook) {
+    lastModuleRef.current = moduleFromHook
+  }
+  const effectiveModule = moduleFromHook || lastModuleRef.current
 
   useEffect(() => {
     if (!loading && !user) {
@@ -30,22 +68,16 @@ function DashboardShell({
   useEffect(() => {
     if (loading || navLoading || !user || pathname !== '/dashboard') return
 
-    const moduleFromHook = searchParams.get('module')
-    const browserSearchParams =
-      typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null
+    const browserSearchParams = readBrowserSearchParams()
     const moduleFromUrl = browserSearchParams?.get('module') || null
-    const hasTargetContextInUrl = Boolean(
-      browserSearchParams?.get('farmId') ||
-        browserSearchParams?.get('pointId') ||
-        browserSearchParams?.get('zoom') ||
-        browserSearchParams?.get('focus')
-    )
+    const resolvedModule = moduleFromHook || moduleFromUrl || lastModuleRef.current
+    const hasTargetContextInUrl = hasDeepLinkContext(browserSearchParams)
 
     // Avoid stripping deep-link params during hydration/race conditions.
-    if (!moduleFromHook && !moduleFromUrl && !hasTargetContextInUrl && landingPage && landingPage !== '/dashboard') {
+    if (!resolvedModule && !hasTargetContextInUrl && landingPage && landingPage !== '/dashboard') {
       router.replace(landingPage)
     }
-  }, [loading, navLoading, user, pathname, searchParams, landingPage, router])
+  }, [loading, navLoading, user, pathname, searchParams, moduleFromHook, landingPage, router])
 
   useEffect(() => {
     if (loading || navLoading || !user || pathname !== '/dashboard' || handledReloadRedirectRef.current) return
@@ -97,7 +129,6 @@ function DashboardShell({
     return null
   }
 
-  const activeModule = searchParams.get('module')
   const targetPointId = searchParams.get('pointId')
   const targetFocusToken = searchParams.get('focus')
   const zoomParam = searchParams.get('zoom')
@@ -106,9 +137,18 @@ function DashboardShell({
     Number.isFinite(requestedZoom) && requestedZoom >= 3 && requestedZoom <= 19
       ? requestedZoom
       : undefined
+  const hasWeatherContext = Boolean(
+    searchParams.get('weatherGridId') ||
+      searchParams.get('weatherLat') ||
+      searchParams.get('weatherLng')
+  )
+  const isWorkspaceModule = Boolean(
+    effectiveModule && (WORKSPACE_MODULES.has(effectiveModule) || hasWeatherContext)
+  )
   const shouldRenderMapSurface =
     pathname === '/dashboard' &&
-    (!activeModule || ['live-map', 'map', 'national-map', 'inspection-map'].includes(activeModule))
+    !isWorkspaceModule &&
+    (!effectiveModule || MAP_SURFACE_MODULES.has(effectiveModule))
 
   return (
     <div className="h-screen w-screen overflow-hidden bg-background relative">

@@ -200,7 +200,7 @@ async function harvestFetch<T>(
     throw new Error(`HARVEST_REQUEST_FAILED:${response.status}:${details}`)
   }
 
-  if (response.status === 204) {
+  if (response.status === 204 || method === 'DELETE') {
     return undefined as T
   }
 
@@ -210,6 +210,25 @@ async function harvestFetch<T>(
   }
 
   return (await response.text()) as T
+}
+
+async function harvestFetchBinary(path: string, query?: HarvestQuery): Promise<ArrayBuffer> {
+  const cookieHeader = await getHarvestCookieHeader()
+  const response = await fetch(buildUrl(path, query), {
+    method: 'GET',
+    headers: {
+      Accept: '*/*',
+      Cookie: cookieHeader,
+    },
+    cache: 'no-store',
+  })
+
+  if (!response.ok) {
+    const details = await response.text()
+    throw new Error(`HARVEST_REQUEST_FAILED:${response.status}:${details}`)
+  }
+
+  return response.arrayBuffer()
 }
 
 export async function harvestGetAnalytics(query: HarvestQuery) {
@@ -232,6 +251,10 @@ export async function harvestGetEntity(parcelId: string) {
   return harvestFetch(`entity/${parcelId}`)
 }
 
+export async function harvestGetParcel(parcelId: string) {
+  return harvestFetch<{ geojson?: unknown }>(`parcel/${parcelId}`)
+}
+
 export async function harvestGetTaskStatus(taskId: string) {
   return harvestFetch(`task_status/${taskId}`)
 }
@@ -242,4 +265,40 @@ export async function harvestTriggerYield(mode: string, parcelId: string, season
 
 export async function harvestGetMapTileUrl() {
   return harvestFetch<{ url: string }>('map/tile-url')
+}
+
+export async function harvestGetFieldStatsCsv(
+  mode: string,
+  parcelId: string,
+  seasonId: string | number
+) {
+  return harvestFetch<string>(`entity/view/${mode}/${parcelId}/${seasonId}/stats_agg.csv`)
+}
+
+export async function harvestGetFieldRaster(
+  mode: string,
+  parcelId: string,
+  seasonId: string | number,
+  query: HarvestQuery
+) {
+  return harvestFetchBinary(`entity/raster/${mode}/${parcelId}/${seasonId}`, query)
+}
+
+export async function harvestGetFieldRasterMeta(
+  mode: string,
+  parcelId: string,
+  seasonId: string | number,
+  query: HarvestQuery
+) {
+  return harvestFetch<{
+    bounds?: [[number, number], [number, number]]
+    legend?: Array<{ color: string; label: string }>
+    vmin?: number
+    vmax?: number
+    unit?: string
+  }>(`entity/raster_meta/${mode}/${parcelId}/${seasonId}`, query)
+}
+
+export async function harvestDeleteEntity(parcelId: string) {
+  return harvestFetch(`entity/${parcelId}`, { method: 'DELETE' })
 }
