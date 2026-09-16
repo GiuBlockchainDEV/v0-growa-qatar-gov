@@ -16,18 +16,13 @@ export function isHarvestConfigured(): boolean {
 }
 
 /**
- * Demo data is used when:
- * - HARVEST_DEMO_MODE=true, or
- * - credentials are missing (auto-fallback so the workspace does not 503)
- *
- * Set HARVEST_DEMO_MODE=false together with valid credentials to force live API only.
+ * Harvest is demo-only until live service credentials are validated in production.
+ * Set HARVEST_DEMO_MODE=false together with valid credentials to enable the live API.
  */
 export function shouldUseHarvestDemo(): boolean {
-  const explicitDemo = process.env.HARVEST_DEMO_MODE?.trim().toLowerCase()
-  if (explicitDemo === 'true') return true
-  if (!isHarvestConfigured()) return true
-  if (explicitDemo === 'false') return false
-  return false
+  const explicitLive = process.env.HARVEST_DEMO_MODE?.trim().toLowerCase() === 'false'
+  if (explicitLive && isHarvestConfigured()) return false
+  return true
 }
 
 export function missingHarvestConfigPayload() {

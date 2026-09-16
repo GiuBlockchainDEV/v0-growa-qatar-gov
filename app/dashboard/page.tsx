@@ -111,9 +111,10 @@ function SlideFromLeftWorkspace({
                   params.set('weatherLng', lng.toFixed(6))
                   params.set('zoom', String(targetZoom ?? 10))
                   params.delete('pointId')
+                  params.delete('farmId')
                   params.delete('crop')
-                  params.set('focus', `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`)
-                  router.push(`/dashboard?${params.toString()}`)
+                  params.delete('focus')
+                  router.replace(`/dashboard?${params.toString()}`)
                 }
               : undefined
           }

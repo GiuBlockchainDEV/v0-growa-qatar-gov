@@ -1544,7 +1544,7 @@ export function SatelliteMap({
     }
 
     markerInstancesRef.current.forEach((marker) => marker.remove?.())
-    if (hideMarkersForCropFocus) {
+    if (weatherGridPoints.length > 0 || hideMarkersForCropFocus) {
       markerInstancesRef.current = []
       return
     }
@@ -1590,6 +1590,7 @@ export function SatelliteMap({
     normalizedTargetCropName,
     openPointInsightsModal,
     pointScoreStatsById,
+    weatherGridPoints,
   ])
 
 
@@ -1703,6 +1704,8 @@ export function SatelliteMap({
     draftPolylineRef.current = null
     draftVertexInstancesRef.current.forEach((marker) => marker.remove?.())
     draftVertexInstancesRef.current = []
+
+    if (weatherGridPoints.length > 0) return
 
     const polygonsToRender = normalizedCropFilter
       ? Object.values(pointPolygons)
@@ -1854,6 +1857,7 @@ export function SatelliteMap({
     normalizedCropFilter,
     pointPolygons,
     polygonDrawPointId,
+    weatherGridPoints,
   ])
 
   useEffect(() => {
