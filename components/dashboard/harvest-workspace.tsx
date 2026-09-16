@@ -76,8 +76,9 @@ function formatFieldMetric(value: number | undefined, key: HarvestMetricKey) {
   return value.toLocaleString(undefined, { maximumFractionDigits: 1 })
 }
 
-async function fetchJson<T>(url: string): Promise<T> {
+async function fetchJson<T>(url: string): Promise<{ data: T; isDemo: boolean }> {
   const response = await fetch(url, { cache: 'no-store' })
+  const isDemo = response.headers.get('X-Harvest-Demo') === 'true'
   const payload = await response.json()
   if (!response.ok) {
     const message =
@@ -88,7 +89,7 @@ async function fetchJson<T>(url: string): Promise<T> {
           : 'Request failed'
     throw new Error(message)
   }
-  return payload as T
+  return { data: payload as T, isDemo }
 }
 
 export function HarvestWorkspace() {
@@ -106,6 +107,7 @@ export function HarvestWorkspace() {
   const [selectedField, setSelectedField] = useState<HarvestAnalyticsField | null>(null)
   const [yieldTask, setYieldTask] = useState<HarvestTaskStatus | null>(null)
   const [yieldLoading, setYieldLoading] = useState(false)
+  const [isSimulated, setIsSimulated] = useState(false)
 
   const loadData = useCallback(async () => {
     setLoading(true)
@@ -126,13 +128,18 @@ export function HarvestWorkspace() {
         granularity: 'dekad',
       })
 
-      const [analyticsPayload, fieldsPayload, timeseriesPayload] = await Promise.all([
+      const [analyticsResult, fieldsResult, timeseriesResult] = await Promise.all([
         fetchJson<HarvestAnalyticsResponse>(`/api/harvest/analytics?${analyticsParams.toString()}`),
         fetchJson<{ total: number; results: HarvestAnalyticsField[] }>(
           `/api/harvest/fields?${fieldsParams.toString()}`
         ),
         fetchJson<HarvestTimeseriesResponse>(`/api/harvest/timeseries?${timeseriesParams.toString()}`),
       ])
+
+      setIsSimulated(analyticsResult.isDemo || fieldsResult.isDemo || timeseriesResult.isDemo)
+      const analyticsPayload = analyticsResult.data
+      const fieldsPayload = fieldsResult.data
+      const timeseriesPayload = timeseriesResult.data
 
       setAnalytics(analyticsPayload)
       setFields(fieldsPayload.results || analyticsPayload.fields || [])
@@ -204,13 +211,18 @@ export function HarvestWorkspace() {
     setYieldTask(null)
 
     try {
-      const trigger = await fetchJson<{ task_id: string }>(
+      const triggerResult = await fetchJson<{ task_id: string }>(
         `/api/harvest/yield/${mode}/${selectedField.parcel_id}/${selectedField.season_id}`
       )
+      if (triggerResult.isDemo) setIsSimulated(true)
 
       let attempts = 0
       while (attempts < 40) {
-        const status = await fetchJson<HarvestTaskStatus>(`/api/harvest/task/${trigger.task_id}`)
+        const statusResult = await fetchJson<HarvestTaskStatus>(
+          `/api/harvest/task/${triggerResult.data.task_id}`
+        )
+        if (statusResult.isDemo) setIsSimulated(true)
+        const status = statusResult.data
         setYieldTask(status)
         if (status.status === 'completed' || status.status === 'failed') break
         attempts += 1
@@ -253,6 +265,13 @@ export function HarvestWorkspace() {
           },
         ]}
       />
+
+      {isSimulated ? (
+        <div className="rounded-lg border border-amber-400/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-100">
+          Simulated flow — demo data served by Growa BFF (`HARVEST_DEMO_MODE=true`). In production, the same
+          routes proxy to <span className="font-mono">harvest.growa.ai</span>.
+        </div>
+      ) : null}
 
       <div className="flex flex-wrap items-center gap-2">
         <button

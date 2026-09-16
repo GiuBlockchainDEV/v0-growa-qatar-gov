@@ -1,32 +1,51 @@
 import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
 import { isHarvestConfigured, missingHarvestConfigPayload } from '@/lib/harvest/config'
+import { isHarvestDemoMode } from '@/lib/harvest/demo-data'
 
 export async function requireHarvestAccess() {
-  const supabase = await createClient()
-  const {
-    data: { user },
-    error,
-  } = await supabase.auth.getUser()
+  const demoMode = isHarvestDemoMode()
 
-  if (error || !user) {
-    return {
-      ok: false as const,
-      response: NextResponse.json({ error: 'Unauthorized' }, { status: 401 }),
+  if (!demoMode) {
+    const supabase = await createClient()
+    const {
+      data: { user },
+      error,
+    } = await supabase.auth.getUser()
+
+    if (error || !user) {
+      return {
+        ok: false as const,
+        response: NextResponse.json({ error: 'Unauthorized' }, { status: 401 }),
+      }
     }
-  }
 
-  if (!isHarvestConfigured()) {
+    if (!isHarvestConfigured()) {
+      return {
+        ok: false as const,
+        response: NextResponse.json(missingHarvestConfigPayload(), { status: 503 }),
+      }
+    }
+
     return {
-      ok: false as const,
-      response: NextResponse.json(missingHarvestConfigPayload(), { status: 503 }),
+      ok: true as const,
+      user,
+      demoMode: false as const,
     }
   }
 
   return {
     ok: true as const,
-    user,
+    user: { id: 'demo-user', email: 'demo@growa.qa' },
+    demoMode: true as const,
   }
+}
+
+export function withDemoHeaders(response: NextResponse, demoMode: boolean) {
+  if (demoMode) {
+    response.headers.set('X-Harvest-Demo', 'true')
+  }
+  return response
 }
 
 export function harvestErrorResponse(error: unknown) {
