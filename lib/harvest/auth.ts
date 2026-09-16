@@ -1,43 +1,38 @@
 import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
-import { isHarvestConfigured, missingHarvestConfigPayload } from '@/lib/harvest/config'
-import { isHarvestDemoMode } from '@/lib/harvest/demo-data'
+import {
+  isHarvestConfigured,
+  missingHarvestConfigPayload,
+  shouldUseHarvestDemo,
+} from '@/lib/harvest/config'
 
 export async function requireHarvestAccess() {
-  const demoMode = isHarvestDemoMode()
+  const supabase = await createClient()
+  const {
+    data: { user },
+    error,
+  } = await supabase.auth.getUser()
 
-  if (!demoMode) {
-    const supabase = await createClient()
-    const {
-      data: { user },
-      error,
-    } = await supabase.auth.getUser()
-
-    if (error || !user) {
-      return {
-        ok: false as const,
-        response: NextResponse.json({ error: 'Unauthorized' }, { status: 401 }),
-      }
-    }
-
-    if (!isHarvestConfigured()) {
-      return {
-        ok: false as const,
-        response: NextResponse.json(missingHarvestConfigPayload(), { status: 503 }),
-      }
-    }
-
+  if (error || !user) {
     return {
-      ok: true as const,
-      user,
-      demoMode: false as const,
+      ok: false as const,
+      response: NextResponse.json({ error: 'Unauthorized' }, { status: 401 }),
+    }
+  }
+
+  const demoMode = shouldUseHarvestDemo()
+
+  if (!demoMode && !isHarvestConfigured()) {
+    return {
+      ok: false as const,
+      response: NextResponse.json(missingHarvestConfigPayload(), { status: 503 }),
     }
   }
 
   return {
     ok: true as const,
-    user: { id: 'demo-user', email: 'demo@growa.qa' },
-    demoMode: true as const,
+    user,
+    demoMode,
   }
 }
 
@@ -59,6 +54,8 @@ export function harvestErrorResponse(error: unknown) {
         {
           error: 'Unable to authenticate with Harvest API',
           details: error.message,
+          hint:
+            'Verify HARVEST_SERVICE_USERNAME and HARVEST_SERVICE_PASSWORD on Vercel and ensure the service user exists on harvest.growa.ai.',
         },
         { status: 502 }
       )

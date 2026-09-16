@@ -1,3 +1,4 @@
+import { shouldUseHarvestDemo } from '@/lib/harvest/config'
 import type {
   HarvestAnalyticsField,
   HarvestAnalyticsResponse,
@@ -46,7 +47,7 @@ const DEMO_FIELDS: HarvestAnalyticsField[] = [
 ]
 
 export function isHarvestDemoMode(): boolean {
-  return process.env.HARVEST_DEMO_MODE === 'true'
+  return shouldUseHarvestDemo()
 }
 
 export function getDemoAnalytics(mode: HarvestMode): HarvestAnalyticsResponse {

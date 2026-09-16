@@ -81,13 +81,14 @@ async function fetchJson<T>(url: string): Promise<{ data: T; isDemo: boolean }> 
   const isDemo = response.headers.get('X-Harvest-Demo') === 'true'
   const payload = await response.json()
   if (!response.ok) {
+    const hint = typeof payload?.hint === 'string' ? payload.hint : ''
     const message =
       typeof payload?.error === 'string'
         ? payload.error
         : typeof payload?.details === 'string'
           ? payload.details
           : 'Request failed'
-    throw new Error(message)
+    throw new Error(hint ? `${message}. ${hint}` : message)
   }
   return { data: payload as T, isDemo }
 }
@@ -268,8 +269,10 @@ export function HarvestWorkspace() {
 
       {isSimulated ? (
         <div className="rounded-lg border border-amber-400/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-100">
-          Simulated flow — demo data served by Growa BFF (`HARVEST_DEMO_MODE=true`). In production, the same
-          routes proxy to <span className="font-mono">harvest.growa.ai</span>.
+          Demo data — Harvest credentials are not configured on the server yet. Add{' '}
+          <span className="font-mono">HARVEST_SERVICE_USERNAME</span> and{' '}
+          <span className="font-mono">HARVEST_SERVICE_PASSWORD</span> in Vercel and redeploy to load live data
+          from <span className="font-mono">harvest.growa.ai</span>.
         </div>
       ) : null}
 
