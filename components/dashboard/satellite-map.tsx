@@ -68,6 +68,12 @@ interface SatelliteMapProps {
   selectedHarvestParcelId?: string | null
   onHarvestFieldClick?: (field: HarvestMapField) => void
   mapTileUrl?: string | null
+  harvestRasterOverlay?: {
+    imageUrl: string
+    bounds: [[number, number], [number, number]]
+    opacity?: number
+  } | null
+  harvestFocusBounds?: [[number, number], [number, number]] | null
 }
 
 interface MapController {
@@ -579,6 +585,8 @@ export function SatelliteMap({
   selectedHarvestParcelId = null,
   onHarvestFieldClick,
   mapTileUrl = null,
+  harvestRasterOverlay = null,
+  harvestFocusBounds = null,
 }: SatelliteMapProps) {
   const { user } = useAuth()
   const { organization } = useOrganization()
@@ -589,6 +597,7 @@ export function SatelliteMap({
   const markerInstancesRef = useRef<any[]>([])
   const weatherGridMarkerInstancesRef = useRef<any[]>([])
   const harvestFieldLayerInstancesRef = useRef<any[]>([])
+  const harvestRasterOverlayRef = useRef<any>(null)
   const tileLayerRef = useRef<any>(null)
   const polygonInstancesRef = useRef<any[]>([])
   const draftPolylineRef = useRef<any | null>(null)
@@ -1675,8 +1684,6 @@ export function SatelliteMap({
 
   useEffect(() => {
     if (!mapReady || !mapInstanceRef.current || !leafletRef.current || !selectedHarvestParcelId) return
-    const selectedField = harvestFields.find((field) => field.parcel_id === selectedHarvestParcelId)
-    if (!selectedField) return
 
     const map = mapInstanceRef.current
     const L = leafletRef.current
@@ -1685,15 +1692,62 @@ export function SatelliteMap({
         ? (targetZoom as number)
         : 13
 
-    const vertices = selectedField.rings.flat()
-    if (vertices.length >= 3) {
-      const bounds = L.latLngBounds(vertices.map((vertex) => [vertex.lat, vertex.lng]))
-      map.flyToBounds(bounds, { padding: [48, 48], duration: 1.1, maxZoom: zoom })
+    const selectedField = harvestFields.find((field) => field.parcel_id === selectedHarvestParcelId)
+    if (selectedField) {
+      const vertices = selectedField.rings.flat()
+      if (vertices.length >= 3) {
+        const bounds = L.latLngBounds(vertices.map((vertex) => [vertex.lat, vertex.lng]))
+        map.flyToBounds(bounds, { padding: [48, 48], duration: 1.1, maxZoom: zoom })
+        return
+      }
+
+      map.flyTo([selectedField.centroid.lat, selectedField.centroid.lng], zoom, { duration: 1.1 })
       return
     }
 
-    map.flyTo([selectedField.centroid.lat, selectedField.centroid.lng], zoom, { duration: 1.1 })
-  }, [harvestFields, mapReady, selectedHarvestParcelId, targetZoom])
+    if (harvestFocusBounds) {
+      const [[south, west], [north, east]] = harvestFocusBounds
+      const bounds = L.latLngBounds([south, west], [north, east])
+      map.flyToBounds(bounds, { padding: [48, 48], duration: 1.1, maxZoom: zoom })
+    }
+  }, [
+    harvestFields,
+    harvestFocusBounds,
+    mapReady,
+    selectedHarvestParcelId,
+    targetFocusToken,
+    targetZoom,
+  ])
+
+  useEffect(() => {
+    if (!mapReady || !mapInstanceRef.current || !leafletRef.current) return
+    const L = leafletRef.current
+    const map = mapInstanceRef.current
+
+    if (harvestRasterOverlayRef.current) {
+      harvestRasterOverlayRef.current.remove?.()
+      harvestRasterOverlayRef.current = null
+    }
+
+    if (!harvestRasterOverlay?.imageUrl || !harvestRasterOverlay.bounds) return
+
+    const [[south, west], [north, east]] = harvestRasterOverlay.bounds
+    harvestRasterOverlayRef.current = L.imageOverlay(
+      harvestRasterOverlay.imageUrl,
+      L.latLngBounds([south, west], [north, east]),
+      {
+        opacity: harvestRasterOverlay.opacity ?? 0.5,
+        interactive: false,
+      }
+    ).addTo(map)
+
+    return () => {
+      if (harvestRasterOverlayRef.current) {
+        harvestRasterOverlayRef.current.remove?.()
+        harvestRasterOverlayRef.current = null
+      }
+    }
+  }, [harvestRasterOverlay, mapReady])
 
   useEffect(() => {
     if (!mapReady || !mapInstanceRef.current || !leafletRef.current) return

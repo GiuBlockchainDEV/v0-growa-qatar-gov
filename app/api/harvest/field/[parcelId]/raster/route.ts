@@ -77,15 +77,17 @@ export async function GET(request: Request, context: RouteContext) {
   }
 
   if (!isLiveRasterMetric(metric)) {
-    const fallback = await buildFieldRasterFallback({
-      parcelId,
-      fieldName,
-      metric,
-      granularity,
-      period,
-      demoMode: false,
-    })
-    return harvestJsonResponse(fallback, true)
+    return NextResponse.json(
+      {
+        error: `Raster layer unavailable for metric "${metric}"`,
+        hint: 'Only aeti, npp, tbp, bwp, and rwd have satellite raster layers.',
+      },
+      { status: 404 }
+    )
+  }
+
+  if (granularity === 'dekad' && !period) {
+    return NextResponse.json({ error: 'period is required for dekad raster layers' }, { status: 400 })
   }
 
   try {
@@ -101,7 +103,11 @@ export async function GET(request: Request, context: RouteContext) {
       harvestGetFieldRasterMeta(rasterMode, parcelId, seasonId, query),
     ])
 
-    const contentType = buffer.byteLength > 0 ? 'image/png' : 'image/png'
+    if (!buffer.byteLength) {
+      return NextResponse.json({ error: 'Empty raster response from Harvest API' }, { status: 502 })
+    }
+
+    const contentType = 'image/png'
     const image_url = `data:${contentType};base64,${Buffer.from(buffer).toString('base64')}`
     const payload = {
       metric,
@@ -116,15 +122,8 @@ export async function GET(request: Request, context: RouteContext) {
     }
 
     return harvestJsonResponse(payload, false)
-  } catch {
-    const fallback = await buildFieldRasterFallback({
-      parcelId,
-      fieldName,
-      metric,
-      granularity,
-      period,
-      demoMode: false,
-    })
-    return harvestJsonResponse(fallback, true)
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Harvest raster request failed'
+    return NextResponse.json({ error: message }, { status: 502 })
   }
 }

@@ -130,3 +130,14 @@ export interface HarvestRasterResponse {
   unit: string
   legend: HarvestRasterLegendItem[]
 }
+
+export interface HarvestRasterOverlay {
+  imageUrl: string
+  bounds: [[number, number], [number, number]]
+  opacity: number
+  metric: HarvestMetricKey
+  vmin: number
+  vmax: number
+  unit: string
+  legend: HarvestRasterLegendItem[]
+}

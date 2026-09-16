@@ -50,7 +50,7 @@ const METRIC_LABELS: Record<HarvestMetricKey, { label: string; unit: string }> =
 }
 
 const FIELD_KPI_METRICS: HarvestMetricKey[] = ['aeti', 'npp', 'tbp', 'bwp', 'rwd', 'wcu', 'cost']
-const MAP_METRICS: HarvestMetricKey[] = ['npp', 'aeti', 'wcu', 'tbp', 'bwp', 'rwd']
+const MAP_METRICS: HarvestMetricKey[] = ['npp', 'aeti', 'tbp', 'bwp', 'rwd']
 const TREND_METRICS: HarvestMetricKey[] = ['aeti', 'npp', 'tbp', 'bwp', 'rwd', 'wcu', 'cost']
 
 function formatMetricValue(metric: HarvestMetricSummary) {
@@ -158,6 +158,10 @@ export function HarvestWorkspace() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const parcelId = searchParams.get('parcelId')
+  const harvestSeasonIdParam = searchParams.get('harvestSeasonId')
+  const selectedMapMetric = (searchParams.get('harvestMetric') || 'npp') as HarvestMetricKey
+  const mapGranularity = (searchParams.get('harvestGranularity') || 'dekad') as HarvestTrendGranularity
+  const selectedPeriod = searchParams.get('harvestPeriod')
   const [mode, setMode] = useState<HarvestMode>(
     searchParams.get('harvestMode') === 'predict' ? 'predict' : 'current'
   )
@@ -171,10 +175,7 @@ export function HarvestWorkspace() {
   const [fieldRaster, setFieldRaster] = useState<HarvestRasterResponse | null>(null)
   const [fieldDetailLoading, setFieldDetailLoading] = useState(false)
   const [fieldRasterLoading, setFieldRasterLoading] = useState(false)
-  const [selectedMapMetric, setSelectedMapMetric] = useState<HarvestMetricKey>('npp')
   const [trendGranularity, setTrendGranularity] = useState<HarvestTrendGranularity>('dekad')
-  const [selectedPeriod, setSelectedPeriod] = useState<string | null>(null)
-  const [mapGranularity, setMapGranularity] = useState<HarvestTrendGranularity>('dekad')
   const [yieldTask, setYieldTask] = useState<HarvestTaskStatus | null>(null)
   const [yieldLoading, setYieldLoading] = useState(false)
   const [deleteLoading, setDeleteLoading] = useState(false)
@@ -236,6 +237,22 @@ export function HarvestWorkspace() {
     }
   }, [mode, parcelId])
 
+  const updateHarvestMapParams = useCallback(
+    (updates: Record<string, string | null | undefined>) => {
+      const params = new URLSearchParams(searchParams.toString())
+      params.set('module', 'harvest')
+      for (const [key, value] of Object.entries(updates)) {
+        if (value === null || value === undefined || value === '') {
+          params.delete(key)
+        } else {
+          params.set(key, value)
+        }
+      }
+      router.replace(`/dashboard?${params.toString()}`)
+    },
+    [router, searchParams]
+  )
+
   const loadFieldDetail = useCallback(async () => {
     if (!selectedField?.parcel_id || !selectedField.season_id) {
       setFieldStats(null)
@@ -250,23 +267,55 @@ export function HarvestWorkspace() {
       )
       setFieldStats(statsResult.data)
       const latestPeriod = statsResult.data.periods.at(-1)?.value || null
-      setSelectedPeriod(latestPeriod)
+      if (mapGranularity === 'dekad' && latestPeriod && !selectedPeriod) {
+        updateHarvestMapParams({
+          harvestPeriod: latestPeriod,
+          harvestSeasonId: String(selectedField.season_id),
+        })
+      }
     } catch {
       setFieldStats(null)
-      setSelectedPeriod(null)
     } finally {
       setFieldDetailLoading(false)
     }
-  }, [mode, selectedField])
+  }, [mapGranularity, mode, selectedField, selectedPeriod, updateHarvestMapParams])
+
+  const dispatchRasterOverlay = useCallback((raster: HarvestRasterResponse | null) => {
+    window.dispatchEvent(
+      new CustomEvent('harvest:raster-overlay', {
+        detail: raster
+          ? {
+              imageUrl: raster.image_url,
+              bounds: raster.bounds,
+              opacity: 0.5,
+              metric: raster.metric,
+              vmin: raster.vmin,
+              vmax: raster.vmax,
+              unit: raster.unit,
+              legend: raster.legend,
+            }
+          : null,
+      })
+    )
+  }, [])
 
   const loadFieldRaster = useCallback(async () => {
-    if (!selectedField?.parcel_id || !selectedField.season_id) {
+    const seasonId = selectedField?.season_id || (harvestSeasonIdParam ? Number(harvestSeasonIdParam) : undefined)
+    if (!selectedField?.parcel_id || !seasonId || !Number.isFinite(seasonId)) {
       setFieldRaster(null)
+      dispatchRasterOverlay(null)
       return
     }
 
     if (mapGranularity === 'dekad' && !selectedPeriod) {
       setFieldRaster(null)
+      dispatchRasterOverlay(null)
+      return
+    }
+
+    if (!MAP_METRICS.includes(selectedMapMetric)) {
+      setFieldRaster(null)
+      dispatchRasterOverlay(null)
       return
     }
 
@@ -276,7 +325,7 @@ export function HarvestWorkspace() {
         mode,
         metric: selectedMapMetric,
         granularity: mapGranularity,
-        season_id: String(selectedField.season_id),
+        season_id: String(seasonId),
       })
       if (mapGranularity === 'dekad' && selectedPeriod) {
         params.set('period', selectedPeriod)
@@ -286,12 +335,22 @@ export function HarvestWorkspace() {
         `/api/harvest/field/${selectedField.parcel_id}/raster?${params.toString()}`
       )
       setFieldRaster(rasterResult.data)
+      dispatchRasterOverlay(rasterResult.data)
     } catch {
       setFieldRaster(null)
+      dispatchRasterOverlay(null)
     } finally {
       setFieldRasterLoading(false)
     }
-  }, [mapGranularity, mode, selectedField, selectedMapMetric, selectedPeriod])
+  }, [
+    dispatchRasterOverlay,
+    harvestSeasonIdParam,
+    mapGranularity,
+    mode,
+    selectedField,
+    selectedMapMetric,
+    selectedPeriod,
+  ])
 
   useEffect(() => {
     void loadData()
@@ -304,6 +363,12 @@ export function HarvestWorkspace() {
   useEffect(() => {
     void loadFieldRaster()
   }, [loadFieldRaster])
+
+  useEffect(() => {
+    return () => {
+      dispatchRasterOverlay(null)
+    }
+  }, [dispatchRasterOverlay])
 
   const headlineMetrics = useMemo(() => {
     const metrics = analytics?.metrics || []
@@ -340,10 +405,16 @@ export function HarvestWorkspace() {
       params.set('parcelId', field.parcel_id)
       params.set('harvestMode', mode)
       params.set('zoom', '13')
+      params.set('focus', `harvest-${field.parcel_id}`)
+      params.set('harvestMetric', 'npp')
+      params.set('harvestGranularity', 'dekad')
+      if (field.season_id) {
+        params.set('harvestSeasonId', String(field.season_id))
+      }
+      params.delete('harvestPeriod')
       params.delete('pointId')
       params.delete('farmId')
       params.delete('crop')
-      params.delete('focus')
       router.replace(`/dashboard?${params.toString()}`)
       setSelectedField(field)
     },
@@ -355,12 +426,18 @@ export function HarvestWorkspace() {
     params.set('module', 'harvest')
     params.delete('parcelId')
     params.set('harvestMode', mode)
+    params.delete('harvestMetric')
+    params.delete('harvestGranularity')
+    params.delete('harvestPeriod')
+    params.delete('harvestSeasonId')
+    params.delete('focus')
     router.push(`/dashboard?${params.toString()}`)
     setSelectedField(null)
     setFieldStats(null)
     setFieldRaster(null)
     setYieldTask(null)
-  }, [mode, router, searchParams])
+    dispatchRasterOverlay(null)
+  }, [dispatchRasterOverlay, mode, router, searchParams])
 
   const deleteSelectedField = useCallback(async () => {
     if (!selectedField?.parcel_id) return
@@ -578,7 +655,7 @@ export function HarvestWorkspace() {
 
               <IntelligencePanel
                 title="Field metric maps"
-                subtitle="Raster layers for this field only"
+                subtitle="Raster layers overlaid on the map at 50% opacity"
                 icon={MapIcon}
               >
                 <div className="space-y-4">
@@ -587,7 +664,14 @@ export function HarvestWorkspace() {
                       <button
                         key={metric}
                         type="button"
-                        onClick={() => setSelectedMapMetric(metric)}
+                        onClick={() =>
+                          updateHarvestMapParams({
+                            harvestMetric: metric,
+                            harvestSeasonId: selectedField.season_id
+                              ? String(selectedField.season_id)
+                              : harvestSeasonIdParam,
+                          })
+                        }
                         className={`rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors ${
                           selectedMapMetric === metric
                             ? 'border-primary/40 bg-primary/15 text-primary'
@@ -602,7 +686,14 @@ export function HarvestWorkspace() {
                   <div className="flex flex-wrap items-center gap-2">
                     <button
                       type="button"
-                      onClick={() => setMapGranularity('dekad')}
+                      onClick={() =>
+                        updateHarvestMapParams({
+                          harvestGranularity: 'dekad',
+                          harvestSeasonId: selectedField.season_id
+                            ? String(selectedField.season_id)
+                            : harvestSeasonIdParam,
+                        })
+                      }
                       className={`rounded-md border px-2.5 py-1 text-[11px] ${
                         mapGranularity === 'dekad'
                           ? 'border-primary/40 bg-primary/10 text-primary'
@@ -613,7 +704,15 @@ export function HarvestWorkspace() {
                     </button>
                     <button
                       type="button"
-                      onClick={() => setMapGranularity('season')}
+                      onClick={() =>
+                        updateHarvestMapParams({
+                          harvestGranularity: 'season',
+                          harvestPeriod: null,
+                          harvestSeasonId: selectedField.season_id
+                            ? String(selectedField.season_id)
+                            : harvestSeasonIdParam,
+                        })
+                      }
                       className={`rounded-md border px-2.5 py-1 text-[11px] ${
                         mapGranularity === 'season'
                           ? 'border-primary/40 bg-primary/10 text-primary'
@@ -625,7 +724,14 @@ export function HarvestWorkspace() {
                     {mapGranularity === 'dekad' ? (
                       <select
                         value={selectedPeriod || ''}
-                        onChange={(event) => setSelectedPeriod(event.target.value || null)}
+                        onChange={(event) =>
+                          updateHarvestMapParams({
+                            harvestPeriod: event.target.value || null,
+                            harvestSeasonId: selectedField.season_id
+                              ? String(selectedField.season_id)
+                              : harvestSeasonIdParam,
+                          })
+                        }
                         className="rounded-md border border-border bg-card px-2 py-1 text-[11px] text-foreground"
                       >
                         {(fieldStats?.periods || []).map((period) => (
@@ -637,26 +743,17 @@ export function HarvestWorkspace() {
                     ) : null}
                   </div>
 
-                  {selectedMapMetric === 'wcu' || selectedMapMetric === 'cost' ? (
-                    <p className="text-[11px] text-muted-foreground">
-                      WCU and cost maps are rendered from field analytics when satellite raster layers are unavailable.
-                    </p>
-                  ) : null}
-
                   {fieldRasterLoading || fieldDetailLoading ? (
                     <div className="flex items-center gap-2 text-sm text-muted-foreground">
                       <Loader2 className="h-4 w-4 animate-spin" />
-                      Loading field map...
+                      Loading raster layer on map...
                     </div>
                   ) : fieldRaster ? (
-                    <div className="space-y-3">
-                      <div className="overflow-hidden rounded-xl border border-border bg-black/30">
-                        <img
-                          src={fieldRaster.image_url}
-                          alt={`${selectedField.name} ${selectedMapMetric} map`}
-                          className="h-auto w-full object-cover"
-                        />
-                      </div>
+                    <div className="space-y-3 rounded-xl border border-primary/20 bg-primary/5 px-3 py-3">
+                      <p className="text-xs text-foreground">
+                        <span className="font-medium">{METRIC_LABELS[fieldRaster.metric].label}</span>{' '}
+                        is active on the satellite map at 50% opacity.
+                      </p>
                       <div className="flex flex-wrap items-center gap-3 text-[11px] text-muted-foreground">
                         <span>Range: {fieldRaster.vmin} – {fieldRaster.vmax} {fieldRaster.unit}</span>
                         <div className="flex flex-wrap items-center gap-2">
@@ -673,7 +770,9 @@ export function HarvestWorkspace() {
                       </div>
                     </div>
                   ) : (
-                    <p className="text-sm text-muted-foreground">No map available for this field and metric.</p>
+                    <p className="text-sm text-muted-foreground">
+                      No satellite raster available for this field and metric. Select a supported metric or period.
+                    </p>
                   )}
                 </div>
               </IntelligencePanel>
