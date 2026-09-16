@@ -76,6 +76,11 @@ function formatFieldMetric(value: number | undefined, key: HarvestMetricKey) {
   return value.toLocaleString(undefined, { maximumFractionDigits: 1 })
 }
 
+function formatTimeseriesValue(value: number | undefined) {
+  if (value === undefined || !Number.isFinite(value)) return '—'
+  return value.toLocaleString(undefined, { maximumFractionDigits: 1 })
+}
+
 async function fetchJson<T>(url: string): Promise<{ data: T; isDemo: boolean }> {
   const response = await fetch(url, { cache: 'no-store' })
   const isDemo = response.headers.get('X-Harvest-Demo') === 'true'
@@ -178,10 +183,13 @@ export function HarvestWorkspace() {
       .filter((metric): metric is HarvestMetricSummary => Boolean(metric))
   }, [analytics])
 
-  const maxTimeseriesValue = useMemo(() => {
-    const points = timeseries?.points || []
-    return points.reduce((max, point) => Math.max(max, point.value || 0), 0)
+  const timeseriesPoints = useMemo(() => {
+    return (timeseries?.points || []).filter((point) => Number.isFinite(point.value))
   }, [timeseries])
+
+  const maxTimeseriesValue = useMemo(() => {
+    return timeseriesPoints.reduce((max, point) => Math.max(max, point.value), 0)
+  }, [timeseriesPoints])
 
   const openField = useCallback(
     (field: HarvestAnalyticsField) => {
@@ -269,9 +277,9 @@ export function HarvestWorkspace() {
 
       {isSimulated ? (
         <div className="rounded-lg border border-amber-400/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-100">
-          Demo data — Harvest credentials are not configured on the server yet. Add{' '}
-          <span className="font-mono">HARVEST_SERVICE_USERNAME</span> and{' '}
-          <span className="font-mono">HARVEST_SERVICE_PASSWORD</span> in Vercel and redeploy to load live data
+          Demo data — showing Qatar sample fields while live Harvest credentials are missing or the upstream API
+          returned incomplete data. Configure <span className="font-mono">HARVEST_SERVICE_USERNAME</span> and{' '}
+          <span className="font-mono">HARVEST_SERVICE_PASSWORD</span> on Vercel, then redeploy to load live data
           from <span className="font-mono">harvest.growa.ai</span>.
         </div>
       ) : null}
@@ -448,14 +456,14 @@ export function HarvestWorkspace() {
               icon={Droplets}
             >
               <div className="space-y-2">
-                {(timeseries?.points || []).slice(-12).map((point) => {
+                {timeseriesPoints.slice(-12).map((point) => {
                   const width =
                     maxTimeseriesValue > 0 ? Math.max(4, (point.value / maxTimeseriesValue) * 100) : 4
                   return (
                     <div key={point.period} className="space-y-1">
                       <div className="flex items-center justify-between text-[11px] text-muted-foreground">
                         <span>{point.period}</span>
-                        <span>{point.value.toLocaleString(undefined, { maximumFractionDigits: 1 })}</span>
+                        <span>{formatTimeseriesValue(point.value)}</span>
                       </div>
                       <div className="h-2 rounded-full bg-secondary/50">
                         <div
@@ -466,7 +474,7 @@ export function HarvestWorkspace() {
                     </div>
                   )
                 })}
-                {(timeseries?.points || []).length === 0 ? (
+                {timeseriesPoints.length === 0 ? (
                   <p className="text-sm text-muted-foreground">No timeseries data available.</p>
                 ) : null}
               </div>

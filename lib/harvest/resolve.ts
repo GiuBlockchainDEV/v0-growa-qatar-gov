@@ -18,10 +18,12 @@ export async function resolveHarvestPayload<T>({
   demoMode,
   fetchLive,
   fetchDemo,
+  validateLive,
 }: {
   demoMode: boolean
   fetchLive: () => Promise<T>
   fetchDemo: () => T
+  validateLive?: (payload: T) => boolean
 }): Promise<{ payload: T; usedDemo: boolean }> {
   if (demoMode) {
     return { payload: fetchDemo(), usedDemo: true }
@@ -29,6 +31,9 @@ export async function resolveHarvestPayload<T>({
 
   try {
     const payload = await fetchLive()
+    if (validateLive && !validateLive(payload)) {
+      return { payload: fetchDemo(), usedDemo: true }
+    }
     return { payload, usedDemo: false }
   } catch {
     return { payload: fetchDemo(), usedDemo: true }
