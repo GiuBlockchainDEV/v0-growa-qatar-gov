@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
-import { requireHarvestAccess, harvestErrorResponse, withDemoHeaders } from '@/lib/harvest/auth'
+import { requireHarvestAccess, harvestErrorResponse } from '@/lib/harvest/auth'
+import { withDemoHeaders } from '@/lib/harvest/resolve'
 import { harvestTriggerYield } from '@/lib/harvest/client'
 import { getDemoYieldTask } from '@/lib/harvest/demo-data'
 import type { HarvestMode } from '@/lib/harvest/types'

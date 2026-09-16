@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server'
-import { requireHarvestAccess, harvestErrorResponse, withDemoHeaders } from '@/lib/harvest/auth'
+import { requireHarvestAccess, harvestErrorResponse } from '@/lib/harvest/auth'
 import { harvestGetAnalyticsTimeseries } from '@/lib/harvest/client'
 import { getDemoTimeseries } from '@/lib/harvest/demo-data'
+import { harvestJsonResponse, resolveHarvestPayload } from '@/lib/harvest/resolve'
 import type { HarvestMode } from '@/lib/harvest/types'
 
 export async function GET(request: Request) {
@@ -16,28 +17,22 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: 'metric is required' }, { status: 400 })
   }
 
-  if (access.demoMode) {
-    return withDemoHeaders(
-      NextResponse.json(getDemoTimeseries(mode), {
-        headers: { 'Cache-Control': 'no-store' },
-      }),
-      true
-    )
-  }
-
   try {
-    const payload = await harvestGetAnalyticsTimeseries({
-      metric,
-      granularity: searchParams.get('granularity') || 'dekad',
-      mode,
-      crop_id: searchParams.get('crop_id') || undefined,
-      start_date: searchParams.get('start_date') || undefined,
-      end_date: searchParams.get('end_date') || undefined,
+    const { payload, usedDemo } = await resolveHarvestPayload({
+      demoMode: access.demoMode,
+      fetchLive: () =>
+        harvestGetAnalyticsTimeseries({
+          metric,
+          granularity: searchParams.get('granularity') || 'dekad',
+          mode,
+          crop_id: searchParams.get('crop_id') || undefined,
+          start_date: searchParams.get('start_date') || undefined,
+          end_date: searchParams.get('end_date') || undefined,
+        }),
+      fetchDemo: () => getDemoTimeseries(mode),
     })
 
-    return NextResponse.json(payload, {
-      headers: { 'Cache-Control': 'no-store' },
-    })
+    return harvestJsonResponse(payload, usedDemo)
   } catch (error) {
     return harvestErrorResponse(error)
   }

@@ -1,10 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
-import {
-  isHarvestConfigured,
-  missingHarvestConfigPayload,
-  shouldUseHarvestDemo,
-} from '@/lib/harvest/config'
+import { missingHarvestConfigPayload } from '@/lib/harvest/config'
+import { resolveHarvestDemoMode } from '@/lib/harvest/resolve'
 
 export async function requireHarvestAccess() {
   const supabase = await createClient()
@@ -20,27 +17,11 @@ export async function requireHarvestAccess() {
     }
   }
 
-  const demoMode = shouldUseHarvestDemo()
-
-  if (!demoMode && !isHarvestConfigured()) {
-    return {
-      ok: false as const,
-      response: NextResponse.json(missingHarvestConfigPayload(), { status: 503 }),
-    }
-  }
-
   return {
     ok: true as const,
     user,
-    demoMode,
+    demoMode: resolveHarvestDemoMode(),
   }
-}
-
-export function withDemoHeaders(response: NextResponse, demoMode: boolean) {
-  if (demoMode) {
-    response.headers.set('X-Harvest-Demo', 'true')
-  }
-  return response
 }
 
 export function harvestErrorResponse(error: unknown) {

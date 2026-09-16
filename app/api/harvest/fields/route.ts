@@ -1,7 +1,7 @@
-import { NextResponse } from 'next/server'
-import { requireHarvestAccess, harvestErrorResponse, withDemoHeaders } from '@/lib/harvest/auth'
+import { requireHarvestAccess, harvestErrorResponse } from '@/lib/harvest/auth'
 import { harvestGetAnalyticsFields, harvestGetAllFields } from '@/lib/harvest/client'
 import { getDemoAnalyticsFields } from '@/lib/harvest/demo-data'
+import { harvestJsonResponse, resolveHarvestPayload } from '@/lib/harvest/resolve'
 import type { HarvestMode } from '@/lib/harvest/types'
 
 export async function GET(request: Request) {
@@ -12,40 +12,33 @@ export async function GET(request: Request) {
   const source = searchParams.get('source') || 'analytics'
   const mode = (searchParams.get('mode') || 'current') as HarvestMode
 
-  if (access.demoMode) {
-    return withDemoHeaders(
-      NextResponse.json(getDemoAnalyticsFields(mode), {
-        headers: { 'Cache-Control': 'no-store' },
-      }),
-      true
-    )
-  }
-
   try {
-    const payload =
-      source === 'all'
-        ? await harvestGetAllFields({
-            name: searchParams.get('name') || undefined,
-            crop_id: searchParams.get('crop_id') || undefined,
-            start_date: searchParams.get('start_date') || undefined,
-            harvest_date: searchParams.get('harvest_date') || undefined,
-            sort_by: searchParams.get('sort_by') || undefined,
-            sort_dir: searchParams.get('sort_dir') || undefined,
-          })
-        : await harvestGetAnalyticsFields({
-            mode,
-            crop_id: searchParams.get('crop_id') || undefined,
-            start_date: searchParams.get('start_date') || undefined,
-            end_date: searchParams.get('end_date') || undefined,
-            page: searchParams.get('page') || '1',
-            perpage: searchParams.get('perpage') || '20',
-            sort: searchParams.get('sort') || 'name',
-            order: searchParams.get('order') || 'asc',
-          })
-
-    return NextResponse.json(payload, {
-      headers: { 'Cache-Control': 'no-store' },
+    const { payload, usedDemo } = await resolveHarvestPayload({
+      demoMode: access.demoMode,
+      fetchLive: () =>
+        source === 'all'
+          ? harvestGetAllFields({
+              name: searchParams.get('name') || undefined,
+              crop_id: searchParams.get('crop_id') || undefined,
+              start_date: searchParams.get('start_date') || undefined,
+              harvest_date: searchParams.get('harvest_date') || undefined,
+              sort_by: searchParams.get('sort_by') || undefined,
+              sort_dir: searchParams.get('sort_dir') || undefined,
+            })
+          : harvestGetAnalyticsFields({
+              mode,
+              crop_id: searchParams.get('crop_id') || undefined,
+              start_date: searchParams.get('start_date') || undefined,
+              end_date: searchParams.get('end_date') || undefined,
+              page: searchParams.get('page') || '1',
+              perpage: searchParams.get('perpage') || '20',
+              sort: searchParams.get('sort') || 'name',
+              order: searchParams.get('order') || 'asc',
+            }),
+      fetchDemo: () => getDemoAnalyticsFields(mode),
     })
+
+    return harvestJsonResponse(payload, usedDemo)
   } catch (error) {
     return harvestErrorResponse(error)
   }

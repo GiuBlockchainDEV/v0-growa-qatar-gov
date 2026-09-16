@@ -25,8 +25,8 @@ export function isHarvestConfigured(): boolean {
 export function shouldUseHarvestDemo(): boolean {
   const explicitDemo = process.env.HARVEST_DEMO_MODE?.trim().toLowerCase()
   if (explicitDemo === 'true') return true
-  if (explicitDemo === 'false' && isHarvestConfigured()) return false
   if (!isHarvestConfigured()) return true
+  if (explicitDemo === 'false') return false
   return false
 }
 

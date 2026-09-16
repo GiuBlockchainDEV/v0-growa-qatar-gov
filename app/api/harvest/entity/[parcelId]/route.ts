@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
-import { requireHarvestAccess, harvestErrorResponse, withDemoHeaders } from '@/lib/harvest/auth'
+import { requireHarvestAccess, harvestErrorResponse } from '@/lib/harvest/auth'
+import { withDemoHeaders } from '@/lib/harvest/resolve'
 import { harvestGetEntity } from '@/lib/harvest/client'
 import { getDemoEntity } from '@/lib/harvest/demo-data'
 
