@@ -188,6 +188,13 @@ const WEATHER_ITEM: MenuItem = {
   icon: 'CloudSun',
 }
 
+const HARVEST_ITEM: MenuItem = {
+  key: 'harvest',
+  label: 'Harvest Prediction',
+  path: '/dashboard?module=harvest',
+  icon: 'Harvest',
+}
+
 function ensureHassadSupplyOverview(items: MenuItem[]): MenuItem[] {
   const normalized = items.map((item) => {
     const normalizedLabel = item.label?.trim().toLowerCase()
@@ -312,13 +319,20 @@ function ensureIntelligenceModules(items: MenuItem[]): MenuItem[] {
     '/dashboard?module=energy_intelligence',
     '/dashboard/energy-intelligence',
   ])
-  return ensureMenuModule(withEnergyIntelligence, WEATHER_ITEM, [
+  const withWeather = ensureMenuModule(withEnergyIntelligence, WEATHER_ITEM, [
     'weather-intelligence',
     'weather_intelligence',
     'weather risk',
     'qatar weather',
     '/dashboard?module=weather-intelligence',
     '/dashboard/weather',
+  ])
+  return ensureMenuModule(withWeather, HARVEST_ITEM, [
+    'production-harvest',
+    'production_harvest',
+    'harvest prediction',
+    'harvest-forecast',
+    '/dashboard?module=production-harvest',
   ])
 }
 

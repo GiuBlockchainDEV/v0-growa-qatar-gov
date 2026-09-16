@@ -10,6 +10,7 @@ import { DataAnalyticsWorkspace } from '@/components/dashboard/data-analytics-wo
 import { WaterIntelligenceWorkspace } from '@/components/dashboard/water-intelligence-workspace'
 import { EnergyIntelligenceWorkspace } from '@/components/dashboard/energy-intelligence-workspace'
 import { WeatherWorkspace } from '@/components/dashboard/weather-workspace'
+import { HarvestWorkspace } from '@/components/dashboard/harvest-workspace'
 import {
   generateQatarWeatherGrid,
   generateQatarWeatherGridLines,
@@ -245,6 +246,22 @@ export default function DashboardPage() {
         targetCropFilter={targetCropFilter}
       >
         <WeatherWorkspace />
+      </SlideFromLeftWorkspace>
+    )
+  }
+
+  if (moduleKey === 'harvest' || moduleKey === 'production-harvest') {
+    return (
+      <SlideFromLeftWorkspace
+        key="harvest-panel"
+        locale={locale}
+        moduleKey="harvest"
+        targetPointId={targetPointId}
+        targetFocusToken={targetFocusToken}
+        targetZoom={targetZoom}
+        targetCropFilter={targetCropFilter}
+      >
+        <HarvestWorkspace />
       </SlideFromLeftWorkspace>
     )
   }
