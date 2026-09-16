@@ -249,8 +249,8 @@ const MODULE_REGISTRY: Record<string, ModuleDefinition> = {
     id: 'production-harvest',
     backendRoute: '/dashboard',
     icon: 'Sprout',
-    label: { default: 'Production & Harvest' },
-    purpose: 'Assess production readiness and harvest risk for sovereign food security planning.',
+    label: { default: 'Harvest Prediction' },
+    purpose: 'Satellite-driven harvest forecasting, water productivity, and yield estimation integrated from Harvest.',
     defaultContent: 'Outlook and forecast views by region with delayed zones and supply risk signals.',
     allowedActions: ['Review forecast deltas', 'Open delayed zones in map', 'Export production outlook'],
     visibilityScope: {
@@ -561,6 +561,7 @@ const ROLE_MENU_BLUEPRINTS: Record<MinistryRoleProfile, RoleMenuBlueprint> = {
 function buildModuleHref(moduleId: string): string {
   if (moduleId === 'support') return '/dashboard/support'
   if (moduleId === 'settings') return '/dashboard/settings'
+  if (moduleId === 'production-harvest') return '/dashboard?module=harvest'
   return `/dashboard?module=${moduleId}`
 }
 

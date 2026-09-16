@@ -106,7 +106,8 @@ export function getIconComponent(iconName: string): LucideIcon {
 // Default navigation for fallback (legacy roles)
 const defaultNavigation: MenuItem[] = [
   { key: 'overview', label: 'Overview', path: '/dashboard', icon: 'LayoutDashboard' },
-  { key: 'map', label: 'Live Map', path: '/dashboard/map', icon: 'Map' },
+  { key: 'map', label: 'Live Map', path: '/dashboard?module=live-map', icon: 'Map' },
+  { key: 'harvest', label: 'Harvest Prediction', path: '/dashboard?module=harvest', icon: 'Harvest' },
   { key: 'monitoring', label: 'Monitoring', path: '/dashboard/monitoring', icon: 'Activity' },
   { key: 'alerts', label: 'Alerts', path: '/dashboard/alerts', icon: 'AlertTriangle' },
   { key: 'reports', label: 'Reports', path: '/dashboard/reports', icon: 'BarChart3' },
@@ -117,6 +118,7 @@ const defaultNavigation: MenuItem[] = [
 // Minimal navigation for users without organization/role assignment.
 const unassignedNavigation: MenuItem[] = [
   { key: 'live-map', label: 'Live Map', path: '/dashboard?module=live-map', icon: 'Map' },
+  { key: 'harvest', label: 'Harvest Prediction', path: '/dashboard?module=harvest', icon: 'Harvest' },
   { key: 'support', label: 'Support', path: '/dashboard/support', icon: 'HelpCircle' },
   { key: 'settings', label: 'Settings', path: '/dashboard/settings', icon: 'Settings' },
 ]
@@ -124,6 +126,7 @@ const unassignedNavigation: MenuItem[] = [
 // Minimal menu for @growa.ai "Normal User" mode.
 const normalUserNavigation: MenuItem[] = [
   { key: 'live-map', label: 'Live Map', path: '/dashboard?module=live-map', icon: 'Map' },
+  { key: 'harvest', label: 'Harvest Prediction', path: '/dashboard?module=harvest', icon: 'Harvest' },
   { key: 'rss-feed', label: 'RSS Feed', path: '/dashboard?module=rss-feed', icon: 'Globe' },
   { key: 'data-analytics', label: 'Data Analytics', path: '/dashboard?module=data-analytics', icon: 'BarChart3' },
 ]
@@ -188,11 +191,42 @@ const WEATHER_ITEM: MenuItem = {
   icon: 'CloudSun',
 }
 
-const HARVEST_ITEM: MenuItem = {
+export const HARVEST_MENU_ITEM: MenuItem = {
   key: 'harvest',
   label: 'Harvest Prediction',
   path: '/dashboard?module=harvest',
   icon: 'Harvest',
+}
+
+const HARVEST_MODULE_ALIASES = [
+  'production-harvest',
+  'production_harvest',
+  'production & harvest',
+  'harvest prediction',
+  'harvest-forecast',
+  '/dashboard?module=production-harvest',
+]
+
+export function isHarvestModuleKey(moduleKey: string | null | undefined): boolean {
+  if (!moduleKey) return false
+  const normalized = moduleKey.trim().toLowerCase()
+  return normalized === 'harvest' || HARVEST_MODULE_ALIASES.includes(normalized)
+}
+
+function prioritizeHarvestMenuItem(items: MenuItem[]): MenuItem[] {
+  const harvestIndex = items.findIndex((item) => item.key === HARVEST_MENU_ITEM.key)
+  if (harvestIndex === -1) return items
+
+  const harvestItem = items[harvestIndex]
+  const withoutHarvest = items.filter((_, index) => index !== harvestIndex)
+  const liveMapIndex = withoutHarvest.findIndex((item) => item.key === 'live-map')
+  const insertAt = liveMapIndex === -1 ? 0 : liveMapIndex + 1
+
+  return [
+    ...withoutHarvest.slice(0, insertAt),
+    harvestItem,
+    ...withoutHarvest.slice(insertAt),
+  ]
 }
 
 function ensureHassadSupplyOverview(items: MenuItem[]): MenuItem[] {
@@ -265,12 +299,17 @@ function ensureMenuModule(items: MenuItem[], moduleItem: MenuItem, aliases: stri
       normalizedAliases.includes(normalizedPath)
 
     if (!isModule) return item
+    const isHarvestAlias =
+      moduleItem.key === HARVEST_MENU_ITEM.key &&
+      (normalizedKey === 'production-harvest' ||
+        normalizedKey === 'production_harvest' ||
+        normalizedLabel === 'production & harvest')
     return {
       ...item,
       key: moduleItem.key,
-      label: item.label || moduleItem.label,
+      label: isHarvestAlias ? moduleItem.label : item.label || moduleItem.label,
       path: moduleItem.path,
-      icon: item.icon || moduleItem.icon,
+      icon: moduleItem.icon || item.icon,
     }
   })
 
@@ -327,13 +366,8 @@ function ensureIntelligenceModules(items: MenuItem[]): MenuItem[] {
     '/dashboard?module=weather-intelligence',
     '/dashboard/weather',
   ])
-  return ensureMenuModule(withWeather, HARVEST_ITEM, [
-    'production-harvest',
-    'production_harvest',
-    'harvest prediction',
-    'harvest-forecast',
-    '/dashboard?module=production-harvest',
-  ])
+  const withHarvest = ensureMenuModule(withWeather, HARVEST_MENU_ITEM, HARVEST_MODULE_ALIASES)
+  return prioritizeHarvestMenuItem(withHarvest)
 }
 
 function toMenuItem(

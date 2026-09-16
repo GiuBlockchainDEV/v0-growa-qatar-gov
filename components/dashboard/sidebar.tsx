@@ -9,7 +9,7 @@ import {
   Share2,
   Settings
 } from 'lucide-react'
-import { useRoleNavigation, getIconComponent } from '@/hooks/use-role-navigation'
+import { useRoleNavigation, getIconComponent, isHarvestModuleKey } from '@/hooks/use-role-navigation'
 
 // Admin items are always the same
 const adminItems = [
@@ -31,6 +31,8 @@ const arabicMenuLabels: Record<string, string> = {
   'water-intelligence': 'ذكاء المياه',
   'energy-intelligence': 'ذكاء الطاقة',
   weather: 'الطقس',
+  harvest: 'توقعات الحصاد',
+  'production-harvest': 'توقعات الحصاد',
   monitoring: 'المراقبة',
   alerts: 'التنبيهات',
   reports: 'التقارير',
@@ -81,6 +83,15 @@ export function DashboardSidebar({
     return arabicMenuLabels[item.key] || item.label
   }
 
+  const isNavItemActive = (itemKey: string, href: string) => {
+    if (activeModule) {
+      if (itemKey === activeModule) return true
+      if (isHarvestModuleKey(itemKey) && isHarvestModuleKey(activeModule)) return true
+      return false
+    }
+    return isActive(href)
+  }
+
   return (
     <>
       {/* Overlay */}
@@ -111,7 +122,7 @@ export function DashboardSidebar({
           ) : (
             mainNavItems.map((item) => {
               const Icon = getIconComponent(item.icon)
-              const active = activeModule ? activeModule === item.key : isActive(item.path)
+              const active = isNavItemActive(item.key, item.path)
               return (
                 <Link
                   key={item.key}
@@ -138,7 +149,7 @@ export function DashboardSidebar({
               </p>
               {moreNavItems.map((item) => {
                 const Icon = getIconComponent(item.icon)
-                const active = activeModule ? activeModule === item.key : isActive(item.path)
+                const active = isNavItemActive(item.key, item.path)
                 return (
                   <Link
                     key={item.key}
