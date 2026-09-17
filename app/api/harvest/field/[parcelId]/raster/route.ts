@@ -160,7 +160,7 @@ export async function GET(request: Request, context: RouteContext) {
         mode,
         resolvedSeasonId,
       }),
-      bounds: meta.bounds,
+      bounds: normalizeRasterBounds(meta.bounds),
       clip_rings: clipRings,
       vmin: meta.vmin,
       vmax: meta.vmax,

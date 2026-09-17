@@ -355,7 +355,7 @@ function createHarvestClippedRasterLayer(
     bounds: [[number, number], [number, number]]
     clipRings: Array<Array<{ lat: number; lng: number }>>
     opacity: number
-    prepareImage?: (image: HTMLImageElement) => HTMLCanvasElement
+    prepareImage?: (image: HTMLImageElement) => ReturnType<typeof prepareHarvestRasterCanvas>
   }
 ) {
   const ClippedRasterLayer = L.Layer.extend({
@@ -378,9 +378,10 @@ function createHarvestClippedRasterLayer(
       this._image.crossOrigin = 'anonymous'
       this._image.onload = () => {
         this._imageLoaded = true
-        this._preparedCanvas = this.options.prepareImage
+        const prepared = this.options.prepareImage
           ? this.options.prepareImage(this._image)
-          : prepareHarvestRasterCanvas(this._image, { cropPlotFrame: false })
+          : prepareHarvestRasterCanvas(this._image)
+        this._preparedCanvas = prepared.canvas
         this._reset()
       }
       this._image.onerror = () => {
@@ -1857,7 +1858,8 @@ export function SatelliteMap({
       opacity: harvestRasterOverlay.opacity ?? 0.5,
       prepareImage: (image) =>
         prepareHarvestRasterCanvas(image, {
-          cropPlotFrame:
+          cropPlotFrame: true,
+          transparentBackground:
             harvestRasterOverlay.imageSource === 'view' ||
             /\.jpe?g($|\?)/i.test(harvestRasterOverlay.imageUrl),
         }),
