@@ -160,6 +160,13 @@ function trimUniformEdgeMargins(
   }
 }
 
+/** Remove matplotlib frame, colorbar, and internal padding; keep only plot pixels. */
+export function detectHarvestPlotCrop(imageData: ImageData): RasterImageCrop | null {
+  const contentCrop = detectRasterImageCrop(imageData, { includeDarkFrame: false })
+  if (contentCrop) return contentCrop
+  return trimMatplotlibPlot(imageData)
+}
+
 export function detectRasterImageCrop(
   imageData: ImageData,
   options: { includeDarkFrame?: boolean } = {}
@@ -329,7 +336,7 @@ export function prepareHarvestRasterCanvas(
   const output = document.createElement('canvas')
   const crop = cropPlotFrame
     ? isJpeg
-      ? trimMatplotlibPlot(working) || detectRasterImageCrop(working, { includeDarkFrame: true })
+      ? detectHarvestPlotCrop(working) || detectRasterImageCrop(working, { includeDarkFrame: true })
       : detectRasterImageCrop(working, { includeDarkFrame: false })
     : null
 

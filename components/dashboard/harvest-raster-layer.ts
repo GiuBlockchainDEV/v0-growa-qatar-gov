@@ -1,6 +1,6 @@
 import { prepareHarvestRasterCanvas } from '@/lib/harvest/image-process'
 import {
-  resolveRasterDisplayBounds,
+  resolveFieldAlignedRasterBounds,
   resolveRasterRenderBounds,
   type RasterBounds,
 } from '@/lib/harvest/raster-bounds'
@@ -60,8 +60,14 @@ function prepareOverlayImage(
 
   let renderBounds: LeafletBounds
   if (clipRings && clipRings.length > 0) {
-    // Stretch the cropped plot to the field polygon envelope so circles align with map outlines.
-    renderBounds = resolveRasterDisplayBounds(apiBounds, clipRings)
+    renderBounds = resolveFieldAlignedRasterBounds(
+      apiBounds,
+      clipRings,
+      prepared.crop,
+      prepared.sourceWidth,
+      prepared.sourceHeight,
+      boundsExtent
+    )
   } else {
     const shouldAdjustBoundsForCrop =
       boundsExtent === 'full_image' || (boundsExtent !== 'plot' && imageSource === 'raster')

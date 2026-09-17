@@ -152,6 +152,55 @@ export function resolveRasterDisplayBounds(
   return boundsFromRings(clipRings)
 }
 
+function boundsCenter(bounds: RasterBounds) {
+  const [[south, west], [north, east]] = bounds
+  return {
+    lat: (south + north) / 2,
+    lng: (west + east) / 2,
+  }
+}
+
+function boundsSpan(bounds: RasterBounds) {
+  const [[south, west], [north, east]] = bounds
+  return {
+    lat: north - south,
+    lng: east - west,
+  }
+}
+
+/**
+ * Scale metadata-aligned plot bounds to cover the field polygon envelope.
+ * Keeps aspect ratio and centers on the field so heatmap circles match map outlines.
+ */
+export function resolveFieldAlignedRasterBounds(
+  apiBounds: RasterBounds,
+  fieldRings: Array<Array<{ lat: number; lng: number }>>,
+  crop: RasterImageCrop | null,
+  sourceWidth: number,
+  sourceHeight: number,
+  boundsExtent?: 'plot' | 'full_image'
+): RasterBounds {
+  const fieldBounds = boundsFromRings(fieldRings)
+  if (!crop || sourceWidth <= 0 || sourceHeight <= 0) return fieldBounds
+
+  const plotBounds =
+    boundsExtent === 'plot'
+      ? apiBounds
+      : adjustRasterBoundsForCrop(apiBounds, sourceWidth, sourceHeight, crop)
+
+  const plotSpan = boundsSpan(plotBounds)
+  const fieldSpan = boundsSpan(fieldBounds)
+  if (plotSpan.lat <= 0 || plotSpan.lng <= 0) return fieldBounds
+
+  const scale = Math.max(fieldSpan.lat / plotSpan.lat, fieldSpan.lng / plotSpan.lng)
+  const fieldCenter = boundsCenter(fieldBounds)
+
+  return [
+    [fieldCenter.lat - (plotSpan.lat * scale) / 2, fieldCenter.lng - (plotSpan.lng * scale) / 2],
+    [fieldCenter.lat + (plotSpan.lat * scale) / 2, fieldCenter.lng + (plotSpan.lng * scale) / 2],
+  ]
+}
+
 export function resolveRasterRenderBounds(
   apiBounds: RasterBounds,
   prepared: {

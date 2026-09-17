@@ -1784,10 +1784,11 @@ export function SatelliteMap({
       selectedHarvestParcelId
         ? harvestFields.find((field) => field.parcel_id === selectedHarvestParcelId)?.rings
         : undefined
+    // Prefer map field rings — same geometry as the white polygon outline.
     const clipRings =
-      harvestRasterOverlay.clipRings && harvestRasterOverlay.clipRings.length > 0
-        ? harvestRasterOverlay.clipRings
-        : selectedFieldRings
+      selectedFieldRings && selectedFieldRings.length > 0
+        ? selectedFieldRings
+        : harvestRasterOverlay.clipRings
 
     const rasterLayer = createHarvestRasterLayer(L, {
       imageUrl: harvestRasterOverlay.imageUrl,
