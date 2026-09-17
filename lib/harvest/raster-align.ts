@@ -60,6 +60,16 @@ export function swapCornerLatLng(bounds: RasterBounds): RasterBounds {
   ]
 }
 
+const BOUNDS_SOURCE_PRIORITY: Record<string, number> = {
+  affine_transform: 3,
+  geojson_bbox: 2,
+  leaflet_bounds: 1,
+}
+
+function boundsSourcePriority(source: string) {
+  return BOUNDS_SOURCE_PRIORITY[source] ?? 0
+}
+
 export function pickBestRasterBounds(
   candidates: Array<{ bounds: RasterBounds; source: string }>,
   fieldBounds: RasterBounds | null
@@ -79,13 +89,25 @@ export function pickBestRasterBounds(
     if (overlap > bestOverlap + 0.05) {
       best = candidate
       bestOverlap = overlap
-    } else if (Math.abs(overlap - bestOverlap) <= 0.05) {
-      const candidateDistance = centroidDistanceDegrees(candidate.bounds, fieldBounds)
-      const bestDistance = centroidDistanceDegrees(best.bounds, fieldBounds)
-      if (candidateDistance < bestDistance) {
-        best = candidate
-        bestOverlap = overlap
-      }
+      continue
+    }
+
+    if (overlap + 0.05 < bestOverlap) continue
+
+    const candidateDistance = centroidDistanceDegrees(candidate.bounds, fieldBounds)
+    const bestDistance = centroidDistanceDegrees(best.bounds, fieldBounds)
+    const candidatePriority = boundsSourcePriority(candidate.source)
+    const bestPriority = boundsSourcePriority(best.source)
+
+    if (candidatePriority > bestPriority) {
+      best = candidate
+      bestOverlap = overlap
+      continue
+    }
+
+    if (candidatePriority === bestPriority && candidateDistance < bestDistance) {
+      best = candidate
+      bestOverlap = overlap
     }
   }
 

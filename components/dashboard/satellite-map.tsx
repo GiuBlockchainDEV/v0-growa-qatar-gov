@@ -76,6 +76,7 @@ interface SatelliteMapProps {
     bounds: [[number, number], [number, number]]
     opacity?: number
     imageSource?: 'view' | 'raster'
+    boundsExtent?: 'plot' | 'full_image'
     clipRings?: Array<Array<{ lat: number; lng: number }>>
   } | null
   harvestFocusBounds?: [[number, number], [number, number]] | null
@@ -1783,6 +1784,7 @@ export function SatelliteMap({
       imageUrl: harvestRasterOverlay.imageUrl,
       bounds: harvestRasterOverlay.bounds,
       imageSource: harvestRasterOverlay.imageSource,
+      boundsExtent: harvestRasterOverlay.boundsExtent,
       opacity: harvestRasterOverlay.opacity ?? 0.5,
     })
     rasterLayer.addTo(map)

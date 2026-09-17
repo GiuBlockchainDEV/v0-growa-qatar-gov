@@ -187,10 +187,6 @@ export function resolveRasterGeoref({
     }
   }
 
-  if (fieldPolygonBounds) {
-    candidates.push({ bounds: fieldPolygonBounds, source: 'leaflet_bounds' })
-  }
-
   const picked = pickBestRasterBounds(
     candidates.map((entry) => ({ bounds: entry.bounds, source: entry.source })),
     fieldPolygonBounds ?? null

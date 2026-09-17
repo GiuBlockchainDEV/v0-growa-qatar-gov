@@ -137,12 +137,15 @@ export interface HarvestRasterGeorefDebug {
   rotationWarning: string | null
 }
 
+export type HarvestRasterBoundsExtent = 'plot' | 'full_image'
+
 export interface HarvestRasterResponse {
   metric: HarvestMetricKey
   granularity: HarvestTrendGranularity
   period: string | null
   raster_mode?: HarvestMode
   image_source?: 'view' | 'raster'
+  bounds_extent?: HarvestRasterBoundsExtent
   requested_season_id?: number
   resolved_season_id?: number
   image_url: string
@@ -160,6 +163,7 @@ export interface HarvestRasterOverlay {
   bounds: [[number, number], [number, number]]
   opacity: number
   imageSource?: 'view' | 'raster'
+  boundsExtent?: HarvestRasterBoundsExtent
   metric: HarvestMetricKey
   vmin: number
   vmax: number

@@ -12,7 +12,7 @@ import {
   enrichRasterMetaDimensions,
   resolveRasterGeorefFromMeta,
 } from '@/lib/harvest/raster-meta-resolve'
-import type { HarvestRasterGeorefDebug } from '@/lib/harvest/types'
+import type { HarvestRasterBoundsExtent, HarvestRasterGeorefDebug } from '@/lib/harvest/types'
 import { normalizeRasterLegend } from '@/lib/harvest/raster-bounds'
 import type { HarvestMetricKey, HarvestMode, HarvestTrendGranularity } from '@/lib/harvest/types'
 
@@ -30,6 +30,7 @@ export interface HarvestRasterMetaResult {
   resolvedSeasonId?: number
   imageSource: HarvestRasterImageSource
   imageFilename: string
+  boundsExtent: HarvestRasterBoundsExtent
   rawMeta: Record<string, unknown>
   georefDebug?: HarvestRasterGeorefDebug
 }
@@ -156,7 +157,9 @@ async function fetchViewRasterMeta({
     fieldPolygonBounds,
   })
 
-  if (!parsedLegend.bounds && !parseTransform(rawMeta) && !fieldPolygonBounds) {
+  const boundsExtent: HarvestRasterBoundsExtent = parsedLegend.bounds ? 'plot' : 'full_image'
+
+  if (!parsedLegend.bounds && !parseTransform(rawMeta)) {
     const parcelBounds = await resolveParcelBounds(parcelId)
     if (parcelBounds) {
       georef.bounds = parcelBounds
@@ -177,6 +180,7 @@ async function fetchViewRasterMeta({
     resolvedSeasonId: seasonId,
     imageSource: 'view',
     imageFilename: viewImage.filename,
+    boundsExtent,
     rawMeta,
     georefDebug: georef.debug,
   }
@@ -252,6 +256,7 @@ async function fetchDynamicRasterMeta({
     resolvedSeasonId: seasonId,
     imageSource: 'raster',
     imageFilename: `${metric}.jpeg`,
+    boundsExtent: 'full_image',
     rawMeta,
     georefDebug: georef.debug,
   }

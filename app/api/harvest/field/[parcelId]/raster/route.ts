@@ -176,6 +176,7 @@ export async function GET(request: Request, context: RouteContext) {
       period: georefMeta.period,
       raster_mode: georefMeta.rasterMode,
       image_source: georefMeta.imageSource,
+      bounds_extent: georefMeta.boundsExtent,
       requested_season_id: requestedSeasonId,
       resolved_season_id: resolvedSeasonId,
       image_url: buildImageUrl({

@@ -7,6 +7,7 @@ export interface HarvestRasterLayerOptions {
   imageUrl: string
   bounds: LeafletBounds
   imageSource?: 'view' | 'raster'
+  boundsExtent?: 'plot' | 'full_image'
   opacity?: number
 }
 
@@ -42,7 +43,8 @@ function loadImage(imageUrl: string): Promise<HTMLImageElement> {
 function prepareOverlayImage(
   image: HTMLImageElement,
   apiBounds: LeafletBounds,
-  imageSource?: 'view' | 'raster'
+  imageSource?: 'view' | 'raster',
+  boundsExtent?: 'plot' | 'full_image'
 ) {
   const isViewSource = imageSource === 'view'
   const prepared = prepareHarvestRasterCanvas(image, {
@@ -50,11 +52,16 @@ function prepareOverlayImage(
     transparentBackground: isViewSource || imageSource === 'raster',
   })
 
-  const renderBounds = resolveRasterRenderBounds(apiBounds, {
-    crop: prepared.crop,
-    sourceWidth: prepared.sourceWidth,
-    sourceHeight: prepared.sourceHeight,
-  })
+  const shouldAdjustBoundsForCrop =
+    boundsExtent === 'full_image' || (boundsExtent !== 'plot' && imageSource === 'raster')
+
+  const renderBounds = shouldAdjustBoundsForCrop
+    ? resolveRasterRenderBounds(apiBounds, {
+        crop: prepared.crop,
+        sourceWidth: prepared.sourceWidth,
+        sourceHeight: prepared.sourceHeight,
+      })
+    : apiBounds
 
   return {
     imageUrl: prepared.canvas.toDataURL('image/png'),
@@ -88,7 +95,12 @@ export function createHarvestRasterLayer(L: any, options: HarvestRasterLayerOpti
         const image = await loadImage(options.imageUrl)
         if (!this._map) return
 
-        const prepared = prepareOverlayImage(image, options.bounds, options.imageSource)
+        const prepared = prepareOverlayImage(
+          image,
+          options.bounds,
+          options.imageSource,
+          options.boundsExtent
+        )
         if (this._overlay) {
           this._overlay.remove?.()
           this._overlay = null

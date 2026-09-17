@@ -23,7 +23,15 @@ export function resolveRasterGeorefFromMeta({
       fieldPolygonBounds,
     })
   } catch (error) {
-    if (fieldPolygonBounds) {
+    const hasMetadataBounds =
+      rawMeta.bounds != null ||
+      rawMeta.bbox != null ||
+      rawMeta.transform != null ||
+      rawMeta.geotransform != null ||
+      rawMeta.out_transform != null ||
+      rawMeta.affine != null
+
+    if (!hasMetadataBounds && fieldPolygonBounds) {
       return {
         bounds: fieldPolygonBounds,
         debug: {
@@ -39,12 +47,11 @@ export function resolveRasterGeorefFromMeta({
           fieldOverlap: 1,
           hasRotation: false,
           rotationWarning:
-            error instanceof Error
-              ? `Bounds parse failed (${error.message}); using field polygon envelope`
-              : 'Bounds parse failed; using field polygon envelope',
+            'Raster metadata had no bounds; using field polygon envelope as last resort',
         },
       }
     }
+
     throw error
   }
 }
