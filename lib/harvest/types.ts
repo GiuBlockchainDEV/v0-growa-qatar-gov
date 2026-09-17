@@ -124,6 +124,7 @@ export interface HarvestRasterResponse {
   metric: HarvestMetricKey
   granularity: HarvestTrendGranularity
   period: string | null
+  raster_mode?: HarvestMode
   image_url: string
   bounds: [[number, number], [number, number]]
   vmin: number

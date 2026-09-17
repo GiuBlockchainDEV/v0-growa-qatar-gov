@@ -1,14 +1,13 @@
 import { NextResponse } from 'next/server'
-import { requireHarvestAccess } from '@/lib/harvest/auth'
-import { harvestGetAnalyticsFields, harvestGetFieldRaster, harvestGetFieldRasterMeta } from '@/lib/harvest/client'
-import { getDemoAnalyticsFields, getDemoFieldRaster } from '@/lib/harvest/demo-data'
+import { requireHarvestAccess, harvestErrorResponse } from '@/lib/harvest/auth'
+import { getDemoFieldRaster } from '@/lib/harvest/demo-data'
 import {
   buildFieldRasterFallback,
   isLiveRasterMetric,
 } from '@/lib/harvest/field-raster-fallback'
-import { normalizePaginatedFieldsResponse } from '@/lib/harvest/normalize'
+import { fetchHarvestRasterMeta } from '@/lib/harvest/raster-fetch'
 import { normalizeRasterBounds, normalizeRasterLegend } from '@/lib/harvest/raster-bounds'
-import { harvestJsonResponse, resolveHarvestPayload } from '@/lib/harvest/resolve'
+import { harvestJsonResponse } from '@/lib/harvest/resolve'
 import type { HarvestMetricKey, HarvestMode, HarvestTrendGranularity } from '@/lib/harvest/types'
 
 interface RouteContext {
@@ -16,26 +15,6 @@ interface RouteContext {
 }
 
 const METRIC_KEYS: HarvestMetricKey[] = ['aeti', 'npp', 'tbp', 'bwp', 'rwd', 'wcu', 'cost']
-
-async function resolveFieldName(parcelId: string, mode: HarvestMode, demoMode: boolean) {
-  const { payload } = await resolveHarvestPayload({
-    demoMode,
-    fetchLive: async () =>
-      normalizePaginatedFieldsResponse(
-        await harvestGetAnalyticsFields({
-          mode,
-          page: '1',
-          perpage: '50',
-          sort: 'name',
-          order: 'asc',
-        })
-      ),
-    fetchDemo: () => getDemoAnalyticsFields(mode),
-    validateLive: (data) => data.results.length > 0,
-  })
-
-  return payload.results.find((field) => field.parcel_id === parcelId)?.name || 'Field'
-}
 
 export async function GET(request: Request, context: RouteContext) {
   const access = await requireHarvestAccess()
@@ -61,8 +40,6 @@ export async function GET(request: Request, context: RouteContext) {
     return NextResponse.json({ error: 'season_id is required' }, { status: 400 })
   }
 
-  const fieldName = await resolveFieldName(parcelId, mode, access.demoMode)
-
   if (access.demoMode) {
     const demoRaster = getDemoFieldRaster(parcelId, mode, metric, granularity, period)
     if (demoRaster) {
@@ -85,7 +62,7 @@ export async function GET(request: Request, context: RouteContext) {
     }
     const fallback = await buildFieldRasterFallback({
       parcelId,
-      fieldName,
+      fieldName: 'Field',
       metric,
       granularity,
       period,
@@ -109,40 +86,41 @@ export async function GET(request: Request, context: RouteContext) {
   }
 
   try {
-    const rasterMode = granularity === 'season' ? mode : 'current'
-    const query = {
-      var: metric,
+    const meta = await fetchHarvestRasterMeta({
+      mode,
+      parcelId,
+      seasonId,
+      metric,
       granularity,
-      ...(granularity === 'dekad' && period ? { period } : {}),
-    }
-
-    const meta = await harvestGetFieldRasterMeta(rasterMode, parcelId, seasonId, query)
+      period,
+    })
 
     const imageParams = new URLSearchParams({
       mode,
+      raster_mode: meta.rasterMode,
       metric,
-      granularity,
+      granularity: meta.granularity,
       season_id: seasonId,
     })
-    if (granularity === 'dekad' && period) {
-      imageParams.set('period', period)
+    if (meta.granularity === 'dekad' && meta.period) {
+      imageParams.set('period', meta.period)
     }
 
     const payload = {
       metric,
-      granularity,
-      period,
+      granularity: meta.granularity,
+      period: meta.period,
+      raster_mode: meta.rasterMode,
       image_url: `/api/harvest/field/${parcelId}/raster/image?${imageParams.toString()}`,
-      bounds: normalizeRasterBounds(meta.bounds),
-      vmin: meta.vmin ?? 0,
-      vmax: meta.vmax ?? 100,
-      unit: meta.unit || '',
-      legend: normalizeRasterLegend(meta.legend),
+      bounds: meta.bounds,
+      vmin: meta.vmin,
+      vmax: meta.vmax,
+      unit: meta.unit,
+      legend: meta.legend,
     }
 
     return harvestJsonResponse(payload, false)
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'Harvest raster request failed'
-    return NextResponse.json({ error: message }, { status: 502 })
+    return harvestErrorResponse(error)
   }
 }

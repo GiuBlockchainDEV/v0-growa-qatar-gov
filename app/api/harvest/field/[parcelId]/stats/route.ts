@@ -11,6 +11,17 @@ interface RouteContext {
   params: Promise<{ parcelId: string }>
 }
 
+async function loadLiveFieldStats(
+  parcelId: string,
+  seasonId: number,
+  mode: HarvestMode
+) {
+  const csv = await harvestGetFieldStatsCsv(mode, parcelId, seasonId)
+  const stats = parseHarvestFieldStatsCsv(csv, { parcel_id: parcelId, season_id: seasonId })
+  const hasPoints = Object.values(stats.timeseries.dekad).some((points) => (points?.length || 0) > 0)
+  return { stats, hasPoints }
+}
+
 export async function GET(request: Request, context: RouteContext) {
   const access = await requireHarvestAccess()
   if (!access.ok) return access.response
@@ -43,20 +54,29 @@ export async function GET(request: Request, context: RouteContext) {
       return harvestJsonResponse(demoStats, true)
     }
 
-    try {
-      const csv = await harvestGetFieldStatsCsv(mode, parcelId, seasonId)
-      const stats = parseHarvestFieldStatsCsv(csv, { parcel_id: parcelId, season_id: seasonId })
-      const hasPoints = Object.values(stats.timeseries.dekad).some((points) => (points?.length || 0) > 0)
-      if (!hasPoints) {
-        const demoStats = getDemoFieldStats(parcelId, mode)
-        if (demoStats) return harvestJsonResponse(demoStats, true)
+    const modesToTry: HarvestMode[] = mode === 'predict' ? ['predict', 'current'] : [mode]
+
+    for (const statsMode of modesToTry) {
+      try {
+        const { stats, hasPoints } = await loadLiveFieldStats(parcelId, seasonId, statsMode)
+        if (hasPoints) {
+          return harvestJsonResponse(stats, false)
+        }
+      } catch {
+        // try next mode
       }
-      return harvestJsonResponse(stats, false)
-    } catch {
-      const demoStats = getDemoFieldStats(parcelId, mode)
-      if (demoStats) return harvestJsonResponse(demoStats, true)
-      throw new Error('HARVEST_FIELD_STATS_UNAVAILABLE')
     }
+
+    const demoStats = getDemoFieldStats(parcelId, mode)
+    if (demoStats) return harvestJsonResponse(demoStats, true)
+
+    return NextResponse.json(
+      {
+        error: 'Field statistics are not available yet',
+        hint: 'Geospatial data may still be collecting. Try again after the entity collection task completes.',
+      },
+      { status: 404 }
+    )
   } catch (error) {
     return harvestErrorResponse(error)
   }

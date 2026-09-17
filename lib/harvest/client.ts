@@ -212,7 +212,11 @@ async function harvestFetch<T>(
   return (await response.text()) as T
 }
 
-async function harvestFetchBinary(path: string, query?: HarvestQuery): Promise<ArrayBuffer> {
+async function harvestFetchBinary(
+  path: string,
+  query?: HarvestQuery,
+  retryOnAuth = true
+): Promise<ArrayBuffer> {
   const cookieHeader = await getHarvestCookieHeader()
   const response = await fetch(buildUrl(path, query), {
     method: 'GET',
@@ -223,12 +227,35 @@ async function harvestFetchBinary(path: string, query?: HarvestQuery): Promise<A
     cache: 'no-store',
   })
 
+  if (response.status === 401 && retryOnAuth) {
+    const refreshedCookieHeader = await getHarvestCookieHeader(true)
+    const retryResponse = await fetch(buildUrl(path, query), {
+      method: 'GET',
+      headers: {
+        Accept: '*/*',
+        Cookie: refreshedCookieHeader,
+      },
+      cache: 'no-store',
+    })
+
+    if (!retryResponse.ok) {
+      const details = await retryResponse.text()
+      throw new Error(`HARVEST_REQUEST_FAILED:${retryResponse.status}:${details}`)
+    }
+
+    return retryResponse.arrayBuffer()
+  }
+
   if (!response.ok) {
     const details = await response.text()
     throw new Error(`HARVEST_REQUEST_FAILED:${response.status}:${details}`)
   }
 
   return response.arrayBuffer()
+}
+
+export async function harvestGetSeasons(parcelId: string) {
+  return harvestFetch(`seasons/${parcelId}`)
 }
 
 export async function harvestGetAnalytics(query: HarvestQuery) {

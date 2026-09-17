@@ -1,8 +1,9 @@
 import { NextResponse } from 'next/server'
-import { requireHarvestAccess } from '@/lib/harvest/auth'
+import { requireHarvestAccess, harvestErrorResponse } from '@/lib/harvest/auth'
 import { harvestGetFieldRaster } from '@/lib/harvest/client'
 import { getDemoFieldRaster } from '@/lib/harvest/demo-data'
 import { isLiveRasterMetric } from '@/lib/harvest/field-raster-fallback'
+import { fetchHarvestRasterBinary } from '@/lib/harvest/raster-fetch'
 import type { HarvestMetricKey, HarvestMode, HarvestTrendGranularity } from '@/lib/harvest/types'
 
 interface RouteContext {
@@ -20,6 +21,7 @@ export async function GET(request: Request, context: RouteContext) {
 
   const { searchParams } = new URL(request.url)
   const mode = (searchParams.get('mode') || 'current') as HarvestMode
+  const rasterMode = (searchParams.get('raster_mode') || mode) as HarvestMode
   const metric = (searchParams.get('metric') || 'npp') as HarvestMetricKey
   const granularity = (searchParams.get('granularity') || 'dekad') as HarvestTrendGranularity
   const period = searchParams.get('period')
@@ -55,14 +57,27 @@ export async function GET(request: Request, context: RouteContext) {
   }
 
   try {
-    const rasterMode = granularity === 'season' ? mode : 'current'
     const query = {
       var: metric,
       granularity,
       ...(granularity === 'dekad' && period ? { period } : {}),
     }
 
-    const buffer = await harvestGetFieldRaster(rasterMode, parcelId, seasonId, query)
+    let buffer: ArrayBuffer
+    try {
+      buffer = await harvestGetFieldRaster(rasterMode, parcelId, seasonId, query)
+    } catch {
+      const resolved = await fetchHarvestRasterBinary({
+        mode,
+        parcelId,
+        seasonId,
+        metric,
+        granularity,
+        period,
+      })
+      buffer = resolved.buffer
+    }
+
     if (!buffer.byteLength) {
       return NextResponse.json({ error: 'Empty raster response from Harvest API' }, { status: 502 })
     }
@@ -74,7 +89,6 @@ export async function GET(request: Request, context: RouteContext) {
       },
     })
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'Harvest raster request failed'
-    return NextResponse.json({ error: message }, { status: 502 })
+    return harvestErrorResponse(error)
   }
 }

@@ -1,4 +1,4 @@
-import { harvestGetAllFields, harvestGetEntity } from '@/lib/harvest/client'
+import { harvestGetAllFields, harvestGetEntity, harvestGetSeasons } from '@/lib/harvest/client'
 import { getDemoAnalyticsFields } from '@/lib/harvest/demo-data'
 import { normalizeEntityToField, normalizePaginatedFieldsResponse } from '@/lib/harvest/normalize'
 import { resolveHarvestPayload } from '@/lib/harvest/resolve'
@@ -43,6 +43,17 @@ export async function resolveHarvestSeasonId(
     const currentSeasonId = record?.current_season_id
     if (typeof currentSeasonId === 'number' && Number.isFinite(currentSeasonId)) {
       return currentSeasonId
+    }
+  } catch {
+    // fall through to seasons endpoint
+  }
+
+  try {
+    const seasons = await harvestGetSeasons(parcelId)
+    const list = Array.isArray(seasons) ? seasons : []
+    const lastSeason = list[list.length - 1] as { id?: number } | undefined
+    if (typeof lastSeason?.id === 'number' && Number.isFinite(lastSeason.id)) {
+      return lastSeason.id
     }
   } catch {
     return null

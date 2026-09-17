@@ -183,6 +183,8 @@ export function HarvestWorkspace() {
   const [fieldRaster, setFieldRaster] = useState<HarvestRasterResponse | null>(null)
   const [fieldDetailLoading, setFieldDetailLoading] = useState(false)
   const [fieldRasterLoading, setFieldRasterLoading] = useState(false)
+  const [fieldStatsError, setFieldStatsError] = useState<string | null>(null)
+  const [fieldRasterError, setFieldRasterError] = useState<string | null>(null)
   const [trendGranularity, setTrendGranularity] = useState<HarvestTrendGranularity>('dekad')
   const [yieldTask, setYieldTask] = useState<HarvestTaskStatus | null>(null)
   const [yieldLoading, setYieldLoading] = useState(false)
@@ -245,6 +247,7 @@ export function HarvestWorkspace() {
     try {
       const fieldsParams = new URLSearchParams({
         source: 'all',
+        mode,
         sort_by: 'harvest_date',
         sort_dir: 'desc',
       })
@@ -347,6 +350,7 @@ export function HarvestWorkspace() {
     }
 
     setFieldDetailLoading(true)
+    setFieldStatsError(null)
     try {
       const statsResult = await fetchJson<HarvestFieldStatsResponse>(
         `/api/harvest/field/${activeParcelId}/stats?mode=${mode}&season_id=${activeSeasonId}`
@@ -358,9 +362,27 @@ export function HarvestWorkspace() {
           harvestPeriod: latestPeriod,
           harvestSeasonId: String(activeSeasonId),
         })
+      } else if (mapGranularity === 'dekad' && !latestPeriod && !selectedPeriod) {
+        updateHarvestMapParams({
+          harvestGranularity: 'season',
+          harvestPeriod: null,
+          harvestSeasonId: String(activeSeasonId),
+        })
       }
-    } catch {
+    } catch (statsError) {
       setFieldStats(null)
+      setFieldStatsError(
+        statsError instanceof Error
+          ? statsError.message
+          : 'Unable to load field statistics for this season.'
+      )
+      if (mapGranularity === 'dekad' && !selectedPeriod) {
+        updateHarvestMapParams({
+          harvestGranularity: 'season',
+          harvestPeriod: null,
+          harvestSeasonId: String(activeSeasonId),
+        })
+      }
     } finally {
       setFieldDetailLoading(false)
     }
@@ -415,6 +437,7 @@ export function HarvestWorkspace() {
     }
 
     setFieldRasterLoading(true)
+    setFieldRasterError(null)
     try {
       const params = new URLSearchParams({
         mode,
@@ -431,9 +454,25 @@ export function HarvestWorkspace() {
       )
       setFieldRaster(rasterResult.data)
       dispatchRasterOverlay(rasterResult.data)
-    } catch {
+
+      if (
+        rasterResult.data.granularity !== mapGranularity ||
+        (rasterResult.data.period && rasterResult.data.period !== selectedPeriod)
+      ) {
+        updateHarvestMapParams({
+          harvestGranularity: rasterResult.data.granularity,
+          harvestPeriod: rasterResult.data.period,
+          harvestSeasonId: String(activeSeasonId),
+        })
+      }
+    } catch (rasterError) {
       setFieldRaster(null)
       dispatchRasterOverlay(null)
+      setFieldRasterError(
+        rasterError instanceof Error
+          ? rasterError.message
+          : 'Unable to load satellite raster for this field.'
+      )
     } finally {
       setFieldRasterLoading(false)
     }
@@ -446,6 +485,7 @@ export function HarvestWorkspace() {
     selectedField?.parcel_id,
     selectedMapMetric,
     selectedPeriod,
+    updateHarvestMapParams,
   ])
 
   useEffect(() => {
@@ -561,7 +601,7 @@ export function HarvestWorkspace() {
       params.set('zoom', '13')
       params.set('focus', `harvest-${field.parcel_id}`)
       params.set('harvestMetric', 'npp')
-      params.set('harvestGranularity', 'dekad')
+      params.set('harvestGranularity', 'season')
       if (field.season_id) {
         params.set('harvestSeasonId', String(field.season_id))
       }
@@ -915,6 +955,10 @@ export function HarvestWorkspace() {
                     ) : null}
                   </div>
 
+                  {fieldStatsError ? (
+                    <p className="text-sm text-amber-300">{fieldStatsError}</p>
+                  ) : null}
+
                   {fieldRasterLoading || fieldDetailLoading ? (
                     <div className="flex items-center gap-2 text-sm text-muted-foreground">
                       <Loader2 className="h-4 w-4 animate-spin" />
@@ -943,7 +987,8 @@ export function HarvestWorkspace() {
                     </div>
                   ) : (
                     <p className="text-sm text-muted-foreground">
-                      No satellite raster available for this field and metric. Select a supported metric or period.
+                      {fieldRasterError ||
+                        'No satellite raster available for this field and metric. Try season map or another metric.'}
                     </p>
                   )}
                 </div>
