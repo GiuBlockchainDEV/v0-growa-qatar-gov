@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Crosshair, Minus, Plus } from 'lucide-react'
 import { useAuth } from '@/hooks/use-auth'
 import { useOrganization } from '@/hooks/use-organization'
+import { prepareHarvestRasterCanvas } from '@/lib/harvest/image-process'
 
 const QATAR_CENTER = { lat: 25.3548, lng: 51.1839 }
 const DEFAULT_ZOOM = 10
@@ -72,6 +73,8 @@ interface SatelliteMapProps {
     imageUrl: string
     bounds: [[number, number], [number, number]]
     opacity?: number
+    imageSource?: 'view' | 'raster'
+    clipRings?: Array<Array<{ lat: number; lng: number }>>
   } | null
   harvestFocusBounds?: [[number, number], [number, number]] | null
   harvestFieldDrawActive?: boolean
@@ -343,6 +346,113 @@ function scoreToPolygonColor(score: number) {
   // Requested scale: 0 -> red, mid -> yellow/orange, 100 -> green.
   const hue = (normalized / 100) * 120
   return `hsl(${hue.toFixed(1)} 100% 56%)`
+}
+
+function createHarvestClippedRasterLayer(
+  L: any,
+  options: {
+    imageUrl: string
+    bounds: [[number, number], [number, number]]
+    clipRings: Array<Array<{ lat: number; lng: number }>>
+    opacity: number
+    prepareImage?: (image: HTMLImageElement) => HTMLCanvasElement
+  }
+) {
+  const ClippedRasterLayer = L.Layer.extend({
+    initialize(opts: typeof options) {
+      L.setOptions(this, opts)
+      this._imageLoaded = false
+      this._preparedCanvas = null
+    },
+    onAdd(map: any) {
+      this._map = map
+      this._canvas = L.DomUtil.create('canvas', 'leaflet-harvest-raster-overlay')
+      this._canvas.style.pointerEvents = 'none'
+      const pane = map.getPane('overlayPane') || map.getPanes().overlayPane
+      pane.appendChild(this._canvas)
+      this._image = new Image()
+      this._image.crossOrigin = 'anonymous'
+      this._image.onload = () => {
+        this._imageLoaded = true
+        this._preparedCanvas = this.options.prepareImage
+          ? this.options.prepareImage(this._image)
+          : null
+        this._reset()
+      }
+      this._image.onerror = () => {
+        this._imageLoaded = false
+        this._preparedCanvas = null
+      }
+      this._image.src = this.options.imageUrl
+      map.on('zoomend moveend viewreset resize', this._reset, this)
+      this._reset()
+    },
+    onRemove(map: any) {
+      L.DomUtil.remove(this._canvas)
+      map.off('zoomend moveend viewreset resize', this._reset, this)
+    },
+    _reset() {
+      if (!this._map || !this._imageLoaded) return
+
+      const map = this._map
+      const [[south, west], [north, east]] = this.options.bounds
+      const northWest = map.latLngToLayerPoint(L.latLng(north, west))
+      const southEast = map.latLngToLayerPoint(L.latLng(south, east))
+      const width = southEast.x - northWest.x
+      const height = southEast.y - northWest.y
+      if (width <= 0 || height <= 0) return
+
+      const canvas = this._canvas
+      const dpr = window.devicePixelRatio || 1
+      canvas.width = Math.max(1, Math.round(width * dpr))
+      canvas.height = Math.max(1, Math.round(height * dpr))
+      canvas.style.width = `${width}px`
+      canvas.style.height = `${height}px`
+      canvas.style.position = 'absolute'
+      canvas.style.left = `${northWest.x}px`
+      canvas.style.top = `${northWest.y}px`
+      canvas.style.opacity = String(this.options.opacity ?? 0.5)
+
+      const ctx = canvas.getContext('2d')
+      if (!ctx) return
+
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
+      ctx.clearRect(0, 0, width, height)
+      ctx.save()
+      ctx.beginPath()
+
+      const rings =
+        this.options.clipRings.length > 0
+          ? this.options.clipRings
+          : [
+              [
+                { lat: north, lng: west },
+                { lat: north, lng: east },
+                { lat: south, lng: east },
+                { lat: south, lng: west },
+              ],
+            ]
+
+      for (const ring of rings) {
+        if (ring.length < 3) continue
+        ring.forEach((vertex, index) => {
+          const point = map.latLngToLayerPoint(L.latLng(vertex.lat, vertex.lng))
+          const x = point.x - northWest.x
+          const y = point.y - northWest.y
+          if (index === 0) ctx.moveTo(x, y)
+          else ctx.lineTo(x, y)
+        })
+        ctx.closePath()
+      }
+
+      ctx.clip()
+      const source = this._preparedCanvas || this._image
+      ctx.drawImage(source, 0, 0, width, height)
+      ctx.restore()
+    },
+  })
+
+  return new ClippedRasterLayer(options)
 }
 
 function createRectangleVertices(start: PolygonVertex, end: PolygonVertex): PolygonVertex[] {
@@ -1655,6 +1765,8 @@ export function SatelliteMap({
 
     if (harvestFields.length === 0) return
 
+    const hasRasterOverlay = Boolean(harvestRasterOverlay?.imageUrl)
+
     for (const field of harvestFields) {
       const selected = field.parcel_id === selectedHarvestParcelId
       for (const ring of field.rings) {
@@ -1662,11 +1774,11 @@ export function SatelliteMap({
         const layer = L.polygon(
           ring.map((vertex) => [vertex.lat, vertex.lng]),
           {
-            color: selected ? '#ffffff' : '#07f880',
-            weight: selected ? 4 : 2,
+            color: hasRasterOverlay ? (selected ? '#ffffff' : 'rgba(255,255,255,0.7)') : selected ? '#ffffff' : '#07f880',
+            weight: hasRasterOverlay ? (selected ? 3 : 2) : selected ? 4 : 2,
             opacity: 1,
-            fillColor: '#07f880',
-            fillOpacity: selected ? 0.28 : 0.14,
+            fillColor: hasRasterOverlay ? 'transparent' : '#07f880',
+            fillOpacity: 0,
             interactive: true,
             bubblingMouseEvents: false,
           }
@@ -1691,7 +1803,7 @@ export function SatelliteMap({
       harvestFieldLayerInstancesRef.current.forEach((layer) => layer.remove?.())
       harvestFieldLayerInstancesRef.current = []
     }
-  }, [harvestFields, mapReady, onHarvestFieldClick, selectedHarvestParcelId])
+  }, [harvestFields, harvestRasterOverlay, mapReady, onHarvestFieldClick, selectedHarvestParcelId])
 
   useEffect(() => {
     if (!mapReady || !mapInstanceRef.current || !leafletRef.current || !selectedHarvestParcelId) return
@@ -1742,15 +1854,17 @@ export function SatelliteMap({
 
     if (!harvestRasterOverlay?.imageUrl || !harvestRasterOverlay.bounds) return
 
-    const [[south, west], [north, east]] = harvestRasterOverlay.bounds
-    harvestRasterOverlayRef.current = L.imageOverlay(
-      harvestRasterOverlay.imageUrl,
-      L.latLngBounds([south, west], [north, east]),
-      {
-        opacity: harvestRasterOverlay.opacity ?? 0.5,
-        interactive: false,
-      }
-    ).addTo(map)
+    const shouldCropPlotFrame =
+      harvestRasterOverlay.imageSource === 'view' ||
+      /\.jpe?g($|\?)/i.test(harvestRasterOverlay.imageUrl)
+
+    harvestRasterOverlayRef.current = createHarvestClippedRasterLayer(L, {
+      imageUrl: harvestRasterOverlay.imageUrl,
+      bounds: harvestRasterOverlay.bounds,
+      clipRings: harvestRasterOverlay.clipRings || [],
+      opacity: harvestRasterOverlay.opacity ?? 0.5,
+      prepareImage: shouldCropPlotFrame ? prepareHarvestRasterCanvas : undefined,
+    }).addTo(map)
 
     return () => {
       if (harvestRasterOverlayRef.current) {

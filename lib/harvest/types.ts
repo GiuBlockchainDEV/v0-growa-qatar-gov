@@ -142,11 +142,13 @@ export interface HarvestRasterOverlay {
   imageUrl: string
   bounds: [[number, number], [number, number]]
   opacity: number
+  imageSource?: 'view' | 'raster'
   metric: HarvestMetricKey
   vmin: number
   vmax: number
   unit: string
   legend: HarvestRasterLegendItem[]
+  clipRings?: HarvestMapFieldRing[][]
 }
 
 export interface HarvestCropOption {

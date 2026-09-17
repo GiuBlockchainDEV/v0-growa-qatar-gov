@@ -174,6 +174,23 @@ export async function fetchHarvestRasterMeta({
     for (const tryMode of modesToTry) {
       if (granularity === 'season') {
         try {
+          await harvestGetFieldRasterMeta(tryMode, parcelId, trySeasonId, {
+            var: metric,
+            granularity: 'season',
+          })
+          return await fetchDynamicRasterMeta({
+            mode: tryMode,
+            parcelId,
+            seasonId: trySeasonId,
+            metric,
+            granularity: 'season',
+            period: null,
+          })
+        } catch (error) {
+          lastError = error instanceof Error ? error : new Error('Harvest raster unavailable')
+        }
+
+        try {
           await harvestGetFieldViewJson(tryMode, parcelId, trySeasonId, 'legend.json')
           await harvestGetFieldViewFile(tryMode, parcelId, trySeasonId, `${metric}.jpeg`)
           return await fetchViewRasterMeta({

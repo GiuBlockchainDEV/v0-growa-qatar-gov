@@ -257,11 +257,34 @@ function SlideFromLeftWorkspace({
           mapTileUrl={isHarvestModule ? harvestTileUrl : null}
           harvestRasterOverlay={
             isHarvestModule && harvestRasterOverlay
-              ? {
-                  imageUrl: harvestRasterOverlay.imageUrl,
-                  bounds: harvestRasterOverlay.bounds,
-                  opacity: harvestRasterOverlay.opacity,
-                }
+              ? (() => {
+                  const selectedField = harvestFields.find(
+                    (field) => field.parcel_id === selectedHarvestParcelId
+                  )
+                  const clipRings = selectedField?.rings || []
+                  const vertices = clipRings.flat()
+                  const boundsFromRings =
+                    vertices.length >= 3
+                      ? ([
+                          [
+                            Math.min(...vertices.map((vertex) => vertex.lat)),
+                            Math.min(...vertices.map((vertex) => vertex.lng)),
+                          ],
+                          [
+                            Math.max(...vertices.map((vertex) => vertex.lat)),
+                            Math.max(...vertices.map((vertex) => vertex.lng)),
+                          ],
+                        ] as [[number, number], [number, number]])
+                      : harvestRasterOverlay.bounds
+
+                  return {
+                    imageUrl: harvestRasterOverlay.imageUrl,
+                    bounds: boundsFromRings,
+                    opacity: harvestRasterOverlay.opacity,
+                    imageSource: harvestRasterOverlay.imageSource,
+                    clipRings,
+                  }
+                })()
               : null
           }
           harvestFocusBounds={isHarvestModule ? harvestFocusBounds : null}

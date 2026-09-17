@@ -435,6 +435,7 @@ export function HarvestWorkspace() {
               imageUrl: raster.image_url,
               bounds: raster.bounds,
               opacity: 0.5,
+              imageSource: raster.image_source,
               metric: raster.metric,
               vmin: raster.vmin,
               vmax: raster.vmax,
