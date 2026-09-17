@@ -1,15 +1,17 @@
-import { normalizeRasterBounds } from '@/lib/harvest/raster-bounds'
+import { prepareHarvestRasterCanvas } from '@/lib/harvest/image-process'
+import { resolveRasterRenderBounds, type RasterBounds } from '@/lib/harvest/raster-bounds'
 
-type LeafletBounds = [[number, number], [number, number]]
+type LeafletBounds = RasterBounds
 
 export interface HarvestRasterLayerOptions {
   imageUrl: string
   bounds: LeafletBounds
-  clipRings?: Array<Array<{ lat: number; lng: number }>>
+  imageSource?: 'view' | 'raster'
   opacity?: number
 }
 
 function isSameOriginUrl(imageUrl: string) {
+  if (imageUrl.startsWith('blob:') || imageUrl.startsWith('data:')) return true
   if (imageUrl.startsWith('/') || imageUrl.startsWith('./')) return true
   try {
     const resolved = new URL(imageUrl, window.location.origin)
@@ -20,132 +22,89 @@ function isSameOriginUrl(imageUrl: string) {
 }
 
 function toLatLngBounds(L: any, bounds: LeafletBounds) {
-  const normalized = normalizeRasterBounds(bounds)
-  const [[south, west], [north, east]] = normalized
+  const [[south, west], [north, east]] = bounds
   return L.latLngBounds([south, west], [north, east])
 }
 
-function createImageOverlayLayer(L: any, options: HarvestRasterLayerOptions) {
-  const overlayOptions: Record<string, unknown> = {
-    opacity: options.opacity ?? 0.5,
-    interactive: false,
-    className: 'leaflet-harvest-raster-overlay',
-    zIndex: 350,
-  }
-  if (!isSameOriginUrl(options.imageUrl)) {
-    overlayOptions.crossOrigin = 'anonymous'
-  }
-
-  const overlay = L.imageOverlay(
-    options.imageUrl,
-    toLatLngBounds(L, options.bounds),
-    overlayOptions
-  )
-
-  overlay.on('error', () => {
-    console.warn('[harvest-raster] image overlay failed to load', options.imageUrl)
+function loadImage(imageUrl: string): Promise<HTMLImageElement> {
+  return new Promise((resolve, reject) => {
+    const image = new Image()
+    if (!isSameOriginUrl(imageUrl)) {
+      image.crossOrigin = 'anonymous'
+    }
+    image.decoding = 'async'
+    image.onload = () => resolve(image)
+    image.onerror = () => reject(new Error('Raster image failed to load'))
+    image.src = imageUrl
   })
-
-  return overlay
 }
 
-function createClippedRasterLayer(L: any, options: HarvestRasterLayerOptions) {
-  const rings = (options.clipRings || []).filter((ring) => ring.length >= 3)
-  const opacity = options.opacity ?? 0.5
-
-  const ClippedLayer = L.Layer.extend({
-    initialize(opts: HarvestRasterLayerOptions) {
-      L.setOptions(this, opts)
-      this._imageLoaded = false
-      this._drawFailed = false
-    },
-    onAdd(map: any) {
-      this._map = map
-      this._canvas = L.DomUtil.create('canvas', 'leaflet-harvest-raster-overlay')
-      this._canvas.style.pointerEvents = 'none'
-      this._canvas.style.position = 'absolute'
-      this._canvas.style.zIndex = '350'
-      map.getPanes().overlayPane.appendChild(this._canvas)
-
-      this._image = new Image()
-      if (!isSameOriginUrl(options.imageUrl)) {
-        this._image.crossOrigin = 'anonymous'
-      }
-      this._image.decoding = 'async'
-      this._image.onload = () => {
-        this._imageLoaded = true
-        this._draw()
-      }
-      this._image.onerror = () => {
-        this._imageLoaded = false
-        this._drawFailed = true
-        console.warn('[harvest-raster] clipped canvas image failed to load', options.imageUrl)
-      }
-      this._image.src = options.imageUrl
-
-      map.on('zoomend moveend viewreset resize', this._draw, this)
-      this._draw()
-    },
-    onRemove(map: any) {
-      L.DomUtil.remove(this._canvas)
-      map.off('zoomend moveend viewreset resize', this._draw, this)
-      this._image = null
-    },
-    _draw() {
-      if (!this._map || !this._imageLoaded || !this._image || this._drawFailed) return
-
-      const map = this._map
-      const leafletBounds = toLatLngBounds(L, options.bounds)
-      const northWest = map.latLngToLayerPoint(leafletBounds.getNorthWest())
-      const southEast = map.latLngToLayerPoint(leafletBounds.getSouthEast())
-      const width = southEast.x - northWest.x
-      const height = southEast.y - northWest.y
-      if (width <= 0 || height <= 0) return
-
-      L.DomUtil.setPosition(this._canvas, northWest)
-      this._canvas.style.opacity = String(opacity)
-
-      const dpr = window.devicePixelRatio || 1
-      const pixelWidth = Math.max(1, Math.round(width * dpr))
-      const pixelHeight = Math.max(1, Math.round(height * dpr))
-      if (this._canvas.width !== pixelWidth || this._canvas.height !== pixelHeight) {
-        this._canvas.width = pixelWidth
-        this._canvas.height = pixelHeight
-        this._canvas.style.width = `${width}px`
-        this._canvas.style.height = `${height}px`
-      }
-
-      const ctx = this._canvas.getContext('2d')
-      if (!ctx) return
-
-      ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
-      ctx.clearRect(0, 0, width, height)
-
-      for (const ring of rings) {
-        ctx.save()
-        ctx.beginPath()
-        ring.forEach((vertex, index) => {
-          const point = map.latLngToLayerPoint(L.latLng(vertex.lat, vertex.lng))
-          const x = point.x - northWest.x
-          const y = point.y - northWest.y
-          if (index === 0) ctx.moveTo(x, y)
-          else ctx.lineTo(x, y)
-        })
-        ctx.closePath()
-        ctx.clip()
-        ctx.drawImage(this._image, 0, 0, width, height)
-        ctx.restore()
-      }
-    },
+function prepareOverlayImage(
+  image: HTMLImageElement,
+  apiBounds: LeafletBounds,
+  imageSource?: 'view' | 'raster'
+) {
+  const isViewSource = imageSource === 'view'
+  const prepared = prepareHarvestRasterCanvas(image, {
+    cropPlotFrame: true,
+    transparentBackground: isViewSource || imageSource === 'raster',
   })
 
-  return new ClippedLayer(options)
+  const renderBounds = resolveRasterRenderBounds(apiBounds, {
+    crop: prepared.crop,
+    sourceWidth: prepared.sourceWidth,
+    sourceHeight: prepared.sourceHeight,
+  })
+
+  return {
+    imageUrl: prepared.canvas.toDataURL('image/png'),
+    bounds: renderBounds,
+    crop: prepared.crop,
+  }
 }
 
 export function createHarvestRasterLayer(L: any, options: HarvestRasterLayerOptions) {
-  const rings = (options.clipRings || []).filter((ring) => ring.length >= 3)
-  if (rings.length === 0) {
-    return createImageOverlayLayer(L, options)
-  }
-  return createClippedRasterLayer(L, options)
+  const opacity = options.opacity ?? 0.5
+
+  const PreparedRasterLayer = L.Layer.extend({
+    initialize(opts: HarvestRasterLayerOptions) {
+      L.setOptions(this, opts)
+      this._overlay = null
+    },
+    onAdd(map: any) {
+      this._map = map
+      void this._loadAndRender()
+    },
+    onRemove() {
+      this._overlay?.remove?.()
+      this._overlay = null
+      this._map = null
+    },
+    async _loadAndRender() {
+      const map = this._map
+      if (!map) return
+
+      try {
+        const image = await loadImage(options.imageUrl)
+        if (!this._map) return
+
+        const prepared = prepareOverlayImage(image, options.bounds, options.imageSource)
+        if (this._overlay) {
+          this._overlay.remove?.()
+          this._overlay = null
+        }
+
+        this._overlay = L.imageOverlay(prepared.imageUrl, toLatLngBounds(L, prepared.bounds), {
+          opacity,
+          interactive: false,
+          className: 'leaflet-harvest-raster-overlay',
+          zIndex: 350,
+        }).addTo(map)
+      } catch (error) {
+        console.warn('[harvest-raster] overlay preparation failed', error)
+      }
+    },
+  })
+
+  return new PreparedRasterLayer(options)
 }

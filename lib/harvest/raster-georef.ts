@@ -1,12 +1,19 @@
 import { boundsFromRings } from '@/lib/harvest/geojson'
 import type { HarvestRasterGeorefDebug } from '@/lib/harvest/types'
-import type { RasterBounds } from '@/lib/harvest/raster-bounds'
-import { normalizeRasterBounds } from '@/lib/harvest/raster-bounds'
+import {
+  parseLeafletCornerBounds,
+  tryNormalizeRasterBounds,
+  type RasterBounds,
+} from '@/lib/harvest/raster-bounds'
+import {
+  boundsOverlapRatio,
+  pickBestRasterBounds,
+  swapCornerLatLng,
+} from '@/lib/harvest/raster-align'
 
 export type RasterBoundsSource = HarvestRasterGeorefDebug['boundsSource']
 export type { HarvestRasterGeorefDebug }
 
-const DEFAULT_BOUNDS: RasterBounds = [[25.2, 51.1], [25.5, 51.4]]
 const EPSG_4326_ALIASES = new Set(['EPSG:4326', 'epsg:4326', 'OGC:CRS84', 'WGS84', 'EPSG:4326/WGS84'])
 
 function isLat(value: number) {
@@ -109,6 +116,7 @@ function leafletBoundsFromAffine(
 }
 
 export function logRasterGeorefDebug(debug: HarvestRasterGeorefDebug, context?: string) {
+  if (process.env.NODE_ENV === 'production') return
   const prefix = context ? `[harvest-raster-georef:${context}]` : '[harvest-raster-georef]'
   console.info(prefix, {
     rasterCrs: debug.rasterCrs,
@@ -120,6 +128,7 @@ export function logRasterGeorefDebug(debug: HarvestRasterGeorefDebug, context?: 
     finalEpsg4326Bounds: debug.computedLeafletBounds,
     fieldPolygonBounds: debug.fieldPolygonBounds,
     boundsSource: debug.boundsSource,
+    fieldOverlap: debug.fieldOverlap,
     hasRotation: debug.hasRotation,
     rotationWarning: debug.rotationWarning,
   })
@@ -141,8 +150,6 @@ export function resolveRasterGeoref({
   const rawBbox = parseBbox(rawMeta)
   const rawBounds = rawMeta.bounds ?? null
 
-  let boundsSource: RasterBoundsSource = 'default'
-  let computedBounds: RasterBounds = DEFAULT_BOUNDS
   let hasRotation = false
   let rotationWarning: string | null = null
 
@@ -150,25 +157,57 @@ export function resolveRasterGeoref({
     rotationWarning = `Raster CRS ${crs} is not EPSG:4326; bounds were not reprojected in the BFF`
   }
 
-  // Prefer raster_meta.bounds from Harvest API (already Leaflet [[south,west],[north,east]]).
-  if (rawBounds) {
-    computedBounds = normalizeRasterBounds(rawBounds)
-    boundsSource = 'leaflet_bounds'
-  } else if (transform && imageWidth && imageHeight && imageWidth > 0 && imageHeight > 0) {
+  const candidates: Array<{ bounds: RasterBounds; source: RasterBoundsSource }> = []
+
+  const leafletParsed = parseLeafletCornerBounds(rawBounds)
+  if (leafletParsed) {
+    candidates.push({ bounds: leafletParsed, source: 'leaflet_bounds' })
+    candidates.push({ bounds: swapCornerLatLng(leafletParsed), source: 'leaflet_bounds' })
+  }
+
+  const normalizedRaw = tryNormalizeRasterBounds(rawBounds)
+  if (normalizedRaw && !candidates.some((entry) => entry.source === 'leaflet_bounds')) {
+    candidates.push({ bounds: normalizedRaw, source: 'leaflet_bounds' })
+  }
+
+  if (transform && imageWidth && imageHeight && imageWidth > 0 && imageHeight > 0) {
     const affine = leafletBoundsFromAffine(transform, imageWidth, imageHeight)
-    computedBounds = affine.bounds
-    boundsSource = 'affine_transform'
+    candidates.push({ bounds: affine.bounds, source: 'affine_transform' })
     hasRotation = affine.hasRotation
     if (hasRotation) {
       rotationWarning =
         'Raster affine transform includes rotation/shear; overlay uses axis-aligned envelope only'
     }
-  } else if (rawBbox) {
+  }
+
+  if (rawBbox) {
     const bboxBounds = leafletBoundsFromGeoJsonBbox(rawBbox)
     if (bboxBounds) {
-      computedBounds = bboxBounds
-      boundsSource = 'geojson_bbox'
+      candidates.push({ bounds: bboxBounds, source: 'geojson_bbox' })
     }
+  }
+
+  const picked = pickBestRasterBounds(
+    candidates.map((entry) => ({ bounds: entry.bounds, source: entry.source })),
+    fieldPolygonBounds ?? null
+  )
+
+  if (!picked) {
+    throw new Error('Unable to resolve raster georeferencing bounds from Harvest metadata')
+  }
+
+  const bounds = picked.bounds
+  const boundsSource = picked.source as RasterBoundsSource
+  const fieldOverlap =
+    fieldPolygonBounds ? boundsOverlapRatio(bounds, fieldPolygonBounds) : null
+
+  if (fieldPolygonBounds && fieldOverlap !== null && fieldOverlap < 0.15) {
+    rotationWarning = [
+      rotationWarning,
+      `Raster bounds overlap only ${(fieldOverlap * 100).toFixed(1)}% of the field polygon — image margins will be cropped client-side`,
+    ]
+      .filter(Boolean)
+      .join('; ')
   }
 
   const debug: HarvestRasterGeorefDebug = {
@@ -178,14 +217,15 @@ export function resolveRasterGeoref({
     rawBbox,
     imageWidth: imageWidth ?? null,
     imageHeight: imageHeight ?? null,
-    computedLeafletBounds: computedBounds,
+    computedLeafletBounds: bounds,
     fieldPolygonBounds: fieldPolygonBounds ?? null,
     boundsSource,
+    fieldOverlap,
     hasRotation,
     rotationWarning,
   }
 
-  return { bounds: computedBounds, debug }
+  return { bounds, debug }
 }
 
 export function fieldBoundsFromClipRings(

@@ -113,6 +113,7 @@ export async function GET(request: Request, context: RouteContext) {
             computedLeafletBounds: normalizeRasterBounds(demoRaster.bounds),
             fieldPolygonBounds,
             boundsSource: 'leaflet_bounds',
+            fieldOverlap: fieldPolygonBounds ? 1 : null,
             hasRotation: false,
             rotationWarning: null,
           },
@@ -146,6 +147,8 @@ export async function GET(request: Request, context: RouteContext) {
   }
 
   try {
+    const clipRings = await loadHarvestClipRings(parcelId, false)
+    const fieldPolygonBounds = fieldBoundsFromClipRings(clipRings)
     const seasonIds = await listHarvestSeasonIds(parcelId, requestedSeasonId)
     const dataMode = resolveHarvestDataMode(mode, granularity)
     const meta = await fetchHarvestRasterMeta({
@@ -156,10 +159,10 @@ export async function GET(request: Request, context: RouteContext) {
       granularity,
       period,
       seasonIds,
+      fieldPolygonBounds,
     })
 
     const resolvedSeasonId = meta.resolvedSeasonId ?? requestedSeasonId
-    const clipRings = await loadHarvestClipRings(parcelId, false)
     const georefMeta = applyHarvestRasterGeoref({
       meta,
       parcelId,

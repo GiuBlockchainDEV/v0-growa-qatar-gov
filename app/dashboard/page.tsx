@@ -263,11 +263,6 @@ function SlideFromLeftWorkspace({
                   bounds: harvestRasterOverlay.bounds,
                   opacity: harvestRasterOverlay.opacity,
                   imageSource: harvestRasterOverlay.imageSource,
-                  clipRings:
-                    harvestRasterOverlay.clipRings && harvestRasterOverlay.clipRings.length > 0
-                      ? harvestRasterOverlay.clipRings
-                      : harvestFields.find((field) => field.parcel_id === selectedHarvestParcelId)
-                          ?.rings,
                 }
               : null
           }

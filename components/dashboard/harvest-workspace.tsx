@@ -30,7 +30,6 @@ import {
   IntelligenceWorkspaceRoot,
 } from '@/components/dashboard/intelligence-workspace-ui'
 import { normalizeEntityToField } from '@/lib/harvest/normalize'
-import { normalizeRasterBounds } from '@/lib/harvest/raster-bounds'
 import type {
   HarvestAnalyticsField,
   HarvestAnalyticsResponse,
@@ -464,10 +463,9 @@ export function HarvestWorkspace() {
           detail: raster
             ? {
                 imageUrl: imageUrl || raster.image_url,
-                bounds: normalizeRasterBounds(raster.bounds),
+                bounds: raster.bounds,
                 opacity: 0.5,
                 imageSource: raster.image_source,
-                clipRings: raster.clip_rings,
                 metric: raster.metric,
                 vmin: raster.vmin,
                 vmax: raster.vmax,

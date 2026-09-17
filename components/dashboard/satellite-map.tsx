@@ -1761,7 +1761,7 @@ export function SatelliteMap({
     const rasterLayer = createHarvestRasterLayer(L, {
       imageUrl: harvestRasterOverlay.imageUrl,
       bounds: harvestRasterOverlay.bounds,
-      clipRings: harvestRasterOverlay.clipRings,
+      imageSource: harvestRasterOverlay.imageSource,
       opacity: harvestRasterOverlay.opacity ?? 0.5,
     })
     rasterLayer.addTo(map)

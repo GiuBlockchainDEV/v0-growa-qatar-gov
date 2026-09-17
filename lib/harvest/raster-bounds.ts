@@ -3,94 +3,138 @@ import { boundsFromRings } from '@/lib/harvest/geojson'
 
 export type RasterBounds = [[number, number], [number, number]]
 
-const DEFAULT_BOUNDS: RasterBounds = [[25.2, 51.1], [25.5, 51.4]]
+const QATAR_LAT_MIN = 24
+const QATAR_LAT_MAX = 27
+const QATAR_LNG_MIN = 50
+const QATAR_LNG_MAX = 52
 
-function isLat(value: number) {
-  return Math.abs(value) <= 90
+function isFinitePair(pair: unknown): pair is [number, number] {
+  return (
+    Array.isArray(pair) &&
+    pair.length >= 2 &&
+    Number.isFinite(Number(pair[0])) &&
+    Number.isFinite(Number(pair[1]))
+  )
 }
 
-function isLng(value: number) {
-  return Math.abs(value) <= 180
+function looksLikeQatarLat(value: number) {
+  return value >= QATAR_LAT_MIN && value <= QATAR_LAT_MAX
 }
 
-function normalizeCornerPair(
-  first: number[],
-  second: number[]
+function looksLikeQatarLng(value: number) {
+  return value >= QATAR_LNG_MIN && value <= QATAR_LNG_MAX
+}
+
+function envelopeFromCorners(
+  firstLat: number,
+  firstLng: number,
+  secondLat: number,
+  secondLng: number
 ): RasterBounds | null {
+  if (![firstLat, firstLng, secondLat, secondLng].every((value) => Number.isFinite(value))) {
+    return null
+  }
+
+  const south = Math.min(firstLat, secondLat)
+  const north = Math.max(firstLat, secondLat)
+  const west = Math.min(firstLng, secondLng)
+  const east = Math.max(firstLng, secondLng)
+
+  if (north <= south || east <= west) return null
+
+  return [[south, west], [north, east]]
+}
+
+/** Parse Harvest raster_meta.bounds as Leaflet [[south,west],[north,east]]. */
+export function parseLeafletCornerBounds(bounds: unknown): RasterBounds | null {
+  if (!Array.isArray(bounds) || bounds.length < 2) return null
+
+  const first = bounds[0]
+  const second = bounds[1]
+  if (!isFinitePair(first) || !isFinitePair(second)) return null
+
   const a0 = Number(first[0])
   const a1 = Number(first[1])
   const b0 = Number(second[0])
   const b1 = Number(second[1])
 
-  if (![a0, a1, b0, b1].every((value) => Number.isFinite(value))) {
-    return null
+  // Canonical Harvest format: [latitude, longitude] per corner.
+  const asLatLng = envelopeFromCorners(a0, a1, b0, b1)
+  if (
+    asLatLng &&
+    looksLikeQatarLat(asLatLng[0][0]) &&
+    looksLikeQatarLat(asLatLng[1][0]) &&
+    looksLikeQatarLng(asLatLng[0][1]) &&
+    looksLikeQatarLng(asLatLng[1][1])
+  ) {
+    return asLatLng
   }
 
-  // GeoJSON-style corner pairs are [longitude, latitude]
-  const firstIsLngLat = Math.abs(a0) > Math.abs(a1) && isLat(a1) && isLng(a0)
-  const secondIsLngLat = Math.abs(b0) > Math.abs(b1) && isLat(b1) && isLng(b0)
+  // GeoJSON corner order: [longitude, latitude].
+  const asLngLat = envelopeFromCorners(a1, a0, b1, b0)
+  if (
+    asLngLat &&
+    looksLikeQatarLat(asLngLat[0][0]) &&
+    looksLikeQatarLat(asLngLat[1][0]) &&
+    looksLikeQatarLng(asLngLat[0][1]) &&
+    looksLikeQatarLng(asLngLat[1][1])
+  ) {
+    return asLngLat
+  }
 
-  const latLngPairs = firstIsLngLat || secondIsLngLat
-    ? [
-        { lat: a1, lng: a0 },
-        { lat: b1, lng: b0 },
-      ]
-    : [
-        { lat: a0, lng: a1 },
-        { lat: b0, lng: b1 },
-      ]
-
-  const lats = latLngPairs.map((point) => point.lat)
-  const lngs = latLngPairs.map((point) => point.lng)
-
-  return [
-    [Math.min(...lats), Math.min(...lngs)],
-    [Math.max(...lats), Math.max(...lngs)],
-  ]
+  // Generic lat/lng envelope without Qatar validation (non-demo deployments).
+  return asLatLng || asLngLat
 }
 
-function normalizeFlatBounds(bounds: number[]): RasterBounds | null {
+function parseGeoJsonFlatBbox(bounds: number[]): RasterBounds | null {
   const [a, b, c, d] = bounds
   if (![a, b, c, d].every((value) => Number.isFinite(value))) return null
 
   // GeoJSON bbox: [west, south, east, north]
-  const looksLikeWestSouthEastNorth =
-    Math.abs(a) > Math.abs(b) && Math.abs(c) > Math.abs(d) && isLat(b) && isLat(d) && isLng(a) && isLng(c)
-  if (looksLikeWestSouthEastNorth) {
-    return [
-      [Math.min(b, d), Math.min(a, c)],
-      [Math.max(b, d), Math.max(a, c)],
-    ]
+  const geoJsonBbox = envelopeFromCorners(b, a, d, c)
+  if (
+    geoJsonBbox &&
+    looksLikeQatarLat(geoJsonBbox[0][0]) &&
+    looksLikeQatarLng(geoJsonBbox[0][1])
+  ) {
+    return geoJsonBbox
   }
 
-  // Leaflet-style flat corners: [south, west, north, east]
-  const looksLikeSouthWestNorthEast =
-    Math.abs(b) > Math.abs(a) && Math.abs(d) > Math.abs(c) && isLat(a) && isLat(c) && isLng(b) && isLng(d)
-  if (looksLikeSouthWestNorthEast) {
-    return [
-      [Math.min(a, c), Math.min(b, d)],
-      [Math.max(a, c), Math.max(b, d)],
-    ]
+  // Leaflet flat: [south, west, north, east]
+  const leafletFlat = envelopeFromCorners(a, b, c, d)
+  if (
+    leafletFlat &&
+    looksLikeQatarLat(leafletFlat[0][0]) &&
+    looksLikeQatarLng(leafletFlat[0][1])
+  ) {
+    return leafletFlat
   }
 
-  return null
+  return geoJsonBbox || leafletFlat
 }
 
 export function normalizeRasterBounds(bounds: unknown): RasterBounds {
-  if (!Array.isArray(bounds) || bounds.length < 2) return DEFAULT_BOUNDS
+  const parsed = parseLeafletCornerBounds(bounds)
+  if (parsed) return parsed
 
-  if (bounds.length >= 4 && bounds.every((value) => typeof value === 'number')) {
-    const flatBounds = normalizeFlatBounds(bounds as number[])
-    if (flatBounds) return flatBounds
+  if (
+    Array.isArray(bounds) &&
+    bounds.length >= 4 &&
+    bounds.every((value) => typeof value === 'number')
+  ) {
+    const flat = parseGeoJsonFlatBbox(bounds as number[])
+    if (flat) return flat
   }
 
-  const first = bounds[0]
-  const second = bounds[1]
-  if (!Array.isArray(first) || !Array.isArray(second) || first.length < 2 || second.length < 2) {
-    return DEFAULT_BOUNDS
-  }
+  throw new Error('Unable to parse raster bounds into Leaflet [[south,west],[north,east]] format')
+}
 
-  return normalizeCornerPair(first as number[], second as number[]) || DEFAULT_BOUNDS
+export function tryNormalizeRasterBounds(bounds: unknown): RasterBounds | null {
+  try {
+    return normalizeRasterBounds(bounds)
+  } catch {
+    return null
+  }
 }
 
 export function resolveRasterDisplayBounds(
@@ -107,22 +151,15 @@ export function resolveRasterRenderBounds(
     crop: RasterImageCrop | null
     sourceWidth: number
     sourceHeight: number
-  },
-  imageSource?: 'view' | 'raster'
+  }
 ): RasterBounds {
   if (!prepared.crop) return apiBounds
-
-  // entity/raster PNG bounds describe the full image; shift bounds after margin crop.
-  if (imageSource !== 'view') {
-    return adjustRasterBoundsForCrop(
-      apiBounds,
-      prepared.sourceWidth,
-      prepared.sourceHeight,
-      prepared.crop
-    )
-  }
-
-  return apiBounds
+  return adjustRasterBoundsForCrop(
+    apiBounds,
+    prepared.sourceWidth,
+    prepared.sourceHeight,
+    prepared.crop
+  )
 }
 
 export function adjustRasterBoundsForCrop(

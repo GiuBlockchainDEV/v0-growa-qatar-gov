@@ -132,6 +132,7 @@ export interface HarvestRasterGeorefDebug {
   computedLeafletBounds: [[number, number], [number, number]]
   fieldPolygonBounds: [[number, number], [number, number]] | null
   boundsSource: 'affine_transform' | 'geojson_bbox' | 'leaflet_bounds' | 'default'
+  fieldOverlap: number | null
   hasRotation: boolean
   rotationWarning: string | null
 }
