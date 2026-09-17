@@ -62,6 +62,59 @@ function isEdgeCropBackgroundPixel(
   return maxChannel < 45 && maxChannel - minChannel < 18 && luminance < 28
 }
 
+function isMatplotlibDarkPixel(r: number, g: number, b: number, a: number) {
+  if (a < 8) return true
+  const luminance = 0.299 * r + 0.587 * g + 0.114 * b
+  return luminance < 42 && Math.max(r, g, b) < 72
+}
+
+function trimMatplotlibPlot(imageData: ImageData): RasterImageCrop | null {
+  const { width, height, data } = imageData
+  const darkRatio = (y: number, xStart: number, xEnd: number) => {
+    let dark = 0
+    const total = xEnd - xStart + 1
+    for (let x = xStart; x <= xEnd; x += 1) {
+      const index = (y * width + x) * 4
+      if (isMatplotlibDarkPixel(data[index], data[index + 1], data[index + 2], data[index + 3])) {
+        dark += 1
+      }
+    }
+    return dark / total
+  }
+
+  const columnDarkRatio = (x: number, yStart: number, yEnd: number) => {
+    let dark = 0
+    const total = yEnd - yStart + 1
+    for (let y = yStart; y <= yEnd; y += 1) {
+      const index = (y * width + x) * 4
+      if (isMatplotlibDarkPixel(data[index], data[index + 1], data[index + 2], data[index + 3])) {
+        dark += 1
+      }
+    }
+    return dark / total
+  }
+
+  let top = 0
+  let bottom = height - 1
+  let left = 0
+  let right = width - 1
+
+  while (top < bottom && darkRatio(top, left, right) > 0.86) top += 1
+  while (bottom > top && darkRatio(bottom, left, right) > 0.86) bottom -= 1
+  while (left < right && columnDarkRatio(left, top, bottom) > 0.86) left += 1
+  while (right > left && columnDarkRatio(right, top, bottom) > 0.86) right -= 1
+
+  if (top >= bottom || left >= right) return null
+  if (top === 0 && left === 0 && right === width - 1 && bottom === height - 1) return null
+
+  return {
+    left,
+    top,
+    width: right - left + 1,
+    height: bottom - top + 1,
+  }
+}
+
 function trimUniformEdgeMargins(
   imageData: ImageData,
   options: { includeDarkFrame?: boolean }
@@ -229,17 +282,17 @@ function makeUniformBorderTransparent(imageData: ImageData, crop: RasterImageCro
   return imageData
 }
 
-function makeRasterBackgroundTransparent(imageData: ImageData) {
+function makeRasterBackgroundTransparent(imageData: ImageData, includeDarkFrame = false) {
   const { data } = imageData
   for (let index = 0; index < data.length; index += 4) {
-    if (
-      isRasterTransparentPixel(
-        data[index],
-        data[index + 1],
-        data[index + 2],
-        data[index + 3]
-      )
-    ) {
+    const r = data[index]
+    const g = data[index + 1]
+    const b = data[index + 2]
+    const a = data[index + 3]
+    const transparent =
+      isRasterTransparentPixel(r, g, b, a) ||
+      (includeDarkFrame && isMatplotlibFramePixel(r, g, b, a))
+    if (transparent) {
       data[index + 3] = 0
     }
   }
@@ -270,12 +323,14 @@ export function prepareHarvestRasterCanvas(
   sourceCtx.drawImage(image, 0, 0)
   let working = sourceCtx.getImageData(0, 0, sourceCanvas.width, sourceCanvas.height)
   if (transparentBackground) {
-    working = makeRasterBackgroundTransparent(working)
+    working = makeRasterBackgroundTransparent(working, isJpeg)
   }
 
   const output = document.createElement('canvas')
   const crop = cropPlotFrame
-    ? detectRasterImageCrop(working, { includeDarkFrame: isJpeg })
+    ? isJpeg
+      ? trimMatplotlibPlot(working) || detectRasterImageCrop(working, { includeDarkFrame: true })
+      : detectRasterImageCrop(working, { includeDarkFrame: false })
     : null
 
   if (!isJpeg && crop) {
