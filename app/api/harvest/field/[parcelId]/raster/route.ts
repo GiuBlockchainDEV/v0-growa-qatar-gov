@@ -7,6 +7,7 @@ import {
   isLiveRasterMetric,
 } from '@/lib/harvest/field-raster-fallback'
 import { normalizePaginatedFieldsResponse } from '@/lib/harvest/normalize'
+import { normalizeRasterBounds, normalizeRasterLegend } from '@/lib/harvest/raster-bounds'
 import { harvestJsonResponse, resolveHarvestPayload } from '@/lib/harvest/resolve'
 import type { HarvestMetricKey, HarvestMode, HarvestTrendGranularity } from '@/lib/harvest/types'
 
@@ -64,7 +65,24 @@ export async function GET(request: Request, context: RouteContext) {
 
   if (access.demoMode) {
     const demoRaster = getDemoFieldRaster(parcelId, mode, metric, granularity, period)
-    if (demoRaster) return harvestJsonResponse(demoRaster, true)
+    if (demoRaster) {
+      const imageParams = new URLSearchParams({
+        mode,
+        metric,
+        granularity,
+        season_id: seasonId,
+      })
+      if (granularity === 'dekad' && period) imageParams.set('period', period)
+      return harvestJsonResponse(
+        {
+          ...demoRaster,
+          image_url: `/api/harvest/field/${parcelId}/raster/image?${imageParams.toString()}`,
+          bounds: normalizeRasterBounds(demoRaster.bounds),
+          legend: normalizeRasterLegend(demoRaster.legend),
+        },
+        true
+      )
+    }
     const fallback = await buildFieldRasterFallback({
       parcelId,
       fieldName,
@@ -98,27 +116,28 @@ export async function GET(request: Request, context: RouteContext) {
       ...(granularity === 'dekad' && period ? { period } : {}),
     }
 
-    const [buffer, meta] = await Promise.all([
-      harvestGetFieldRaster(rasterMode, parcelId, seasonId, query),
-      harvestGetFieldRasterMeta(rasterMode, parcelId, seasonId, query),
-    ])
+    const meta = await harvestGetFieldRasterMeta(rasterMode, parcelId, seasonId, query)
 
-    if (!buffer.byteLength) {
-      return NextResponse.json({ error: 'Empty raster response from Harvest API' }, { status: 502 })
+    const imageParams = new URLSearchParams({
+      mode,
+      metric,
+      granularity,
+      season_id: seasonId,
+    })
+    if (granularity === 'dekad' && period) {
+      imageParams.set('period', period)
     }
 
-    const contentType = 'image/png'
-    const image_url = `data:${contentType};base64,${Buffer.from(buffer).toString('base64')}`
     const payload = {
       metric,
       granularity,
       period,
-      image_url,
-      bounds: meta.bounds || [[25.2, 51.1], [25.5, 51.4]],
+      image_url: `/api/harvest/field/${parcelId}/raster/image?${imageParams.toString()}`,
+      bounds: normalizeRasterBounds(meta.bounds),
       vmin: meta.vmin ?? 0,
       vmax: meta.vmax ?? 100,
       unit: meta.unit || '',
-      legend: meta.legend || [],
+      legend: normalizeRasterLegend(meta.legend),
     }
 
     return harvestJsonResponse(payload, false)

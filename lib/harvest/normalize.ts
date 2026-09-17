@@ -70,29 +70,93 @@ function normalizeFieldMetrics(raw: unknown): HarvestFieldMetrics {
   return metrics
 }
 
+function normalizeSeasonRecord(raw: unknown) {
+  const record = asRecord(raw)
+  if (!record) return null
+  return {
+    id: pickNumber(record, ['id', 'season_id', 'seasonId']),
+    crop: pickString(record, ['crop', 'crop_name']),
+    start_date: pickString(record, ['start_date', 'startDate']),
+    harvest_date: pickString(record, ['harvest_date', 'harvestDate', 'end_date']),
+  }
+}
+
 export function normalizeAnalyticsField(raw: unknown): HarvestAnalyticsField | null {
   const record = asRecord(raw)
   if (!record) return null
 
   const parcelId = pickString(record, ['parcel_id', 'parcelId', 'id'])
   const name = pickString(record, ['name', 'field_name', 'label'])
-  const crop = pickString(record, ['crop', 'crop_name'])
-  const startDate = pickString(record, ['start_date', 'startDate', 'sowing_date'])
-  const harvestDate = pickString(record, ['harvest_date', 'harvestDate', 'expected_harvest_date'])
-  const area = pickNumber(record, ['area', 'area_m2', 'area_m²'])
+  if (!parcelId || !name) return null
 
-  if (!parcelId || !name || !crop || !startDate || !harvestDate || area === undefined) return null
+  const seasonsRaw = Array.isArray(record.seasons) ? record.seasons : []
+  const seasons = seasonsRaw
+    .map((entry) => normalizeSeasonRecord(entry))
+    .filter((entry): entry is NonNullable<typeof entry> => Boolean(entry))
+
+  const currentSeasonId =
+    pickNumber(record, ['season_id', 'seasonId', 'current_season_id', 'currentSeasonId']) ??
+    seasons[0]?.id
+
+  const activeSeason =
+    seasons.find((season) => season.id === currentSeasonId) ??
+    seasons.find((season) => season.id !== undefined) ??
+    null
+
+  const crop =
+    pickString(record, ['crop', 'crop_name']) ??
+    activeSeason?.crop ??
+    '—'
+  const startDate =
+    pickString(record, ['start_date', 'startDate', 'sowing_date']) ??
+    activeSeason?.start_date ??
+    ''
+  const harvestDate =
+    pickString(record, ['harvest_date', 'harvestDate', 'expected_harvest_date', 'end_date']) ??
+    activeSeason?.harvest_date ??
+    ''
+  const area = pickNumber(record, ['area', 'area_m2', 'area_m²']) ?? 0
 
   return {
     parcel_id: parcelId,
-    season_id: pickNumber(record, ['season_id', 'seasonId']),
+    season_id: currentSeasonId,
     name,
     crop,
-    cultivation: pickString(record, ['cultivation', 'cultivation_type']),
+    cultivation: pickString(record, ['cultivation', 'cultivation_method', 'cultivation_type']),
     area,
     start_date: startDate,
     harvest_date: harvestDate,
-    metrics: normalizeFieldMetrics(record.metrics ?? record.metric_values ?? record.analytics),
+    metrics: normalizeFieldMetrics(record.metrics ?? record.metric_values ?? record.analytics ?? record),
+  }
+}
+
+export function normalizeEntityToField(raw: unknown, parcelId: string): HarvestAnalyticsField | null {
+  const record = asRecord(raw)
+  if (!record) return null
+
+  const seasonsRaw = Array.isArray(record.seasons) ? record.seasons : []
+  const seasons = seasonsRaw
+    .map((entry) => normalizeSeasonRecord(entry))
+    .filter((entry): entry is NonNullable<typeof entry> => Boolean(entry))
+
+  const currentSeasonId = pickNumber(record, ['current_season_id', 'currentSeasonId'])
+  const activeSeason =
+    seasons.find((season) => season.id === currentSeasonId) ??
+    seasons[seasons.length - 1] ??
+    null
+
+  const name = pickString(record, ['name', 'field_name']) || 'Field'
+  const area = pickNumber(record, ['area', 'area_m2']) ?? 0
+
+  return {
+    parcel_id: pickString(record, ['parcel_id', 'parcelId']) || parcelId,
+    season_id: activeSeason?.id ?? currentSeasonId,
+    name,
+    crop: activeSeason?.crop || '—',
+    area,
+    start_date: activeSeason?.start_date || '',
+    harvest_date: activeSeason?.harvest_date || '',
+    metrics: {},
   }
 }
 

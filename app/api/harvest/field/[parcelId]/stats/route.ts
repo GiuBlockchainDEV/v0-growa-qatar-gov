@@ -1,35 +1,14 @@
 import { NextResponse } from 'next/server'
 import { requireHarvestAccess, harvestErrorResponse } from '@/lib/harvest/auth'
-import { harvestGetAnalyticsFields, harvestGetFieldStatsCsv } from '@/lib/harvest/client'
+import { harvestGetFieldStatsCsv } from '@/lib/harvest/client'
 import { parseHarvestFieldStatsCsv } from '@/lib/harvest/csv-stats'
-import { getDemoAnalyticsFields, getDemoFieldStats } from '@/lib/harvest/demo-data'
-import { normalizePaginatedFieldsResponse } from '@/lib/harvest/normalize'
-import { harvestJsonResponse, resolveHarvestPayload } from '@/lib/harvest/resolve'
+import { getDemoFieldStats } from '@/lib/harvest/demo-data'
+import { resolveHarvestSeasonId } from '@/lib/harvest/season-resolve'
+import { harvestJsonResponse } from '@/lib/harvest/resolve'
 import type { HarvestMode } from '@/lib/harvest/types'
 
 interface RouteContext {
   params: Promise<{ parcelId: string }>
-}
-
-async function resolveFieldSeasonId(parcelId: string, mode: HarvestMode, demoMode: boolean) {
-  const { payload } = await resolveHarvestPayload({
-    demoMode,
-    fetchLive: async () =>
-      normalizePaginatedFieldsResponse(
-        await harvestGetAnalyticsFields({
-          mode,
-          page: '1',
-          perpage: '50',
-          sort: 'name',
-          order: 'asc',
-        })
-      ),
-    fetchDemo: () => getDemoAnalyticsFields(mode),
-    validateLive: (data) => data.results.length > 0,
-  })
-
-  const field = payload.results.find((entry) => entry.parcel_id === parcelId)
-  return field?.season_id ?? null
 }
 
 export async function GET(request: Request, context: RouteContext) {
@@ -46,8 +25,12 @@ export async function GET(request: Request, context: RouteContext) {
   const seasonIdParam = searchParams.get('season_id')
 
   try {
-    const seasonIdFromList = await resolveFieldSeasonId(parcelId, mode, access.demoMode)
-    const seasonId = Number(seasonIdParam || seasonIdFromList)
+    const seasonId = await resolveHarvestSeasonId(
+      parcelId,
+      mode,
+      access.demoMode,
+      seasonIdParam
+    )
     if (!Number.isFinite(seasonId)) {
       return NextResponse.json({ error: 'Field season not found' }, { status: 404 })
     }

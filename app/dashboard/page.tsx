@@ -280,6 +280,11 @@ function SlideFromLeftWorkspace({
                   params.set('focus', `harvest-${field.parcel_id}`)
                   params.set('harvestMetric', searchParams.get('harvestMetric') || 'npp')
                   params.set('harvestGranularity', searchParams.get('harvestGranularity') || 'dekad')
+                  if (field.season_id) {
+                    params.set('harvestSeasonId', String(field.season_id))
+                  } else {
+                    params.delete('harvestSeasonId')
+                  }
                   params.delete('harvestPeriod')
                   params.delete('pointId')
                   params.delete('farmId')

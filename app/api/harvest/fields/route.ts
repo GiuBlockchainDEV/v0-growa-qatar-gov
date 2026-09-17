@@ -10,7 +10,7 @@ export async function GET(request: Request) {
   if (!access.ok) return access.response
 
   const { searchParams } = new URL(request.url)
-  const source = searchParams.get('source') || 'analytics'
+  const source = searchParams.get('source') || 'all'
   const mode = (searchParams.get('mode') || 'current') as HarvestMode
 
   try {

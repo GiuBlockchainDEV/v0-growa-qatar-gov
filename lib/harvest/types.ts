@@ -87,6 +87,7 @@ export interface HarvestMapFieldRing {
 
 export interface HarvestMapField {
   parcel_id: string
+  season_id?: number
   name: string
   crop: string
   rings: HarvestMapFieldRing[][]

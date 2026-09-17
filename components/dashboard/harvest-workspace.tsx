@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import {
   Activity,
+  ArrowLeft,
   Droplets,
   Leaf,
   Loader2,
@@ -28,9 +29,11 @@ import {
   IntelligenceTableHead,
   IntelligenceWorkspaceRoot,
 } from '@/components/dashboard/intelligence-workspace-ui'
+import { normalizeEntityToField } from '@/lib/harvest/normalize'
 import type {
   HarvestAnalyticsField,
   HarvestAnalyticsResponse,
+  HarvestFieldMetrics,
   HarvestFieldStatsResponse,
   HarvestMetricKey,
   HarvestMetricSummary,
@@ -202,17 +205,48 @@ export function HarvestWorkspace() {
     setCreateDrawMethod(harvestDrawMethod)
   }, [harvestDrawMethod])
 
+  const hydrateSelectedField = useCallback(async (fieldList: HarvestAnalyticsField[], activeParcelId: string) => {
+    const match = fieldList.find((field) => field.parcel_id === activeParcelId)
+    if (match) {
+      setSelectedField(match)
+      return
+    }
+
+    try {
+      const response = await fetch(`/api/harvest/entity/${activeParcelId}`, { cache: 'no-store' })
+      if (!response.ok) {
+        setSelectedField(null)
+        return
+      }
+      const entity = await response.json()
+      const normalized = normalizeEntityToField(entity, activeParcelId)
+      if (!normalized) {
+        setSelectedField(null)
+        return
+      }
+
+      if (harvestSeasonIdParam) {
+        const seasonIdFromUrl = Number(harvestSeasonIdParam)
+        if (Number.isFinite(seasonIdFromUrl)) {
+          normalized.season_id = seasonIdFromUrl
+        }
+      }
+
+      setSelectedField(normalized)
+    } catch {
+      setSelectedField(null)
+    }
+  }, [harvestSeasonIdParam])
+
   const loadData = useCallback(async () => {
     setLoading(true)
     setError(null)
 
     try {
       const fieldsParams = new URLSearchParams({
-        mode,
-        page: '1',
-        perpage: '50',
-        sort: 'area',
-        order: 'desc',
+        source: 'all',
+        sort_by: 'harvest_date',
+        sort_dir: 'desc',
       })
 
       const requests: Promise<unknown>[] = [
@@ -233,8 +267,9 @@ export function HarvestWorkspace() {
       const results = await Promise.all(requests)
       const fieldsResult = results[0] as { data: { total: number; results: HarvestAnalyticsField[] } }
       const fieldsPayload = fieldsResult.data
+      const nextFields = fieldsPayload.results || []
 
-      setFields(fieldsPayload.results || [])
+      setFields(nextFields)
 
       if (!parcelId) {
         const analyticsResult = results[1] as { data: HarvestAnalyticsResponse }
@@ -245,8 +280,7 @@ export function HarvestWorkspace() {
       } else {
         setAnalytics(null)
         setTimeseries(null)
-        const match = (fieldsPayload.results || []).find((field) => field.parcel_id === parcelId) || null
-        setSelectedField(match)
+        await hydrateSelectedField(nextFields, parcelId)
       }
     } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : 'Unable to load Harvest data')
@@ -257,7 +291,7 @@ export function HarvestWorkspace() {
     } finally {
       setLoading(false)
     }
-  }, [mode, parcelId])
+  }, [hydrateSelectedField, mode, parcelId])
 
   const handleFieldCreated = useCallback(
     (createdParcelId: string, seasonId?: number) => {
@@ -293,8 +327,20 @@ export function HarvestWorkspace() {
     [router, searchParams]
   )
 
+  const activeSeasonId = useMemo(() => {
+    const fromField = selectedField?.season_id
+    const fromUrl = harvestSeasonIdParam ? Number(harvestSeasonIdParam) : undefined
+    if (fromField && Number.isFinite(fromField)) return fromField
+    if (fromUrl && Number.isFinite(fromUrl)) return fromUrl
+    return undefined
+  }, [harvestSeasonIdParam, selectedField?.season_id])
+
+  const isFieldDetailView = Boolean(parcelId && !harvestCreateActive)
+  const seasonIdForParams = activeSeasonId ? String(activeSeasonId) : null
+
   const loadFieldDetail = useCallback(async () => {
-    if (!selectedField?.parcel_id || !selectedField.season_id) {
+    const activeParcelId = selectedField?.parcel_id || parcelId
+    if (!activeParcelId || !activeSeasonId) {
       setFieldStats(null)
       setFieldRaster(null)
       return
@@ -303,14 +349,14 @@ export function HarvestWorkspace() {
     setFieldDetailLoading(true)
     try {
       const statsResult = await fetchJson<HarvestFieldStatsResponse>(
-        `/api/harvest/field/${selectedField.parcel_id}/stats?mode=${mode}&season_id=${selectedField.season_id}`
+        `/api/harvest/field/${activeParcelId}/stats?mode=${mode}&season_id=${activeSeasonId}`
       )
       setFieldStats(statsResult.data)
       const latestPeriod = statsResult.data.periods.at(-1)?.value || null
       if (mapGranularity === 'dekad' && latestPeriod && !selectedPeriod) {
         updateHarvestMapParams({
           harvestPeriod: latestPeriod,
-          harvestSeasonId: String(selectedField.season_id),
+          harvestSeasonId: String(activeSeasonId),
         })
       }
     } catch {
@@ -318,7 +364,15 @@ export function HarvestWorkspace() {
     } finally {
       setFieldDetailLoading(false)
     }
-  }, [mapGranularity, mode, selectedField, selectedPeriod, updateHarvestMapParams])
+  }, [
+    activeSeasonId,
+    mapGranularity,
+    mode,
+    parcelId,
+    selectedField?.parcel_id,
+    selectedPeriod,
+    updateHarvestMapParams,
+  ])
 
   const dispatchRasterOverlay = useCallback((raster: HarvestRasterResponse | null) => {
     window.dispatchEvent(
@@ -340,8 +394,9 @@ export function HarvestWorkspace() {
   }, [])
 
   const loadFieldRaster = useCallback(async () => {
-    const seasonId = selectedField?.season_id || (harvestSeasonIdParam ? Number(harvestSeasonIdParam) : undefined)
-    if (!selectedField?.parcel_id || !seasonId || !Number.isFinite(seasonId)) {
+    const activeParcelId = selectedField?.parcel_id || parcelId
+    const seasonId = activeSeasonId
+    if (!activeParcelId || !seasonId || !Number.isFinite(seasonId)) {
       setFieldRaster(null)
       dispatchRasterOverlay(null)
       return
@@ -372,7 +427,7 @@ export function HarvestWorkspace() {
       }
 
       const rasterResult = await fetchJson<HarvestRasterResponse>(
-        `/api/harvest/field/${selectedField.parcel_id}/raster?${params.toString()}`
+        `/api/harvest/field/${activeParcelId}/raster?${params.toString()}`
       )
       setFieldRaster(rasterResult.data)
       dispatchRasterOverlay(rasterResult.data)
@@ -383,11 +438,12 @@ export function HarvestWorkspace() {
       setFieldRasterLoading(false)
     }
   }, [
+    activeSeasonId,
     dispatchRasterOverlay,
-    harvestSeasonIdParam,
     mapGranularity,
     mode,
-    selectedField,
+    parcelId,
+    selectedField?.parcel_id,
     selectedMapMetric,
     selectedPeriod,
   ])
@@ -403,6 +459,31 @@ export function HarvestWorkspace() {
   useEffect(() => {
     void loadFieldRaster()
   }, [loadFieldRaster])
+
+  useEffect(() => {
+    if (!fieldStats) return
+
+    const metrics: HarvestFieldMetrics = {}
+    for (const key of FIELD_KPI_METRICS) {
+      const seasonValue = fieldStats.timeseries.season[key]?.at(-1)?.value
+      const dekadValue = fieldStats.timeseries.dekad[key]?.at(-1)?.value
+      const value = seasonValue ?? dekadValue
+      if (value !== undefined && Number.isFinite(value)) {
+        metrics[key] = value
+      }
+    }
+
+    if (Object.keys(metrics).length === 0) return
+
+    setSelectedField((current) => {
+      if (!current || current.parcel_id !== fieldStats.parcel_id) return current
+      const hasChanges = FIELD_KPI_METRICS.some(
+        (key) => metrics[key] !== undefined && metrics[key] !== current.metrics?.[key]
+      )
+      if (!hasChanges) return current
+      return { ...current, metrics: { ...current.metrics, ...metrics } }
+    })
+  }, [fieldStats])
 
   useEffect(() => {
     return () => {
@@ -540,14 +621,14 @@ export function HarvestWorkspace() {
   }, [clearFieldSelection, loadData, selectedField])
 
   const runYieldEstimate = useCallback(async () => {
-    if (!selectedField?.parcel_id || !selectedField.season_id) return
+    if (!selectedField?.parcel_id || !activeSeasonId) return
 
     setYieldLoading(true)
     setYieldTask(null)
 
     try {
       const triggerResult = await fetchJson<{ task_id: string }>(
-        `/api/harvest/yield/${mode}/${selectedField.parcel_id}/${selectedField.season_id}`
+        `/api/harvest/yield/${mode}/${selectedField.parcel_id}/${activeSeasonId}`
       )
       let attempts = 0
       while (attempts < 40) {
@@ -571,7 +652,7 @@ export function HarvestWorkspace() {
     } finally {
       setYieldLoading(false)
     }
-  }, [mode, selectedField])
+  }, [activeSeasonId, mode, selectedField?.parcel_id])
 
   const updateMode = (nextMode: HarvestMode) => {
     setMode(nextMode)
@@ -585,18 +666,37 @@ export function HarvestWorkspace() {
     <IntelligenceWorkspaceRoot>
       <IntelligenceHero
         eyebrow="Harvest Prediction"
-        title="Production & Harvest Intelligence"
-        description="Satellite-driven water productivity, biomass, and yield outlook integrated directly into the Growa workspace."
+        title={
+          isFieldDetailView && selectedField
+            ? selectedField.name
+            : 'Production & Harvest Intelligence'
+        }
+        description={
+          isFieldDetailView && selectedField
+            ? `${selectedField.crop} • ${formatArea(selectedField.area)} • ${selectedField.start_date} → ${selectedField.harvest_date}`
+            : 'Satellite-driven water productivity, biomass, and yield outlook integrated directly into the Growa workspace.'
+        }
         icon={Sprout}
         statusItems={[
           { label: 'Mode', value: mode === 'current' ? 'Observed' : 'Forecast', accent: true },
           { label: 'Fields', value: String(fields.length) },
           {
             label: 'Source',
-            value: selectedField ? selectedField.name : 'National analytics',
+            value: isFieldDetailView && selectedField ? 'Field detail' : 'National analytics',
           },
         ]}
       />
+
+      {isFieldDetailView ? (
+        <button
+          type="button"
+          onClick={clearFieldSelection}
+          className="inline-flex items-center gap-2 rounded-lg border border-border bg-card px-3 py-2 text-xs font-medium text-foreground hover:bg-secondary/40"
+        >
+          <ArrowLeft className="h-3.5 w-3.5" />
+          Back to all fields
+        </button>
+      ) : null}
 
       <div className="flex flex-wrap items-center gap-2">
         <button
@@ -641,9 +741,12 @@ export function HarvestWorkspace() {
       </div>
 
       {loading ? <IntelligenceLoadingState message="Loading Harvest analytics..." /> : null}
+      {!loading && isFieldDetailView && !selectedField && !error ? (
+        <IntelligenceLoadingState message="Loading field details..." />
+      ) : null}
       {!loading && error ? <IntelligenceErrorState message={error} /> : null}
 
-      {!loading && !error ? (
+      {!loading && !error && (!isFieldDetailView || selectedField) ? (
         <>
           {harvestCreateActive ? (
             <HarvestFieldCreatePanel
@@ -655,7 +758,7 @@ export function HarvestWorkspace() {
             />
           ) : null}
 
-          {!selectedField ? (
+          {!isFieldDetailView ? (
             <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
               {headlineMetrics.map((metric, index) => {
                 const meta = METRIC_LABELS[metric.key]
@@ -675,29 +778,14 @@ export function HarvestWorkspace() {
             </div>
           ) : null}
 
-          {selectedField ? (
+          {isFieldDetailView && selectedField ? (
             <div className="space-y-4">
               <IntelligencePanel
-                title={selectedField.name}
-                subtitle="Field-specific analytics, maps, and trends"
+                title="Field overview"
+                subtitle="KPIs, yield estimate, and field actions"
                 icon={Sprout}
               >
                 <div className="space-y-4">
-                  <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                    <span>{selectedField.crop}</span>
-                    <span>•</span>
-                    <span>{formatArea(selectedField.area)}</span>
-                    <span>•</span>
-                    <span>{selectedField.start_date} → {selectedField.harvest_date}</span>
-                    <button
-                      type="button"
-                      onClick={clearFieldSelection}
-                      className="ml-auto rounded-md border border-border px-2 py-1 text-[11px] text-foreground hover:bg-secondary/40"
-                    >
-                      Back to overview
-                    </button>
-                  </div>
-
                   <div className="grid grid-cols-2 gap-2 md:grid-cols-4 xl:grid-cols-7">
                     {FIELD_KPI_METRICS.map((key) => (
                       <div key={key} className="rounded-lg border border-border bg-secondary/20 px-3 py-2">
@@ -715,7 +803,7 @@ export function HarvestWorkspace() {
                     <button
                       type="button"
                       onClick={() => void runYieldEstimate()}
-                      disabled={yieldLoading || !selectedField.season_id}
+                      disabled={yieldLoading || !activeSeasonId}
                       className="inline-flex items-center gap-2 rounded-lg border border-primary/30 bg-primary/10 px-3 py-2 text-xs font-medium text-primary disabled:cursor-not-allowed disabled:opacity-50"
                     >
                       {yieldLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Target className="h-3.5 w-3.5" />}
@@ -759,9 +847,7 @@ export function HarvestWorkspace() {
                         onClick={() =>
                           updateHarvestMapParams({
                             harvestMetric: metric,
-                            harvestSeasonId: selectedField.season_id
-                              ? String(selectedField.season_id)
-                              : harvestSeasonIdParam,
+                            harvestSeasonId: seasonIdForParams,
                           })
                         }
                         className={`rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors ${
@@ -781,9 +867,7 @@ export function HarvestWorkspace() {
                       onClick={() =>
                         updateHarvestMapParams({
                           harvestGranularity: 'dekad',
-                          harvestSeasonId: selectedField.season_id
-                            ? String(selectedField.season_id)
-                            : harvestSeasonIdParam,
+                          harvestSeasonId: seasonIdForParams,
                         })
                       }
                       className={`rounded-md border px-2.5 py-1 text-[11px] ${
@@ -800,9 +884,7 @@ export function HarvestWorkspace() {
                         updateHarvestMapParams({
                           harvestGranularity: 'season',
                           harvestPeriod: null,
-                          harvestSeasonId: selectedField.season_id
-                            ? String(selectedField.season_id)
-                            : harvestSeasonIdParam,
+                          harvestSeasonId: seasonIdForParams,
                         })
                       }
                       className={`rounded-md border px-2.5 py-1 text-[11px] ${
@@ -819,9 +901,7 @@ export function HarvestWorkspace() {
                         onChange={(event) =>
                           updateHarvestMapParams({
                             harvestPeriod: event.target.value || null,
-                            harvestSeasonId: selectedField.season_id
-                              ? String(selectedField.season_id)
-                              : harvestSeasonIdParam,
+                            harvestSeasonId: seasonIdForParams,
                           })
                         }
                         className="rounded-md border border-border bg-card px-2 py-1 text-[11px] text-foreground"
@@ -915,6 +995,7 @@ export function HarvestWorkspace() {
             </div>
           ) : null}
 
+          {!isFieldDetailView ? (
           <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1.4fr)_minmax(0,0.9fr)]">
             <IntelligencePanel title="Open-field registry" subtitle="Harvest entities with analytics metrics" icon={Leaf}>
               <IntelligenceDataTable>
@@ -969,7 +1050,7 @@ export function HarvestWorkspace() {
               </IntelligenceDataTable>
             </IntelligencePanel>
 
-            {!selectedField ? (
+            {!isFieldDetailView ? (
               <IntelligencePanel
                 title="Water consumption trend"
                 subtitle="National dekad AETI series"
@@ -1001,6 +1082,7 @@ export function HarvestWorkspace() {
               </IntelligencePanel>
             ) : null}
           </div>
+          ) : null}
         </>
       ) : null}
     </IntelligenceWorkspaceRoot>
