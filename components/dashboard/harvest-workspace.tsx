@@ -103,7 +103,24 @@ function formatTimeseriesValue(value: number | undefined, key?: HarvestMetricKey
 async function fetchJson<T>(url: string): Promise<{ data: T; isDemo: boolean }> {
   const response = await fetch(url, { cache: 'no-store' })
   const isDemo = response.headers.get('X-Harvest-Demo') === 'true'
-  const payload = await response.json()
+  const contentType = response.headers.get('content-type') || ''
+  const rawBody = await response.text()
+  let payload: Record<string, unknown> | null = null
+
+  if (contentType.includes('application/json')) {
+    try {
+      payload = JSON.parse(rawBody) as Record<string, unknown>
+    } catch {
+      throw new Error('Server returned invalid JSON.')
+    }
+  } else if (rawBody.trim().startsWith('<')) {
+    throw new Error(
+      `Server returned HTML instead of JSON (${response.status}). The API route may have crashed during raster georeferencing.`
+    )
+  } else {
+    throw new Error(`Unexpected response type: ${contentType || 'unknown'}`)
+  }
+
   if (!response.ok) {
     const hint = typeof payload?.hint === 'string' ? payload.hint : ''
     const message =

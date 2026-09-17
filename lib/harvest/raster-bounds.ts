@@ -1,5 +1,5 @@
 import type { RasterImageCrop } from '@/lib/harvest/image-process'
-import { boundsFromRings } from '@/lib/harvest/raster'
+import { boundsFromRings } from '@/lib/harvest/geojson'
 
 export type RasterBounds = [[number, number], [number, number]]
 

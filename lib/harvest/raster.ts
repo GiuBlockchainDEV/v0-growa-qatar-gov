@@ -1,5 +1,5 @@
 import type { HarvestMetricKey } from '@/lib/harvest/types'
-import type { LatLngVertex } from '@/lib/harvest/geojson'
+import { boundsFromRings, type LatLngVertex } from '@/lib/harvest/geojson'
 
 export interface HarvestRasterMeta {
   bounds: [[number, number], [number, number]]
@@ -27,20 +27,6 @@ const METRIC_UNITS: Record<HarvestMetricKey, string> = {
   rwd: 'index',
   wcu: '%',
   cost: 'QAR',
-}
-
-export function boundsFromRings(rings: LatLngVertex[][]): [[number, number], [number, number]] {
-  const vertices = rings.flat()
-  if (vertices.length === 0) {
-    return [[25.2, 51.1], [25.5, 51.4]]
-  }
-
-  const lats = vertices.map((vertex) => vertex.lat)
-  const lngs = vertices.map((vertex) => vertex.lng)
-  return [
-    [Math.min(...lats), Math.min(...lngs)],
-    [Math.max(...lats), Math.max(...lngs)],
-  ]
 }
 
 export function buildDemoRasterMeta(metric: HarvestMetricKey, rings: LatLngVertex[][]): HarvestRasterMeta {

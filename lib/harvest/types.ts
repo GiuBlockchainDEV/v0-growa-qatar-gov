@@ -122,9 +122,19 @@ export interface HarvestRasterLegendItem {
   label: string
 }
 
-import type { HarvestRasterGeorefDebug } from '@/lib/harvest/raster-georef'
-
-export type { HarvestRasterGeorefDebug }
+export interface HarvestRasterGeorefDebug {
+  rasterCrs: string | null
+  rasterTransform: number[] | null
+  rawBounds: unknown
+  rawBbox: number[] | null
+  imageWidth: number | null
+  imageHeight: number | null
+  computedLeafletBounds: [[number, number], [number, number]]
+  fieldPolygonBounds: [[number, number], [number, number]] | null
+  boundsSource: 'affine_transform' | 'geojson_bbox' | 'leaflet_bounds' | 'default'
+  hasRotation: boolean
+  rotationWarning: string | null
+}
 
 export interface HarvestRasterResponse {
   metric: HarvestMetricKey

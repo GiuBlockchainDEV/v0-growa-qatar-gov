@@ -160,12 +160,17 @@ export async function GET(request: Request, context: RouteContext) {
 
     const resolvedSeasonId = meta.resolvedSeasonId ?? requestedSeasonId
     const clipRings = await loadHarvestClipRings(parcelId, false)
-    const georefMeta = await finalizeHarvestRasterGeoref({
-      meta,
-      parcelId,
-      metric,
-      clipRings,
-    })
+    let georefMeta = meta
+    try {
+      georefMeta = await finalizeHarvestRasterGeoref({
+        meta,
+        parcelId,
+        metric,
+        clipRings,
+      })
+    } catch (georefError) {
+      console.error('[harvest-raster-georef] finalize failed, using metadata bounds', georefError)
+    }
     const payload = {
       metric,
       granularity: georefMeta.granularity,

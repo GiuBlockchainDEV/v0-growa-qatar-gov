@@ -1,5 +1,3 @@
-import sharp from 'sharp'
-
 export interface RasterImageDimensions {
   width: number
   height: number
@@ -28,7 +26,7 @@ function readJpegDimensions(buffer: Buffer): RasterImageDimensions | null {
     if (marker === 0xc0 || marker === 0xc2) {
       const height = buffer.readUInt16BE(offset + 5)
       const width = buffer.readUInt16BE(offset + 7)
-      if (width > 0 && height > 0) {
+      if (width > 0 && height >  0) {
         return { width, height, format: 'jpeg' }
       }
       return null
@@ -43,23 +41,5 @@ function readJpegDimensions(buffer: Buffer): RasterImageDimensions | null {
 export async function readRasterImageDimensions(
   buffer: Buffer
 ): Promise<RasterImageDimensions | null> {
-  const headerDimensions = readPngDimensions(buffer) || readJpegDimensions(buffer)
-  if (headerDimensions?.width && headerDimensions?.height) {
-    return headerDimensions
-  }
-
-  try {
-    const metadata = await sharp(buffer).metadata()
-    if (metadata.width && metadata.height) {
-      return {
-        width: metadata.width,
-        height: metadata.height,
-        format: metadata.format ?? null,
-      }
-    }
-  } catch {
-    // fall through
-  }
-
-  return null
+  return readPngDimensions(buffer) || readJpegDimensions(buffer)
 }

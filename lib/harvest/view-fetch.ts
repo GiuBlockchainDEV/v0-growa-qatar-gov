@@ -11,8 +11,8 @@ import {
   fieldBoundsFromClipRings,
   logRasterGeorefDebug,
   resolveRasterGeoref,
-  type HarvestRasterGeorefDebug,
 } from '@/lib/harvest/raster-georef'
+import type { HarvestRasterGeorefDebug } from '@/lib/harvest/types'
 import { readRasterImageDimensions } from '@/lib/harvest/raster-image'
 import { normalizeRasterBounds, normalizeRasterLegend } from '@/lib/harvest/raster-bounds'
 import type { HarvestMetricKey, HarvestMode, HarvestTrendGranularity } from '@/lib/harvest/types'
@@ -299,7 +299,10 @@ export async function finalizeHarvestRasterGeoref({
     meta.georefDebug?.imageHeight ??
     (typeof meta.rawMeta.height === 'number' ? meta.rawMeta.height : null)
 
-  if (!imageWidth || !imageHeight) {
+  const transform = parseTransform(meta.rawMeta)
+  const needsImageDimensions = Boolean(transform) && (!imageWidth || !imageHeight)
+
+  if (needsImageDimensions) {
     try {
       const buffer = await fetchHarvestRasterBinary({ meta, parcelId, metric })
       const dimensions = await readRasterImageDimensions(Buffer.from(buffer))

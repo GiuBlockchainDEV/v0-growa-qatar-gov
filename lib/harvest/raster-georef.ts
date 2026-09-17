@@ -1,26 +1,10 @@
-import { boundsFromRings } from '@/lib/harvest/raster'
+import { boundsFromRings } from '@/lib/harvest/geojson'
+import type { HarvestRasterGeorefDebug } from '@/lib/harvest/types'
 import type { RasterBounds } from '@/lib/harvest/raster-bounds'
 import { normalizeRasterBounds } from '@/lib/harvest/raster-bounds'
 
-export type RasterBoundsSource =
-  | 'affine_transform'
-  | 'geojson_bbox'
-  | 'leaflet_bounds'
-  | 'default'
-
-export interface HarvestRasterGeorefDebug {
-  rasterCrs: string | null
-  rasterTransform: number[] | null
-  rawBounds: unknown
-  rawBbox: number[] | null
-  imageWidth: number | null
-  imageHeight: number | null
-  computedLeafletBounds: RasterBounds
-  fieldPolygonBounds: RasterBounds | null
-  boundsSource: RasterBoundsSource
-  hasRotation: boolean
-  rotationWarning: string | null
-}
+export type RasterBoundsSource = HarvestRasterGeorefDebug['boundsSource']
+export type { HarvestRasterGeorefDebug }
 
 const DEFAULT_BOUNDS: RasterBounds = [[25.2, 51.1], [25.5, 51.4]]
 const EPSG_4326_ALIASES = new Set(['EPSG:4326', 'epsg:4326', 'OGC:CRS84', 'WGS84', 'EPSG:4326/WGS84'])

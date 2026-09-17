@@ -110,7 +110,7 @@ export function extractBoundsFromGeoJson(geojson: unknown): [[number, number], [
   return boundsFromRings(rings)
 }
 
-function boundsFromRings(rings: LatLngVertex[][]): [[number, number], [number, number]] {
+export function boundsFromRings(rings: LatLngVertex[][]): [[number, number], [number, number]] {
   const vertices = rings.flat()
   if (vertices.length === 0) return [[25.2, 51.1], [25.5, 51.4]]
   const lats = vertices.map((vertex) => vertex.lat)
