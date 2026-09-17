@@ -7,10 +7,11 @@ import {
 } from '@/lib/harvest/client'
 import { extractBoundsFromGeoJson } from '@/lib/harvest/geojson'
 import { resolveHarvestDataMode } from '@/lib/harvest/mode-resolve'
+import { fieldBoundsFromClipRings } from '@/lib/harvest/raster-georef'
 import {
-  fieldBoundsFromClipRings,
-  resolveRasterGeoref,
-} from '@/lib/harvest/raster-georef'
+  enrichRasterMetaDimensions,
+  resolveRasterGeorefFromMeta,
+} from '@/lib/harvest/raster-meta-resolve'
 import type { HarvestRasterGeorefDebug } from '@/lib/harvest/types'
 import { normalizeRasterLegend } from '@/lib/harvest/raster-bounds'
 import type { HarvestMetricKey, HarvestMode, HarvestTrendGranularity } from '@/lib/harvest/types'
@@ -77,6 +78,33 @@ async function resolveParcelBounds(parcelId: string) {
   }
 }
 
+async function resolveViewImageFile({
+  mode,
+  parcelId,
+  seasonId,
+  metric,
+}: {
+  mode: HarvestMode
+  parcelId: string
+  seasonId: number
+  metric: HarvestMetricKey
+}): Promise<{ filename: string; buffer: ArrayBuffer }> {
+  const candidates = [`${metric}.jpeg`, `${metric}.jpg`, `${metric}.png`]
+
+  for (const filename of candidates) {
+    try {
+      const buffer = await harvestGetFieldViewFile(mode, parcelId, seasonId, filename)
+      if (buffer.byteLength > 0) {
+        return { filename, buffer }
+      }
+    } catch {
+      // try next extension
+    }
+  }
+
+  throw new Error('HARVEST_VIEW_IMAGE_UNAVAILABLE')
+}
+
 async function fetchViewRasterMeta({
   mode,
   parcelId,
@@ -90,19 +118,52 @@ async function fetchViewRasterMeta({
   metric: HarvestMetricKey
   fieldPolygonBounds?: [[number, number], [number, number]] | null
 }): Promise<HarvestRasterMetaResult> {
-  const legend = await harvestGetFieldViewJson(mode, parcelId, seasonId, 'legend.json')
+  let legend: unknown = null
+  try {
+    legend = await harvestGetFieldViewJson(mode, parcelId, seasonId, 'legend.json')
+  } catch {
+    // legend.json is optional; season maps can exist without it
+  }
+
   const parsedLegend = parseLegendJson(legend)
   const rawMeta = legend && typeof legend === 'object' ? (legend as Record<string, unknown>) : {}
   if (parsedLegend.bounds) {
     rawMeta.bounds = parsedLegend.bounds
   }
 
-  const georef = resolveRasterGeoref({
+  const viewImage = await resolveViewImageFile({ mode, parcelId, seasonId, metric })
+
+  let imageWidth = typeof rawMeta.width === 'number' ? rawMeta.width : null
+  let imageHeight = typeof rawMeta.height === 'number' ? rawMeta.height : null
+  if (!imageWidth || !imageHeight) {
+    const dimensions = await enrichRasterMetaDimensions({
+      rasterMode: mode,
+      parcelId,
+      seasonId,
+      metric,
+      granularity: 'season',
+      period: null,
+      imageBuffer: viewImage.buffer,
+    })
+    imageWidth = dimensions.width
+    imageHeight = dimensions.height
+  }
+
+  const georef = resolveRasterGeorefFromMeta({
     rawMeta,
-    imageWidth: typeof rawMeta.width === 'number' ? rawMeta.width : null,
-    imageHeight: typeof rawMeta.height === 'number' ? rawMeta.height : null,
+    imageWidth,
+    imageHeight,
     fieldPolygonBounds,
   })
+
+  if (!parsedLegend.bounds && !parseTransform(rawMeta) && !fieldPolygonBounds) {
+    const parcelBounds = await resolveParcelBounds(parcelId)
+    if (parcelBounds) {
+      georef.bounds = parcelBounds
+      georef.debug.boundsSource = 'leaflet_bounds'
+      georef.debug.computedLeafletBounds = parcelBounds
+    }
+  }
 
   return {
     bounds: georef.bounds,
@@ -115,7 +176,7 @@ async function fetchViewRasterMeta({
     period: null,
     resolvedSeasonId: seasonId,
     imageSource: 'view',
-    imageFilename: `${metric}.jpeg`,
+    imageFilename: viewImage.filename,
     rawMeta,
     georefDebug: georef.debug,
   }
@@ -147,14 +208,30 @@ async function fetchDynamicRasterMeta({
 
   const meta = await harvestGetFieldRasterMeta(rasterMode, parcelId, seasonId, query)
   const rawMeta = meta as Record<string, unknown>
-  const georef = resolveRasterGeoref({
+  let imageWidth = typeof meta.width === 'number' ? meta.width : null
+  let imageHeight = typeof meta.height === 'number' ? meta.height : null
+
+  if (!imageWidth || !imageHeight) {
+    const dimensions = await enrichRasterMetaDimensions({
+      rasterMode,
+      parcelId,
+      seasonId,
+      metric,
+      granularity,
+      period,
+    })
+    imageWidth = dimensions.width
+    imageHeight = dimensions.height
+  }
+
+  const georef = resolveRasterGeorefFromMeta({
     rawMeta,
-    imageWidth: typeof meta.width === 'number' ? meta.width : null,
-    imageHeight: typeof meta.height === 'number' ? meta.height : null,
+    imageWidth,
+    imageHeight,
     fieldPolygonBounds,
   })
 
-  if (!meta.bounds && !meta.bbox && !parseTransform(rawMeta)) {
+  if (!meta.bounds && !meta.bbox && !parseTransform(rawMeta) && !fieldPolygonBounds) {
     const parcelBounds = await resolveParcelBounds(parcelId)
     if (parcelBounds) {
       georef.bounds = parcelBounds
@@ -221,10 +298,6 @@ export async function fetchHarvestRasterMeta({
     for (const tryMode of modesToTry) {
       if (granularity === 'season') {
         try {
-          await harvestGetFieldRasterMeta(tryMode, parcelId, trySeasonId, {
-            var: metric,
-            granularity: 'season',
-          })
           return await fetchDynamicRasterMeta({
             mode: tryMode,
             parcelId,
@@ -239,8 +312,6 @@ export async function fetchHarvestRasterMeta({
         }
 
         try {
-          await harvestGetFieldViewJson(tryMode, parcelId, trySeasonId, 'legend.json')
-          await harvestGetFieldViewFile(tryMode, parcelId, trySeasonId, `${metric}.jpeg`)
           return await fetchViewRasterMeta({
             mode: tryMode,
             parcelId,
@@ -255,11 +326,6 @@ export async function fetchHarvestRasterMeta({
 
       if (granularity === 'dekad' && period) {
         try {
-          await harvestGetFieldRaster(tryMode, parcelId, trySeasonId, {
-            var: metric,
-            granularity: 'dekad',
-            period,
-          })
           return await fetchDynamicRasterMeta({
             mode: tryMode,
             parcelId,
@@ -274,7 +340,6 @@ export async function fetchHarvestRasterMeta({
         }
 
         try {
-          await harvestGetFieldViewFile(tryMode, parcelId, trySeasonId, `${metric}.jpeg`)
           return await fetchViewRasterMeta({
             mode: tryMode,
             parcelId,
@@ -284,6 +349,40 @@ export async function fetchHarvestRasterMeta({
           })
         } catch (error) {
           lastError = error instanceof Error ? error : new Error('Harvest view raster unavailable')
+        }
+      }
+    }
+  }
+
+  // Dekad-specific raster missing: fall back to season aggregate (maps often exist only at season level).
+  if (granularity === 'dekad') {
+    for (const trySeasonId of seasonsToTry) {
+      for (const tryMode of modesToTry) {
+        try {
+          const seasonMeta = await fetchDynamicRasterMeta({
+            mode: tryMode,
+            parcelId,
+            seasonId: trySeasonId,
+            metric,
+            granularity: 'season',
+            period: null,
+            fieldPolygonBounds,
+          })
+          return seasonMeta
+        } catch (error) {
+          lastError = error instanceof Error ? error : new Error('Harvest season raster fallback unavailable')
+        }
+
+        try {
+          return await fetchViewRasterMeta({
+            mode: tryMode,
+            parcelId,
+            seasonId: trySeasonId,
+            metric,
+            fieldPolygonBounds,
+          })
+        } catch (error) {
+          lastError = error instanceof Error ? error : new Error('Harvest season view fallback unavailable')
         }
       }
     }
@@ -302,7 +401,7 @@ export function applyHarvestRasterGeoref({
   clipRings?: Array<Array<{ lat: number; lng: number }>>
 }): HarvestRasterMetaResult {
   const fieldPolygonBounds = clipRings ? fieldBoundsFromClipRings(clipRings) : null
-  const georef = resolveRasterGeoref({
+  const georef = resolveRasterGeorefFromMeta({
     rawMeta: meta.rawMeta,
     imageWidth: typeof meta.rawMeta.width === 'number' ? meta.rawMeta.width : null,
     imageHeight: typeof meta.rawMeta.height === 'number' ? meta.rawMeta.height : null,

@@ -187,12 +187,36 @@ export function resolveRasterGeoref({
     }
   }
 
+  if (fieldPolygonBounds) {
+    candidates.push({ bounds: fieldPolygonBounds, source: 'leaflet_bounds' })
+  }
+
   const picked = pickBestRasterBounds(
     candidates.map((entry) => ({ bounds: entry.bounds, source: entry.source })),
     fieldPolygonBounds ?? null
   )
 
   if (!picked) {
+    if (fieldPolygonBounds) {
+      const bounds = fieldPolygonBounds
+      const debug: HarvestRasterGeorefDebug = {
+        rasterCrs: crs,
+        rasterTransform: transform,
+        rawBounds,
+        rawBbox,
+        imageWidth: imageWidth ?? null,
+        imageHeight: imageHeight ?? null,
+        computedLeafletBounds: bounds,
+        fieldPolygonBounds,
+        boundsSource: 'leaflet_bounds',
+        fieldOverlap: 1,
+        hasRotation,
+        rotationWarning:
+          rotationWarning ||
+          'Raster metadata had no usable bounds; using field polygon envelope as fallback',
+      }
+      return { bounds, debug }
+    }
     throw new Error('Unable to resolve raster georeferencing bounds from Harvest metadata')
   }
 

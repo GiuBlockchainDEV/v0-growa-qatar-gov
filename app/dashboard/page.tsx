@@ -89,7 +89,9 @@ function SlideFromLeftWorkspace({
     null
   )
   const [harvestFieldVertices, setHarvestFieldVertices] = useState<LatLngVertex[]>([])
-  const [panelVisible, setPanelVisible] = useState(false)
+  const startsWithLateralPanel =
+    moduleKey === 'weather' || moduleKey === 'harvest' || moduleKey === 'production-harvest'
+  const [panelVisible, setPanelVisible] = useState(startsWithLateralPanel)
 
   const isHarvestModule = moduleKey === 'harvest' || moduleKey === 'production-harvest'
 
@@ -229,9 +231,10 @@ function SlideFromLeftWorkspace({
   }, [harvestFields, isHarvestModule, selectedHarvestParcelId])
 
   useEffect(() => {
+    if (startsWithLateralPanel) return
     const frame = window.requestAnimationFrame(() => setPanelVisible(true))
     return () => window.cancelAnimationFrame(frame)
-  }, [])
+  }, [startsWithLateralPanel])
 
   return (
     <div className="relative h-full w-full overflow-hidden">
@@ -281,13 +284,15 @@ function SlideFromLeftWorkspace({
                   params.set('zoom', '13')
                   params.set('focus', `harvest-${field.parcel_id}`)
                   params.set('harvestMetric', searchParams.get('harvestMetric') || 'npp')
-                  params.set('harvestGranularity', searchParams.get('harvestGranularity') || 'dekad')
+                  params.set('harvestGranularity', searchParams.get('harvestGranularity') || 'season')
                   if (field.season_id) {
                     params.set('harvestSeasonId', String(field.season_id))
                   } else {
                     params.delete('harvestSeasonId')
                   }
-                  params.delete('harvestPeriod')
+                  if ((searchParams.get('harvestGranularity') || 'season') !== 'dekad') {
+                    params.delete('harvestPeriod')
+                  }
                   params.delete('pointId')
                   params.delete('farmId')
                   params.delete('crop')

@@ -46,6 +46,7 @@ interface WeatherBoundaryPoint {
 
 interface HarvestMapField {
   parcel_id: string
+  season_id?: number
   name: string
   crop: string
   rings: Array<Array<{ lat: number; lng: number }>>
@@ -1711,6 +1712,7 @@ export function SatelliteMap({
 
   useEffect(() => {
     if (!mapReady || !mapInstanceRef.current || !leafletRef.current || !selectedHarvestParcelId) return
+    if (isLateralMode && !lateralPanelOpen) return
 
     const map = mapInstanceRef.current
     const L = leafletRef.current
@@ -1719,27 +1721,46 @@ export function SatelliteMap({
         ? (targetZoom as number)
         : 13
 
-    const selectedField = harvestFields.find((field) => field.parcel_id === selectedHarvestParcelId)
-    if (selectedField) {
-      const vertices = selectedField.rings.flat()
-      if (vertices.length >= 3) {
-        const bounds = L.latLngBounds(vertices.map((vertex) => [vertex.lat, vertex.lng]))
-        map.flyToBounds(bounds, { padding: [48, 48], duration: 1.1, maxZoom: zoom })
+    const focusSelectedField = () => {
+      const selectedField = harvestFields.find((field) => field.parcel_id === selectedHarvestParcelId)
+      if (selectedField) {
+        const vertices = selectedField.rings.flat()
+        if (vertices.length >= 3) {
+          const bounds = L.latLngBounds(vertices.map((vertex) => [vertex.lat, vertex.lng]))
+          map.flyToBounds(bounds, { padding: [24, 24], duration: 1.1, maxZoom: zoom })
+          return
+        }
+
+        map.flyTo([selectedField.centroid.lat, selectedField.centroid.lng], zoom, { duration: 1.1 })
         return
       }
 
-      map.flyTo([selectedField.centroid.lat, selectedField.centroid.lng], zoom, { duration: 1.1 })
-      return
+      if (harvestFocusBounds) {
+        const [[south, west], [north, east]] = harvestFocusBounds
+        const bounds = L.latLngBounds([south, west], [north, east])
+        map.flyToBounds(bounds, { padding: [24, 24], duration: 1.1, maxZoom: zoom })
+      }
     }
 
-    if (harvestFocusBounds) {
-      const [[south, west], [north, east]] = harvestFocusBounds
-      const bounds = L.latLngBounds([south, west], [north, east])
-      map.flyToBounds(bounds, { padding: [48, 48], duration: 1.1, maxZoom: zoom })
+    const runFocus = () => {
+      map.invalidateSize?.()
+      focusSelectedField()
+    }
+
+    const frame = window.requestAnimationFrame(runFocus)
+    const settleTimeout = isLateralMode
+      ? window.setTimeout(runFocus, 320)
+      : window.setTimeout(runFocus, 0)
+
+    return () => {
+      window.cancelAnimationFrame(frame)
+      window.clearTimeout(settleTimeout)
     }
   }, [
     harvestFields,
     harvestFocusBounds,
+    isLateralMode,
+    lateralPanelOpen,
     mapReady,
     selectedHarvestParcelId,
     targetFocusToken,

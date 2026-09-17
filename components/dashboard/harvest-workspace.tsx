@@ -507,19 +507,38 @@ export function HarvestWorkspace() {
     setFieldRasterLoading(true)
     setFieldRasterError(null)
     try {
-      const params = new URLSearchParams({
-        mode: rasterMode,
-        metric: selectedMapMetric,
-        granularity: mapGranularity,
-        season_id: String(seasonId),
-      })
-      if (mapGranularity === 'dekad' && selectedPeriod) {
-        params.set('period', selectedPeriod)
+      const buildRasterParams = (granularity: HarvestTrendGranularity, period: string | null) => {
+        const params = new URLSearchParams({
+          mode: rasterMode,
+          metric: selectedMapMetric,
+          granularity,
+          season_id: String(seasonId),
+        })
+        if (granularity === 'dekad' && period) {
+          params.set('period', period)
+        }
+        return params
       }
 
-      const rasterResult = await fetchJson<HarvestRasterResponse>(
-        `/api/harvest/field/${activeParcelId}/raster?${params.toString()}`
-      )
+      let rasterParams = buildRasterParams(mapGranularity, selectedPeriod)
+      let rasterResult: { data: HarvestRasterResponse; isDemo: boolean }
+
+      try {
+        rasterResult = await fetchJson<HarvestRasterResponse>(
+          `/api/harvest/field/${activeParcelId}/raster?${rasterParams.toString()}`
+        )
+      } catch (initialError) {
+        if (mapGranularity !== 'dekad') throw initialError
+        rasterParams = buildRasterParams('season', null)
+        rasterResult = await fetchJson<HarvestRasterResponse>(
+          `/api/harvest/field/${activeParcelId}/raster?${rasterParams.toString()}`
+        )
+        if (requestId !== rasterLoadSeqRef.current) return
+        updateHarvestMapParams({
+          harvestGranularity: 'season',
+          harvestPeriod: null,
+        })
+      }
       if (requestId !== rasterLoadSeqRef.current) return
 
       const imageResponse = await fetch(rasterResult.data.image_url, { cache: 'no-store' })
@@ -562,6 +581,7 @@ export function HarvestWorkspace() {
     selectedField?.parcel_id,
     selectedMapMetric,
     selectedPeriod,
+    updateHarvestMapParams,
   ])
 
   useEffect(() => {

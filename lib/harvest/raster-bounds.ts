@@ -82,7 +82,14 @@ export function parseLeafletCornerBounds(bounds: unknown): RasterBounds | null {
     return asLngLat
   }
 
-  // Generic lat/lng envelope without Qatar validation (non-demo deployments).
+  // Generic lat/lng envelope (fields outside Qatar or slightly outside the strict box).
+  if (asLatLng && asLatLng[1][0] > asLatLng[0][0] && asLatLng[1][1] > asLatLng[0][1]) {
+    return asLatLng
+  }
+  if (asLngLat && asLngLat[1][0] > asLngLat[0][0] && asLngLat[1][1] > asLngLat[0][1]) {
+    return asLngLat
+  }
+
   return asLatLng || asLngLat
 }
 

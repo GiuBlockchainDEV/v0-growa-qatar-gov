@@ -7,9 +7,9 @@ import {
   isLiveRasterMetric,
 } from '@/lib/harvest/field-raster-fallback'
 import { resolveHarvestDataMode } from '@/lib/harvest/mode-resolve'
-import { normalizeRasterBounds, normalizeRasterLegend } from '@/lib/harvest/raster-bounds'
+import { normalizeRasterLegend, tryNormalizeRasterBounds } from '@/lib/harvest/raster-bounds'
 import { harvestJsonResponse } from '@/lib/harvest/resolve'
-import { listHarvestSeasonIds } from '@/lib/harvest/season-resolve'
+import { listHarvestSeasonIds, resolveHarvestSeasonId } from '@/lib/harvest/season-resolve'
 import { loadHarvestClipRings } from '@/lib/harvest/clip-rings'
 import { fieldBoundsFromClipRings } from '@/lib/harvest/raster-georef'
 import { applyHarvestRasterGeoref, fetchHarvestRasterMeta } from '@/lib/harvest/view-fetch'
@@ -67,21 +67,12 @@ export async function GET(request: Request, context: RouteContext) {
   const { searchParams } = new URL(request.url)
   const mode = (searchParams.get('mode') || 'current') as HarvestMode
   const metric = (searchParams.get('metric') || 'npp') as HarvestMetricKey
-  const granularity = (searchParams.get('granularity') || 'dekad') as HarvestTrendGranularity
+  const granularity = (searchParams.get('granularity') || 'season') as HarvestTrendGranularity
   const period = searchParams.get('period')
   const seasonIdParam = searchParams.get('season_id')
 
   if (!METRIC_KEYS.includes(metric)) {
     return NextResponse.json({ error: 'metric is invalid' }, { status: 400 })
-  }
-
-  if (!seasonIdParam) {
-    return NextResponse.json({ error: 'season_id is required' }, { status: 400 })
-  }
-
-  const requestedSeasonId = Number(seasonIdParam)
-  if (!Number.isFinite(requestedSeasonId)) {
-    return NextResponse.json({ error: 'season_id is invalid' }, { status: 400 })
   }
 
   if (access.demoMode) {
@@ -100,7 +91,7 @@ export async function GET(request: Request, context: RouteContext) {
         {
           ...demoRaster,
           image_url: `/api/harvest/field/${parcelId}/raster/image?${imageParams.toString()}`,
-          bounds: normalizeRasterBounds(demoRaster.bounds),
+          bounds: tryNormalizeRasterBounds(demoRaster.bounds) ?? fieldPolygonBounds ?? [[25.2, 51.1], [25.5, 51.4]],
           legend: normalizeRasterLegend(demoRaster.legend),
           clip_rings: clipRings,
           georef_debug: {
@@ -110,7 +101,8 @@ export async function GET(request: Request, context: RouteContext) {
             rawBbox: null,
             imageWidth: null,
             imageHeight: null,
-            computedLeafletBounds: normalizeRasterBounds(demoRaster.bounds),
+            computedLeafletBounds:
+              tryNormalizeRasterBounds(demoRaster.bounds) ?? fieldPolygonBounds ?? [[25.2, 51.1], [25.5, 51.4]],
             fieldPolygonBounds,
             boundsSource: 'leaflet_bounds',
             fieldOverlap: fieldPolygonBounds ? 1 : null,
@@ -146,7 +138,17 @@ export async function GET(request: Request, context: RouteContext) {
     return NextResponse.json({ error: 'period is required for dekad raster layers' }, { status: 400 })
   }
 
+  let requestedSeasonId: number | null = seasonIdParam ? Number(seasonIdParam) : null
+  if (requestedSeasonId !== null && !Number.isFinite(requestedSeasonId)) {
+    requestedSeasonId = null
+  }
+
   try {
+    requestedSeasonId = await resolveHarvestSeasonId(parcelId, mode, false, seasonIdParam)
+    if (!Number.isFinite(requestedSeasonId)) {
+      return NextResponse.json({ error: 'season_id is required' }, { status: 400 })
+    }
+
     const clipRings = await loadHarvestClipRings(parcelId, false)
     const fieldPolygonBounds = fieldBoundsFromClipRings(clipRings)
     const seasonIds = await listHarvestSeasonIds(parcelId, requestedSeasonId)
@@ -193,13 +195,21 @@ export async function GET(request: Request, context: RouteContext) {
     }
 
     return harvestJsonResponse(payload, false)
-  } catch {
-    const collecting = await findHarvestCollectingTask(parcelId, requestedSeasonId)
-    const seasonIds = await listHarvestSeasonIds(parcelId, requestedSeasonId).catch(() => [requestedSeasonId])
+  } catch (error) {
+    const fallbackSeasonId =
+      requestedSeasonId && Number.isFinite(requestedSeasonId) ? requestedSeasonId : null
+    const collecting = fallbackSeasonId
+      ? await findHarvestCollectingTask(parcelId, fallbackSeasonId)
+      : null
+    const seasonIds = fallbackSeasonId
+      ? await listHarvestSeasonIds(parcelId, fallbackSeasonId).catch(() => [fallbackSeasonId])
+      : []
+    const details = error instanceof Error ? error.message : 'Unknown raster error'
 
     return NextResponse.json(
       {
         error: 'Satellite raster is not available for this field and season',
+        details,
         requested_season_id: requestedSeasonId,
         season_ids_tried: seasonIds,
         collecting: collecting
@@ -210,7 +220,9 @@ export async function GET(request: Request, context: RouteContext) {
           : null,
         hint: collecting
           ? 'Geospatial data is still being collected for this field. Refresh in a few minutes.'
-          : 'Verify that entity collection has completed and that stats_agg.csv is available for this season.',
+          : granularity === 'dekad'
+            ? 'Try Season map instead of Dekad, or pick another dekad period from the dropdown.'
+            : 'Verify that entity collection has completed and that stats_agg.csv is available for this season.',
       },
       { status: 404 }
     )
