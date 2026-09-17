@@ -1,9 +1,10 @@
 import { NextResponse } from 'next/server'
 import { requireHarvestAccess, harvestErrorResponse } from '@/lib/harvest/auth'
+import { findHarvestCollectingTask } from '@/lib/harvest/collecting'
 import { harvestGetFieldStatsCsv } from '@/lib/harvest/client'
 import { parseHarvestFieldStatsCsv } from '@/lib/harvest/csv-stats'
 import { getDemoFieldStats } from '@/lib/harvest/demo-data'
-import { resolveHarvestSeasonId } from '@/lib/harvest/season-resolve'
+import { listHarvestSeasonIds, resolveHarvestSeasonId } from '@/lib/harvest/season-resolve'
 import { harvestJsonResponse } from '@/lib/harvest/resolve'
 import type { HarvestMode } from '@/lib/harvest/types'
 
@@ -19,6 +20,7 @@ async function loadLiveFieldStats(
   const csv = await harvestGetFieldStatsCsv(mode, parcelId, seasonId)
   const stats = parseHarvestFieldStatsCsv(csv, { parcel_id: parcelId, season_id: seasonId })
   const hasPoints = Object.values(stats.timeseries.dekad).some((points) => (points?.length || 0) > 0)
+    || Object.values(stats.timeseries.season).some((points) => (points?.length || 0) > 0)
   return { stats, hasPoints }
 }
 
@@ -36,13 +38,13 @@ export async function GET(request: Request, context: RouteContext) {
   const seasonIdParam = searchParams.get('season_id')
 
   try {
-    const seasonId = await resolveHarvestSeasonId(
+    const requestedSeasonId = await resolveHarvestSeasonId(
       parcelId,
       mode,
       access.demoMode,
       seasonIdParam
     )
-    if (!Number.isFinite(seasonId)) {
+    if (!Number.isFinite(requestedSeasonId)) {
       return NextResponse.json({ error: 'Field season not found' }, { status: 404 })
     }
 
@@ -54,26 +56,47 @@ export async function GET(request: Request, context: RouteContext) {
       return harvestJsonResponse(demoStats, true)
     }
 
+    const seasonIds = await listHarvestSeasonIds(parcelId, requestedSeasonId)
     const modesToTry: HarvestMode[] = mode === 'predict' ? ['predict', 'current'] : [mode]
 
-    for (const statsMode of modesToTry) {
-      try {
-        const { stats, hasPoints } = await loadLiveFieldStats(parcelId, seasonId, statsMode)
-        if (hasPoints) {
-          return harvestJsonResponse(stats, false)
+    for (const trySeasonId of seasonIds) {
+      for (const statsMode of modesToTry) {
+        try {
+          const { stats, hasPoints } = await loadLiveFieldStats(parcelId, trySeasonId, statsMode)
+          if (hasPoints) {
+            return harvestJsonResponse(
+              {
+                ...stats,
+                requested_season_id: requestedSeasonId,
+                resolved_season_id: trySeasonId,
+              },
+              false
+            )
+          }
+        } catch {
+          // try next mode/season
         }
-      } catch {
-        // try next mode
       }
     }
 
     const demoStats = getDemoFieldStats(parcelId, mode)
     if (demoStats) return harvestJsonResponse(demoStats, true)
 
+    const collecting = await findHarvestCollectingTask(parcelId, requestedSeasonId)
     return NextResponse.json(
       {
         error: 'Field statistics are not available yet',
-        hint: 'Geospatial data may still be collecting. Try again after the entity collection task completes.',
+        requested_season_id: requestedSeasonId,
+        season_ids_tried: seasonIds,
+        collecting: collecting
+          ? {
+              task_id: collecting.task_id,
+              season_id: collecting.season_id,
+            }
+          : null,
+        hint: collecting
+          ? 'Geospatial data is still being collected for this field. Refresh in a few minutes.'
+          : 'Geospatial data may still be collecting. Try again after the entity collection task completes.',
       },
       { status: 404 }
     )

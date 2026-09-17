@@ -356,17 +356,27 @@ export function HarvestWorkspace() {
         `/api/harvest/field/${activeParcelId}/stats?mode=${mode}&season_id=${activeSeasonId}`
       )
       setFieldStats(statsResult.data)
+      const resolvedSeasonId = statsResult.data.resolved_season_id ?? statsResult.data.season_id
+      if (resolvedSeasonId && resolvedSeasonId !== activeSeasonId) {
+        setSelectedField((current) =>
+          current ? { ...current, season_id: resolvedSeasonId } : current
+        )
+      }
       const latestPeriod = statsResult.data.periods.at(-1)?.value || null
       if (mapGranularity === 'dekad' && latestPeriod && !selectedPeriod) {
         updateHarvestMapParams({
           harvestPeriod: latestPeriod,
-          harvestSeasonId: String(activeSeasonId),
+          harvestSeasonId: String(resolvedSeasonId),
         })
       } else if (mapGranularity === 'dekad' && !latestPeriod && !selectedPeriod) {
         updateHarvestMapParams({
           harvestGranularity: 'season',
           harvestPeriod: null,
-          harvestSeasonId: String(activeSeasonId),
+          harvestSeasonId: String(resolvedSeasonId),
+        })
+      } else if (resolvedSeasonId !== activeSeasonId) {
+        updateHarvestMapParams({
+          harvestSeasonId: String(resolvedSeasonId),
         })
       }
     } catch (statsError) {
@@ -455,14 +465,24 @@ export function HarvestWorkspace() {
       setFieldRaster(rasterResult.data)
       dispatchRasterOverlay(rasterResult.data)
 
-      if (
+      const resolvedSeasonId =
+        rasterResult.data.resolved_season_id ?? rasterResult.data.requested_season_id ?? seasonId
+      if (resolvedSeasonId && resolvedSeasonId !== seasonId) {
+        setSelectedField((current) =>
+          current ? { ...current, season_id: resolvedSeasonId } : current
+        )
+      }
+
+      const shouldUpdateParams =
         rasterResult.data.granularity !== mapGranularity ||
-        (rasterResult.data.period && rasterResult.data.period !== selectedPeriod)
-      ) {
+        (rasterResult.data.period && rasterResult.data.period !== selectedPeriod) ||
+        resolvedSeasonId !== seasonId
+
+      if (shouldUpdateParams) {
         updateHarvestMapParams({
           harvestGranularity: rasterResult.data.granularity,
           harvestPeriod: rasterResult.data.period,
-          harvestSeasonId: String(activeSeasonId),
+          harvestSeasonId: String(resolvedSeasonId),
         })
       }
     } catch (rasterError) {

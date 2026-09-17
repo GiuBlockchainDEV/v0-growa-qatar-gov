@@ -11,23 +11,14 @@ export interface HarvestRasterMetaResult {
   rasterMode: HarvestMode
   granularity: HarvestTrendGranularity
   period: string | null
+  resolvedSeasonId?: number
 }
 
-export async function fetchHarvestRasterMeta({
-  mode,
-  parcelId,
-  seasonId,
-  metric,
-  granularity,
-  period,
-}: {
-  mode: HarvestMode
-  parcelId: string
-  seasonId: string | number
-  metric: HarvestMetricKey
-  granularity: HarvestTrendGranularity
+function buildRasterAttempts(
+  mode: HarvestMode,
+  granularity: HarvestTrendGranularity,
   period: string | null
-}): Promise<HarvestRasterMetaResult> {
+) {
   const attempts: Array<{
     rasterMode: HarvestMode
     granularity: HarvestTrendGranularity
@@ -45,6 +36,25 @@ export async function fetchHarvestRasterMeta({
         : []),
   ]
 
+  return attempts
+}
+
+async function fetchHarvestRasterMetaForSeason({
+  mode,
+  parcelId,
+  seasonId,
+  metric,
+  granularity,
+  period,
+}: {
+  mode: HarvestMode
+  parcelId: string
+  seasonId: string | number
+  metric: HarvestMetricKey
+  granularity: HarvestTrendGranularity
+  period: string | null
+}): Promise<HarvestRasterMetaResult> {
+  const attempts = buildRasterAttempts(mode, granularity, period)
   let lastError: Error | null = null
 
   for (const attempt of attempts) {
@@ -71,7 +81,53 @@ export async function fetchHarvestRasterMeta({
         rasterMode: attempt.rasterMode,
         granularity: attempt.granularity,
         period: attempt.period,
+        resolvedSeasonId: Number(seasonId),
       }
+    } catch (error) {
+      lastError = error instanceof Error ? error : new Error('Harvest raster meta request failed')
+    }
+  }
+
+  throw lastError || new Error('HARVEST_RASTER_META_UNAVAILABLE')
+}
+
+export async function fetchHarvestRasterMeta({
+  mode,
+  parcelId,
+  seasonId,
+  metric,
+  granularity,
+  period,
+  seasonIds,
+}: {
+  mode: HarvestMode
+  parcelId: string
+  seasonId: string | number
+  metric: HarvestMetricKey
+  granularity: HarvestTrendGranularity
+  period: string | null
+  seasonIds?: number[]
+}): Promise<HarvestRasterMetaResult> {
+  const preferredSeasonId = Number(seasonId)
+  const seasonsToTry =
+    seasonIds && seasonIds.length > 0
+      ? seasonIds
+      : Number.isFinite(preferredSeasonId)
+        ? [preferredSeasonId]
+        : []
+
+  let lastError: Error | null = null
+
+  for (const trySeasonId of seasonsToTry) {
+    try {
+      return await fetchHarvestRasterMetaForSeason({
+        mode,
+        parcelId,
+        seasonId: trySeasonId,
+        metric,
+        granularity,
+        period,
+      })
     } catch (error) {
       lastError = error instanceof Error ? error : new Error('Harvest raster meta request failed')
     }

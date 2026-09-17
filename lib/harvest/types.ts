@@ -108,6 +108,8 @@ export interface HarvestFieldPeriodOption {
 export interface HarvestFieldStatsResponse {
   parcel_id: string
   season_id: number
+  requested_season_id?: number
+  resolved_season_id?: number
   periods: HarvestFieldPeriodOption[]
   timeseries: {
     dekad: Partial<Record<HarvestMetricKey, HarvestTimeseriesPoint[]>>
@@ -125,6 +127,8 @@ export interface HarvestRasterResponse {
   granularity: HarvestTrendGranularity
   period: string | null
   raster_mode?: HarvestMode
+  requested_season_id?: number
+  resolved_season_id?: number
   image_url: string
   bounds: [[number, number], [number, number]]
   vmin: number

@@ -258,6 +258,12 @@ export async function harvestGetSeasons(parcelId: string) {
   return harvestFetch(`seasons/${parcelId}`)
 }
 
+export async function harvestGetCollectingEntities() {
+  return harvestFetch<Array<{ parcel_id: string; season_id: number; task_id: string }>>(
+    'entities/collecting'
+  )
+}
+
 export async function harvestGetAnalytics(query: HarvestQuery) {
   return harvestFetch('entities/analytics', { query })
 }
