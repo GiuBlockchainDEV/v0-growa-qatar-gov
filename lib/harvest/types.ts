@@ -132,6 +132,7 @@ export interface HarvestRasterResponse {
   resolved_season_id?: number
   image_url: string
   bounds: [[number, number], [number, number]]
+  clip_rings?: HarvestMapFieldRing[][]
   vmin: number
   vmax: number
   unit: string

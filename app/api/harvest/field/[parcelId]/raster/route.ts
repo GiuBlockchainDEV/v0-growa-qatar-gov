@@ -10,6 +10,7 @@ import { resolveHarvestDataMode } from '@/lib/harvest/mode-resolve'
 import { normalizeRasterBounds, normalizeRasterLegend } from '@/lib/harvest/raster-bounds'
 import { harvestJsonResponse } from '@/lib/harvest/resolve'
 import { listHarvestSeasonIds } from '@/lib/harvest/season-resolve'
+import { loadHarvestClipRings } from '@/lib/harvest/clip-rings'
 import { fetchHarvestRasterMeta } from '@/lib/harvest/view-fetch'
 import type { HarvestMetricKey, HarvestMode, HarvestTrendGranularity } from '@/lib/harvest/types'
 
@@ -83,6 +84,7 @@ export async function GET(request: Request, context: RouteContext) {
   }
 
   if (access.demoMode) {
+    const clipRings = await loadHarvestClipRings(parcelId, true)
     const demoRaster = getDemoFieldRaster(parcelId, mode, metric, granularity, period)
     if (demoRaster) {
       const imageParams = new URLSearchParams({
@@ -98,6 +100,7 @@ export async function GET(request: Request, context: RouteContext) {
           image_url: `/api/harvest/field/${parcelId}/raster/image?${imageParams.toString()}`,
           bounds: normalizeRasterBounds(demoRaster.bounds),
           legend: normalizeRasterLegend(demoRaster.legend),
+          clip_rings: clipRings,
         },
         true
       )
@@ -141,6 +144,7 @@ export async function GET(request: Request, context: RouteContext) {
     })
 
     const resolvedSeasonId = meta.resolvedSeasonId ?? requestedSeasonId
+    const clipRings = await loadHarvestClipRings(parcelId, false)
     const payload = {
       metric,
       granularity: meta.granularity,
@@ -157,6 +161,7 @@ export async function GET(request: Request, context: RouteContext) {
         resolvedSeasonId,
       }),
       bounds: meta.bounds,
+      clip_rings: clipRings,
       vmin: meta.vmin,
       vmax: meta.vmax,
       unit: meta.unit,

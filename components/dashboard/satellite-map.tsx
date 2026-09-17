@@ -368,6 +368,10 @@ function createHarvestClippedRasterLayer(
       this._map = map
       this._canvas = L.DomUtil.create('canvas', 'leaflet-harvest-raster-overlay')
       this._canvas.style.pointerEvents = 'none'
+      this._canvas.style.position = 'absolute'
+      this._canvas.style.left = '0'
+      this._canvas.style.top = '0'
+      this._canvas.style.zIndex = '450'
       const pane = map.getPane('overlayPane') || map.getPanes().overlayPane
       pane.appendChild(this._canvas)
       this._image = new Image()
@@ -376,7 +380,7 @@ function createHarvestClippedRasterLayer(
         this._imageLoaded = true
         this._preparedCanvas = this.options.prepareImage
           ? this.options.prepareImage(this._image)
-          : null
+          : prepareHarvestRasterCanvas(this._image, { cropPlotFrame: false })
         this._reset()
       }
       this._image.onerror = () => {
@@ -384,71 +388,59 @@ function createHarvestClippedRasterLayer(
         this._preparedCanvas = null
       }
       this._image.src = this.options.imageUrl
-      map.on('zoomend moveend viewreset resize', this._reset, this)
+      map.on('zoom move zoomend moveend viewreset resize', this._reset, this)
       this._reset()
     },
     onRemove(map: any) {
       L.DomUtil.remove(this._canvas)
-      map.off('zoomend moveend viewreset resize', this._reset, this)
+      map.off('zoom move zoomend moveend viewreset resize', this._reset, this)
     },
     _reset() {
       if (!this._map || !this._imageLoaded) return
 
       const map = this._map
+      const rings = this.options.clipRings.filter((ring) => ring.length >= 3)
+      if (rings.length === 0) return
+
       const [[south, west], [north, east]] = this.options.bounds
       const northWest = map.latLngToLayerPoint(L.latLng(north, west))
       const southEast = map.latLngToLayerPoint(L.latLng(south, east))
-      const width = southEast.x - northWest.x
-      const height = southEast.y - northWest.y
-      if (width <= 0 || height <= 0) return
+      const imageWidth = southEast.x - northWest.x
+      const imageHeight = southEast.y - northWest.y
+      if (imageWidth <= 0 || imageHeight <= 0) return
 
+      const mapSize = map.getSize()
       const canvas = this._canvas
       const dpr = window.devicePixelRatio || 1
-      canvas.width = Math.max(1, Math.round(width * dpr))
-      canvas.height = Math.max(1, Math.round(height * dpr))
-      canvas.style.width = `${width}px`
-      canvas.style.height = `${height}px`
-      canvas.style.position = 'absolute'
-      canvas.style.left = `${northWest.x}px`
-      canvas.style.top = `${northWest.y}px`
+      canvas.width = Math.max(1, Math.round(mapSize.x * dpr))
+      canvas.height = Math.max(1, Math.round(mapSize.y * dpr))
+      canvas.style.width = `${mapSize.x}px`
+      canvas.style.height = `${mapSize.y}px`
       canvas.style.opacity = String(this.options.opacity ?? 0.5)
 
       const ctx = canvas.getContext('2d')
       if (!ctx) return
 
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
-      ctx.clearRect(0, 0, width, height)
-      ctx.save()
-      ctx.beginPath()
+      ctx.clearRect(0, 0, mapSize.x, mapSize.y)
 
-      const rings =
-        this.options.clipRings.length > 0
-          ? this.options.clipRings
-          : [
-              [
-                { lat: north, lng: west },
-                { lat: north, lng: east },
-                { lat: south, lng: east },
-                { lat: south, lng: west },
-              ],
-            ]
+      const source = this._preparedCanvas || this._image
+      const imageX = northWest.x
+      const imageY = northWest.y
 
       for (const ring of rings) {
-        if (ring.length < 3) continue
+        ctx.save()
+        ctx.beginPath()
         ring.forEach((vertex, index) => {
           const point = map.latLngToLayerPoint(L.latLng(vertex.lat, vertex.lng))
-          const x = point.x - northWest.x
-          const y = point.y - northWest.y
-          if (index === 0) ctx.moveTo(x, y)
-          else ctx.lineTo(x, y)
+          if (index === 0) ctx.moveTo(point.x, point.y)
+          else ctx.lineTo(point.x, point.y)
         })
         ctx.closePath()
+        ctx.clip()
+        ctx.drawImage(source, imageX, imageY, imageWidth, imageHeight)
+        ctx.restore()
       }
-
-      ctx.clip()
-      const source = this._preparedCanvas || this._image
-      ctx.drawImage(source, 0, 0, width, height)
-      ctx.restore()
     },
   })
 
@@ -1795,6 +1787,10 @@ export function SatelliteMap({
           onHarvestFieldClick?.(field)
         })
 
+        if (hasRasterOverlay) {
+          layer.bringToFront()
+        }
+
         harvestFieldLayerInstancesRef.current.push(layer)
       }
     }
@@ -1854,16 +1850,17 @@ export function SatelliteMap({
 
     if (!harvestRasterOverlay?.imageUrl || !harvestRasterOverlay.bounds) return
 
-    const shouldCropPlotFrame =
-      harvestRasterOverlay.imageSource === 'view' ||
-      /\.jpe?g($|\?)/i.test(harvestRasterOverlay.imageUrl)
-
     harvestRasterOverlayRef.current = createHarvestClippedRasterLayer(L, {
       imageUrl: harvestRasterOverlay.imageUrl,
       bounds: harvestRasterOverlay.bounds,
       clipRings: harvestRasterOverlay.clipRings || [],
       opacity: harvestRasterOverlay.opacity ?? 0.5,
-      prepareImage: shouldCropPlotFrame ? prepareHarvestRasterCanvas : undefined,
+      prepareImage: (image) =>
+        prepareHarvestRasterCanvas(image, {
+          cropPlotFrame:
+            harvestRasterOverlay.imageSource === 'view' ||
+            /\.jpe?g($|\?)/i.test(harvestRasterOverlay.imageUrl),
+        }),
     }).addTo(map)
 
     return () => {

@@ -261,25 +261,16 @@ function SlideFromLeftWorkspace({
                   const selectedField = harvestFields.find(
                     (field) => field.parcel_id === selectedHarvestParcelId
                   )
-                  const clipRings = selectedField?.rings || []
-                  const vertices = clipRings.flat()
-                  const boundsFromRings =
-                    vertices.length >= 3
-                      ? ([
-                          [
-                            Math.min(...vertices.map((vertex) => vertex.lat)),
-                            Math.min(...vertices.map((vertex) => vertex.lng)),
-                          ],
-                          [
-                            Math.max(...vertices.map((vertex) => vertex.lat)),
-                            Math.max(...vertices.map((vertex) => vertex.lng)),
-                          ],
-                        ] as [[number, number], [number, number]])
-                      : harvestRasterOverlay.bounds
+                  const clipRings =
+                    harvestRasterOverlay.clipRings && harvestRasterOverlay.clipRings.length > 0
+                      ? harvestRasterOverlay.clipRings
+                      : selectedField?.rings || []
+
+                  if (clipRings.length === 0) return null
 
                   return {
                     imageUrl: harvestRasterOverlay.imageUrl,
-                    bounds: boundsFromRings,
+                    bounds: harvestRasterOverlay.bounds,
                     opacity: harvestRasterOverlay.opacity,
                     imageSource: harvestRasterOverlay.imageSource,
                     clipRings,
