@@ -116,6 +116,30 @@ export function resolveRasterDisplayBounds(
   return boundsFromRings(clipRings)
 }
 
+export function resolveRasterRenderBounds(
+  apiBounds: RasterBounds,
+  prepared: {
+    crop: RasterImageCrop | null
+    sourceWidth: number
+    sourceHeight: number
+  },
+  imageSource?: 'view' | 'raster'
+): RasterBounds {
+  if (!prepared.crop) return apiBounds
+
+  // entity/raster PNG bounds describe the full image; shift bounds after margin crop.
+  if (imageSource !== 'view') {
+    return adjustRasterBoundsForCrop(
+      apiBounds,
+      prepared.sourceWidth,
+      prepared.sourceHeight,
+      prepared.crop
+    )
+  }
+
+  return apiBounds
+}
+
 export function adjustRasterBoundsForCrop(
   bounds: RasterBounds,
   sourceWidth: number,
