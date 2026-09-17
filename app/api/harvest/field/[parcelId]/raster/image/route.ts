@@ -4,7 +4,8 @@ import { harvestGetFieldRaster } from '@/lib/harvest/client'
 import { getDemoFieldRaster } from '@/lib/harvest/demo-data'
 import { isLiveRasterMetric } from '@/lib/harvest/field-raster-fallback'
 import { resolveHarvestDataMode } from '@/lib/harvest/mode-resolve'
-import { fetchHarvestRasterBinary } from '@/lib/harvest/raster-fetch'
+import { listHarvestSeasonIds } from '@/lib/harvest/season-resolve'
+import { fetchHarvestRasterBinary, fetchHarvestRasterMeta } from '@/lib/harvest/view-fetch'
 import type { HarvestMetricKey, HarvestMode, HarvestTrendGranularity } from '@/lib/harvest/types'
 
 interface RouteContext {
@@ -59,25 +60,38 @@ export async function GET(request: Request, context: RouteContext) {
   }
 
   try {
+    const seasonIds = await listHarvestSeasonIds(parcelId, Number(seasonId))
+    const meta = await fetchHarvestRasterMeta({
+      mode: resolvedRasterMode,
+      parcelId,
+      seasonId,
+      metric,
+      granularity,
+      period,
+      seasonIds,
+    })
+
+    if (meta.imageSource === 'view') {
+      return NextResponse.redirect(
+        new URL(
+          `/api/harvest/field/${parcelId}/view/${meta.imageFilename}?mode=${meta.rasterMode}&season_id=${meta.resolvedSeasonId ?? seasonId}`,
+          request.url
+        ),
+        307
+      )
+    }
+
     const query = {
       var: metric,
-      granularity,
-      ...(granularity === 'dekad' && period ? { period } : {}),
+      granularity: meta.granularity,
+      ...(meta.granularity === 'dekad' && meta.period ? { period: meta.period } : {}),
     }
 
     let buffer: ArrayBuffer
     try {
-      buffer = await harvestGetFieldRaster(resolvedRasterMode, parcelId, seasonId, query)
+      buffer = await harvestGetFieldRaster(meta.rasterMode, parcelId, meta.resolvedSeasonId ?? seasonId, query)
     } catch {
-      const resolved = await fetchHarvestRasterBinary({
-        mode: resolvedRasterMode,
-        parcelId,
-        seasonId,
-        metric,
-        granularity,
-        period,
-      })
-      buffer = resolved.buffer
+      buffer = await fetchHarvestRasterBinary({ meta, parcelId, metric })
     }
 
     if (!buffer.byteLength) {

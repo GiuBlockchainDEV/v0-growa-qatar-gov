@@ -168,7 +168,7 @@ export function HarvestWorkspace() {
   const harvestDrawMethod = searchParams.get('harvestDraw') === 'circle' ? 'circle' : 'vertex'
   const harvestSeasonIdParam = searchParams.get('harvestSeasonId')
   const selectedMapMetric = (searchParams.get('harvestMetric') || 'npp') as HarvestMetricKey
-  const mapGranularity = (searchParams.get('harvestGranularity') || 'dekad') as HarvestTrendGranularity
+  const mapGranularity = (searchParams.get('harvestGranularity') || 'season') as HarvestTrendGranularity
   const selectedPeriod = searchParams.get('harvestPeriod')
   const [mode, setMode] = useState<HarvestMode>(
     searchParams.get('harvestMode') === 'predict' ? 'predict' : 'current'
@@ -448,18 +448,15 @@ export function HarvestWorkspace() {
 
   const loadFieldRaster = useCallback(async () => {
     const activeParcelId = selectedField?.parcel_id || parcelId
-    const seasonId = activeSeasonId
+    const seasonId = fieldStats?.resolved_season_id ?? fieldStats?.season_id ?? activeSeasonId
     if (!activeParcelId || !seasonId || !Number.isFinite(seasonId)) {
       setFieldRaster(null)
       dispatchRasterOverlay(null)
       return
     }
 
-    if (mapGranularity === 'dekad' && !selectedPeriod) {
-      setFieldRaster(null)
-      dispatchRasterOverlay(null)
-      return
-    }
+    const effectiveGranularity =
+      mapGranularity === 'dekad' && !selectedPeriod ? 'season' : mapGranularity
 
     if (!MAP_METRICS.includes(selectedMapMetric)) {
       setFieldRaster(null)
@@ -470,14 +467,14 @@ export function HarvestWorkspace() {
     setFieldRasterLoading(true)
     setFieldRasterError(null)
     try {
-      const rasterMode = mapGranularity === 'dekad' ? 'current' : mode
+      const rasterMode = effectiveGranularity === 'dekad' ? 'current' : mode
       const params = new URLSearchParams({
         mode: rasterMode,
         metric: selectedMapMetric,
-        granularity: mapGranularity,
+        granularity: effectiveGranularity,
         season_id: String(seasonId),
       })
-      if (mapGranularity === 'dekad' && selectedPeriod) {
+      if (effectiveGranularity === 'dekad' && selectedPeriod) {
         params.set('period', selectedPeriod)
       }
 
@@ -521,6 +518,7 @@ export function HarvestWorkspace() {
   }, [
     activeSeasonId,
     dispatchRasterOverlay,
+    fieldStats,
     mapGranularity,
     mode,
     parcelId,

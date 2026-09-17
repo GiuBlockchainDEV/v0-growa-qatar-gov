@@ -127,6 +127,7 @@ export interface HarvestRasterResponse {
   granularity: HarvestTrendGranularity
   period: string | null
   raster_mode?: HarvestMode
+  image_source?: 'view' | 'raster'
   requested_season_id?: number
   resolved_season_id?: number
   image_url: string

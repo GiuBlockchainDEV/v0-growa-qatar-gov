@@ -7,10 +7,10 @@ import {
   isLiveRasterMetric,
 } from '@/lib/harvest/field-raster-fallback'
 import { resolveHarvestDataMode } from '@/lib/harvest/mode-resolve'
-import { fetchHarvestRasterMeta } from '@/lib/harvest/raster-fetch'
 import { normalizeRasterBounds, normalizeRasterLegend } from '@/lib/harvest/raster-bounds'
 import { harvestJsonResponse } from '@/lib/harvest/resolve'
 import { listHarvestSeasonIds } from '@/lib/harvest/season-resolve'
+import { fetchHarvestRasterMeta } from '@/lib/harvest/view-fetch'
 import type { HarvestMetricKey, HarvestMode, HarvestTrendGranularity } from '@/lib/harvest/types'
 
 interface RouteContext {
@@ -18,6 +18,40 @@ interface RouteContext {
 }
 
 const METRIC_KEYS: HarvestMetricKey[] = ['aeti', 'npp', 'tbp', 'bwp', 'rwd', 'wcu', 'cost']
+
+function buildImageUrl({
+  parcelId,
+  meta,
+  metric,
+  mode,
+  resolvedSeasonId,
+}: {
+  parcelId: string
+  meta: Awaited<ReturnType<typeof fetchHarvestRasterMeta>>
+  metric: HarvestMetricKey
+  mode: HarvestMode
+  resolvedSeasonId: number
+}) {
+  if (meta.imageSource === 'view') {
+    const viewParams = new URLSearchParams({
+      mode: meta.rasterMode,
+      season_id: String(resolvedSeasonId),
+    })
+    return `/api/harvest/field/${parcelId}/view/${meta.imageFilename}?${viewParams.toString()}`
+  }
+
+  const imageParams = new URLSearchParams({
+    mode,
+    raster_mode: meta.rasterMode,
+    metric,
+    granularity: meta.granularity,
+    season_id: String(resolvedSeasonId),
+  })
+  if (meta.granularity === 'dekad' && meta.period) {
+    imageParams.set('period', meta.period)
+  }
+  return `/api/harvest/field/${parcelId}/raster/image?${imageParams.toString()}`
+}
 
 export async function GET(request: Request, context: RouteContext) {
   const access = await requireHarvestAccess()
@@ -95,9 +129,9 @@ export async function GET(request: Request, context: RouteContext) {
 
   try {
     const seasonIds = await listHarvestSeasonIds(parcelId, requestedSeasonId)
-    const rasterMode = resolveHarvestDataMode(mode, granularity)
+    const dataMode = resolveHarvestDataMode(mode, granularity)
     const meta = await fetchHarvestRasterMeta({
-      mode: rasterMode,
+      mode: dataMode,
       parcelId,
       seasonId: requestedSeasonId,
       metric,
@@ -107,25 +141,21 @@ export async function GET(request: Request, context: RouteContext) {
     })
 
     const resolvedSeasonId = meta.resolvedSeasonId ?? requestedSeasonId
-    const imageParams = new URLSearchParams({
-      mode,
-      raster_mode: meta.rasterMode,
-      metric,
-      granularity: meta.granularity,
-      season_id: String(resolvedSeasonId),
-    })
-    if (meta.granularity === 'dekad' && meta.period) {
-      imageParams.set('period', meta.period)
-    }
-
     const payload = {
       metric,
       granularity: meta.granularity,
       period: meta.period,
       raster_mode: meta.rasterMode,
+      image_source: meta.imageSource,
       requested_season_id: requestedSeasonId,
       resolved_season_id: resolvedSeasonId,
-      image_url: `/api/harvest/field/${parcelId}/raster/image?${imageParams.toString()}`,
+      image_url: buildImageUrl({
+        parcelId,
+        meta,
+        metric,
+        mode,
+        resolvedSeasonId,
+      }),
       bounds: meta.bounds,
       vmin: meta.vmin,
       vmax: meta.vmax,
@@ -151,7 +181,7 @@ export async function GET(request: Request, context: RouteContext) {
           : null,
         hint: collecting
           ? 'Geospatial data is still being collected for this field. Refresh in a few minutes.'
-          : 'Try another metric, season granularity, or verify that entity collection has completed.',
+          : 'Verify that entity collection has completed and that stats_agg.csv is available for this season.',
       },
       { status: 404 }
     )

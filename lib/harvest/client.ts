@@ -300,6 +300,24 @@ export async function harvestGetMapTileUrl() {
   return harvestFetch<{ url: string }>('map/tile-url')
 }
 
+export async function harvestGetFieldViewFile(
+  mode: string,
+  parcelId: string,
+  seasonId: string | number,
+  filename: string
+) {
+  return harvestFetchBinary(`entity/view/${mode}/${parcelId}/${seasonId}/${filename}`)
+}
+
+export async function harvestGetFieldViewJson<T = unknown>(
+  mode: string,
+  parcelId: string,
+  seasonId: string | number,
+  filename: string
+) {
+  return harvestFetch<T>(`entity/view/${mode}/${parcelId}/${seasonId}/${filename}`)
+}
+
 export async function harvestGetFieldStatsCsv(
   mode: string,
   parcelId: string,
