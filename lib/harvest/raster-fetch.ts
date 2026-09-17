@@ -1,4 +1,5 @@
 import { harvestGetFieldRaster, harvestGetFieldRasterMeta } from '@/lib/harvest/client'
+import { resolveHarvestDataMode } from '@/lib/harvest/mode-resolve'
 import { normalizeRasterBounds, normalizeRasterLegend } from '@/lib/harvest/raster-bounds'
 import type { HarvestMetricKey, HarvestMode, HarvestTrendGranularity } from '@/lib/harvest/types'
 
@@ -19,22 +20,32 @@ function buildRasterAttempts(
   granularity: HarvestTrendGranularity,
   period: string | null
 ) {
+  const primaryMode = resolveHarvestDataMode(mode, granularity)
   const attempts: Array<{
     rasterMode: HarvestMode
     granularity: HarvestTrendGranularity
     period: string | null
   }> = [
-    { rasterMode: mode, granularity, period },
-    ...(granularity === 'dekad'
-      ? [
-          { rasterMode: mode, granularity: 'season' as HarvestTrendGranularity, period: null },
-          { rasterMode: 'current', granularity: 'dekad' as HarvestTrendGranularity, period },
-          { rasterMode: 'current', granularity: 'season' as HarvestTrendGranularity, period: null },
-        ]
-      : mode !== 'current'
-        ? [{ rasterMode: 'current', granularity, period }]
-        : []),
+    {
+      rasterMode: primaryMode,
+      granularity,
+      period: granularity === 'dekad' ? period : null,
+    },
   ]
+
+  if (granularity === 'dekad') {
+    attempts.push({
+      rasterMode: 'current',
+      granularity: 'season',
+      period: null,
+    })
+  } else if (primaryMode !== 'current') {
+    attempts.push({
+      rasterMode: 'current',
+      granularity,
+      period: null,
+    })
+  }
 
   return attempts
 }

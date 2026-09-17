@@ -3,6 +3,7 @@ import { requireHarvestAccess, harvestErrorResponse } from '@/lib/harvest/auth'
 import { harvestGetFieldRaster } from '@/lib/harvest/client'
 import { getDemoFieldRaster } from '@/lib/harvest/demo-data'
 import { isLiveRasterMetric } from '@/lib/harvest/field-raster-fallback'
+import { resolveHarvestDataMode } from '@/lib/harvest/mode-resolve'
 import { fetchHarvestRasterBinary } from '@/lib/harvest/raster-fetch'
 import type { HarvestMetricKey, HarvestMode, HarvestTrendGranularity } from '@/lib/harvest/types'
 
@@ -24,6 +25,7 @@ export async function GET(request: Request, context: RouteContext) {
   const rasterMode = (searchParams.get('raster_mode') || mode) as HarvestMode
   const metric = (searchParams.get('metric') || 'npp') as HarvestMetricKey
   const granularity = (searchParams.get('granularity') || 'dekad') as HarvestTrendGranularity
+  const resolvedRasterMode = resolveHarvestDataMode(rasterMode, granularity)
   const period = searchParams.get('period')
   const seasonId = searchParams.get('season_id')
 
@@ -65,10 +67,10 @@ export async function GET(request: Request, context: RouteContext) {
 
     let buffer: ArrayBuffer
     try {
-      buffer = await harvestGetFieldRaster(rasterMode, parcelId, seasonId, query)
+      buffer = await harvestGetFieldRaster(resolvedRasterMode, parcelId, seasonId, query)
     } catch {
       const resolved = await fetchHarvestRasterBinary({
-        mode,
+        mode: resolvedRasterMode,
         parcelId,
         seasonId,
         metric,

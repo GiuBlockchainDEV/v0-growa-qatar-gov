@@ -6,6 +6,7 @@ import {
   buildFieldRasterFallback,
   isLiveRasterMetric,
 } from '@/lib/harvest/field-raster-fallback'
+import { resolveHarvestDataMode } from '@/lib/harvest/mode-resolve'
 import { fetchHarvestRasterMeta } from '@/lib/harvest/raster-fetch'
 import { normalizeRasterBounds, normalizeRasterLegend } from '@/lib/harvest/raster-bounds'
 import { harvestJsonResponse } from '@/lib/harvest/resolve'
@@ -94,8 +95,9 @@ export async function GET(request: Request, context: RouteContext) {
 
   try {
     const seasonIds = await listHarvestSeasonIds(parcelId, requestedSeasonId)
+    const rasterMode = resolveHarvestDataMode(mode, granularity)
     const meta = await fetchHarvestRasterMeta({
-      mode,
+      mode: rasterMode,
       parcelId,
       seasonId: requestedSeasonId,
       metric,

@@ -189,6 +189,9 @@ export function HarvestWorkspace() {
   const [yieldTask, setYieldTask] = useState<HarvestTaskStatus | null>(null)
   const [yieldLoading, setYieldLoading] = useState(false)
   const [deleteLoading, setDeleteLoading] = useState(false)
+  const [collectingTasks, setCollectingTasks] = useState<
+    Array<{ parcel_id: string; season_id: number; task_id: string }>
+  >([])
   const [createVertices, setCreateVertices] = useState<LatLngVertex[]>([])
   const [createDrawMethod, setCreateDrawMethod] = useState<'vertex' | 'circle'>(harvestDrawMethod)
 
@@ -256,6 +259,9 @@ export function HarvestWorkspace() {
         fetchJson<{ total: number; results: HarvestAnalyticsField[] }>(
           `/api/harvest/fields?${fieldsParams.toString()}`
         ),
+        fetchJson<Array<{ parcel_id: string; season_id: number; task_id: string }>>(
+          '/api/harvest/collecting'
+        ),
       ]
 
       if (!parcelId) {
@@ -269,14 +275,18 @@ export function HarvestWorkspace() {
 
       const results = await Promise.all(requests)
       const fieldsResult = results[0] as { data: { total: number; results: HarvestAnalyticsField[] } }
+      const collectingResult = results[1] as {
+        data: Array<{ parcel_id: string; season_id: number; task_id: string }>
+      }
       const fieldsPayload = fieldsResult.data
       const nextFields = fieldsPayload.results || []
 
       setFields(nextFields)
+      setCollectingTasks(collectingResult.data || [])
 
       if (!parcelId) {
-        const analyticsResult = results[1] as { data: HarvestAnalyticsResponse }
-        const timeseriesResult = results[2] as { data: HarvestTimeseriesResponse }
+        const analyticsResult = results[2] as { data: HarvestAnalyticsResponse }
+        const timeseriesResult = results[3] as { data: HarvestTimeseriesResponse }
         setAnalytics(analyticsResult.data)
         setTimeseries(timeseriesResult.data)
         setSelectedField(null)
@@ -304,7 +314,7 @@ export function HarvestWorkspace() {
       params.set('zoom', '13')
       params.set('focus', `harvest-${createdParcelId}`)
       params.set('harvestMetric', 'npp')
-      params.set('harvestGranularity', 'dekad')
+      params.set('harvestGranularity', 'season')
       if (seasonId) params.set('harvestSeasonId', String(seasonId))
       params.delete('harvestCreate')
       params.delete('harvestDraw')
@@ -340,6 +350,17 @@ export function HarvestWorkspace() {
 
   const isFieldDetailView = Boolean(parcelId && !harvestCreateActive)
   const seasonIdForParams = activeSeasonId ? String(activeSeasonId) : null
+  const activeCollectingTask = useMemo(() => {
+    const activeParcelId = selectedField?.parcel_id || parcelId
+    if (!activeParcelId) return null
+    return (
+      collectingTasks.find(
+        (entry) =>
+          entry.parcel_id === activeParcelId &&
+          (!activeSeasonId || entry.season_id === activeSeasonId)
+      ) || collectingTasks.find((entry) => entry.parcel_id === activeParcelId) || null
+    )
+  }, [activeSeasonId, collectingTasks, parcelId, selectedField?.parcel_id])
 
   const loadFieldDetail = useCallback(async () => {
     const activeParcelId = selectedField?.parcel_id || parcelId
@@ -449,8 +470,9 @@ export function HarvestWorkspace() {
     setFieldRasterLoading(true)
     setFieldRasterError(null)
     try {
+      const rasterMode = mapGranularity === 'dekad' ? 'current' : mode
       const params = new URLSearchParams({
-        mode,
+        mode: rasterMode,
         metric: selectedMapMetric,
         granularity: mapGranularity,
         season_id: String(seasonId),
@@ -519,6 +541,24 @@ export function HarvestWorkspace() {
   useEffect(() => {
     void loadFieldRaster()
   }, [loadFieldRaster])
+
+  useEffect(() => {
+    if (collectingTasks.length === 0) return undefined
+
+    const intervalId = window.setInterval(() => {
+      void fetchJson<Array<{ parcel_id: string; season_id: number; task_id: string }>>(
+        '/api/harvest/collecting'
+      )
+        .then((result) => {
+          setCollectingTasks(result.data || [])
+        })
+        .catch(() => {
+          // ignore polling errors
+        })
+    }, 10_000)
+
+    return () => window.clearInterval(intervalId)
+  }, [collectingTasks.length])
 
   useEffect(() => {
     if (!fieldStats) return
@@ -975,6 +1015,13 @@ export function HarvestWorkspace() {
                     ) : null}
                   </div>
 
+                  {activeCollectingTask ? (
+                    <p className="text-sm text-amber-300">
+                      Geospatial data collection is still in progress for this field. Satellite layers
+                      will appear after the task completes.
+                    </p>
+                  ) : null}
+
                   {fieldStatsError ? (
                     <p className="text-sm text-amber-300">{fieldStatsError}</p>
                   ) : null}
@@ -1095,7 +1142,14 @@ export function HarvestWorkspace() {
                               : 'bg-secondary/20'
                         }`}
                       >
-                        <td className="px-3 py-2 font-medium text-foreground">{field.name}</td>
+                        <td className="px-3 py-2 font-medium text-foreground">
+                          <span>{field.name}</span>
+                          {collectingTasks.some((entry) => entry.parcel_id === field.parcel_id) ? (
+                            <span className="ml-2 rounded-full bg-amber-500/15 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-amber-300">
+                              Collecting
+                            </span>
+                          ) : null}
+                        </td>
                         <td className="px-3 py-2 text-muted-foreground">{field.crop}</td>
                         <td className="px-3 py-2 text-muted-foreground">{formatArea(field.area)}</td>
                         <td className="px-3 py-2 text-muted-foreground">

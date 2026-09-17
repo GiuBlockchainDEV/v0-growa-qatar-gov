@@ -2,11 +2,16 @@ import { NextResponse } from 'next/server'
 import { requireHarvestAccess, harvestErrorResponse } from '@/lib/harvest/auth'
 import { findHarvestCollectingTask } from '@/lib/harvest/collecting'
 import { harvestGetFieldStatsCsv } from '@/lib/harvest/client'
-import { parseHarvestFieldStatsCsv } from '@/lib/harvest/csv-stats'
+import {
+  hasHarvestFieldStatsPoints,
+  mergeHarvestFieldStats,
+  parseHarvestFieldStatsCsv,
+} from '@/lib/harvest/csv-stats'
 import { getDemoFieldStats } from '@/lib/harvest/demo-data'
+import { harvestStatsModesToTry } from '@/lib/harvest/mode-resolve'
 import { listHarvestSeasonIds, resolveHarvestSeasonId } from '@/lib/harvest/season-resolve'
 import { harvestJsonResponse } from '@/lib/harvest/resolve'
-import type { HarvestMode } from '@/lib/harvest/types'
+import type { HarvestFieldStatsResponse, HarvestMode } from '@/lib/harvest/types'
 
 interface RouteContext {
   params: Promise<{ parcelId: string }>
@@ -16,12 +21,22 @@ async function loadLiveFieldStats(
   parcelId: string,
   seasonId: number,
   mode: HarvestMode
-) {
-  const csv = await harvestGetFieldStatsCsv(mode, parcelId, seasonId)
-  const stats = parseHarvestFieldStatsCsv(csv, { parcel_id: parcelId, season_id: seasonId })
-  const hasPoints = Object.values(stats.timeseries.dekad).some((points) => (points?.length || 0) > 0)
-    || Object.values(stats.timeseries.season).some((points) => (points?.length || 0) > 0)
-  return { stats, hasPoints }
+): Promise<HarvestFieldStatsResponse | null> {
+  const modesToTry = harvestStatsModesToTry(mode)
+  let merged: HarvestFieldStatsResponse | null = null
+
+  for (const statsMode of modesToTry) {
+    try {
+      const csv = await harvestGetFieldStatsCsv(statsMode, parcelId, seasonId)
+      const stats = parseHarvestFieldStatsCsv(csv, { parcel_id: parcelId, season_id: seasonId })
+      if (!hasHarvestFieldStatsPoints(stats)) continue
+      merged = merged ? mergeHarvestFieldStats(merged, stats) : stats
+    } catch {
+      // try next mode
+    }
+  }
+
+  return merged
 }
 
 export async function GET(request: Request, context: RouteContext) {
@@ -57,25 +72,18 @@ export async function GET(request: Request, context: RouteContext) {
     }
 
     const seasonIds = await listHarvestSeasonIds(parcelId, requestedSeasonId)
-    const modesToTry: HarvestMode[] = mode === 'predict' ? ['predict', 'current'] : [mode]
 
     for (const trySeasonId of seasonIds) {
-      for (const statsMode of modesToTry) {
-        try {
-          const { stats, hasPoints } = await loadLiveFieldStats(parcelId, trySeasonId, statsMode)
-          if (hasPoints) {
-            return harvestJsonResponse(
-              {
-                ...stats,
-                requested_season_id: requestedSeasonId,
-                resolved_season_id: trySeasonId,
-              },
-              false
-            )
-          }
-        } catch {
-          // try next mode/season
-        }
+      const stats = await loadLiveFieldStats(parcelId, trySeasonId, mode)
+      if (stats && hasHarvestFieldStatsPoints(stats)) {
+        return harvestJsonResponse(
+          {
+            ...stats,
+            requested_season_id: requestedSeasonId,
+            resolved_season_id: trySeasonId,
+          },
+          false
+        )
       }
     }
 
