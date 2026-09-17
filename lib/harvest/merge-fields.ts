@@ -1,0 +1,56 @@
+import type { HarvestAnalyticsField, HarvestFieldMetrics } from '@/lib/harvest/types'
+
+function metricsKey(field: HarvestAnalyticsField) {
+  return `${field.parcel_id}:${field.season_id ?? 'none'}`
+}
+
+function hasMetrics(metrics?: HarvestFieldMetrics) {
+  return Boolean(
+    metrics && Object.values(metrics).some((value) => value !== undefined && Number.isFinite(value))
+  )
+}
+
+export function mergeHarvestFieldsWithAnalytics(
+  baseFields: HarvestAnalyticsField[],
+  analyticsFields: HarvestAnalyticsField[]
+): HarvestAnalyticsField[] {
+  const analyticsByParcel = new Map<string, HarvestAnalyticsField>()
+  const analyticsByKey = new Map<string, HarvestAnalyticsField>()
+
+  for (const field of analyticsFields) {
+    analyticsByParcel.set(field.parcel_id, field)
+    analyticsByKey.set(metricsKey(field), field)
+  }
+
+  return baseFields.map((field) => {
+    const keyedMatch = analyticsByKey.get(metricsKey(field))
+    const parcelMatch = keyedMatch ? null : analyticsByParcel.get(field.parcel_id)
+    const analyticsMatch = keyedMatch || parcelMatch
+    if (!analyticsMatch) return field
+
+    const metrics: HarvestFieldMetrics = {
+      ...(analyticsMatch.metrics || {}),
+      ...(field.metrics || {}),
+    }
+
+    let season_id = field.season_id
+    if (analyticsMatch.season_id) {
+      if (keyedMatch || (parcelMatch && hasMetrics(analyticsMatch.metrics))) {
+        season_id = analyticsMatch.season_id
+      } else if (!season_id) {
+        season_id = analyticsMatch.season_id
+      }
+    }
+
+    return {
+      ...field,
+      season_id,
+      crop: field.crop && field.crop !== '—' ? field.crop : analyticsMatch.crop,
+      cultivation: field.cultivation ?? analyticsMatch.cultivation,
+      area: field.area > 0 ? field.area : analyticsMatch.area,
+      start_date: field.start_date || analyticsMatch.start_date,
+      harvest_date: field.harvest_date || analyticsMatch.harvest_date,
+      metrics,
+    }
+  })
+}
