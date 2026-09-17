@@ -257,25 +257,17 @@ function SlideFromLeftWorkspace({
           mapTileUrl={isHarvestModule ? harvestTileUrl : null}
           harvestRasterOverlay={
             isHarvestModule && harvestRasterOverlay
-              ? (() => {
-                  const selectedField = harvestFields.find(
-                    (field) => field.parcel_id === selectedHarvestParcelId
-                  )
-                  const clipRings =
+              ? {
+                  imageUrl: harvestRasterOverlay.imageUrl,
+                  bounds: harvestRasterOverlay.bounds,
+                  opacity: harvestRasterOverlay.opacity,
+                  imageSource: harvestRasterOverlay.imageSource,
+                  clipRings:
                     harvestRasterOverlay.clipRings && harvestRasterOverlay.clipRings.length > 0
                       ? harvestRasterOverlay.clipRings
-                      : selectedField?.rings || []
-
-                  if (clipRings.length === 0) return null
-
-                  return {
-                    imageUrl: harvestRasterOverlay.imageUrl,
-                    bounds: harvestRasterOverlay.bounds,
-                    opacity: harvestRasterOverlay.opacity,
-                    imageSource: harvestRasterOverlay.imageSource,
-                    clipRings,
-                  }
-                })()
+                      : harvestFields.find((field) => field.parcel_id === selectedHarvestParcelId)
+                          ?.rings,
+                }
               : null
           }
           harvestFocusBounds={isHarvestModule ? harvestFocusBounds : null}

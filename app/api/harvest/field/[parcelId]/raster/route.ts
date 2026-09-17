@@ -12,7 +12,7 @@ import { harvestJsonResponse } from '@/lib/harvest/resolve'
 import { listHarvestSeasonIds } from '@/lib/harvest/season-resolve'
 import { loadHarvestClipRings } from '@/lib/harvest/clip-rings'
 import { fieldBoundsFromClipRings } from '@/lib/harvest/raster-georef'
-import { finalizeHarvestRasterGeoref, fetchHarvestRasterMeta } from '@/lib/harvest/view-fetch'
+import { applyHarvestRasterGeoref, fetchHarvestRasterMeta } from '@/lib/harvest/view-fetch'
 import type { HarvestMetricKey, HarvestMode, HarvestTrendGranularity } from '@/lib/harvest/types'
 
 interface RouteContext {
@@ -160,17 +160,11 @@ export async function GET(request: Request, context: RouteContext) {
 
     const resolvedSeasonId = meta.resolvedSeasonId ?? requestedSeasonId
     const clipRings = await loadHarvestClipRings(parcelId, false)
-    let georefMeta = meta
-    try {
-      georefMeta = await finalizeHarvestRasterGeoref({
-        meta,
-        parcelId,
-        metric,
-        clipRings,
-      })
-    } catch (georefError) {
-      console.error('[harvest-raster-georef] finalize failed, using metadata bounds', georefError)
-    }
+    const georefMeta = applyHarvestRasterGeoref({
+      meta,
+      parcelId,
+      clipRings,
+    })
     const payload = {
       metric,
       granularity: georefMeta.granularity,

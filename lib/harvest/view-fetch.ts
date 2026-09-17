@@ -13,7 +13,6 @@ import {
   resolveRasterGeoref,
 } from '@/lib/harvest/raster-georef'
 import type { HarvestRasterGeorefDebug } from '@/lib/harvest/types'
-import { readRasterImageDimensions } from '@/lib/harvest/raster-image'
 import { normalizeRasterBounds, normalizeRasterLegend } from '@/lib/harvest/raster-bounds'
 import type { HarvestMetricKey, HarvestMode, HarvestTrendGranularity } from '@/lib/harvest/types'
 
@@ -280,40 +279,18 @@ export async function fetchHarvestRasterMeta({
   throw lastError || new Error('HARVEST_RASTER_META_UNAVAILABLE')
 }
 
-export async function finalizeHarvestRasterGeoref({
+export function applyHarvestRasterGeoref({
   meta,
   parcelId,
-  metric,
   clipRings,
 }: {
   meta: HarvestRasterMetaResult
   parcelId: string
-  metric: HarvestMetricKey
   clipRings?: Array<Array<{ lat: number; lng: number }>>
-}): Promise<HarvestRasterMetaResult> {
+}): HarvestRasterMetaResult {
   const fieldPolygonBounds = clipRings ? fieldBoundsFromClipRings(clipRings) : null
-  let imageWidth =
-    meta.georefDebug?.imageWidth ??
-    (typeof meta.rawMeta.width === 'number' ? meta.rawMeta.width : null)
-  let imageHeight =
-    meta.georefDebug?.imageHeight ??
-    (typeof meta.rawMeta.height === 'number' ? meta.rawMeta.height : null)
-
-  const transform = parseTransform(meta.rawMeta)
-  const needsImageDimensions = Boolean(transform) && (!imageWidth || !imageHeight)
-
-  if (needsImageDimensions) {
-    try {
-      const buffer = await fetchHarvestRasterBinary({ meta, parcelId, metric })
-      const dimensions = await readRasterImageDimensions(Buffer.from(buffer))
-      if (dimensions) {
-        imageWidth = dimensions.width
-        imageHeight = dimensions.height
-      }
-    } catch {
-      // Dimensions are optional when bounds come directly from metadata.
-    }
-  }
+  const imageWidth = typeof meta.rawMeta.width === 'number' ? meta.rawMeta.width : null
+  const imageHeight = typeof meta.rawMeta.height === 'number' ? meta.rawMeta.height : null
 
   const georef = resolveRasterGeoref({
     rawMeta: meta.rawMeta,
