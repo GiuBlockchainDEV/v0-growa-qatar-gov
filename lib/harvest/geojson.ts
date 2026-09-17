@@ -137,6 +137,53 @@ export function computeCentroid(vertices: LatLngVertex[]): LatLngVertex {
   }
 }
 
+export function calculatePolygonAreaHectares(vertices: LatLngVertex[]): number {
+  if (vertices.length < 3) return 0
+  const earthRadiusMeters = 6371008.8
+  const toRadians = (value: number) => (value * Math.PI) / 180
+  const meanLatRadians =
+    vertices.reduce((sum, vertex) => sum + toRadians(vertex.lat), 0) / vertices.length
+  const cartesianVertices = vertices.map((vertex) => ({
+    x: earthRadiusMeters * toRadians(vertex.lng) * Math.cos(meanLatRadians),
+    y: earthRadiusMeters * toRadians(vertex.lat),
+  }))
+
+  let doubleArea = 0
+  for (let i = 0; i < cartesianVertices.length; i += 1) {
+    const current = cartesianVertices[i]
+    const next = cartesianVertices[(i + 1) % cartesianVertices.length]
+    doubleArea += current.x * next.y - next.x * current.y
+  }
+
+  const areaSquareMeters = Math.abs(doubleArea) * 0.5
+  return areaSquareMeters / 10_000
+}
+
+export function closePolygonRing(vertices: LatLngVertex[]): LatLngVertex[] {
+  if (vertices.length < 3) return vertices
+  const first = vertices[0]
+  const last = vertices[vertices.length - 1]
+  if (first.lat === last.lat && first.lng === last.lng) return vertices
+  return [...vertices, first]
+}
+
+export function verticesToCreateGeoJson(vertices: LatLngVertex[]) {
+  const ring = closePolygonRing(vertices)
+  return {
+    type: 'FeatureCollection',
+    features: [
+      {
+        type: 'Feature',
+        properties: {},
+        geometry: {
+          type: 'Polygon',
+          coordinates: [ring.map((vertex) => [vertex.lng, vertex.lat])],
+        },
+      },
+    ],
+  }
+}
+
 export function createRectangleRing(
   centerLat: number,
   centerLng: number,

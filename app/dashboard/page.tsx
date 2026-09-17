@@ -17,7 +17,7 @@ import {
   getQatarBoundaryCoordinates,
 } from '@/lib/weather/qatar-grid'
 import type { HarvestMapField, HarvestRasterOverlay } from '@/lib/harvest/types'
-import { extractBoundsFromGeoJson } from '@/lib/harvest/geojson'
+import { extractBoundsFromGeoJson, type LatLngVertex } from '@/lib/harvest/geojson'
 
 function SlideFromLeftWorkspace({
   children,
@@ -79,6 +79,8 @@ function SlideFromLeftWorkspace({
   )
   const harvestMode = searchParams.get('harvestMode') === 'predict' ? 'predict' : 'current'
   const selectedHarvestParcelId = searchParams.get('parcelId')
+  const harvestCreateActive = searchParams.get('harvestCreate') === '1'
+  const harvestDrawMethod = searchParams.get('harvestDraw') === 'circle' ? 'circle' : 'vertex'
   const [harvestFields, setHarvestFields] = useState<HarvestMapField[]>([])
   const [harvestTileUrl, setHarvestTileUrl] = useState<string | null>(null)
   const [harvestMapRefreshKey, setHarvestMapRefreshKey] = useState(0)
@@ -86,6 +88,7 @@ function SlideFromLeftWorkspace({
   const [harvestFocusBounds, setHarvestFocusBounds] = useState<[[number, number], [number, number]] | null>(
     null
   )
+  const [harvestFieldVertices, setHarvestFieldVertices] = useState<LatLngVertex[]>([])
   const [panelVisible, setPanelVisible] = useState(false)
 
   const isHarvestModule = moduleKey === 'harvest' || moduleKey === 'production-harvest'
@@ -94,6 +97,30 @@ function SlideFromLeftWorkspace({
     const handleHarvestFieldsUpdated = () => setHarvestMapRefreshKey((value) => value + 1)
     window.addEventListener('harvest:fields-updated', handleHarvestFieldsUpdated)
     return () => window.removeEventListener('harvest:fields-updated', handleHarvestFieldsUpdated)
+  }, [])
+
+  useEffect(() => {
+    if (!harvestCreateActive) {
+      setHarvestFieldVertices([])
+    }
+  }, [harvestCreateActive])
+
+  useEffect(() => {
+    if (!isHarvestModule) return
+    window.dispatchEvent(
+      new CustomEvent('harvest:field-draw-update', {
+        detail: {
+          vertices: harvestFieldVertices,
+          drawMethod: harvestDrawMethod,
+        },
+      })
+    )
+  }, [harvestDrawMethod, harvestFieldVertices, isHarvestModule])
+
+  useEffect(() => {
+    const handleClearDraw = () => setHarvestFieldVertices([])
+    window.addEventListener('harvest:field-draw-clear', handleClearDraw)
+    return () => window.removeEventListener('harvest:field-draw-clear', handleClearDraw)
   }, [])
 
   useEffect(() => {
@@ -238,6 +265,10 @@ function SlideFromLeftWorkspace({
               : null
           }
           harvestFocusBounds={isHarvestModule ? harvestFocusBounds : null}
+          harvestFieldDrawActive={isHarvestModule && harvestCreateActive}
+          harvestFieldDrawMethod={harvestDrawMethod}
+          harvestFieldVertices={harvestFieldVertices}
+          onHarvestFieldVerticesChange={setHarvestFieldVertices}
           onHarvestFieldClick={
             isHarvestModule
               ? (field) => {

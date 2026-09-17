@@ -74,6 +74,10 @@ interface SatelliteMapProps {
     opacity?: number
   } | null
   harvestFocusBounds?: [[number, number], [number, number]] | null
+  harvestFieldDrawActive?: boolean
+  harvestFieldDrawMethod?: 'vertex' | 'circle'
+  harvestFieldVertices?: PolygonVertex[]
+  onHarvestFieldVerticesChange?: (vertices: PolygonVertex[]) => void
 }
 
 interface MapController {
@@ -587,6 +591,10 @@ export function SatelliteMap({
   mapTileUrl = null,
   harvestRasterOverlay = null,
   harvestFocusBounds = null,
+  harvestFieldDrawActive = false,
+  harvestFieldDrawMethod = 'vertex',
+  harvestFieldVertices = [],
+  onHarvestFieldVerticesChange,
 }: SatelliteMapProps) {
   const { user } = useAuth()
   const { organization } = useOrganization()
@@ -598,6 +606,8 @@ export function SatelliteMap({
   const weatherGridMarkerInstancesRef = useRef<any[]>([])
   const harvestFieldLayerInstancesRef = useRef<any[]>([])
   const harvestRasterOverlayRef = useRef<any>(null)
+  const harvestDraftLayerRef = useRef<any>(null)
+  const harvestDraftVertexInstancesRef = useRef<any[]>([])
   const tileLayerRef = useRef<any>(null)
   const polygonInstancesRef = useRef<any[]>([])
   const draftPolylineRef = useRef<any | null>(null)
@@ -624,6 +634,7 @@ export function SatelliteMap({
   const [polygonDrawPointId, setPolygonDrawPointId] = useState<string | null>(null)
   const [polygonDrawMethod, setPolygonDrawMethod] = useState<PolygonDrawMethod>('vertex')
   const [shapeSeedVertex, setShapeSeedVertex] = useState<PolygonVertex | null>(null)
+  const [harvestShapeSeedVertex, setHarvestShapeSeedVertex] = useState<PolygonVertex | null>(null)
   const [circleSegments, setCircleSegments] = useState(16)
   const [draftPolygon, setDraftPolygon] = useState<PolygonVertex[]>([])
   const [draftPolygonName, setDraftPolygonName] = useState('')
@@ -2087,6 +2098,120 @@ export function SatelliteMap({
       map.off('click', handleMapClick)
     }
   }, [isAddPointMode, mapReady, onMapClick, polygonDrawPointId])
+
+  useEffect(() => {
+    if (!harvestFieldDrawActive) {
+      setHarvestShapeSeedVertex(null)
+      return
+    }
+    if (!mapReady || !mapInstanceRef.current) return
+    const map = mapInstanceRef.current
+
+    const handleMapClick = (event: any) => {
+      if (isLeafletUiClick(event)) return
+      const lat = Number(event?.latlng?.lat)
+      const lng = Number(event?.latlng?.lng)
+      if (!Number.isFinite(lat) || !Number.isFinite(lng)) return
+
+      const vertex = { lat, lng } satisfies PolygonVertex
+      if (harvestFieldDrawMethod === 'vertex') {
+        onHarvestFieldVerticesChange?.([...harvestFieldVertices, vertex])
+        return
+      }
+
+      if (!harvestShapeSeedVertex) {
+        setHarvestShapeSeedVertex(vertex)
+        return
+      }
+
+      onHarvestFieldVerticesChange?.(
+        createCircleVertices(harvestShapeSeedVertex, vertex, circleSegments)
+      )
+      setHarvestShapeSeedVertex(null)
+    }
+
+    const handleMouseMove = (event: any) => {
+      if (isLeafletUiClick(event)) return
+      if (!harvestShapeSeedVertex || harvestFieldDrawMethod !== 'circle') return
+      const lat = Number(event?.latlng?.lat)
+      const lng = Number(event?.latlng?.lng)
+      if (!Number.isFinite(lat) || !Number.isFinite(lng)) return
+      onHarvestFieldVerticesChange?.(
+        createCircleVertices(harvestShapeSeedVertex, { lat, lng }, circleSegments)
+      )
+    }
+
+    map.on('click', handleMapClick)
+    map.on('mousemove', handleMouseMove)
+    return () => {
+      map.off('click', handleMapClick)
+      map.off('mousemove', handleMouseMove)
+    }
+  }, [
+    circleSegments,
+    harvestFieldDrawActive,
+    harvestFieldDrawMethod,
+    harvestFieldVertices,
+    harvestShapeSeedVertex,
+    mapReady,
+    onHarvestFieldVerticesChange,
+  ])
+
+  useEffect(() => {
+    if (!mapReady || !mapInstanceRef.current || !leafletRef.current) return
+    const L = leafletRef.current
+    const map = mapInstanceRef.current
+
+    harvestDraftLayerRef.current?.remove?.()
+    harvestDraftLayerRef.current = null
+    harvestDraftVertexInstancesRef.current.forEach((layer) => layer.remove?.())
+    harvestDraftVertexInstancesRef.current = []
+
+    if (!harvestFieldDrawActive || harvestFieldVertices.length === 0) return
+
+    if (harvestFieldVertices.length >= 3) {
+      harvestDraftLayerRef.current = L.polygon(
+        harvestFieldVertices.map((vertex) => [vertex.lat, vertex.lng]),
+        {
+          color: '#fbbf24',
+          weight: 3,
+          opacity: 0.95,
+          fillColor: '#fbbf24',
+          fillOpacity: 0.18,
+          interactive: false,
+        }
+      ).addTo(map)
+    } else {
+      harvestDraftLayerRef.current = L.polyline(
+        harvestFieldVertices.map((vertex) => [vertex.lat, vertex.lng]),
+        {
+          color: '#fbbf24',
+          weight: 3,
+          dashArray: '8 6',
+          opacity: 0.95,
+          interactive: false,
+        }
+      ).addTo(map)
+    }
+
+    harvestDraftVertexInstancesRef.current = harvestFieldVertices.map((vertex, index) =>
+      L.circleMarker([vertex.lat, vertex.lng], {
+        radius: index === 0 ? 7 : 6,
+        color: '#ffffff',
+        weight: 2,
+        fillColor: '#fbbf24',
+        fillOpacity: 1,
+        interactive: false,
+      }).addTo(map)
+    )
+
+    return () => {
+      harvestDraftLayerRef.current?.remove?.()
+      harvestDraftLayerRef.current = null
+      harvestDraftVertexInstancesRef.current.forEach((layer) => layer.remove?.())
+      harvestDraftVertexInstancesRef.current = []
+    }
+  }, [harvestFieldDrawActive, harvestFieldVertices, mapReady])
 
   useEffect(() => {
     if (!isGrowaAdmin || !polygonDrawPointId) return

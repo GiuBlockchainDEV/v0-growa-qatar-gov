@@ -141,3 +141,30 @@ export interface HarvestRasterOverlay {
   unit: string
   legend: HarvestRasterLegendItem[]
 }
+
+export interface HarvestCropOption {
+  id: number
+  name: string
+  field_type: string
+  cultivation_method: string
+}
+
+export interface HarvestCropGroup {
+  label: string
+  options: Array<{ value: number; label: string }>
+}
+
+export interface HarvestCreateFieldRequest {
+  name: string
+  start_date: string
+  harvest_date: string
+  crop_id: number
+  geojson: unknown
+}
+
+export interface HarvestCreateFieldResponse {
+  parcel_id: string
+  season_id?: number
+  task_id?: string
+  name?: string
+}

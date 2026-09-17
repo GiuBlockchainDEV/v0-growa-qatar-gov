@@ -8,12 +8,15 @@ import {
   Leaf,
   Loader2,
   Map as MapIcon,
+  Plus,
   RefreshCw,
   Sprout,
   Target,
   Trash2,
   TrendingUp,
 } from 'lucide-react'
+import { HarvestFieldCreatePanel } from '@/components/dashboard/harvest-field-create-panel'
+import type { LatLngVertex } from '@/lib/harvest/geojson'
 import {
   IntelligenceDataTable,
   IntelligenceErrorState,
@@ -158,6 +161,8 @@ export function HarvestWorkspace() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const parcelId = searchParams.get('parcelId')
+  const harvestCreateActive = searchParams.get('harvestCreate') === '1'
+  const harvestDrawMethod = searchParams.get('harvestDraw') === 'circle' ? 'circle' : 'vertex'
   const harvestSeasonIdParam = searchParams.get('harvestSeasonId')
   const selectedMapMetric = (searchParams.get('harvestMetric') || 'npp') as HarvestMetricKey
   const mapGranularity = (searchParams.get('harvestGranularity') || 'dekad') as HarvestTrendGranularity
@@ -179,6 +184,23 @@ export function HarvestWorkspace() {
   const [yieldTask, setYieldTask] = useState<HarvestTaskStatus | null>(null)
   const [yieldLoading, setYieldLoading] = useState(false)
   const [deleteLoading, setDeleteLoading] = useState(false)
+  const [createVertices, setCreateVertices] = useState<LatLngVertex[]>([])
+  const [createDrawMethod, setCreateDrawMethod] = useState<'vertex' | 'circle'>(harvestDrawMethod)
+
+  useEffect(() => {
+    const handleDrawUpdate = (event: Event) => {
+      const detail = (event as CustomEvent<{ vertices: LatLngVertex[]; drawMethod: 'vertex' | 'circle' }>).detail
+      if (!detail) return
+      setCreateVertices(detail.vertices || [])
+      setCreateDrawMethod(detail.drawMethod === 'circle' ? 'circle' : 'vertex')
+    }
+    window.addEventListener('harvest:field-draw-update', handleDrawUpdate)
+    return () => window.removeEventListener('harvest:field-draw-update', handleDrawUpdate)
+  }, [])
+
+  useEffect(() => {
+    setCreateDrawMethod(harvestDrawMethod)
+  }, [harvestDrawMethod])
 
   const loadData = useCallback(async () => {
     setLoading(true)
@@ -236,6 +258,24 @@ export function HarvestWorkspace() {
       setLoading(false)
     }
   }, [mode, parcelId])
+
+  const handleFieldCreated = useCallback(
+    (createdParcelId: string, seasonId?: number) => {
+      const params = new URLSearchParams(searchParams.toString())
+      params.set('module', 'harvest')
+      params.set('parcelId', createdParcelId)
+      params.set('zoom', '13')
+      params.set('focus', `harvest-${createdParcelId}`)
+      params.set('harvestMetric', 'npp')
+      params.set('harvestGranularity', 'dekad')
+      if (seasonId) params.set('harvestSeasonId', String(seasonId))
+      params.delete('harvestCreate')
+      params.delete('harvestDraw')
+      router.replace(`/dashboard?${params.toString()}`)
+      void loadData()
+    },
+    [loadData, router, searchParams]
+  )
 
   const updateHarvestMapParams = useCallback(
     (updates: Record<string, string | null | undefined>) => {
@@ -369,6 +409,39 @@ export function HarvestWorkspace() {
       dispatchRasterOverlay(null)
     }
   }, [dispatchRasterOverlay])
+
+  const startCreateField = useCallback(() => {
+    const params = new URLSearchParams(searchParams.toString())
+    params.set('module', 'harvest')
+    params.set('harvestCreate', '1')
+    params.set('harvestDraw', 'vertex')
+    params.delete('parcelId')
+    params.delete('harvestMetric')
+    params.delete('harvestGranularity')
+    params.delete('harvestPeriod')
+    params.delete('harvestSeasonId')
+    params.delete('focus')
+    router.replace(`/dashboard?${params.toString()}`)
+    window.dispatchEvent(new Event('harvest:field-draw-clear'))
+    dispatchRasterOverlay(null)
+    setSelectedField(null)
+  }, [dispatchRasterOverlay, router, searchParams])
+
+  const updateCreateDrawMethod = useCallback(
+    (method: 'vertex' | 'circle') => {
+      const params = new URLSearchParams(searchParams.toString())
+      params.set('module', 'harvest')
+      params.set('harvestCreate', '1')
+      params.set('harvestDraw', method)
+      router.replace(`/dashboard?${params.toString()}`)
+      window.dispatchEvent(new Event('harvest:field-draw-clear'))
+    },
+    [router, searchParams]
+  )
+
+  const clearCreateDraw = useCallback(() => {
+    window.dispatchEvent(new Event('harvest:field-draw-clear'))
+  }, [])
 
   const headlineMetrics = useMemo(() => {
     const metrics = analytics?.metrics || []
@@ -550,6 +623,15 @@ export function HarvestWorkspace() {
         </button>
         <button
           type="button"
+          onClick={() => startCreateField()}
+          disabled={harvestCreateActive}
+          className="inline-flex items-center gap-1.5 rounded-lg border border-primary/30 bg-primary/10 px-3 py-1.5 text-xs font-medium text-primary disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          <Plus className="h-3.5 w-3.5" />
+          Create field
+        </button>
+        <button
+          type="button"
           onClick={() => void loadData()}
           className="ml-auto inline-flex items-center gap-1.5 rounded-lg border border-border bg-card px-3 py-1.5 text-xs font-medium text-foreground hover:bg-secondary/40"
         >
@@ -563,6 +645,16 @@ export function HarvestWorkspace() {
 
       {!loading && !error ? (
         <>
+          {harvestCreateActive ? (
+            <HarvestFieldCreatePanel
+              drawMethod={createDrawMethod}
+              vertices={createVertices}
+              onDrawMethodChange={updateCreateDrawMethod}
+              onClearDraw={clearCreateDraw}
+              onCreated={handleFieldCreated}
+            />
+          ) : null}
+
           {!selectedField ? (
             <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
               {headlineMetrics.map((metric, index) => {

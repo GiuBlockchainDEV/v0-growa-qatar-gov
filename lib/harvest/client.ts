@@ -302,3 +302,32 @@ export async function harvestGetFieldRasterMeta(
 export async function harvestDeleteEntity(parcelId: string) {
   return harvestFetch(`entity/${parcelId}`, { method: 'DELETE' })
 }
+
+export async function harvestGetCrops() {
+  return harvestFetch<
+    Array<{
+      id: number
+      name: string
+      field_type: string
+      cultivation_method: string
+    }>
+  >('crops/all')
+}
+
+export async function harvestCreateEntity(body: {
+  name: string
+  start_date: string
+  harvest_date: string
+  crop_id: number
+  geojson: unknown
+}) {
+  return harvestFetch<{
+    parcel_id: string
+    season_id?: number
+    task_id?: string
+    name?: string
+  }>('entity/', {
+    method: 'POST',
+    body,
+  })
+}

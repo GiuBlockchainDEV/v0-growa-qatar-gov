@@ -2,9 +2,12 @@ import { shouldUseHarvestDemo } from '@/lib/harvest/config'
 import { parseHarvestFieldStatsCsv } from '@/lib/harvest/csv-stats'
 import { computeCentroid, createRectangleRing } from '@/lib/harvest/geojson'
 import { buildDemoRasterMeta, buildDemoRasterSvg } from '@/lib/harvest/raster'
+import { calculatePolygonAreaHectares } from '@/lib/harvest/geojson'
 import type {
   HarvestAnalyticsField,
   HarvestAnalyticsResponse,
+  HarvestCreateFieldResponse,
+  HarvestCropOption,
   HarvestFieldStatsResponse,
   HarvestMapField,
   HarvestMetricKey,
@@ -14,6 +17,7 @@ import type {
   HarvestTimeseriesResponse,
   HarvestTrendGranularity,
 } from '@/lib/harvest/types'
+import type { LatLngVertex } from '@/lib/harvest/geojson'
 
 export const DEMO_PARCEL_NORTH = 'a1b2c3d4-e5f6-7890-abcd-ef1234567890'
 export const DEMO_PARCEL_SOUTH = 'b2c3d4e5-f6a7-8901-bcde-f12345678901'
@@ -26,6 +30,16 @@ const DEMO_PARCEL_RINGS: Record<string, ReturnType<typeof createRectangleRing>[]
 }
 
 const deletedDemoParcels = new Set<string>()
+const createdDemoFields: HarvestAnalyticsField[] = []
+const createdDemoRings = new Map<string, LatLngVertex[][]>()
+let nextDemoSeasonId = 100
+
+const DEMO_CROPS: HarvestCropOption[] = [
+  { id: 1, name: 'tomato', field_type: 'open_field', cultivation_method: 'soil' },
+  { id: 2, name: 'cucumber', field_type: 'open_field', cultivation_method: 'hydroponics' },
+  { id: 3, name: 'sweet pepper', field_type: 'open_field', cultivation_method: 'soil' },
+  { id: 4, name: 'lettuce', field_type: 'open_field', cultivation_method: 'substrate' },
+]
 
 const DEMO_FIELDS: HarvestAnalyticsField[] = [
   {
@@ -68,7 +82,68 @@ export function isHarvestDemoMode(): boolean {
 }
 
 function getActiveDemoFields() {
-  return DEMO_FIELDS.filter((field) => !deletedDemoParcels.has(field.parcel_id))
+  const base = DEMO_FIELDS.filter((field) => !deletedDemoParcels.has(field.parcel_id))
+  const created = createdDemoFields.filter((field) => !deletedDemoParcels.has(field.parcel_id))
+  return [...base, ...created]
+}
+
+export function getDemoHarvestCrops() {
+  return DEMO_CROPS
+}
+
+export function createDemoField({
+  name,
+  cropId,
+  startDate,
+  harvestDate,
+  vertices,
+}: {
+  name: string
+  cropId: number
+  startDate: string
+  harvestDate: string
+  vertices: LatLngVertex[]
+}): HarvestCreateFieldResponse {
+  const parcelId =
+    typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+      ? crypto.randomUUID()
+      : `demo-${Date.now()}-${Math.random().toString(16).slice(2)}`
+  const seasonId = nextDemoSeasonId++
+  const crop =
+    DEMO_CROPS.find((entry) => entry.id === cropId) ||
+    ({ id: cropId, name: 'custom crop', field_type: 'open_field', cultivation_method: 'soil' } satisfies HarvestCropOption)
+
+  const areaM2 = Math.round(calculatePolygonAreaHectares(vertices) * 10_000)
+  const field: HarvestAnalyticsField = {
+    parcel_id: parcelId,
+    season_id: seasonId,
+    name,
+    crop: crop.name,
+    cultivation: crop.cultivation_method,
+    area: areaM2,
+    start_date: startDate,
+    harvest_date: harvestDate,
+    metrics: {
+      aeti: 0,
+      npp: 0,
+      tbp: 0,
+      bwp: 0,
+      rwd: 0,
+      wcu: 0,
+      cost: 0,
+    },
+  }
+
+  createdDemoFields.push(field)
+  createdDemoRings.set(parcelId, [vertices])
+  DEMO_PARCEL_RINGS[parcelId] = [vertices]
+
+  return {
+    parcel_id: parcelId,
+    season_id: seasonId,
+    task_id: `demo-create-${parcelId}`,
+    name,
+  }
 }
 
 export function deleteDemoField(parcelId: string) {
@@ -143,7 +218,7 @@ export function getDemoParcelGeojson(parcelId: string) {
 
 export function getDemoMapFields(): HarvestMapField[] {
   return getActiveDemoFields().map((field) => {
-    const rings = DEMO_PARCEL_RINGS[field.parcel_id] || []
+    const rings = createdDemoRings.get(field.parcel_id) || DEMO_PARCEL_RINGS[field.parcel_id] || []
     const centroid = rings[0] ? computeCentroid(rings[0]) : { lat: 25.3548, lng: 51.1839 }
     return {
       parcel_id: field.parcel_id,
@@ -156,7 +231,7 @@ export function getDemoMapFields(): HarvestMapField[] {
 }
 
 export function getDemoEntity(parcelId: string) {
-  const field = DEMO_FIELDS.find((entry) => entry.parcel_id === parcelId)
+  const field = getActiveDemoFields().find((entry) => entry.parcel_id === parcelId)
   if (!field) return null
   return {
     parcel_id: field.parcel_id,
