@@ -26,9 +26,9 @@ function normalizeCornerPair(
     return null
   }
 
-  // GeoJSON-style bounds are often [lng, lat]
-  const firstIsLngLat = isLng(a0) && isLat(a1) && Math.abs(a0) > Math.abs(a1)
-  const secondIsLngLat = isLng(b0) && isLat(b1) && Math.abs(b0) > Math.abs(b1)
+  // GeoJSON-style corner pairs are [longitude, latitude]
+  const firstIsLngLat = Math.abs(a0) > Math.abs(a1) && isLat(a1) && isLng(a0)
+  const secondIsLngLat = Math.abs(b0) > Math.abs(b1) && isLat(b1) && isLng(b0)
 
   const latLngPairs = firstIsLngLat || secondIsLngLat
     ? [
@@ -53,25 +53,9 @@ function normalizeFlatBounds(bounds: number[]): RasterBounds | null {
   const [a, b, c, d] = bounds
   if (![a, b, c, d].every((value) => Number.isFinite(value))) return null
 
-  const allLat = [a, b, c, d].every((value) => isLat(value))
-  const allLng = [a, b, c, d].every((value) => isLng(value) && !isLat(value))
-
-  if (allLat) {
-    return [
-      [Math.min(a, c), Math.min(b, d)],
-      [Math.max(a, c), Math.max(b, d)],
-    ]
-  }
-
-  if (allLng) {
-    return [
-      [Math.min(b, d), Math.min(a, c)],
-      [Math.max(b, d), Math.max(a, c)],
-    ]
-  }
-
+  // GeoJSON bbox: [west, south, east, north]
   const looksLikeWestSouthEastNorth =
-    isLng(a) && isLat(b) && isLng(c) && isLat(d) && Math.abs(a) > Math.abs(b) && Math.abs(c) > Math.abs(d)
+    Math.abs(a) > Math.abs(b) && Math.abs(c) > Math.abs(d) && isLat(b) && isLat(d) && isLng(a) && isLng(c)
   if (looksLikeWestSouthEastNorth) {
     return [
       [Math.min(b, d), Math.min(a, c)],
@@ -79,8 +63,9 @@ function normalizeFlatBounds(bounds: number[]): RasterBounds | null {
     ]
   }
 
+  // Leaflet-style flat corners: [south, west, north, east]
   const looksLikeSouthWestNorthEast =
-    isLat(a) && isLng(b) && isLat(c) && isLng(d) && Math.abs(b) > Math.abs(a) && Math.abs(d) > Math.abs(c)
+    Math.abs(b) > Math.abs(a) && Math.abs(d) > Math.abs(c) && isLat(a) && isLat(c) && isLng(b) && isLng(d)
   if (looksLikeSouthWestNorthEast) {
     return [
       [Math.min(a, c), Math.min(b, d)],

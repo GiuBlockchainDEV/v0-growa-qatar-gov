@@ -4,8 +4,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Crosshair, Minus, Plus } from 'lucide-react'
 import { useAuth } from '@/hooks/use-auth'
 import { useOrganization } from '@/hooks/use-organization'
-import { prepareHarvestRasterCanvas } from '@/lib/harvest/image-process'
-import { resolveRasterRenderBounds } from '@/lib/harvest/raster-bounds'
 
 const QATAR_CENTER = { lat: 25.3548, lng: 51.1839 }
 const DEFAULT_ZOOM = 10
@@ -405,16 +403,12 @@ function createHarvestClippedRasterLayer(
     bounds: [[number, number], [number, number]]
     clipRings: Array<Array<{ lat: number; lng: number }>>
     opacity: number
-    imageSource?: 'view' | 'raster'
-    prepareImage?: (image: HTMLImageElement) => ReturnType<typeof prepareHarvestRasterCanvas>
   }
 ) {
   const ClippedRasterLayer = L.Layer.extend({
     initialize(opts: typeof options) {
       L.setOptions(this, opts)
       this._imageLoaded = false
-      this._preparedCanvas = null
-      this._renderBounds = null
     },
     onAdd(map: any) {
       this._map = map
@@ -430,21 +424,11 @@ function createHarvestClippedRasterLayer(
       this._image = new Image()
       this._image.crossOrigin = 'anonymous'
       this._image.onload = () => {
-        const prepared = this.options.prepareImage
-          ? this.options.prepareImage(this._image)
-          : prepareHarvestRasterCanvas(this._image)
-        this._preparedCanvas = prepared.canvas
-        this._renderBounds = resolveRasterRenderBounds(
-          this.options.bounds,
-          prepared,
-          this.options.imageSource
-        )
         this._imageLoaded = true
         this._reset()
       }
       this._image.onerror = () => {
         this._imageLoaded = false
-        this._preparedCanvas = null
       }
       this._image.src = this.options.imageUrl
       map.on('zoom move zoomend moveend viewreset resize', this._reset, this)
@@ -455,14 +439,14 @@ function createHarvestClippedRasterLayer(
       map.off('zoom move zoomend moveend viewreset resize', this._reset, this)
     },
     _reset() {
-      if (!this._map || !this._imageLoaded || !this._preparedCanvas || !this._renderBounds) return
+      if (!this._map || !this._imageLoaded) return
 
       drawHarvestRasterToCanvas(
         L,
         this._map,
         this._canvas,
-        this._preparedCanvas,
-        this._renderBounds,
+        this._image,
+        this.options.bounds,
         this.options.clipRings,
         this.options.opacity ?? 0.5
       )
@@ -1880,14 +1864,6 @@ export function SatelliteMap({
       bounds: harvestRasterOverlay.bounds,
       clipRings: harvestRasterOverlay.clipRings || [],
       opacity: harvestRasterOverlay.opacity ?? 0.5,
-      imageSource: harvestRasterOverlay.imageSource,
-      prepareImage: (image) =>
-        prepareHarvestRasterCanvas(image, {
-          cropPlotFrame: true,
-          transparentBackground:
-            harvestRasterOverlay.imageSource === 'view' ||
-            /\.jpe?g($|\?)/i.test(harvestRasterOverlay.imageUrl),
-        }),
     }).addTo(map)
 
     return () => {

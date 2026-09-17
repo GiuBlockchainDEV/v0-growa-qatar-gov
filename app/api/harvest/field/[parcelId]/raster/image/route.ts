@@ -5,6 +5,7 @@ import { getDemoFieldRaster } from '@/lib/harvest/demo-data'
 import { isLiveRasterMetric } from '@/lib/harvest/field-raster-fallback'
 import { resolveHarvestDataMode } from '@/lib/harvest/mode-resolve'
 import { listHarvestSeasonIds } from '@/lib/harvest/season-resolve'
+import { readRasterImageDimensions } from '@/lib/harvest/raster-image'
 import { fetchHarvestRasterBinary, fetchHarvestRasterMeta } from '@/lib/harvest/view-fetch'
 import type { HarvestMetricKey, HarvestMode, HarvestTrendGranularity } from '@/lib/harvest/types'
 
@@ -98,10 +99,19 @@ export async function GET(request: Request, context: RouteContext) {
       return NextResponse.json({ error: 'Empty raster response from Harvest API' }, { status: 502 })
     }
 
-    return new NextResponse(Buffer.from(buffer), {
+    const imageBuffer = Buffer.from(buffer)
+    const dimensions = await readRasterImageDimensions(imageBuffer)
+
+    return new NextResponse(imageBuffer, {
       headers: {
         'Content-Type': 'image/png',
         'Cache-Control': 'no-store',
+        ...(dimensions
+          ? {
+              'X-Harvest-Raster-Width': String(dimensions.width),
+              'X-Harvest-Raster-Height': String(dimensions.height),
+            }
+          : {}),
       },
     })
   } catch (error) {

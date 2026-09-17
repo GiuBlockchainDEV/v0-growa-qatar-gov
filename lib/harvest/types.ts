@@ -122,6 +122,10 @@ export interface HarvestRasterLegendItem {
   label: string
 }
 
+import type { HarvestRasterGeorefDebug } from '@/lib/harvest/raster-georef'
+
+export type { HarvestRasterGeorefDebug }
+
 export interface HarvestRasterResponse {
   metric: HarvestMetricKey
   granularity: HarvestTrendGranularity
@@ -133,6 +137,7 @@ export interface HarvestRasterResponse {
   image_url: string
   bounds: [[number, number], [number, number]]
   clip_rings?: HarvestMapFieldRing[][]
+  georef_debug?: HarvestRasterGeorefDebug
   vmin: number
   vmax: number
   unit: string

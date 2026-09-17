@@ -483,6 +483,9 @@ export function HarvestWorkspace() {
       const rasterResult = await fetchJson<HarvestRasterResponse>(
         `/api/harvest/field/${activeParcelId}/raster?${params.toString()}`
       )
+      if (rasterResult.data.georef_debug) {
+        console.info('[harvest-raster-georef]', rasterResult.data.georef_debug)
+      }
       setFieldRaster(rasterResult.data)
       dispatchRasterOverlay(rasterResult.data)
 

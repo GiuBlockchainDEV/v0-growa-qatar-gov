@@ -343,6 +343,15 @@ export async function harvestGetFieldRasterMeta(
 ) {
   return harvestFetch<{
     bounds?: [[number, number], [number, number]]
+    bbox?: [number, number, number, number]
+    crs?: string
+    srs?: string
+    transform?: number[]
+    geotransform?: number[]
+    out_transform?: number[]
+    affine?: number[]
+    width?: number
+    height?: number
     legend?: Array<{ color: string; label: string }>
     vmin?: number
     vmax?: number

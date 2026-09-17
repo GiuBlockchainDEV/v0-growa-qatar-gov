@@ -11,7 +11,8 @@ import { normalizeRasterBounds, normalizeRasterLegend } from '@/lib/harvest/rast
 import { harvestJsonResponse } from '@/lib/harvest/resolve'
 import { listHarvestSeasonIds } from '@/lib/harvest/season-resolve'
 import { loadHarvestClipRings } from '@/lib/harvest/clip-rings'
-import { fetchHarvestRasterMeta } from '@/lib/harvest/view-fetch'
+import { fieldBoundsFromClipRings } from '@/lib/harvest/raster-georef'
+import { finalizeHarvestRasterGeoref, fetchHarvestRasterMeta } from '@/lib/harvest/view-fetch'
 import type { HarvestMetricKey, HarvestMode, HarvestTrendGranularity } from '@/lib/harvest/types'
 
 interface RouteContext {
@@ -85,6 +86,7 @@ export async function GET(request: Request, context: RouteContext) {
 
   if (access.demoMode) {
     const clipRings = await loadHarvestClipRings(parcelId, true)
+    const fieldPolygonBounds = fieldBoundsFromClipRings(clipRings)
     const demoRaster = getDemoFieldRaster(parcelId, mode, metric, granularity, period)
     if (demoRaster) {
       const imageParams = new URLSearchParams({
@@ -101,6 +103,19 @@ export async function GET(request: Request, context: RouteContext) {
           bounds: normalizeRasterBounds(demoRaster.bounds),
           legend: normalizeRasterLegend(demoRaster.legend),
           clip_rings: clipRings,
+          georef_debug: {
+            rasterCrs: 'EPSG:4326',
+            rasterTransform: null,
+            rawBounds: demoRaster.bounds,
+            rawBbox: null,
+            imageWidth: null,
+            imageHeight: null,
+            computedLeafletBounds: normalizeRasterBounds(demoRaster.bounds),
+            fieldPolygonBounds,
+            boundsSource: 'leaflet_bounds',
+            hasRotation: false,
+            rotationWarning: null,
+          },
         },
         true
       )
@@ -145,27 +160,34 @@ export async function GET(request: Request, context: RouteContext) {
 
     const resolvedSeasonId = meta.resolvedSeasonId ?? requestedSeasonId
     const clipRings = await loadHarvestClipRings(parcelId, false)
+    const georefMeta = await finalizeHarvestRasterGeoref({
+      meta,
+      parcelId,
+      metric,
+      clipRings,
+    })
     const payload = {
       metric,
-      granularity: meta.granularity,
-      period: meta.period,
-      raster_mode: meta.rasterMode,
-      image_source: meta.imageSource,
+      granularity: georefMeta.granularity,
+      period: georefMeta.period,
+      raster_mode: georefMeta.rasterMode,
+      image_source: georefMeta.imageSource,
       requested_season_id: requestedSeasonId,
       resolved_season_id: resolvedSeasonId,
       image_url: buildImageUrl({
         parcelId,
-        meta,
+        meta: georefMeta,
         metric,
         mode,
         resolvedSeasonId,
       }),
-      bounds: normalizeRasterBounds(meta.bounds),
+      bounds: georefMeta.bounds,
       clip_rings: clipRings,
-      vmin: meta.vmin,
-      vmax: meta.vmax,
-      unit: meta.unit,
-      legend: meta.legend,
+      georef_debug: georefMeta.georefDebug,
+      vmin: georefMeta.vmin,
+      vmax: georefMeta.vmax,
+      unit: georefMeta.unit,
+      legend: georefMeta.legend,
     }
 
     return harvestJsonResponse(payload, false)
