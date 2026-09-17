@@ -8,6 +8,8 @@ import { useOrganization } from '@/hooks/use-organization'
 const QATAR_CENTER = { lat: 25.3548, lng: 51.1839 }
 const DEFAULT_ZOOM = 10
 const DEFAULT_FARM_ZOOM = 17
+const DEFAULT_TILE_URL =
+  'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'
 
 type MapPointType = 'farm' | 'facility' | 'sensor' | 'custom'
 type PolygonDrawMethod = 'vertex' | 'rectangle' | 'circle'
@@ -41,6 +43,14 @@ interface WeatherBoundaryPoint {
   lng: number
 }
 
+interface HarvestMapField {
+  parcel_id: string
+  name: string
+  crop: string
+  rings: Array<Array<{ lat: number; lng: number }>>
+  centroid: { lat: number; lng: number }
+}
+
 interface SatelliteMapProps {
   locale?: string
   targetPointId?: string | null
@@ -54,6 +64,20 @@ interface SatelliteMapProps {
   weatherGridLines?: WeatherGridLineSegment[]
   weatherBoundary?: WeatherBoundaryPoint[]
   onWeatherGridPointClick?: (point: WeatherGridMapPoint) => void
+  harvestFields?: HarvestMapField[]
+  selectedHarvestParcelId?: string | null
+  onHarvestFieldClick?: (field: HarvestMapField) => void
+  mapTileUrl?: string | null
+  harvestRasterOverlay?: {
+    imageUrl: string
+    bounds: [[number, number], [number, number]]
+    opacity?: number
+  } | null
+  harvestFocusBounds?: [[number, number], [number, number]] | null
+  harvestFieldDrawActive?: boolean
+  harvestFieldDrawMethod?: 'vertex' | 'circle'
+  harvestFieldVertices?: PolygonVertex[]
+  onHarvestFieldVerticesChange?: (vertices: PolygonVertex[]) => void
 }
 
 interface MapController {
@@ -561,6 +585,16 @@ export function SatelliteMap({
   weatherGridLines = [],
   weatherBoundary = [],
   onWeatherGridPointClick,
+  harvestFields = [],
+  selectedHarvestParcelId = null,
+  onHarvestFieldClick,
+  mapTileUrl = null,
+  harvestRasterOverlay = null,
+  harvestFocusBounds = null,
+  harvestFieldDrawActive = false,
+  harvestFieldDrawMethod = 'vertex',
+  harvestFieldVertices = [],
+  onHarvestFieldVerticesChange,
 }: SatelliteMapProps) {
   const { user } = useAuth()
   const { organization } = useOrganization()
@@ -570,6 +604,11 @@ export function SatelliteMap({
   const leafletRef = useRef<any>(null)
   const markerInstancesRef = useRef<any[]>([])
   const weatherGridMarkerInstancesRef = useRef<any[]>([])
+  const harvestFieldLayerInstancesRef = useRef<any[]>([])
+  const harvestRasterOverlayRef = useRef<any>(null)
+  const harvestDraftLayerRef = useRef<any>(null)
+  const harvestDraftVertexInstancesRef = useRef<any[]>([])
+  const tileLayerRef = useRef<any>(null)
   const polygonInstancesRef = useRef<any[]>([])
   const draftPolylineRef = useRef<any | null>(null)
   const draftVertexInstancesRef = useRef<any[]>([])
@@ -595,6 +634,7 @@ export function SatelliteMap({
   const [polygonDrawPointId, setPolygonDrawPointId] = useState<string | null>(null)
   const [polygonDrawMethod, setPolygonDrawMethod] = useState<PolygonDrawMethod>('vertex')
   const [shapeSeedVertex, setShapeSeedVertex] = useState<PolygonVertex | null>(null)
+  const [harvestShapeSeedVertex, setHarvestShapeSeedVertex] = useState<PolygonVertex | null>(null)
   const [circleSegments, setCircleSegments] = useState(16)
   const [draftPolygon, setDraftPolygon] = useState<PolygonVertex[]>([])
   const [draftPolygonName, setDraftPolygonName] = useState('')
@@ -1461,10 +1501,7 @@ export function SatelliteMap({
         attributionControl: false,
       }) as MapController
       map = createdMap
-      L.tileLayer(
-        'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
-        { maxZoom: 19 }
-      ).addTo(createdMap)
+      tileLayerRef.current = L.tileLayer(DEFAULT_TILE_URL, { maxZoom: 19 }).addTo(createdMap)
       createdMap.on('zoomend', () => setCurrentZoom(createdMap.getZoom()))
       mapInstanceRef.current = createdMap
       setIsLoading(false)
@@ -1544,7 +1581,7 @@ export function SatelliteMap({
     }
 
     markerInstancesRef.current.forEach((marker) => marker.remove?.())
-    if (hideMarkersForCropFocus) {
+    if (weatherGridPoints.length > 0 || harvestFields.length > 0 || hideMarkersForCropFocus) {
       markerInstancesRef.current = []
       return
     }
@@ -1590,8 +1627,138 @@ export function SatelliteMap({
     normalizedTargetCropName,
     openPointInsightsModal,
     pointScoreStatsById,
+    weatherGridPoints,
+    harvestFields,
   ])
 
+  useEffect(() => {
+    if (!mapReady || !mapInstanceRef.current || !leafletRef.current) return
+    const L = leafletRef.current
+    const map = mapInstanceRef.current
+    const nextTileUrl = mapTileUrl || DEFAULT_TILE_URL
+
+    if (tileLayerRef.current) {
+      tileLayerRef.current.remove?.()
+      tileLayerRef.current = null
+    }
+
+    tileLayerRef.current = L.tileLayer(nextTileUrl, { maxZoom: 19 }).addTo(map)
+  }, [mapReady, mapTileUrl])
+
+  useEffect(() => {
+    if (!mapReady || !mapInstanceRef.current || !leafletRef.current) return
+    const L = leafletRef.current
+    const map = mapInstanceRef.current
+
+    harvestFieldLayerInstancesRef.current.forEach((layer) => layer.remove?.())
+    harvestFieldLayerInstancesRef.current = []
+
+    if (harvestFields.length === 0) return
+
+    for (const field of harvestFields) {
+      const selected = field.parcel_id === selectedHarvestParcelId
+      for (const ring of field.rings) {
+        if (ring.length < 3) continue
+        const layer = L.polygon(
+          ring.map((vertex) => [vertex.lat, vertex.lng]),
+          {
+            color: selected ? '#ffffff' : '#07f880',
+            weight: selected ? 4 : 2,
+            opacity: 1,
+            fillColor: '#07f880',
+            fillOpacity: selected ? 0.28 : 0.14,
+            interactive: true,
+            bubblingMouseEvents: false,
+          }
+        ).addTo(map)
+
+        layer.bindTooltip(
+          `<strong style="color:#07f880;">${escapeHtml(field.name)}</strong><br/><span style="font-size:11px;color:#bbb;">${escapeHtml(field.crop)}</span>`,
+          { direction: 'top', opacity: 0.95, className: 'custom-tooltip' }
+        )
+
+        layer.on('click', (event: any) => {
+          event?.originalEvent?.preventDefault?.()
+          event?.originalEvent?.stopPropagation?.()
+          onHarvestFieldClick?.(field)
+        })
+
+        harvestFieldLayerInstancesRef.current.push(layer)
+      }
+    }
+
+    return () => {
+      harvestFieldLayerInstancesRef.current.forEach((layer) => layer.remove?.())
+      harvestFieldLayerInstancesRef.current = []
+    }
+  }, [harvestFields, mapReady, onHarvestFieldClick, selectedHarvestParcelId])
+
+  useEffect(() => {
+    if (!mapReady || !mapInstanceRef.current || !leafletRef.current || !selectedHarvestParcelId) return
+
+    const map = mapInstanceRef.current
+    const L = leafletRef.current
+    const zoom =
+      Number.isFinite(targetZoom) && (targetZoom as number) >= 3 && (targetZoom as number) <= 19
+        ? (targetZoom as number)
+        : 13
+
+    const selectedField = harvestFields.find((field) => field.parcel_id === selectedHarvestParcelId)
+    if (selectedField) {
+      const vertices = selectedField.rings.flat()
+      if (vertices.length >= 3) {
+        const bounds = L.latLngBounds(vertices.map((vertex) => [vertex.lat, vertex.lng]))
+        map.flyToBounds(bounds, { padding: [48, 48], duration: 1.1, maxZoom: zoom })
+        return
+      }
+
+      map.flyTo([selectedField.centroid.lat, selectedField.centroid.lng], zoom, { duration: 1.1 })
+      return
+    }
+
+    if (harvestFocusBounds) {
+      const [[south, west], [north, east]] = harvestFocusBounds
+      const bounds = L.latLngBounds([south, west], [north, east])
+      map.flyToBounds(bounds, { padding: [48, 48], duration: 1.1, maxZoom: zoom })
+    }
+  }, [
+    harvestFields,
+    harvestFocusBounds,
+    mapReady,
+    selectedHarvestParcelId,
+    targetFocusToken,
+    targetZoom,
+  ])
+
+  useEffect(() => {
+    if (!mapReady || !mapInstanceRef.current || !leafletRef.current) return
+    const L = leafletRef.current
+    const map = mapInstanceRef.current
+
+    if (harvestRasterOverlayRef.current) {
+      harvestRasterOverlayRef.current.remove?.()
+      harvestRasterOverlayRef.current = null
+    }
+
+    if (!harvestRasterOverlay?.imageUrl || !harvestRasterOverlay.bounds) return
+
+    const [[south, west], [north, east]] = harvestRasterOverlay.bounds
+    harvestRasterOverlayRef.current = L.imageOverlay(
+      harvestRasterOverlay.imageUrl,
+      L.latLngBounds([south, west], [north, east]),
+      {
+        opacity: harvestRasterOverlay.opacity ?? 0.5,
+        interactive: false,
+      }
+    ).addTo(map)
+
+    return () => {
+      if (harvestRasterOverlayRef.current) {
+        harvestRasterOverlayRef.current.remove?.()
+        harvestRasterOverlayRef.current = null
+      }
+    }
+  }, [harvestRasterOverlay, mapReady])
 
   useEffect(() => {
     if (!mapReady || !mapInstanceRef.current || !leafletRef.current) return
@@ -1601,7 +1768,9 @@ export function SatelliteMap({
     weatherGridMarkerInstancesRef.current.forEach((layer) => layer.remove?.())
     weatherGridMarkerInstancesRef.current = []
 
-    if (weatherGridPoints.length === 0) return
+    if (weatherGridPoints.length === 0 && weatherGridLines.length === 0 && weatherBoundary.length <= 2) {
+      return
+    }
 
     const layers: any[] = []
 
@@ -1703,6 +1872,8 @@ export function SatelliteMap({
     draftPolylineRef.current = null
     draftVertexInstancesRef.current.forEach((marker) => marker.remove?.())
     draftVertexInstancesRef.current = []
+
+    if (weatherGridPoints.length > 0 || harvestFields.length > 0) return
 
     const polygonsToRender = normalizedCropFilter
       ? Object.values(pointPolygons)
@@ -1854,6 +2025,8 @@ export function SatelliteMap({
     normalizedCropFilter,
     pointPolygons,
     polygonDrawPointId,
+    harvestFields,
+    weatherGridPoints,
   ])
 
   useEffect(() => {
@@ -1925,6 +2098,120 @@ export function SatelliteMap({
       map.off('click', handleMapClick)
     }
   }, [isAddPointMode, mapReady, onMapClick, polygonDrawPointId])
+
+  useEffect(() => {
+    if (!harvestFieldDrawActive) {
+      setHarvestShapeSeedVertex(null)
+      return
+    }
+    if (!mapReady || !mapInstanceRef.current) return
+    const map = mapInstanceRef.current
+
+    const handleMapClick = (event: any) => {
+      if (isLeafletUiClick(event)) return
+      const lat = Number(event?.latlng?.lat)
+      const lng = Number(event?.latlng?.lng)
+      if (!Number.isFinite(lat) || !Number.isFinite(lng)) return
+
+      const vertex = { lat, lng } satisfies PolygonVertex
+      if (harvestFieldDrawMethod === 'vertex') {
+        onHarvestFieldVerticesChange?.([...harvestFieldVertices, vertex])
+        return
+      }
+
+      if (!harvestShapeSeedVertex) {
+        setHarvestShapeSeedVertex(vertex)
+        return
+      }
+
+      onHarvestFieldVerticesChange?.(
+        createCircleVertices(harvestShapeSeedVertex, vertex, circleSegments)
+      )
+      setHarvestShapeSeedVertex(null)
+    }
+
+    const handleMouseMove = (event: any) => {
+      if (isLeafletUiClick(event)) return
+      if (!harvestShapeSeedVertex || harvestFieldDrawMethod !== 'circle') return
+      const lat = Number(event?.latlng?.lat)
+      const lng = Number(event?.latlng?.lng)
+      if (!Number.isFinite(lat) || !Number.isFinite(lng)) return
+      onHarvestFieldVerticesChange?.(
+        createCircleVertices(harvestShapeSeedVertex, { lat, lng }, circleSegments)
+      )
+    }
+
+    map.on('click', handleMapClick)
+    map.on('mousemove', handleMouseMove)
+    return () => {
+      map.off('click', handleMapClick)
+      map.off('mousemove', handleMouseMove)
+    }
+  }, [
+    circleSegments,
+    harvestFieldDrawActive,
+    harvestFieldDrawMethod,
+    harvestFieldVertices,
+    harvestShapeSeedVertex,
+    mapReady,
+    onHarvestFieldVerticesChange,
+  ])
+
+  useEffect(() => {
+    if (!mapReady || !mapInstanceRef.current || !leafletRef.current) return
+    const L = leafletRef.current
+    const map = mapInstanceRef.current
+
+    harvestDraftLayerRef.current?.remove?.()
+    harvestDraftLayerRef.current = null
+    harvestDraftVertexInstancesRef.current.forEach((layer) => layer.remove?.())
+    harvestDraftVertexInstancesRef.current = []
+
+    if (!harvestFieldDrawActive || harvestFieldVertices.length === 0) return
+
+    if (harvestFieldVertices.length >= 3) {
+      harvestDraftLayerRef.current = L.polygon(
+        harvestFieldVertices.map((vertex) => [vertex.lat, vertex.lng]),
+        {
+          color: '#fbbf24',
+          weight: 3,
+          opacity: 0.95,
+          fillColor: '#fbbf24',
+          fillOpacity: 0.18,
+          interactive: false,
+        }
+      ).addTo(map)
+    } else {
+      harvestDraftLayerRef.current = L.polyline(
+        harvestFieldVertices.map((vertex) => [vertex.lat, vertex.lng]),
+        {
+          color: '#fbbf24',
+          weight: 3,
+          dashArray: '8 6',
+          opacity: 0.95,
+          interactive: false,
+        }
+      ).addTo(map)
+    }
+
+    harvestDraftVertexInstancesRef.current = harvestFieldVertices.map((vertex, index) =>
+      L.circleMarker([vertex.lat, vertex.lng], {
+        radius: index === 0 ? 7 : 6,
+        color: '#ffffff',
+        weight: 2,
+        fillColor: '#fbbf24',
+        fillOpacity: 1,
+        interactive: false,
+      }).addTo(map)
+    )
+
+    return () => {
+      harvestDraftLayerRef.current?.remove?.()
+      harvestDraftLayerRef.current = null
+      harvestDraftVertexInstancesRef.current.forEach((layer) => layer.remove?.())
+      harvestDraftVertexInstancesRef.current = []
+    }
+  }, [harvestFieldDrawActive, harvestFieldVertices, mapReady])
 
   useEffect(() => {
     if (!isGrowaAdmin || !polygonDrawPointId) return

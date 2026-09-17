@@ -1,14 +1,45 @@
 import { shouldUseHarvestDemo } from '@/lib/harvest/config'
+import { parseHarvestFieldStatsCsv } from '@/lib/harvest/csv-stats'
+import { computeCentroid, createRectangleRing } from '@/lib/harvest/geojson'
+import { buildDemoRasterMeta, buildDemoRasterSvg } from '@/lib/harvest/raster'
+import { calculatePolygonAreaHectares } from '@/lib/harvest/geojson'
 import type {
   HarvestAnalyticsField,
   HarvestAnalyticsResponse,
+  HarvestCreateFieldResponse,
+  HarvestCropOption,
+  HarvestFieldStatsResponse,
+  HarvestMapField,
+  HarvestMetricKey,
   HarvestMode,
+  HarvestRasterResponse,
   HarvestTaskStatus,
   HarvestTimeseriesResponse,
+  HarvestTrendGranularity,
 } from '@/lib/harvest/types'
+import type { LatLngVertex } from '@/lib/harvest/geojson'
 
 export const DEMO_PARCEL_NORTH = 'a1b2c3d4-e5f6-7890-abcd-ef1234567890'
 export const DEMO_PARCEL_SOUTH = 'b2c3d4e5-f6a7-8901-bcde-f12345678901'
+export const DEMO_PARCEL_UMM_SALAL = 'c3d4e5f6-a7b8-9012-cdef-123456789012'
+
+const DEMO_PARCEL_RINGS: Record<string, ReturnType<typeof createRectangleRing>[]> = {
+  [DEMO_PARCEL_NORTH]: [createRectangleRing(26.102, 51.214, 0.034, 0.048)],
+  [DEMO_PARCEL_SOUTH]: [createRectangleRing(25.168, 51.603, 0.022, 0.031)],
+  [DEMO_PARCEL_UMM_SALAL]: [createRectangleRing(25.421, 51.408, 0.028, 0.036)],
+}
+
+const deletedDemoParcels = new Set<string>()
+const createdDemoFields: HarvestAnalyticsField[] = []
+const createdDemoRings = new Map<string, LatLngVertex[][]>()
+let nextDemoSeasonId = 100
+
+const DEMO_CROPS: HarvestCropOption[] = [
+  { id: 1, name: 'tomato', field_type: 'open_field', cultivation_method: 'soil' },
+  { id: 2, name: 'cucumber', field_type: 'open_field', cultivation_method: 'hydroponics' },
+  { id: 3, name: 'sweet pepper', field_type: 'open_field', cultivation_method: 'soil' },
+  { id: 4, name: 'lettuce', field_type: 'open_field', cultivation_method: 'substrate' },
+]
 
 const DEMO_FIELDS: HarvestAnalyticsField[] = [
   {
@@ -34,7 +65,7 @@ const DEMO_FIELDS: HarvestAnalyticsField[] = [
     metrics: { aeti: 4820.7, npp: 410.5, tbp: 68.2, bwp: 1.41, rwd: 0.12, wcu: 91.2, cost: 25550 },
   },
   {
-    parcel_id: 'c3d4e5f6-a7b8-9012-cdef-123456789012',
+    parcel_id: DEMO_PARCEL_UMM_SALAL,
     season_id: 7,
     name: 'Umm Salal Trial Plot',
     crop: 'sweet pepper',
@@ -50,16 +81,86 @@ export function isHarvestDemoMode(): boolean {
   return shouldUseHarvestDemo()
 }
 
+function getActiveDemoFields() {
+  const base = DEMO_FIELDS.filter((field) => !deletedDemoParcels.has(field.parcel_id))
+  const created = createdDemoFields.filter((field) => !deletedDemoParcels.has(field.parcel_id))
+  return [...base, ...created]
+}
+
+export function getDemoHarvestCrops() {
+  return DEMO_CROPS
+}
+
+export function createDemoField({
+  name,
+  cropId,
+  startDate,
+  harvestDate,
+  vertices,
+}: {
+  name: string
+  cropId: number
+  startDate: string
+  harvestDate: string
+  vertices: LatLngVertex[]
+}): HarvestCreateFieldResponse {
+  const parcelId =
+    typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+      ? crypto.randomUUID()
+      : `demo-${Date.now()}-${Math.random().toString(16).slice(2)}`
+  const seasonId = nextDemoSeasonId++
+  const crop =
+    DEMO_CROPS.find((entry) => entry.id === cropId) ||
+    ({ id: cropId, name: 'custom crop', field_type: 'open_field', cultivation_method: 'soil' } satisfies HarvestCropOption)
+
+  const areaM2 = Math.round(calculatePolygonAreaHectares(vertices) * 10_000)
+  const field: HarvestAnalyticsField = {
+    parcel_id: parcelId,
+    season_id: seasonId,
+    name,
+    crop: crop.name,
+    cultivation: crop.cultivation_method,
+    area: areaM2,
+    start_date: startDate,
+    harvest_date: harvestDate,
+    metrics: {
+      aeti: 0,
+      npp: 0,
+      tbp: 0,
+      bwp: 0,
+      rwd: 0,
+      wcu: 0,
+      cost: 0,
+    },
+  }
+
+  createdDemoFields.push(field)
+  createdDemoRings.set(parcelId, [vertices])
+  DEMO_PARCEL_RINGS[parcelId] = [vertices]
+
+  return {
+    parcel_id: parcelId,
+    season_id: seasonId,
+    task_id: `demo-create-${parcelId}`,
+    name,
+  }
+}
+
+export function deleteDemoField(parcelId: string) {
+  deletedDemoParcels.add(parcelId)
+}
+
 export function getDemoAnalytics(mode: HarvestMode): HarvestAnalyticsResponse {
   const factor = mode === 'predict' ? 1.12 : 1
+  const activeFields = getActiveDemoFields()
   return {
     metrics: [
-      { key: 'aeti', agg: 'sum', value: Math.round(24581.2 * factor), field_count: 3 },
-      { key: 'tbp', agg: 'sum', value: Math.round(327.5 * factor * 10) / 10, field_count: 3 },
-      { key: 'bwp', agg: 'mean', value: 1.28, field_count: 3 },
-      { key: 'cost', agg: 'sum', value: Math.round(130322 * factor), field_count: 3 },
+      { key: 'aeti', agg: 'sum', value: Math.round(24581.2 * factor), field_count: activeFields.length },
+      { key: 'tbp', agg: 'sum', value: Math.round(327.5 * factor * 10) / 10, field_count: activeFields.length },
+      { key: 'bwp', agg: 'mean', value: 1.28, field_count: activeFields.length },
+      { key: 'cost', agg: 'sum', value: Math.round(130322 * factor), field_count: activeFields.length },
     ],
-    fields: DEMO_FIELDS.map((field) => ({
+    fields: activeFields.map((field) => ({
       ...field,
       metrics: Object.fromEntries(
         Object.entries(field.metrics).map(([key, value]) => [
@@ -93,8 +194,44 @@ export function getDemoTimeseries(mode: HarvestMode): HarvestTimeseriesResponse 
   }
 }
 
+function ringToGeoJson(ring: Array<{ lat: number; lng: number }>) {
+  return {
+    type: 'Polygon',
+    coordinates: [ring.map((vertex) => [vertex.lng, vertex.lat])],
+  }
+}
+
+export function getDemoParcelGeojson(parcelId: string) {
+  const rings = DEMO_PARCEL_RINGS[parcelId]
+  if (!rings || rings.length === 0) return null
+  return {
+    geojson: {
+      type: 'FeatureCollection',
+      features: rings.map((ring) => ({
+        type: 'Feature',
+        properties: { parcel_id: parcelId },
+        geometry: ringToGeoJson(ring),
+      })),
+    },
+  }
+}
+
+export function getDemoMapFields(): HarvestMapField[] {
+  return getActiveDemoFields().map((field) => {
+    const rings = createdDemoRings.get(field.parcel_id) || DEMO_PARCEL_RINGS[field.parcel_id] || []
+    const centroid = rings[0] ? computeCentroid(rings[0]) : { lat: 25.3548, lng: 51.1839 }
+    return {
+      parcel_id: field.parcel_id,
+      name: field.name,
+      crop: field.crop,
+      rings,
+      centroid,
+    }
+  })
+}
+
 export function getDemoEntity(parcelId: string) {
-  const field = DEMO_FIELDS.find((entry) => entry.parcel_id === parcelId)
+  const field = getActiveDemoFields().find((entry) => entry.parcel_id === parcelId)
   if (!field) return null
   return {
     parcel_id: field.parcel_id,
@@ -144,4 +281,83 @@ export function getDemoYieldTask(mode: HarvestMode, parcelId: string, seasonId: 
 
 export function getDemoTaskStatus(taskId: string): HarvestTaskStatus | null {
   return demoYieldTasks.get(taskId) || null
+}
+
+const TREND_METRICS: HarvestMetricKey[] = ['aeti', 'npp', 'tbp', 'bwp', 'rwd', 'wcu', 'cost']
+
+function buildDemoFieldStatsCsv(field: HarvestAnalyticsField, mode: HarvestMode) {
+  const factor = mode === 'predict' ? 1.08 : 1
+  const periods = [
+    ['2025-09-01', '2025-09-10'],
+    ['2025-09-11', '2025-09-20'],
+    ['2025-09-21', '2025-09-30'],
+    ['2025-10-01', '2025-10-10'],
+    ['2025-10-11', '2025-10-20'],
+    ['2025-10-21', '2025-10-31'],
+    ['2025-11-01', '2025-11-10'],
+    ['2025-11-11', '2025-11-20'],
+    ['2025-11-21', '2025-11-30'],
+    ['2025-12-01', '2025-12-10'],
+    ['2025-12-11', '2025-12-20'],
+    ['2025-12-21', '2025-12-31'],
+  ]
+
+  const header = [
+    'granularity',
+    'period_start',
+    'period_end',
+    ...TREND_METRICS,
+  ].join(',')
+
+  const dekadRows = periods.map(([start, end], index) => {
+    const growth = 1 + index * 0.035
+    const values = TREND_METRICS.map((metric) => {
+      const base = field.metrics[metric] ?? 0
+      const scale = metric === 'wcu' || metric === 'rwd' || metric === 'bwp' ? 1 : growth
+      return Math.round(base * factor * scale * 10) / 10
+    })
+    return ['dekad', start, end, ...values].join(',')
+  })
+
+  const seasonValues = TREND_METRICS.map((metric) => {
+    const base = field.metrics[metric] ?? 0
+    return Math.round(base * factor * 12 * 10) / 10
+  })
+  const seasonRow = ['season', field.start_date, field.harvest_date, ...seasonValues].join(',')
+
+  return [header, ...dekadRows, seasonRow].join('\n')
+}
+
+export function getDemoFieldStats(parcelId: string, mode: HarvestMode): HarvestFieldStatsResponse | null {
+  const field = DEMO_FIELDS.find((entry) => entry.parcel_id === parcelId)
+  if (!field || !field.season_id) return null
+  return parseHarvestFieldStatsCsv(buildDemoFieldStatsCsv(field, mode), {
+    parcel_id: field.parcel_id,
+    season_id: field.season_id,
+  })
+}
+
+export function getDemoFieldRaster(
+  parcelId: string,
+  mode: HarvestMode,
+  metric: HarvestMetricKey,
+  granularity: HarvestTrendGranularity,
+  period: string | null
+): HarvestRasterResponse | null {
+  const field = DEMO_FIELDS.find((entry) => entry.parcel_id === parcelId)
+  if (!field) return null
+  const rings = DEMO_PARCEL_RINGS[field.parcel_id] || []
+  const meta = buildDemoRasterMeta(metric, rings)
+
+  return {
+    metric,
+    granularity,
+    period,
+    image_url: buildDemoRasterSvg(metric, field.name),
+    bounds: meta.bounds,
+    vmin: meta.vmin,
+    vmax: meta.vmax,
+    unit: meta.unit,
+    legend: meta.legend,
+  }
 }
