@@ -150,7 +150,11 @@ export function resolveRasterGeoref({
     rotationWarning = `Raster CRS ${crs} is not EPSG:4326; bounds were not reprojected in the BFF`
   }
 
-  if (transform && imageWidth && imageHeight && imageWidth > 0 && imageHeight > 0) {
+  // Prefer raster_meta.bounds from Harvest API (already Leaflet [[south,west],[north,east]]).
+  if (rawBounds) {
+    computedBounds = normalizeRasterBounds(rawBounds)
+    boundsSource = 'leaflet_bounds'
+  } else if (transform && imageWidth && imageHeight && imageWidth > 0 && imageHeight > 0) {
     const affine = leafletBoundsFromAffine(transform, imageWidth, imageHeight)
     computedBounds = affine.bounds
     boundsSource = 'affine_transform'
@@ -165,9 +169,6 @@ export function resolveRasterGeoref({
       computedBounds = bboxBounds
       boundsSource = 'geojson_bbox'
     }
-  } else if (rawBounds) {
-    computedBounds = normalizeRasterBounds(rawBounds)
-    boundsSource = 'leaflet_bounds'
   }
 
   const debug: HarvestRasterGeorefDebug = {

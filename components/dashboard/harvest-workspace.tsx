@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import {
   Activity,
@@ -212,6 +212,8 @@ export function HarvestWorkspace() {
   >([])
   const [createVertices, setCreateVertices] = useState<LatLngVertex[]>([])
   const [createDrawMethod, setCreateDrawMethod] = useState<'vertex' | 'circle'>(harvestDrawMethod)
+  const rasterBlobUrlRef = useRef<string | null>(null)
+  const rasterLoadSeqRef = useRef(0)
 
   useEffect(() => {
     const handleDrawUpdate = (event: Event) => {
@@ -445,38 +447,48 @@ export function HarvestWorkspace() {
     updateHarvestMapParams,
   ])
 
-  const dispatchRasterOverlay = useCallback((raster: HarvestRasterResponse | null) => {
-    window.dispatchEvent(
-      new CustomEvent('harvest:raster-overlay', {
-        detail: raster
-          ? {
-              imageUrl: raster.image_url,
-              bounds: normalizeRasterBounds(raster.bounds),
-              opacity: 0.5,
-              imageSource: raster.image_source,
-              clipRings: raster.clip_rings,
-              metric: raster.metric,
-              vmin: raster.vmin,
-              vmax: raster.vmax,
-              unit: raster.unit,
-              legend: raster.legend,
-            }
-          : null,
-      })
-    )
+  const revokeRasterBlobUrl = useCallback(() => {
+    if (rasterBlobUrlRef.current) {
+      URL.revokeObjectURL(rasterBlobUrlRef.current)
+      rasterBlobUrlRef.current = null
+    }
   }, [])
+
+  const dispatchRasterOverlay = useCallback(
+    (raster: HarvestRasterResponse | null, imageUrl?: string) => {
+      if (!raster) {
+        revokeRasterBlobUrl()
+      }
+      window.dispatchEvent(
+        new CustomEvent('harvest:raster-overlay', {
+          detail: raster
+            ? {
+                imageUrl: imageUrl || raster.image_url,
+                bounds: normalizeRasterBounds(raster.bounds),
+                opacity: 0.5,
+                imageSource: raster.image_source,
+                clipRings: raster.clip_rings,
+                metric: raster.metric,
+                vmin: raster.vmin,
+                vmax: raster.vmax,
+                unit: raster.unit,
+                legend: raster.legend,
+              }
+            : null,
+        })
+      )
+    },
+    [revokeRasterBlobUrl]
+  )
 
   const loadFieldRaster = useCallback(async () => {
     const activeParcelId = selectedField?.parcel_id || parcelId
-    const seasonId = fieldStats?.resolved_season_id ?? fieldStats?.season_id ?? activeSeasonId
+    const seasonId = activeSeasonId
     if (!activeParcelId || !seasonId || !Number.isFinite(seasonId)) {
       setFieldRaster(null)
       dispatchRasterOverlay(null)
       return
     }
-
-    const effectiveGranularity =
-      mapGranularity === 'dekad' && !selectedPeriod ? 'season' : mapGranularity
 
     if (!MAP_METRICS.includes(selectedMapMetric)) {
       setFieldRaster(null)
@@ -484,50 +496,52 @@ export function HarvestWorkspace() {
       return
     }
 
+    // Harvest API: dekad rasters require an explicit period; wait for loadFieldDetail to set it.
+    if (mapGranularity === 'dekad' && !selectedPeriod) {
+      setFieldRaster(null)
+      dispatchRasterOverlay(null)
+      return
+    }
+
+    const rasterMode = mapGranularity === 'dekad' ? 'current' : mode
+    const requestId = ++rasterLoadSeqRef.current
+
     setFieldRasterLoading(true)
     setFieldRasterError(null)
     try {
-      const rasterMode = effectiveGranularity === 'dekad' ? 'current' : mode
       const params = new URLSearchParams({
         mode: rasterMode,
         metric: selectedMapMetric,
-        granularity: effectiveGranularity,
+        granularity: mapGranularity,
         season_id: String(seasonId),
       })
-      if (effectiveGranularity === 'dekad' && selectedPeriod) {
+      if (mapGranularity === 'dekad' && selectedPeriod) {
         params.set('period', selectedPeriod)
       }
 
       const rasterResult = await fetchJson<HarvestRasterResponse>(
         `/api/harvest/field/${activeParcelId}/raster?${params.toString()}`
       )
-      if (rasterResult.data.georef_debug) {
-        console.info('[harvest-raster-georef]', rasterResult.data.georef_debug)
+      if (requestId !== rasterLoadSeqRef.current) return
+
+      const imageResponse = await fetch(rasterResult.data.image_url, { cache: 'no-store' })
+      if (!imageResponse.ok) {
+        throw new Error(`Raster image request failed (${imageResponse.status})`)
       }
+      const imageBlob = await imageResponse.blob()
+      if (!imageBlob.size) {
+        throw new Error('Raster image response was empty')
+      }
+      if (requestId !== rasterLoadSeqRef.current) return
+
+      revokeRasterBlobUrl()
+      const blobImageUrl = URL.createObjectURL(imageBlob)
+      rasterBlobUrlRef.current = blobImageUrl
+
       setFieldRaster(rasterResult.data)
-      dispatchRasterOverlay(rasterResult.data)
-
-      const resolvedSeasonId =
-        rasterResult.data.resolved_season_id ?? rasterResult.data.requested_season_id ?? seasonId
-      if (resolvedSeasonId && resolvedSeasonId !== seasonId) {
-        setSelectedField((current) =>
-          current ? { ...current, season_id: resolvedSeasonId } : current
-        )
-      }
-
-      const shouldUpdateParams =
-        rasterResult.data.granularity !== mapGranularity ||
-        (rasterResult.data.period && rasterResult.data.period !== selectedPeriod) ||
-        resolvedSeasonId !== seasonId
-
-      if (shouldUpdateParams) {
-        updateHarvestMapParams({
-          harvestGranularity: rasterResult.data.granularity,
-          harvestPeriod: rasterResult.data.period,
-          harvestSeasonId: String(resolvedSeasonId),
-        })
-      }
+      dispatchRasterOverlay(rasterResult.data, blobImageUrl)
     } catch (rasterError) {
+      if (requestId !== rasterLoadSeqRef.current) return
       setFieldRaster(null)
       dispatchRasterOverlay(null)
       setFieldRasterError(
@@ -536,19 +550,20 @@ export function HarvestWorkspace() {
           : 'Unable to load satellite raster for this field.'
       )
     } finally {
-      setFieldRasterLoading(false)
+      if (requestId === rasterLoadSeqRef.current) {
+        setFieldRasterLoading(false)
+      }
     }
   }, [
     activeSeasonId,
     dispatchRasterOverlay,
-    fieldStats,
     mapGranularity,
     mode,
     parcelId,
+    revokeRasterBlobUrl,
     selectedField?.parcel_id,
     selectedMapMetric,
     selectedPeriod,
-    updateHarvestMapParams,
   ])
 
   useEffect(() => {
@@ -562,6 +577,13 @@ export function HarvestWorkspace() {
   useEffect(() => {
     void loadFieldRaster()
   }, [loadFieldRaster])
+
+  useEffect(() => {
+    return () => {
+      revokeRasterBlobUrl()
+      dispatchRasterOverlay(null)
+    }
+  }, [dispatchRasterOverlay, revokeRasterBlobUrl])
 
   useEffect(() => {
     if (collectingTasks.length === 0) return undefined

@@ -100,8 +100,10 @@ async function fetchViewRasterMeta({
     imageHeight: typeof rawMeta.height === 'number' ? rawMeta.height : null,
   })
 
+  const bounds = normalizeRasterBounds(parsedLegend.bounds ?? georef.bounds)
+
   return {
-    bounds: georef.bounds,
+    bounds,
     vmin: parsedLegend.vmin,
     vmax: parsedLegend.vmax,
     unit: parsedLegend.unit || METRIC_UNITS[metric] || '',
@@ -112,8 +114,8 @@ async function fetchViewRasterMeta({
     resolvedSeasonId: seasonId,
     imageSource: 'view',
     imageFilename: `${metric}.jpeg`,
-    rawMeta,
-    georefDebug: georef.debug,
+    rawMeta: parsedLegend.bounds ? { ...rawMeta, bounds: parsedLegend.bounds } : rawMeta,
+    georefDebug: { ...georef.debug, computedLeafletBounds: bounds },
   }
 }
 
@@ -156,8 +158,10 @@ async function fetchDynamicRasterMeta({
     }
   }
 
+  const bounds = normalizeRasterBounds(meta.bounds ?? georef.bounds)
+
   return {
-    bounds: georef.bounds,
+    bounds,
     vmin: meta.vmin ?? 0,
     vmax: meta.vmax ?? 100,
     unit: meta.unit || METRIC_UNITS[metric] || '',
@@ -169,7 +173,7 @@ async function fetchDynamicRasterMeta({
     imageSource: 'raster',
     imageFilename: `${metric}.jpeg`,
     rawMeta,
-    georefDebug: georef.debug,
+    georefDebug: { ...georef.debug, computedLeafletBounds: bounds },
   }
 }
 
@@ -289,21 +293,23 @@ export function applyHarvestRasterGeoref({
   clipRings?: Array<Array<{ lat: number; lng: number }>>
 }): HarvestRasterMetaResult {
   const fieldPolygonBounds = clipRings ? fieldBoundsFromClipRings(clipRings) : null
-  const imageWidth = typeof meta.rawMeta.width === 'number' ? meta.rawMeta.width : null
-  const imageHeight = typeof meta.rawMeta.height === 'number' ? meta.rawMeta.height : null
+  const bounds = normalizeRasterBounds(meta.bounds)
+  const georefDebug = meta.georefDebug
+    ? {
+        ...meta.georefDebug,
+        computedLeafletBounds: bounds,
+        fieldPolygonBounds,
+      }
+    : undefined
 
-  const georef = resolveRasterGeoref({
-    rawMeta: meta.rawMeta,
-    imageWidth,
-    imageHeight,
-    fieldPolygonBounds,
-  })
-  logRasterGeorefDebug(georef.debug, parcelId)
+  if (georefDebug && process.env.NODE_ENV !== 'production') {
+    logRasterGeorefDebug(georefDebug, parcelId)
+  }
 
   return {
     ...meta,
-    bounds: georef.bounds,
-    georefDebug: georef.debug,
+    bounds,
+    georefDebug,
   }
 }
 
