@@ -144,6 +144,17 @@ export function detectRasterImageCrop(
     return trimUniformEdgeMargins(imageData, options)
   }
 
+  if (!options.includeDarkFrame) {
+    const edgeTrim = trimUniformEdgeMargins(imageData, options)
+    if (edgeTrim) {
+      const edgeArea = edgeTrim.width * edgeTrim.height
+      const contentArea = (maxX - minX + 1) * (maxY - minY + 1)
+      if (edgeArea < contentArea * 0.995) {
+        return edgeTrim
+      }
+    }
+  }
+
   let right = maxX
   const contentWidth = maxX - minX + 1
   const contentHeight = maxY - minY + 1
@@ -189,6 +200,33 @@ export function detectRasterImageCrop(
   const contentArea = contentCrop.width * contentCrop.height
   const edgeArea = edgeCrop.width * edgeCrop.height
   return edgeArea < contentArea ? edgeCrop : contentCrop
+}
+
+function makeUniformBorderTransparent(imageData: ImageData, crop: RasterImageCrop) {
+  const { width, height, data } = imageData
+  for (let y = 0; y < height; y += 1) {
+    for (let x = 0; x < width; x += 1) {
+      const onBorder =
+        x < crop.left ||
+        y < crop.top ||
+        x >= crop.left + crop.width ||
+        y >= crop.top + crop.height
+      if (!onBorder) continue
+      const index = (y * width + x) * 4
+      if (
+        isEdgeCropBackgroundPixel(
+          data[index],
+          data[index + 1],
+          data[index + 2],
+          data[index + 3],
+          { includeDarkFrame: false }
+        )
+      ) {
+        data[index + 3] = 0
+      }
+    }
+  }
+  return imageData
 }
 
 function makeRasterBackgroundTransparent(imageData: ImageData) {
@@ -239,6 +277,10 @@ export function prepareHarvestRasterCanvas(
   const crop = cropPlotFrame
     ? detectRasterImageCrop(working, { includeDarkFrame: isJpeg })
     : null
+
+  if (!isJpeg && crop) {
+    working = makeUniformBorderTransparent(working, crop)
+  }
 
   if (!crop) {
     output.width = working.width

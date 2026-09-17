@@ -5,6 +5,10 @@ import { Crosshair, Minus, Plus } from 'lucide-react'
 import { useAuth } from '@/hooks/use-auth'
 import { useOrganization } from '@/hooks/use-organization'
 import { prepareHarvestRasterCanvas } from '@/lib/harvest/image-process'
+import {
+  adjustRasterBoundsForCrop,
+  resolveRasterDisplayBounds,
+} from '@/lib/harvest/raster-bounds'
 
 const QATAR_CENTER = { lat: 25.3548, lng: 51.1839 }
 const DEFAULT_ZOOM = 10
@@ -348,6 +352,105 @@ function scoreToPolygonColor(score: number) {
   return `hsl(${hue.toFixed(1)} 100% 56%)`
 }
 
+function resolveHarvestRasterBounds(
+  apiBounds: [[number, number], [number, number]],
+  clipRings: Array<Array<{ lat: number; lng: number }>>,
+  prepared: ReturnType<typeof prepareHarvestRasterCanvas>
+) {
+  const ringBounds = resolveRasterDisplayBounds(apiBounds, clipRings)
+  if (clipRings.length > 0) return ringBounds
+  if (!prepared.crop) return apiBounds
+  return adjustRasterBoundsForCrop(
+    apiBounds,
+    prepared.sourceWidth,
+    prepared.sourceHeight,
+    prepared.crop
+  )
+}
+
+function updateHarvestRasterClipPath(
+  L: any,
+  map: any,
+  imageElement: HTMLImageElement,
+  renderBounds: [[number, number], [number, number]],
+  clipRings: Array<Array<{ lat: number; lng: number }>>
+) {
+  const rings = clipRings.filter((ring) => ring.length >= 3)
+  if (rings.length === 0) {
+    imageElement.style.clipPath = ''
+    return
+  }
+
+  const [[south, west], [north, east]] = renderBounds
+  const leafletBounds = L.latLngBounds([south, west], [north, east])
+  const northWest = map.latLngToLayerPoint(leafletBounds.getNorthWest())
+  const southEast = map.latLngToLayerPoint(leafletBounds.getSouthEast())
+  const width = southEast.x - northWest.x
+  const height = southEast.y - northWest.y
+  if (width <= 0 || height <= 0) return
+
+  const ring = rings[0]
+  const points = ring
+    .map((vertex) => {
+      const point = map.latLngToLayerPoint(L.latLng(vertex.lat, vertex.lng))
+      const x = ((point.x - northWest.x) / width) * 100
+      const y = ((point.y - northWest.y) / height) * 100
+      return `${x.toFixed(3)}% ${y.toFixed(3)}%`
+    })
+    .join(', ')
+
+  imageElement.style.clipPath = `polygon(${points})`
+}
+
+function drawHarvestRasterToCanvas(
+  L: any,
+  map: any,
+  canvas: HTMLCanvasElement,
+  source: CanvasImageSource,
+  renderBounds: [[number, number], [number, number]],
+  clipRings: Array<Array<{ lat: number; lng: number }>>,
+  opacity: number
+) {
+  const rings = clipRings.filter((ring) => ring.length >= 3)
+  if (rings.length === 0) return
+
+  const [[south, west], [north, east]] = renderBounds
+  const leafletBounds = L.latLngBounds([south, west], [north, east])
+  const northWest = map.latLngToLayerPoint(leafletBounds.getNorthWest())
+  const southEast = map.latLngToLayerPoint(leafletBounds.getSouthEast())
+  const imageWidth = southEast.x - northWest.x
+  const imageHeight = southEast.y - northWest.y
+  if (imageWidth <= 0 || imageHeight <= 0) return
+
+  const mapSize = map.getSize()
+  const dpr = window.devicePixelRatio || 1
+  canvas.width = Math.max(1, Math.round(mapSize.x * dpr))
+  canvas.height = Math.max(1, Math.round(mapSize.y * dpr))
+  canvas.style.width = `${mapSize.x}px`
+  canvas.style.height = `${mapSize.y}px`
+  canvas.style.opacity = String(opacity)
+
+  const ctx = canvas.getContext('2d')
+  if (!ctx) return
+
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
+  ctx.clearRect(0, 0, mapSize.x, mapSize.y)
+
+  for (const ring of rings) {
+    ctx.save()
+    ctx.beginPath()
+    ring.forEach((vertex, index) => {
+      const point = map.latLngToLayerPoint(L.latLng(vertex.lat, vertex.lng))
+      if (index === 0) ctx.moveTo(point.x, point.y)
+      else ctx.lineTo(point.x, point.y)
+    })
+    ctx.closePath()
+    ctx.clip()
+    ctx.drawImage(source, northWest.x, northWest.y, imageWidth, imageHeight)
+    ctx.restore()
+  }
+}
+
 function createHarvestClippedRasterLayer(
   L: any,
   options: {
@@ -358,90 +461,103 @@ function createHarvestClippedRasterLayer(
     prepareImage?: (image: HTMLImageElement) => ReturnType<typeof prepareHarvestRasterCanvas>
   }
 ) {
+  const clipRingCount = options.clipRings.filter((ring) => ring.length >= 3).length
+  const useCanvasClip = clipRingCount > 1
+
   const ClippedRasterLayer = L.Layer.extend({
     initialize(opts: typeof options) {
       L.setOptions(this, opts)
       this._imageLoaded = false
+      this._imageOverlay = null
+      this._canvas = null
+      this._renderBounds = null
       this._preparedCanvas = null
+      this._useCanvasClip = useCanvasClip
     },
     onAdd(map: any) {
       this._map = map
-      this._canvas = L.DomUtil.create('canvas', 'leaflet-harvest-raster-overlay')
-      this._canvas.style.pointerEvents = 'none'
-      this._canvas.style.position = 'absolute'
-      this._canvas.style.left = '0'
-      this._canvas.style.top = '0'
-      this._canvas.style.zIndex = '450'
-      const pane = map.getPane('overlayPane') || map.getPanes().overlayPane
-      pane.appendChild(this._canvas)
+      if (this._useCanvasClip) {
+        this._canvas = L.DomUtil.create('canvas', 'leaflet-harvest-raster-overlay')
+        this._canvas.style.pointerEvents = 'none'
+        this._canvas.style.position = 'absolute'
+        this._canvas.style.left = '0'
+        this._canvas.style.top = '0'
+        this._canvas.style.zIndex = '450'
+        const pane = map.getPane('overlayPane') || map.getPanes().overlayPane
+        pane.appendChild(this._canvas)
+      }
+
       this._image = new Image()
       this._image.crossOrigin = 'anonymous'
       this._image.onload = () => {
-        this._imageLoaded = true
         const prepared = this.options.prepareImage
           ? this.options.prepareImage(this._image)
           : prepareHarvestRasterCanvas(this._image)
         this._preparedCanvas = prepared.canvas
-        this._reset()
+        this._renderBounds = resolveHarvestRasterBounds(
+          this.options.bounds,
+          this.options.clipRings,
+          prepared
+        )
+
+        if (this._useCanvasClip) {
+          this._imageLoaded = true
+          this._syncOverlay()
+          return
+        }
+
+        this._imageOverlay = L.imageOverlay(prepared.canvas.toDataURL('image/png'), this._renderBounds, {
+          opacity: this.options.opacity ?? 0.5,
+          interactive: false,
+          className: 'leaflet-harvest-raster-overlay',
+        }).addTo(map)
+        this._imageLoaded = true
+        this._syncOverlay()
       }
       this._image.onerror = () => {
         this._imageLoaded = false
         this._preparedCanvas = null
       }
       this._image.src = this.options.imageUrl
-      map.on('zoom move zoomend moveend viewreset resize', this._reset, this)
-      this._reset()
+      map.on('zoom move zoomend moveend viewreset resize', this._syncOverlay, this)
     },
     onRemove(map: any) {
-      L.DomUtil.remove(this._canvas)
-      map.off('zoom move zoomend moveend viewreset resize', this._reset, this)
-    },
-    _reset() {
-      if (!this._map || !this._imageLoaded) return
-
-      const map = this._map
-      const rings = this.options.clipRings.filter((ring) => ring.length >= 3)
-      if (rings.length === 0) return
-
-      const [[south, west], [north, east]] = this.options.bounds
-      const northWest = map.latLngToLayerPoint(L.latLng(north, west))
-      const southEast = map.latLngToLayerPoint(L.latLng(south, east))
-      const imageWidth = southEast.x - northWest.x
-      const imageHeight = southEast.y - northWest.y
-      if (imageWidth <= 0 || imageHeight <= 0) return
-
-      const mapSize = map.getSize()
-      const canvas = this._canvas
-      const dpr = window.devicePixelRatio || 1
-      canvas.width = Math.max(1, Math.round(mapSize.x * dpr))
-      canvas.height = Math.max(1, Math.round(mapSize.y * dpr))
-      canvas.style.width = `${mapSize.x}px`
-      canvas.style.height = `${mapSize.y}px`
-      canvas.style.opacity = String(this.options.opacity ?? 0.5)
-
-      const ctx = canvas.getContext('2d')
-      if (!ctx) return
-
-      ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
-      ctx.clearRect(0, 0, mapSize.x, mapSize.y)
-
-      const source = this._preparedCanvas || this._image
-      const imageX = northWest.x
-      const imageY = northWest.y
-
-      for (const ring of rings) {
-        ctx.save()
-        ctx.beginPath()
-        ring.forEach((vertex, index) => {
-          const point = map.latLngToLayerPoint(L.latLng(vertex.lat, vertex.lng))
-          if (index === 0) ctx.moveTo(point.x, point.y)
-          else ctx.lineTo(point.x, point.y)
-        })
-        ctx.closePath()
-        ctx.clip()
-        ctx.drawImage(source, imageX, imageY, imageWidth, imageHeight)
-        ctx.restore()
+      if (this._imageOverlay) {
+        this._imageOverlay.remove()
+        this._imageOverlay = null
       }
+      if (this._canvas) {
+        L.DomUtil.remove(this._canvas)
+        this._canvas = null
+      }
+      map.off('zoom move zoomend moveend viewreset resize', this._syncOverlay, this)
+    },
+    _syncOverlay() {
+      if (!this._map || !this._imageLoaded || !this._renderBounds) return
+
+      if (this._useCanvasClip && this._canvas) {
+        drawHarvestRasterToCanvas(
+          L,
+          this._map,
+          this._canvas,
+          this._preparedCanvas || this._image,
+          this._renderBounds,
+          this.options.clipRings,
+          this.options.opacity ?? 0.5
+        )
+        return
+      }
+
+      const imageElement = this._imageOverlay?.getElement?.()
+      if (!imageElement) return
+
+      updateHarvestRasterClipPath(
+        L,
+        this._map,
+        imageElement,
+        this._renderBounds,
+        this.options.clipRings
+      )
     },
   })
 

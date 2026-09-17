@@ -1,4 +1,5 @@
 import type { RasterImageCrop } from '@/lib/harvest/image-process'
+import { boundsFromRings } from '@/lib/harvest/raster'
 
 export type RasterBounds = [[number, number], [number, number]]
 
@@ -105,6 +106,14 @@ export function normalizeRasterBounds(bounds: unknown): RasterBounds {
   }
 
   return normalizeCornerPair(first as number[], second as number[]) || DEFAULT_BOUNDS
+}
+
+export function resolveRasterDisplayBounds(
+  apiBounds: RasterBounds,
+  clipRings: Array<Array<{ lat: number; lng: number }>>
+): RasterBounds {
+  if (clipRings.length === 0) return apiBounds
+  return boundsFromRings(clipRings)
 }
 
 export function adjustRasterBoundsForCrop(

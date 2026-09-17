@@ -7,7 +7,11 @@ import {
   isLiveRasterMetric,
 } from '@/lib/harvest/field-raster-fallback'
 import { resolveHarvestDataMode } from '@/lib/harvest/mode-resolve'
-import { normalizeRasterBounds, normalizeRasterLegend } from '@/lib/harvest/raster-bounds'
+import {
+  normalizeRasterBounds,
+  normalizeRasterLegend,
+  resolveRasterDisplayBounds,
+} from '@/lib/harvest/raster-bounds'
 import { harvestJsonResponse } from '@/lib/harvest/resolve'
 import { listHarvestSeasonIds } from '@/lib/harvest/season-resolve'
 import { loadHarvestClipRings } from '@/lib/harvest/clip-rings'
@@ -98,7 +102,10 @@ export async function GET(request: Request, context: RouteContext) {
         {
           ...demoRaster,
           image_url: `/api/harvest/field/${parcelId}/raster/image?${imageParams.toString()}`,
-          bounds: normalizeRasterBounds(demoRaster.bounds),
+          bounds: resolveRasterDisplayBounds(
+            normalizeRasterBounds(demoRaster.bounds),
+            clipRings
+          ),
           legend: normalizeRasterLegend(demoRaster.legend),
           clip_rings: clipRings,
         },
@@ -160,7 +167,7 @@ export async function GET(request: Request, context: RouteContext) {
         mode,
         resolvedSeasonId,
       }),
-      bounds: normalizeRasterBounds(meta.bounds),
+      bounds: resolveRasterDisplayBounds(normalizeRasterBounds(meta.bounds), clipRings),
       clip_rings: clipRings,
       vmin: meta.vmin,
       vmax: meta.vmax,
