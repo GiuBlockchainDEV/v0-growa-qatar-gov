@@ -467,6 +467,7 @@ export function HarvestWorkspace() {
                 opacity: 0.5,
                 imageSource: raster.image_source,
                 boundsExtent: raster.bounds_extent,
+                clipRings: raster.clip_rings,
                 metric: raster.metric,
                 vmin: raster.vmin,
                 vmax: raster.vmax,

@@ -1,5 +1,9 @@
 import { prepareHarvestRasterCanvas } from '@/lib/harvest/image-process'
-import { resolveRasterRenderBounds, type RasterBounds } from '@/lib/harvest/raster-bounds'
+import {
+  resolveRasterDisplayBounds,
+  resolveRasterRenderBounds,
+  type RasterBounds,
+} from '@/lib/harvest/raster-bounds'
 
 type LeafletBounds = RasterBounds
 
@@ -8,6 +12,7 @@ export interface HarvestRasterLayerOptions {
   bounds: LeafletBounds
   imageSource?: 'view' | 'raster'
   boundsExtent?: 'plot' | 'full_image'
+  clipRings?: Array<Array<{ lat: number; lng: number }>>
   opacity?: number
 }
 
@@ -44,7 +49,8 @@ function prepareOverlayImage(
   image: HTMLImageElement,
   apiBounds: LeafletBounds,
   imageSource?: 'view' | 'raster',
-  boundsExtent?: 'plot' | 'full_image'
+  boundsExtent?: 'plot' | 'full_image',
+  clipRings?: Array<Array<{ lat: number; lng: number }>>
 ) {
   const isViewSource = imageSource === 'view'
   const prepared = prepareHarvestRasterCanvas(image, {
@@ -52,16 +58,22 @@ function prepareOverlayImage(
     transparentBackground: isViewSource || imageSource === 'raster',
   })
 
-  const shouldAdjustBoundsForCrop =
-    boundsExtent === 'full_image' || (boundsExtent !== 'plot' && imageSource === 'raster')
+  let renderBounds: LeafletBounds
+  if (clipRings && clipRings.length > 0) {
+    // Stretch the cropped plot to the field polygon envelope so circles align with map outlines.
+    renderBounds = resolveRasterDisplayBounds(apiBounds, clipRings)
+  } else {
+    const shouldAdjustBoundsForCrop =
+      boundsExtent === 'full_image' || (boundsExtent !== 'plot' && imageSource === 'raster')
 
-  const renderBounds = shouldAdjustBoundsForCrop
-    ? resolveRasterRenderBounds(apiBounds, {
-        crop: prepared.crop,
-        sourceWidth: prepared.sourceWidth,
-        sourceHeight: prepared.sourceHeight,
-      })
-    : apiBounds
+    renderBounds = shouldAdjustBoundsForCrop
+      ? resolveRasterRenderBounds(apiBounds, {
+          crop: prepared.crop,
+          sourceWidth: prepared.sourceWidth,
+          sourceHeight: prepared.sourceHeight,
+        })
+      : apiBounds
+  }
 
   return {
     imageUrl: prepared.canvas.toDataURL('image/png'),
@@ -99,7 +111,8 @@ export function createHarvestRasterLayer(L: any, options: HarvestRasterLayerOpti
           image,
           options.bounds,
           options.imageSource,
-          options.boundsExtent
+          options.boundsExtent,
+          options.clipRings
         )
         if (this._overlay) {
           this._overlay.remove?.()

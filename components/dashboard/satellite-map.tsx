@@ -1780,11 +1780,21 @@ export function SatelliteMap({
 
     if (!harvestRasterOverlay?.imageUrl || !harvestRasterOverlay.bounds) return
 
+    const selectedFieldRings =
+      selectedHarvestParcelId
+        ? harvestFields.find((field) => field.parcel_id === selectedHarvestParcelId)?.rings
+        : undefined
+    const clipRings =
+      harvestRasterOverlay.clipRings && harvestRasterOverlay.clipRings.length > 0
+        ? harvestRasterOverlay.clipRings
+        : selectedFieldRings
+
     const rasterLayer = createHarvestRasterLayer(L, {
       imageUrl: harvestRasterOverlay.imageUrl,
       bounds: harvestRasterOverlay.bounds,
       imageSource: harvestRasterOverlay.imageSource,
       boundsExtent: harvestRasterOverlay.boundsExtent,
+      clipRings,
       opacity: harvestRasterOverlay.opacity ?? 0.5,
     })
     rasterLayer.addTo(map)
@@ -1796,7 +1806,7 @@ export function SatelliteMap({
         harvestRasterOverlayRef.current = null
       }
     }
-  }, [harvestRasterOverlay, mapReady])
+  }, [harvestFields, harvestRasterOverlay, mapReady, selectedHarvestParcelId])
 
   useEffect(() => {
     if (!mapReady || !mapInstanceRef.current || !leafletRef.current) return
