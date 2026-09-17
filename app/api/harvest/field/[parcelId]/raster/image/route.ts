@@ -47,6 +47,7 @@ export async function GET(request: Request, context: RouteContext) {
       headers: {
         'Content-Type': 'image/png',
         'Cache-Control': 'no-store',
+        'Access-Control-Allow-Origin': '*',
         'X-Harvest-Demo': 'true',
       },
     })
@@ -106,6 +107,7 @@ export async function GET(request: Request, context: RouteContext) {
       headers: {
         'Content-Type': 'image/png',
         'Cache-Control': 'no-store',
+        'Access-Control-Allow-Origin': '*',
         ...(dimensions
           ? {
               'X-Harvest-Raster-Width': String(dimensions.width),

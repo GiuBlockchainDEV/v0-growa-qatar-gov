@@ -59,6 +59,7 @@ interface SatelliteMapProps {
   targetFocusToken?: string | null
   targetZoom?: number
   isLateralMode?: boolean
+  lateralPanelOpen?: boolean
   onMapClick?: (coords: { lat: number; lng: number }) => void
   weatherGridPoints?: WeatherGridMapPoint[]
   selectedWeatherGridPointId?: string | null
@@ -582,6 +583,7 @@ export function SatelliteMap({
   targetFocusToken = null,
   targetZoom,
   isLateralMode = false,
+  lateralPanelOpen = false,
   onMapClick,
   weatherGridPoints = [],
   selectedWeatherGridPointId = null,
@@ -1531,6 +1533,15 @@ export function SatelliteMap({
   }, [])
 
   useEffect(() => {
+    if (!mapReady || !mapInstanceRef.current) return
+    const map = mapInstanceRef.current
+    const frame = window.requestAnimationFrame(() => {
+      map.invalidateSize?.()
+    })
+    return () => window.cancelAnimationFrame(frame)
+  }, [isLateralMode, lateralPanelOpen, mapReady])
+
+  useEffect(() => {
     if (!activePointId) return
     if (customPoints.some((point) => point.id === activePointId)) return
     setActivePointId(null)
@@ -1688,10 +1699,6 @@ export function SatelliteMap({
           onHarvestFieldClick?.(field)
         })
 
-        if (hasRasterOverlay) {
-          layer.bringToFront()
-        }
-
         harvestFieldLayerInstancesRef.current.push(layer)
       }
     }
@@ -1751,12 +1758,14 @@ export function SatelliteMap({
 
     if (!harvestRasterOverlay?.imageUrl || !harvestRasterOverlay.bounds) return
 
-    harvestRasterOverlayRef.current = createHarvestRasterLayer(L, {
+    const rasterLayer = createHarvestRasterLayer(L, {
       imageUrl: harvestRasterOverlay.imageUrl,
       bounds: harvestRasterOverlay.bounds,
       clipRings: harvestRasterOverlay.clipRings,
       opacity: harvestRasterOverlay.opacity ?? 0.5,
-    }).addTo(map)
+    })
+    rasterLayer.addTo(map)
+    harvestRasterOverlayRef.current = rasterLayer
 
     return () => {
       if (harvestRasterOverlayRef.current) {

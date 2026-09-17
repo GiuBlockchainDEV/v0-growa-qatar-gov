@@ -236,8 +236,8 @@ function SlideFromLeftWorkspace({
   return (
     <div className="relative h-full w-full overflow-hidden">
       <div
-        className={`absolute inset-0 transform transition-transform duration-300 ease-out ${
-          panelVisible ? 'translate-x-[37.5%]' : 'translate-x-0'
+        className={`absolute inset-0 z-0 transition-[left] duration-300 ease-out ${
+          panelVisible ? 'left-3/4' : 'left-0'
         }`}
       >
         <SatelliteMap
@@ -247,6 +247,7 @@ function SlideFromLeftWorkspace({
           targetZoom={targetZoom}
           targetCropFilter={targetCropFilter}
           isLateralMode
+          lateralPanelOpen={panelVisible}
           onMapClick={undefined}
           weatherGridPoints={weatherGridPoints}
           selectedWeatherGridPointId={selectedWeatherGridPointId}
@@ -332,11 +333,11 @@ function SlideFromLeftWorkspace({
       )}
 
       <div
-        className={`absolute bottom-0 left-0 top-16 z-[1800] w-3/4 transform transition-transform duration-300 ease-out ${
+        className={`pointer-events-auto absolute bottom-0 left-0 top-16 z-[1800] w-3/4 transform transition-transform duration-300 ease-out ${
           panelVisible ? 'translate-x-0' : '-translate-x-full'
         }`}
       >
-        <div className="h-full overflow-y-auto border-r border-white/10 bg-[#070a10]/95 backdrop-blur-md shadow-2xl">
+        <div className="relative z-[1] h-full overflow-y-auto border-r border-white/10 bg-[#070a10]/95 backdrop-blur-md shadow-2xl">
           {children}
         </div>
       </div>
