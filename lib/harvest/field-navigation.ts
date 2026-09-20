@@ -2,6 +2,24 @@ import type { HarvestAnalyticsField, HarvestMapField, HarvestMode } from '@/lib/
 
 export type HarvestFieldNavTarget = Pick<HarvestAnalyticsField, 'parcel_id' | 'season_id'> | HarvestMapField
 
+export function resolveHarvestParcelId(field: HarvestFieldNavTarget): string | null {
+  const parcelId = field.parcel_id?.trim()
+  if (!parcelId) return null
+  return parcelId
+}
+
+export function defaultHarvestFieldNavOptions(
+  mode: HarvestMode,
+  harvestMetric?: string | null
+) {
+  return {
+    mode,
+    harvestMetric: harvestMetric || 'npp',
+    harvestGranularity: 'season',
+    preserveDekadPeriod: false,
+  }
+}
+
 export function applyHarvestFieldSelectionToParams(
   params: URLSearchParams,
   field: HarvestFieldNavTarget,
@@ -12,10 +30,13 @@ export function applyHarvestFieldSelectionToParams(
     preserveDekadPeriod?: boolean
   }
 ) {
+  const parcelId = resolveHarvestParcelId(field)
+  if (!parcelId) return params
+
   if (!params.get('module')) {
     params.set('module', 'harvest')
   }
-  params.set('parcelId', field.parcel_id)
+  params.set('parcelId', parcelId)
   params.set('zoom', '13')
   params.set('focus', `harvest-${field.parcel_id}`)
   params.set('harvestMetric', options?.harvestMetric || 'npp')

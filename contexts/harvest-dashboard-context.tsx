@@ -12,7 +12,12 @@ import {
 } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { deduplicateHarvestCatalogFields, resolveCatalogField } from '@/lib/harvest/catalog'
-import { buildHarvestFieldDashboardUrl, type HarvestFieldNavTarget } from '@/lib/harvest/field-navigation'
+import {
+  buildHarvestFieldDashboardUrl,
+  defaultHarvestFieldNavOptions,
+  resolveHarvestParcelId,
+  type HarvestFieldNavTarget,
+} from '@/lib/harvest/field-navigation'
 import { findHarvestMapFieldAtLatLng } from '@/lib/harvest/field-hit-test'
 import { normalizeEntityToField } from '@/lib/harvest/normalize'
 import type {
@@ -38,6 +43,7 @@ interface HarvestDashboardContextValue {
   isFieldDetailView: boolean
   harvestCreateActive: boolean
   selectField: (field: HarvestFieldNavTarget) => void
+  getFieldDetailHref: (field: HarvestFieldNavTarget) => string
   /** @deprecated alias for selectField */
   openField: (field: HarvestFieldNavTarget) => void
   selectFieldAtLatLng: (lat: number, lng: number) => boolean
@@ -229,18 +235,28 @@ export function HarvestDashboardProvider({ children }: { children: ReactNode }) 
     void hydrateFromEntity()
   }, [catalogField, parcelId, seasonIdFromUrl])
 
-  const selectField = useCallback(
+  const getFieldDetailHref = useCallback(
     (field: HarvestFieldNavTarget) => {
-      router.replace(
-        buildHarvestFieldDashboardUrl(searchParams, field, {
-          mode,
-          harvestMetric: searchParams.get('harvestMetric'),
-          harvestGranularity: searchParams.get('harvestGranularity'),
-          preserveDekadPeriod: (searchParams.get('harvestGranularity') || 'season') === 'dekad',
-        })
+      const currentParams =
+        typeof window !== 'undefined'
+          ? new URLSearchParams(window.location.search)
+          : new URLSearchParams(searchParams.toString())
+      return buildHarvestFieldDashboardUrl(
+        currentParams,
+        field,
+        defaultHarvestFieldNavOptions(mode, searchParams.get('harvestMetric'))
       )
     },
-    [mode, router, searchParams]
+    [mode, searchParams]
+  )
+
+  const selectField = useCallback(
+    (field: HarvestFieldNavTarget) => {
+      if (!resolveHarvestParcelId(field)) return
+      const href = getFieldDetailHref(field)
+      router.push(href, { scroll: false })
+    },
+    [getFieldDetailHref, router]
   )
 
   const selectFieldAtLatLng = useCallback(
@@ -321,6 +337,7 @@ export function HarvestDashboardProvider({ children }: { children: ReactNode }) 
       isFieldDetailView,
       harvestCreateActive,
       selectField,
+      getFieldDetailHref,
       openField: selectField,
       selectFieldAtLatLng,
       clearFieldSelection,
@@ -341,6 +358,7 @@ export function HarvestDashboardProvider({ children }: { children: ReactNode }) 
       isFieldDetailView,
       harvestCreateActive,
       selectField,
+      getFieldDetailHref,
       selectFieldAtLatLng,
       clearFieldSelection,
       mergeFieldMetrics,

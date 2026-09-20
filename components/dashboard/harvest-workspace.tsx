@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import {
   Activity,
@@ -220,6 +221,7 @@ export function HarvestWorkspace() {
     activeField,
     isFieldDetailView,
     selectField,
+    getFieldDetailHref,
     clearFieldSelection,
     mergeFieldMetrics,
     patchActiveSeasonId,
@@ -840,12 +842,9 @@ export function HarvestWorkspace() {
       </div>
 
       {loading ? <IntelligenceLoadingState message="Loading Harvest analytics..." /> : null}
-      {!loading && isFieldDetailView && !activeField && !error ? (
-        <IntelligenceLoadingState message="Loading field details..." />
-      ) : null}
       {!loading && error ? <IntelligenceErrorState message={error} /> : null}
 
-      {!loading && !error && (!isFieldDetailView || activeField) ? (
+      {!loading && !error ? (
         <>
           {harvestCreateActive ? (
             <HarvestFieldCreatePanel
@@ -875,6 +874,10 @@ export function HarvestWorkspace() {
                 )
               })}
             </div>
+          ) : null}
+
+          {isFieldDetailView && !activeField ? (
+            <IntelligenceLoadingState message="Loading field details..." />
           ) : null}
 
           {isFieldDetailView && activeField ? (
@@ -1129,11 +1132,21 @@ export function HarvestWorkspace() {
                       </td>
                     </tr>
                   ) : (
-                    fields.map((field, index) => (
+                    fields.map((field, index) => {
+                      const fieldHref = getFieldDetailHref(field)
+                      return (
                       <tr
                         key={`${field.parcel_id}-${field.season_id || index}`}
                         onClick={() => selectField(field)}
-                        className={`cursor-pointer text-sm transition-colors hover:bg-primary/10 ${
+                        onKeyDown={(event) => {
+                          if (event.key === 'Enter' || event.key === ' ') {
+                            event.preventDefault()
+                            selectField(field)
+                          }
+                        }}
+                        tabIndex={0}
+                        role="button"
+                        className={`relative cursor-pointer text-sm transition-colors hover:bg-primary/10 ${
                           parcelId === field.parcel_id
                             ? 'bg-primary/10'
                             : index % 2 === 0
@@ -1141,8 +1154,14 @@ export function HarvestWorkspace() {
                               : 'bg-secondary/20'
                         }`}
                       >
-                        <td className="px-3 py-2 font-medium text-foreground">
-                          <span>{field.name}</span>
+                        <td className="relative px-3 py-2 font-medium text-foreground">
+                          <Link
+                            href={fieldHref}
+                            scroll={false}
+                            className="absolute inset-0 z-10"
+                            aria-label={`Open ${field.name}`}
+                          />
+                          <span className="relative z-0">{field.name}</span>
                           {collectingTasks.some((entry) => entry.parcel_id === field.parcel_id) ? (
                             <span className="ml-2 rounded-full bg-amber-500/15 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-amber-300">
                               Collecting
@@ -1162,7 +1181,7 @@ export function HarvestWorkspace() {
                         </td>
                         <td className="px-3 py-2 text-muted-foreground">{field.harvest_date}</td>
                       </tr>
-                    ))
+                    )})
                   )}
                 </IntelligenceTableBody>
               </IntelligenceDataTable>

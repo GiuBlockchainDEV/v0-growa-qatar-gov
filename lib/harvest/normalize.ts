@@ -86,7 +86,13 @@ export function normalizeAnalyticsField(raw: unknown): HarvestAnalyticsField | n
   const record = asRecord(raw)
   if (!record) return null
 
-  const parcelId = pickString(record, ['parcel_id', 'parcelId'])
+  let parcelId = pickString(record, ['parcel_id', 'parcelId'])
+  if (!parcelId) {
+    const idCandidate = pickString(record, ['id', 'entity_id', 'uuid'])
+    if (idCandidate && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(idCandidate)) {
+      parcelId = idCandidate
+    }
+  }
   const name = pickString(record, ['name', 'field_name', 'label'])
   if (!parcelId || !name) return null
 
