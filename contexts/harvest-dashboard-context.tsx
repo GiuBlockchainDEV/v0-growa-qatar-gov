@@ -38,6 +38,8 @@ interface HarvestDashboardContextValue {
   isFieldDetailView: boolean
   harvestCreateActive: boolean
   selectField: (field: HarvestFieldNavTarget) => void
+  /** @deprecated alias for selectField */
+  openField: (field: HarvestFieldNavTarget) => void
   selectFieldAtLatLng: (lat: number, lng: number) => boolean
   clearFieldSelection: () => void
   mergeFieldMetrics: (parcelIdForStats: string, metrics: HarvestFieldMetrics) => void
@@ -319,6 +321,7 @@ export function HarvestDashboardProvider({ children }: { children: ReactNode }) 
       isFieldDetailView,
       harvestCreateActive,
       selectField,
+      openField: selectField,
       selectFieldAtLatLng,
       clearFieldSelection,
       mergeFieldMetrics,

@@ -219,7 +219,7 @@ export function HarvestWorkspace() {
     activeSeasonId,
     activeField,
     isFieldDetailView,
-    openField,
+    selectField,
     clearFieldSelection,
     mergeFieldMetrics,
     patchActiveSeasonId,
@@ -1132,7 +1132,7 @@ export function HarvestWorkspace() {
                     fields.map((field, index) => (
                       <tr
                         key={`${field.parcel_id}-${field.season_id || index}`}
-                        onClick={() => openField(field)}
+                        onClick={() => selectField(field)}
                         className={`cursor-pointer text-sm transition-colors hover:bg-primary/10 ${
                           parcelId === field.parcel_id
                             ? 'bg-primary/10'
