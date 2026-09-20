@@ -32,19 +32,61 @@ function toLatLngBounds(L: any, bounds: LeafletBounds) {
   return L.latLngBounds([south, west], [north, east])
 }
 
-/** ~6 screen px ≈ 1 mm on a 4K display; keeps adjustments subtle and zoom-independent. */
+/** ~6 screen px ≈ 1 mm on a 4K display; zoom-independent fine tuning. */
 const HARVEST_RASTER_PX_PER_MM = 6
 
+/** Cumulative screen-space tweaks (each mm ≈ 6 px). */
 const HARVEST_RASTER_FINE_TUNE = {
-  zoomMm: 1,
-  shiftLeftMm: 0.5,
+  shiftLeftMm: 1, // original 1 mm left
+  shiftUpMm: 1, // original 1 mm up
+  extraZoomMm: 1, // additional zoom requested on top
+  extraShiftLeftMm: 0.5, // additional 0.5 mm left on top
 }
 
-function adjustFieldRasterBoundsInScreenSpace(
+function normalizeLeafletBounds(bounds: LeafletBounds): LeafletBounds {
+  const [[a0, a1], [b0, b1]] = bounds
+  return [
+    [Math.min(a0, b0), Math.min(a1, b1)],
+    [Math.max(a0, b0), Math.max(a1, b1)],
+  ]
+}
+
+function isValidLeafletBounds(bounds: LeafletBounds) {
+  const [[south, west], [north, east]] = bounds
+  return (
+    [south, west, north, east].every((value) => Number.isFinite(value)) &&
+    north > south &&
+    east > west
+  )
+}
+
+function nudgeBoundsByScreenPixels(
   L: any,
   map: any,
   bounds: LeafletBounds,
-  { zoomMm, shiftLeftMm }: { zoomMm: number; shiftLeftMm: number }
+  offsetX: number,
+  offsetY: number
+): LeafletBounds {
+  const [[south, west], [north, east]] = bounds
+  const centerLat = (south + north) / 2
+  const centerLng = (west + east) / 2
+  const latSpan = north - south
+  const lngSpan = east - west
+
+  const centerPoint = map.latLngToContainerPoint(L.latLng(centerLat, centerLng))
+  const nudged = map.containerPointToLatLng(L.point(centerPoint.x + offsetX, centerPoint.y + offsetY))
+
+  return normalizeLeafletBounds([
+    [nudged.lat - latSpan / 2, nudged.lng - lngSpan / 2],
+    [nudged.lat + latSpan / 2, nudged.lng + lngSpan / 2],
+  ])
+}
+
+function zoomBoundsFromCenterInScreenPixels(
+  L: any,
+  map: any,
+  bounds: LeafletBounds,
+  growPxPerSide: number
 ): LeafletBounds {
   const [[south, west], [north, east]] = bounds
   const southWest = map.latLngToContainerPoint(L.latLng(south, west))
@@ -52,27 +94,45 @@ function adjustFieldRasterBoundsInScreenSpace(
 
   const centerX = (southWest.x + northEast.x) / 2
   const centerY = (southWest.y + northEast.y) / 2
-  const halfWidth = (northEast.x - southWest.x) / 2
-  const halfHeight = (southWest.y - northEast.y) / 2
+  const halfWidth = Math.abs(northEast.x - southWest.x) / 2
+  const halfHeight = Math.abs(southWest.y - northEast.y) / 2
 
-  const growPx = (zoomMm * HARVEST_RASTER_PX_PER_MM) / 2
-  const shiftXPx = -shiftLeftMm * HARVEST_RASTER_PX_PER_MM
+  if (halfWidth < 1 || halfHeight < 1) return bounds
 
-  const nextCenterX = centerX + shiftXPx
-  const nextHalfWidth = halfWidth + growPx
-  const nextHalfHeight = halfHeight + growPx
+  const nextHalfWidth = halfWidth + growPxPerSide
+  const nextHalfHeight = halfHeight + growPxPerSide
 
   const nextSouthWest = map.containerPointToLatLng(
-    L.point(nextCenterX - nextHalfWidth, nextCenterY + nextHalfHeight)
+    L.point(centerX - nextHalfWidth, centerY + nextHalfHeight)
   )
   const nextNorthEast = map.containerPointToLatLng(
-    L.point(nextCenterX + nextHalfWidth, nextCenterY - nextHalfHeight)
+    L.point(centerX + nextHalfWidth, centerY - nextHalfHeight)
   )
 
-  return [
+  const nextBounds = normalizeLeafletBounds([
     [nextSouthWest.lat, nextSouthWest.lng],
     [nextNorthEast.lat, nextNorthEast.lng],
-  ]
+  ])
+
+  return isValidLeafletBounds(nextBounds) ? nextBounds : bounds
+}
+
+function applyFieldRasterFineTune(L: any, map: any, bounds: LeafletBounds): LeafletBounds {
+  try {
+    map.invalidateSize?.()
+
+    const shiftXPx = -(HARVEST_RASTER_FINE_TUNE.shiftLeftMm + HARVEST_RASTER_FINE_TUNE.extraShiftLeftMm) *
+      HARVEST_RASTER_PX_PER_MM
+    const shiftYPx = -HARVEST_RASTER_FINE_TUNE.shiftUpMm * HARVEST_RASTER_PX_PER_MM
+    const growPxPerSide = (HARVEST_RASTER_FINE_TUNE.extraZoomMm * HARVEST_RASTER_PX_PER_MM) / 2
+
+    let tuned = nudgeBoundsByScreenPixels(L, map, bounds, shiftXPx, shiftYPx)
+    tuned = zoomBoundsFromCenterInScreenPixels(L, map, tuned, growPxPerSide)
+
+    return isValidLeafletBounds(tuned) ? tuned : bounds
+  } catch {
+    return bounds
+  }
 }
 
 function loadImage(imageUrl: string): Promise<HTMLImageElement> {
@@ -162,10 +222,10 @@ export function createHarvestRasterLayer(L: any, options: HarvestRasterLayerOpti
           this._overlay = null
         }
 
-        const renderBounds =
-          options.clipRings && options.clipRings.length > 0
-            ? adjustFieldRasterBoundsInScreenSpace(L, map, prepared.bounds, HARVEST_RASTER_FINE_TUNE)
-            : prepared.bounds
+        let renderBounds = prepared.bounds
+        if (options.clipRings && options.clipRings.length > 0) {
+          renderBounds = applyFieldRasterFineTune(L, map, prepared.bounds)
+        }
 
         this._overlay = L.imageOverlay(prepared.imageUrl, toLatLngBounds(L, renderBounds), {
           opacity,
