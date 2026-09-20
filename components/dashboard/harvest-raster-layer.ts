@@ -41,6 +41,7 @@ const HARVEST_RASTER_FINE_TUNE = {
   shiftUpMm: 1, // original 1 mm up
   extraZoomMm: 1, // additional zoom requested on top
   extraShiftLeftMm: 0.5, // additional 0.5 mm left on top
+  extraShiftDownMm: 0.5, // additional 0.5 mm down on top
 }
 
 function normalizeLeafletBounds(bounds: LeafletBounds): LeafletBounds {
@@ -123,7 +124,9 @@ function applyFieldRasterFineTune(L: any, map: any, bounds: LeafletBounds): Leaf
 
     const shiftXPx = -(HARVEST_RASTER_FINE_TUNE.shiftLeftMm + HARVEST_RASTER_FINE_TUNE.extraShiftLeftMm) *
       HARVEST_RASTER_PX_PER_MM
-    const shiftYPx = -HARVEST_RASTER_FINE_TUNE.shiftUpMm * HARVEST_RASTER_PX_PER_MM
+    const shiftYPx =
+      -HARVEST_RASTER_FINE_TUNE.shiftUpMm * HARVEST_RASTER_PX_PER_MM +
+      HARVEST_RASTER_FINE_TUNE.extraShiftDownMm * HARVEST_RASTER_PX_PER_MM
     const growPxPerSide = (HARVEST_RASTER_FINE_TUNE.extraZoomMm * HARVEST_RASTER_PX_PER_MM) / 2
 
     let tuned = nudgeBoundsByScreenPixels(L, map, bounds, shiftXPx, shiftYPx)
