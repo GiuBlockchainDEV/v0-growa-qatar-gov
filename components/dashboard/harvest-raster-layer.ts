@@ -42,6 +42,7 @@ const HARVEST_RASTER_FINE_TUNE = {
   extraZoomMm: 1, // additional zoom requested on top
   extraShiftLeftMm: 0.5, // additional 0.5 mm left on top
   extraShiftDownMm: 0.5, // additional 0.5 mm down on top
+  extraStretchRightMm: 0.5, // stretch 0.5 mm toward the right edge
 }
 
 function normalizeLeafletBounds(bounds: LeafletBounds): LeafletBounds {
@@ -118,6 +119,28 @@ function zoomBoundsFromCenterInScreenPixels(
   return isValidLeafletBounds(nextBounds) ? nextBounds : bounds
 }
 
+function stretchBoundsRightInScreenPixels(
+  L: any,
+  map: any,
+  bounds: LeafletBounds,
+  stretchMm: number
+): LeafletBounds {
+  const stretchPx = stretchMm * HARVEST_RASTER_PX_PER_MM
+  const [[south, west], [north, east]] = bounds
+  const southWest = map.latLngToContainerPoint(L.latLng(south, west))
+  const northEast = map.latLngToContainerPoint(L.latLng(north, east))
+
+  const nextSouthWest = map.containerPointToLatLng(southWest)
+  const nextNorthEast = map.containerPointToLatLng(L.point(northEast.x + stretchPx, northEast.y))
+
+  const nextBounds = normalizeLeafletBounds([
+    [nextSouthWest.lat, nextSouthWest.lng],
+    [nextNorthEast.lat, nextNorthEast.lng],
+  ])
+
+  return isValidLeafletBounds(nextBounds) ? nextBounds : bounds
+}
+
 function applyFieldRasterFineTune(L: any, map: any, bounds: LeafletBounds): LeafletBounds {
   try {
     map.invalidateSize?.()
@@ -131,6 +154,7 @@ function applyFieldRasterFineTune(L: any, map: any, bounds: LeafletBounds): Leaf
 
     let tuned = nudgeBoundsByScreenPixels(L, map, bounds, shiftXPx, shiftYPx)
     tuned = zoomBoundsFromCenterInScreenPixels(L, map, tuned, growPxPerSide)
+    tuned = stretchBoundsRightInScreenPixels(L, map, tuned, HARVEST_RASTER_FINE_TUNE.extraStretchRightMm)
 
     return isValidLeafletBounds(tuned) ? tuned : bounds
   } catch {
