@@ -1795,7 +1795,6 @@ export function SatelliteMap({
       imageSource: harvestRasterOverlay.imageSource,
       boundsExtent: harvestRasterOverlay.boundsExtent,
       clipRings,
-      fieldCenter: selectedField?.centroid ?? null,
       opacity: harvestRasterOverlay.opacity ?? 0.5,
     })
     rasterLayer.addTo(map)

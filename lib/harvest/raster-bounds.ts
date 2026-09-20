@@ -1,5 +1,5 @@
 import type { RasterImageCrop } from '@/lib/harvest/image-process'
-import { boundsFromRings, computeCentroid } from '@/lib/harvest/geojson'
+import { boundsFromRings, computeRingsCentroidOfMass } from '@/lib/harvest/geojson'
 
 export type RasterBounds = [[number, number], [number, number]]
 
@@ -157,15 +157,14 @@ export function resolveRasterDisplayBounds(
  * The tight-cropped image is stretched uniformly to [field span] around [field centroid].
  */
 export function resolveCenterScaledRasterBounds(
-  fieldRings: Array<Array<{ lat: number; lng: number }>>,
-  fieldCenter?: { lat: number; lng: number } | null
+  fieldRings: Array<Array<{ lat: number; lng: number }>>
 ): RasterBounds {
   const vertices = fieldRings.flat()
   if (vertices.length === 0) {
     return [[25.2, 51.1], [25.5, 51.4]]
   }
 
-  const center = fieldCenter ?? computeCentroid(vertices)
+  const center = computeRingsCentroidOfMass(fieldRings)
   const [[south, west], [north, east]] = boundsFromRings(fieldRings)
   const latSpan = north - south
   const lngSpan = east - west

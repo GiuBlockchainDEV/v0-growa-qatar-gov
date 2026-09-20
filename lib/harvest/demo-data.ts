@@ -1,6 +1,6 @@
 import { shouldUseHarvestDemo } from '@/lib/harvest/config'
 import { parseHarvestFieldStatsCsv } from '@/lib/harvest/csv-stats'
-import { computeCentroid, createRectangleRing } from '@/lib/harvest/geojson'
+import { computeRingsCentroidOfMass, createRectangleRing } from '@/lib/harvest/geojson'
 import { buildDemoRasterMeta, buildDemoRasterSvg } from '@/lib/harvest/raster'
 import { calculatePolygonAreaHectares } from '@/lib/harvest/geojson'
 import type {
@@ -219,7 +219,7 @@ export function getDemoParcelGeojson(parcelId: string) {
 export function getDemoMapFields(): HarvestMapField[] {
   return getActiveDemoFields().map((field) => {
     const rings = createdDemoRings.get(field.parcel_id) || DEMO_PARCEL_RINGS[field.parcel_id] || []
-    const centroid = rings[0] ? computeCentroid(rings[0]) : { lat: 25.3548, lng: 51.1839 }
+    const centroid = rings.length > 0 ? computeRingsCentroidOfMass(rings) : { lat: 25.3548, lng: 51.1839 }
     return {
       parcel_id: field.parcel_id,
       name: field.name,
