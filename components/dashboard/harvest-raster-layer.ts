@@ -1,4 +1,4 @@
-import { prepareHarvestRasterCanvas } from '@/lib/harvest/image-process'
+import { maskHarvestRasterToRings, prepareHarvestRasterCanvas } from '@/lib/harvest/image-process'
 import {
   resolveCenterScaledRasterBounds,
   resolveRasterRenderBounds,
@@ -231,7 +231,7 @@ function prepareOverlayImage(
   }
 
   return {
-    imageUrl: prepared.canvas.toDataURL('image/png'),
+    canvas: prepared.canvas,
     bounds: renderBounds,
     crop: prepared.crop,
   }
@@ -275,11 +275,14 @@ export function createHarvestRasterLayer(L: any, options: HarvestRasterLayerOpti
         }
 
         let renderBounds = prepared.bounds
+        let overlayCanvas = prepared.canvas
+
         if (options.clipRings && options.clipRings.length > 0) {
           renderBounds = applyFieldRasterFineTune(L, map, prepared.bounds)
+          overlayCanvas = maskHarvestRasterToRings(overlayCanvas, options.clipRings, renderBounds)
         }
 
-        this._overlay = L.imageOverlay(prepared.imageUrl, toLatLngBounds(L, renderBounds), {
+        this._overlay = L.imageOverlay(overlayCanvas.toDataURL('image/png'), toLatLngBounds(L, renderBounds), {
           opacity,
           interactive: false,
           className: 'leaflet-harvest-raster-overlay',

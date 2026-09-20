@@ -397,3 +397,52 @@ export function prepareHarvestRasterCanvas(
     sourceHeight: sourceCanvas.height,
   } satisfies PreparedHarvestRaster
 }
+
+function latLngToRasterPixel(
+  lat: number,
+  lng: number,
+  bounds: [[number, number], [number, number]],
+  width: number,
+  height: number
+) {
+  const [[south, west], [north, east]] = bounds
+  const latSpan = north - south
+  const lngSpan = east - west
+  if (latSpan <= 0 || lngSpan <= 0) return { x: 0, y: 0 }
+
+  return {
+    x: ((lng - west) / lngSpan) * width,
+    y: ((north - lat) / latSpan) * height,
+  }
+}
+
+/** Clip raster pixels to field polygon rings (transparent outside). */
+export function maskHarvestRasterToRings(
+  canvas: HTMLCanvasElement,
+  rings: Array<Array<{ lat: number; lng: number }>>,
+  bounds: [[number, number], [number, number]]
+): HTMLCanvasElement {
+  const validRings = rings.filter((ring) => ring.length >= 3)
+  if (validRings.length === 0) return canvas
+
+  const output = document.createElement('canvas')
+  output.width = canvas.width
+  output.height = canvas.height
+  const ctx = output.getContext('2d')
+  if (!ctx) return canvas
+
+  ctx.beginPath()
+  for (const ring of validRings) {
+    ring.forEach((vertex, index) => {
+      const { x, y } = latLngToRasterPixel(vertex.lat, vertex.lng, bounds, canvas.width, canvas.height)
+      if (index === 0) ctx.moveTo(x, y)
+      else ctx.lineTo(x, y)
+    })
+    ctx.closePath()
+  }
+
+  ctx.clip('evenodd')
+  ctx.drawImage(canvas, 0, 0)
+
+  return output
+}
