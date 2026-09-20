@@ -156,6 +156,63 @@ export function resolveRasterDisplayBounds(
  * Place the cropped raster so its center matches the field center, scaled to the field envelope.
  * The tight-cropped image is stretched uniformly to [field span] around [field centroid].
  */
+/**
+ * Fine-tune ratios calibrated from Al Bidaa screen-mm tuning at ~zoom 13
+ * (reference footprint ~240×180 px). Applied as fractions of each field's
+ * lat/lng span so every parcel gets the same relative alignment.
+ */
+export const HARVEST_RASTER_FINE_TUNE = {
+  panWestRatio: (1.5 * 6) / 240,
+  panNorthRatio: (0.5 * 6) / 180,
+  growRatio: (1 * 6) / 2 / 240,
+  stretchEastRatio: (0.6 * 6) / 240,
+  stretchSouthRatio: (0.2 * 6) / 180,
+}
+
+function normalizeBounds(bounds: RasterBounds): RasterBounds {
+  const [[a0, a1], [b0, b1]] = bounds
+  return [
+    [Math.min(a0, b0), Math.min(a1, b1)],
+    [Math.max(a0, b0), Math.max(a1, b1)],
+  ]
+}
+
+function isValidBounds(bounds: RasterBounds) {
+  const [[south, west], [north, east]] = bounds
+  return (
+    [south, west, north, east].every((value) => Number.isFinite(value)) &&
+    north > south &&
+    east > west
+  )
+}
+
+/** Field-proportional fine tune (pan → grow → stretch E/S), same on all parcels. */
+export function applyHarvestRasterFineTune(bounds: RasterBounds): RasterBounds {
+  const [[south, west], [north, east]] = bounds
+  const latSpan = north - south
+  const lngSpan = east - west
+  if (latSpan <= 0 || lngSpan <= 0) return bounds
+
+  const { panWestRatio, panNorthRatio, growRatio, stretchEastRatio, stretchSouthRatio } =
+    HARVEST_RASTER_FINE_TUNE
+
+  const centerLat = (south + north) / 2
+  const centerLng = (west + east) / 2
+
+  const nextCenterLng = centerLng - lngSpan * panWestRatio
+  const nextCenterLat = centerLat + latSpan * panNorthRatio
+
+  const halfLat = latSpan / 2 + latSpan * growRatio
+  const halfLng = lngSpan / 2 + lngSpan * growRatio
+
+  const nextBounds = normalizeBounds([
+    [nextCenterLat - halfLat - latSpan * stretchSouthRatio, nextCenterLng - halfLng],
+    [nextCenterLat + halfLat, nextCenterLng + halfLng + lngSpan * stretchEastRatio],
+  ])
+
+  return isValidBounds(nextBounds) ? nextBounds : bounds
+}
+
 export function resolveCenterScaledRasterBounds(
   fieldRings: Array<Array<{ lat: number; lng: number }>>
 ): RasterBounds {
