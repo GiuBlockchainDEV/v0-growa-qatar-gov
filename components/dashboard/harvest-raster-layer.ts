@@ -32,19 +32,21 @@ function toLatLngBounds(L: any, bounds: LeafletBounds) {
   return L.latLngBounds([south, west], [north, east])
 }
 
-/** ~6 screen px ≈ 1 mm on a 4K display; zoom-independent fine tuning. */
+/**
+ * Screen-space fine tuning (~6 px ≈ 1 mm on 4K). Values below are the
+ * cumulative result of all user requests — edit only these four numbers.
+ */
 const HARVEST_RASTER_PX_PER_MM = 6
 
-/** Cumulative screen-space tweaks (each mm ≈ 6 px). */
-const HARVEST_RASTER_FINE_TUNE = {
-  shiftLeftMm: 1, // original 1 mm left
-  shiftUpMm: 1, // original 1 mm up
-  extraZoomMm: 1, // additional zoom requested on top
-  extraShiftLeftMm: 0.5, // additional 0.5 mm left on top
-  extraShiftDownMm: 0.5, // additional 0.5 mm down on top
-  extraStretchRightMm: 0.5, // stretch 0.5 mm toward the right edge
-  extraStretchRightMoreMm: 0.1, // additional 0.1 mm stretch right
-  extraStretchDownMm: 0.2, // stretch 0.2 mm toward the bottom edge
+const HARVEST_RASTER_ADJUST = {
+  /** Sposta tutto l'overlay: sinistra (+) / su (+) in mm */
+  panLeftMm: 1.5,
+  panUpMm: 0.5,
+  /** Ingrandisce uniformemente dal centro */
+  zoomMm: 1,
+  /** Allarga solo il bordo destro / basso (mm) */
+  stretchRightMm: 0.6,
+  stretchDownMm: 0.2,
 }
 
 function normalizeLeafletBounds(bounds: LeafletBounds): LeafletBounds {
@@ -169,22 +171,15 @@ function applyFieldRasterFineTune(L: any, map: any, bounds: LeafletBounds): Leaf
   try {
     map.invalidateSize?.()
 
-    const shiftXPx = -(HARVEST_RASTER_FINE_TUNE.shiftLeftMm + HARVEST_RASTER_FINE_TUNE.extraShiftLeftMm) *
-      HARVEST_RASTER_PX_PER_MM
-    const shiftYPx =
-      -HARVEST_RASTER_FINE_TUNE.shiftUpMm * HARVEST_RASTER_PX_PER_MM +
-      HARVEST_RASTER_FINE_TUNE.extraShiftDownMm * HARVEST_RASTER_PX_PER_MM
-    const growPxPerSide = (HARVEST_RASTER_FINE_TUNE.extraZoomMm * HARVEST_RASTER_PX_PER_MM) / 2
+    const { panLeftMm, panUpMm, zoomMm, stretchRightMm, stretchDownMm } = HARVEST_RASTER_ADJUST
+    const panXPx = -panLeftMm * HARVEST_RASTER_PX_PER_MM
+    const panYPx = -panUpMm * HARVEST_RASTER_PX_PER_MM
+    const zoomPxPerSide = (zoomMm * HARVEST_RASTER_PX_PER_MM) / 2
 
-    let tuned = nudgeBoundsByScreenPixels(L, map, bounds, shiftXPx, shiftYPx)
-    tuned = zoomBoundsFromCenterInScreenPixels(L, map, tuned, growPxPerSide)
-    tuned = stretchBoundsRightInScreenPixels(
-      L,
-      map,
-      tuned,
-      HARVEST_RASTER_FINE_TUNE.extraStretchRightMm + HARVEST_RASTER_FINE_TUNE.extraStretchRightMoreMm
-    )
-    tuned = stretchBoundsDownInScreenPixels(L, map, tuned, HARVEST_RASTER_FINE_TUNE.extraStretchDownMm)
+    let tuned = nudgeBoundsByScreenPixels(L, map, bounds, panXPx, panYPx)
+    tuned = zoomBoundsFromCenterInScreenPixels(L, map, tuned, zoomPxPerSide)
+    tuned = stretchBoundsRightInScreenPixels(L, map, tuned, stretchRightMm)
+    tuned = stretchBoundsDownInScreenPixels(L, map, tuned, stretchDownMm)
 
     return isValidLeafletBounds(tuned) ? tuned : bounds
   } catch {
