@@ -1,6 +1,6 @@
 import { prepareHarvestRasterCanvas } from '@/lib/harvest/image-process'
 import {
-  resolveFieldAlignedRasterBounds,
+  resolveCenterScaledRasterBounds,
   resolveRasterRenderBounds,
   type RasterBounds,
 } from '@/lib/harvest/raster-bounds'
@@ -13,6 +13,7 @@ export interface HarvestRasterLayerOptions {
   imageSource?: 'view' | 'raster'
   boundsExtent?: 'plot' | 'full_image'
   clipRings?: Array<Array<{ lat: number; lng: number }>>
+  fieldCenter?: { lat: number; lng: number } | null
   opacity?: number
 }
 
@@ -50,7 +51,8 @@ function prepareOverlayImage(
   apiBounds: LeafletBounds,
   imageSource?: 'view' | 'raster',
   boundsExtent?: 'plot' | 'full_image',
-  clipRings?: Array<Array<{ lat: number; lng: number }>>
+  clipRings?: Array<Array<{ lat: number; lng: number }>>,
+  fieldCenter?: { lat: number; lng: number } | null
 ) {
   const isViewSource = imageSource === 'view'
   const prepared = prepareHarvestRasterCanvas(image, {
@@ -60,14 +62,8 @@ function prepareOverlayImage(
 
   let renderBounds: LeafletBounds
   if (clipRings && clipRings.length > 0) {
-    renderBounds = resolveFieldAlignedRasterBounds(
-      apiBounds,
-      clipRings,
-      prepared.crop,
-      prepared.sourceWidth,
-      prepared.sourceHeight,
-      boundsExtent
-    )
+    // Center of tight-cropped image ↔ center of field; scale to field envelope.
+    renderBounds = resolveCenterScaledRasterBounds(clipRings, fieldCenter)
   } else {
     const shouldAdjustBoundsForCrop =
       boundsExtent === 'full_image' || (boundsExtent !== 'plot' && imageSource === 'raster')
@@ -118,7 +114,8 @@ export function createHarvestRasterLayer(L: any, options: HarvestRasterLayerOpti
           options.bounds,
           options.imageSource,
           options.boundsExtent,
-          options.clipRings
+          options.clipRings,
+          options.fieldCenter
         )
         if (this._overlay) {
           this._overlay.remove?.()

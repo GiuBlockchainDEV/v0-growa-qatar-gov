@@ -1,5 +1,5 @@
 import type { RasterImageCrop } from '@/lib/harvest/image-process'
-import { boundsFromRings } from '@/lib/harvest/geojson'
+import { boundsFromRings, computeCentroid } from '@/lib/harvest/geojson'
 
 export type RasterBounds = [[number, number], [number, number]]
 
@@ -152,52 +152,31 @@ export function resolveRasterDisplayBounds(
   return boundsFromRings(clipRings)
 }
 
-function boundsCenter(bounds: RasterBounds) {
-  const [[south, west], [north, east]] = bounds
-  return {
-    lat: (south + north) / 2,
-    lng: (west + east) / 2,
-  }
-}
-
-function boundsSpan(bounds: RasterBounds) {
-  const [[south, west], [north, east]] = bounds
-  return {
-    lat: north - south,
-    lng: east - west,
-  }
-}
-
 /**
- * Scale metadata-aligned plot bounds to cover the field polygon envelope.
- * Keeps aspect ratio and centers on the field so heatmap circles match map outlines.
+ * Place the cropped raster so its center matches the field center, scaled to the field envelope.
+ * The tight-cropped image is stretched uniformly to [field span] around [field centroid].
  */
-export function resolveFieldAlignedRasterBounds(
-  apiBounds: RasterBounds,
+export function resolveCenterScaledRasterBounds(
   fieldRings: Array<Array<{ lat: number; lng: number }>>,
-  crop: RasterImageCrop | null,
-  sourceWidth: number,
-  sourceHeight: number,
-  boundsExtent?: 'plot' | 'full_image'
+  fieldCenter?: { lat: number; lng: number } | null
 ): RasterBounds {
-  const fieldBounds = boundsFromRings(fieldRings)
-  if (!crop || sourceWidth <= 0 || sourceHeight <= 0) return fieldBounds
+  const vertices = fieldRings.flat()
+  if (vertices.length === 0) {
+    return [[25.2, 51.1], [25.5, 51.4]]
+  }
 
-  const plotBounds =
-    boundsExtent === 'plot'
-      ? apiBounds
-      : adjustRasterBoundsForCrop(apiBounds, sourceWidth, sourceHeight, crop)
+  const center = fieldCenter ?? computeCentroid(vertices)
+  const [[south, west], [north, east]] = boundsFromRings(fieldRings)
+  const latSpan = north - south
+  const lngSpan = east - west
 
-  const plotSpan = boundsSpan(plotBounds)
-  const fieldSpan = boundsSpan(fieldBounds)
-  if (plotSpan.lat <= 0 || plotSpan.lng <= 0) return fieldBounds
-
-  const scale = Math.max(fieldSpan.lat / plotSpan.lat, fieldSpan.lng / plotSpan.lng)
-  const fieldCenter = boundsCenter(fieldBounds)
+  if (latSpan <= 0 || lngSpan <= 0) {
+    return boundsFromRings(fieldRings)
+  }
 
   return [
-    [fieldCenter.lat - (plotSpan.lat * scale) / 2, fieldCenter.lng - (plotSpan.lng * scale) / 2],
-    [fieldCenter.lat + (plotSpan.lat * scale) / 2, fieldCenter.lng + (plotSpan.lng * scale) / 2],
+    [center.lat - latSpan / 2, center.lng - lngSpan / 2],
+    [center.lat + latSpan / 2, center.lng + lngSpan / 2],
   ]
 }
 

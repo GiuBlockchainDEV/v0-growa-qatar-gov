@@ -1780,14 +1780,13 @@ export function SatelliteMap({
 
     if (!harvestRasterOverlay?.imageUrl || !harvestRasterOverlay.bounds) return
 
-    const selectedFieldRings =
-      selectedHarvestParcelId
-        ? harvestFields.find((field) => field.parcel_id === selectedHarvestParcelId)?.rings
-        : undefined
+    const selectedField = selectedHarvestParcelId
+      ? harvestFields.find((field) => field.parcel_id === selectedHarvestParcelId)
+      : undefined
     // Prefer map field rings — same geometry as the white polygon outline.
     const clipRings =
-      selectedFieldRings && selectedFieldRings.length > 0
-        ? selectedFieldRings
+      selectedField?.rings && selectedField.rings.length > 0
+        ? selectedField.rings
         : harvestRasterOverlay.clipRings
 
     const rasterLayer = createHarvestRasterLayer(L, {
@@ -1796,6 +1795,7 @@ export function SatelliteMap({
       imageSource: harvestRasterOverlay.imageSource,
       boundsExtent: harvestRasterOverlay.boundsExtent,
       clipRings,
+      fieldCenter: selectedField?.centroid ?? null,
       opacity: harvestRasterOverlay.opacity ?? 0.5,
     })
     rasterLayer.addTo(map)
