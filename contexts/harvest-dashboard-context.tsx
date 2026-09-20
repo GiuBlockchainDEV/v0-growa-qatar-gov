@@ -15,6 +15,7 @@ import { deduplicateHarvestCatalogFields, resolveCatalogField } from '@/lib/harv
 import {
   buildHarvestFieldDashboardUrl,
   defaultHarvestFieldNavOptions,
+  HARVEST_NATIONAL_DASHBOARD_PATH,
   resolveHarvestParcelId,
   type HarvestFieldNavTarget,
 } from '@/lib/harvest/field-navigation'
@@ -270,19 +271,10 @@ export function HarvestDashboardProvider({ children }: { children: ReactNode }) 
   )
 
   const clearFieldSelection = useCallback(() => {
-    const params = new URLSearchParams(searchParams.toString())
-    params.set('module', 'harvest')
-    params.set('harvestMode', mode)
-    params.delete('parcelId')
-    params.delete('harvestMetric')
-    params.delete('harvestGranularity')
-    params.delete('harvestPeriod')
-    params.delete('harvestSeasonId')
-    params.delete('focus')
-    router.replace(`/dashboard?${params.toString()}`)
+    router.replace(HARVEST_NATIONAL_DASHBOARD_PATH)
     setHydratedField(null)
     setMetricOverlay({})
-  }, [mode, router, searchParams])
+  }, [router])
 
   const setMode = useCallback(
     (nextMode: HarvestMode) => {

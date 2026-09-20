@@ -64,6 +64,8 @@ export function applyHarvestFieldSelectionToParams(
   return params
 }
 
+export const HARVEST_NATIONAL_DASHBOARD_PATH = '/dashboard?module=harvest'
+
 export function buildHarvestFieldDashboardUrl(
   currentParams: URLSearchParams,
   field: HarvestFieldNavTarget,
