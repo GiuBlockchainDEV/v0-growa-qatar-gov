@@ -21,7 +21,7 @@ async function loadLiveFieldPolygon(field: {
       season_id: field.season_id,
     }
   } catch {
-    return getDemoMapFields().find((entry) => entry.parcel_id === field.parcel_id) || null
+    return null
   }
 }
 

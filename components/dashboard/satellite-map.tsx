@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Crosshair, Minus, Plus } from 'lucide-react'
 import { createHarvestRasterLayer } from '@/components/dashboard/harvest-raster-layer'
+import { findHarvestMapFieldAtLatLng } from '@/lib/harvest/field-hit-test'
 import { useAuth } from '@/hooks/use-auth'
 import { useOrganization } from '@/hooks/use-organization'
 
@@ -1695,13 +1696,6 @@ export function SatelliteMap({
           { direction: 'top', opacity: 0.95, className: 'custom-tooltip' }
         )
 
-        layer.on('click', (event: any) => {
-          event?.originalEvent?.preventDefault?.()
-          event?.originalEvent?.stopPropagation?.()
-          layer.bringToFront()
-          onHarvestFieldClick?.(field)
-        })
-
         harvestFieldLayerInstancesRef.current.push(layer)
       }
     }
@@ -1710,7 +1704,29 @@ export function SatelliteMap({
       harvestFieldLayerInstancesRef.current.forEach((layer) => layer.remove?.())
       harvestFieldLayerInstancesRef.current = []
     }
-  }, [harvestFields, harvestRasterOverlay, mapReady, onHarvestFieldClick, selectedHarvestParcelId])
+  }, [harvestFields, harvestRasterOverlay, mapReady, selectedHarvestParcelId])
+
+  useEffect(() => {
+    if (!mapReady || !mapInstanceRef.current) return
+    if (!onHarvestFieldClick || harvestFields.length === 0) return
+    if (harvestFieldDrawActive) return
+
+    const map = mapInstanceRef.current
+
+    const handleMapClick = (event: any) => {
+      if (isLeafletUiClick(event)) return
+      const lat = Number(event?.latlng?.lat)
+      const lng = Number(event?.latlng?.lng)
+      if (!Number.isFinite(lat) || !Number.isFinite(lng)) return
+      const field = findHarvestMapFieldAtLatLng(harvestFields, lat, lng)
+      if (field) onHarvestFieldClick(field)
+    }
+
+    map.on('click', handleMapClick)
+    return () => {
+      map.off('click', handleMapClick)
+    }
+  }, [harvestFieldDrawActive, harvestFields, mapReady, onHarvestFieldClick])
 
   useEffect(() => {
     if (!mapReady || !mapInstanceRef.current || !leafletRef.current || !selectedHarvestParcelId) return

@@ -65,40 +65,86 @@ function ringsFromGeometry(geometry: unknown): LatLngVertex[][] {
   return []
 }
 
-function geometryFromGeoJson(geojson: unknown): unknown {
+function featurePropertiesFromGeoJson(geojson: unknown): Record<string, unknown> | null {
   const record = geojson && typeof geojson === 'object' ? (geojson as Record<string, unknown>) : null
   if (!record) return null
 
   if (record.type === 'FeatureCollection' && Array.isArray(record.features) && record.features[0]) {
     const feature = record.features[0] as Record<string, unknown>
-    return feature.geometry ?? null
+    const properties = feature.properties
+    return properties && typeof properties === 'object'
+      ? (properties as Record<string, unknown>)
+      : null
   }
 
   if (record.type === 'Feature') {
-    return record.geometry ?? null
-  }
-
-  if (record.type === 'Polygon' || record.type === 'MultiPolygon') {
-    return record
+    const properties = record.properties
+    return properties && typeof properties === 'object'
+      ? (properties as Record<string, unknown>)
+      : null
   }
 
   return null
+}
+
+function geometriesFromGeoJson(geojson: unknown): unknown[] {
+  const record = geojson && typeof geojson === 'object' ? (geojson as Record<string, unknown>) : null
+  if (!record) return []
+
+  if (record.type === 'FeatureCollection' && Array.isArray(record.features)) {
+    return record.features
+      .map((feature) => {
+        const featureRecord = feature as Record<string, unknown>
+        return featureRecord.geometry ?? null
+      })
+      .filter(Boolean)
+  }
+
+  if (record.type === 'Feature') {
+    return record.geometry ? [record.geometry] : []
+  }
+
+  if (record.type === 'Polygon' || record.type === 'MultiPolygon') {
+    return [record]
+  }
+
+  return []
+}
+
+function geometryFromGeoJson(geojson: unknown): unknown {
+  return geometriesFromGeoJson(geojson)[0] ?? null
+}
+
+function pickGeoJsonString(properties: Record<string, unknown> | null, keys: string[]): string | undefined {
+  if (!properties) return undefined
+  for (const key of keys) {
+    const value = properties[key]
+    if (typeof value === 'string' && value.trim()) return value
+  }
+  return undefined
 }
 
 export function geoJsonToHarvestFieldPolygon(
   geojson: unknown,
   meta: { parcel_id: string; name: string; crop: string }
 ): HarvestFieldPolygon | null {
-  const rings = ringsFromGeometry(geometryFromGeoJson(geojson))
+  const geometries = geometriesFromGeoJson(geojson)
+  const rings = geometries.flatMap((geometry) => ringsFromGeometry(geometry))
   if (rings.length === 0) return null
 
   const centroid = computeCentroid(rings[0])
   if (!isInQatar(centroid.lat, centroid.lng)) return null
 
+  const properties = featurePropertiesFromGeoJson(geojson)
+  const parcelId =
+    pickGeoJsonString(properties, ['parcel_id', 'parcelId']) || meta.parcel_id
+  const name = pickGeoJsonString(properties, ['name', 'field_name', 'label']) || meta.name
+  const crop = pickGeoJsonString(properties, ['crop', 'crop_name']) || meta.crop
+
   return {
-    parcel_id: meta.parcel_id,
-    name: meta.name,
-    crop: meta.crop,
+    parcel_id: parcelId,
+    name,
+    crop,
     rings,
     centroid,
   }

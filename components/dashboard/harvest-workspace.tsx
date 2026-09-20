@@ -29,7 +29,7 @@ import {
   IntelligenceTableHead,
   IntelligenceWorkspaceRoot,
 } from '@/components/dashboard/intelligence-workspace-ui'
-import { useHarvestFieldSelection } from '@/hooks/use-harvest-field-selection'
+import { useHarvestDashboard } from '@/contexts/harvest-dashboard-context'
 import type {
   HarvestAnalyticsField,
   HarvestAnalyticsResponse,
@@ -185,13 +185,9 @@ export function HarvestWorkspace() {
   const selectedMapMetric = (searchParams.get('harvestMetric') || 'npp') as HarvestMetricKey
   const mapGranularity = (searchParams.get('harvestGranularity') || 'season') as HarvestTrendGranularity
   const selectedPeriod = searchParams.get('harvestPeriod')
-  const [mode, setMode] = useState<HarvestMode>(
-    searchParams.get('harvestMode') === 'predict' ? 'predict' : 'current'
-  )
-  const [loading, setLoading] = useState(true)
+  const [nationalLoading, setNationalLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [analytics, setAnalytics] = useState<HarvestAnalyticsResponse | null>(null)
-  const [fields, setFields] = useState<HarvestAnalyticsField[]>([])
   const [timeseries, setTimeseries] = useState<HarvestTimeseriesResponse | null>(null)
   const [fieldStats, setFieldStats] = useState<HarvestFieldStatsResponse | null>(null)
   const [fieldRaster, setFieldRaster] = useState<HarvestRasterResponse | null>(null)
@@ -213,8 +209,13 @@ export function HarvestWorkspace() {
   const fieldDetailSeqRef = useRef(0)
 
   const {
+    mode,
+    setMode: setHarvestMode,
+    fields,
+    catalogLoading,
+    catalogError,
+    refreshCatalog,
     parcelId,
-    activeParcelId,
     activeSeasonId,
     activeField,
     isFieldDetailView,
@@ -222,7 +223,9 @@ export function HarvestWorkspace() {
     clearFieldSelection,
     mergeFieldMetrics,
     patchActiveSeasonId,
-  } = useHarvestFieldSelection({ fields, mode })
+  } = useHarvestDashboard()
+
+  const activeParcelId = parcelId
 
   useEffect(() => {
     const handleDrawUpdate = (event: Event) => {
@@ -239,66 +242,58 @@ export function HarvestWorkspace() {
     setCreateDrawMethod(harvestDrawMethod)
   }, [harvestDrawMethod])
 
-  const loadData = useCallback(async () => {
-    setLoading(true)
+  const loadNationalData = useCallback(async () => {
+    if (parcelId) {
+      setAnalytics(null)
+      setTimeseries(null)
+      return
+    }
+
+    setNationalLoading(true)
     setError(null)
 
     try {
-      const fieldsParams = new URLSearchParams({
-        source: 'all',
-        mode,
-        sort_by: 'harvest_date',
-        sort_dir: 'desc',
-      })
-
-      const requests: Promise<unknown>[] = [
-        fetchJson<{ total: number; results: HarvestAnalyticsField[] }>(
-          `/api/harvest/fields?${fieldsParams.toString()}`
+      const [analyticsResult, timeseriesResult, collectingResult] = await Promise.all([
+        fetchJson<HarvestAnalyticsResponse>(`/api/harvest/analytics?mode=${mode}`),
+        fetchJson<HarvestTimeseriesResponse>(
+          `/api/harvest/timeseries?mode=${mode}&metric=aeti&granularity=dekad`
         ),
         fetchJson<Array<{ parcel_id: string; season_id: number; task_id: string }>>(
           '/api/harvest/collecting'
         ),
-      ]
+      ])
 
-      const showNationalAnalytics = !parcelId
-      if (showNationalAnalytics) {
-        requests.push(
-          fetchJson<HarvestAnalyticsResponse>(`/api/harvest/analytics?mode=${mode}`),
-          fetchJson<HarvestTimeseriesResponse>(
-            `/api/harvest/timeseries?mode=${mode}&metric=aeti&granularity=dekad`
-          )
-        )
-      }
-
-      const results = await Promise.all(requests)
-      const fieldsResult = results[0] as { data: { total: number; results: HarvestAnalyticsField[] } }
-      const collectingResult = results[1] as {
-        data: Array<{ parcel_id: string; season_id: number; task_id: string }>
-      }
-      const fieldsPayload = fieldsResult.data
-      const nextFields = fieldsPayload.results || []
-
-      setFields(nextFields)
+      setAnalytics(analyticsResult.data)
+      setTimeseries(timeseriesResult.data)
       setCollectingTasks(collectingResult.data || [])
-
-      if (showNationalAnalytics) {
-        const analyticsResult = results[2] as { data: HarvestAnalyticsResponse }
-        const timeseriesResult = results[3] as { data: HarvestTimeseriesResponse }
-        setAnalytics(analyticsResult.data)
-        setTimeseries(timeseriesResult.data)
-      } else {
-        setAnalytics(null)
-        setTimeseries(null)
-      }
     } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : 'Unable to load Harvest data')
       setAnalytics(null)
-      setFields([])
       setTimeseries(null)
     } finally {
-      setLoading(false)
+      setNationalLoading(false)
     }
   }, [mode, parcelId])
+
+  const loadCollectingTasks = useCallback(async () => {
+    try {
+      const collectingResult = await fetchJson<
+        Array<{ parcel_id: string; season_id: number; task_id: string }>
+      >('/api/harvest/collecting')
+      setCollectingTasks(collectingResult.data || [])
+    } catch {
+      // ignore collecting poll errors
+    }
+  }, [])
+
+  const refreshWorkspace = useCallback(async () => {
+    refreshCatalog()
+    if (!parcelId) {
+      await loadNationalData()
+    } else {
+      await loadCollectingTasks()
+    }
+  }, [loadCollectingTasks, loadNationalData, parcelId, refreshCatalog])
 
   const handleFieldCreated = useCallback(
     (createdParcelId: string, seasonId?: number) => {
@@ -313,9 +308,9 @@ export function HarvestWorkspace() {
       params.delete('harvestCreate')
       params.delete('harvestDraw')
       router.replace(`/dashboard?${params.toString()}`)
-      void loadData()
+      void refreshWorkspace()
     },
-    [loadData, router, searchParams]
+    [refreshWorkspace, router, searchParams]
   )
 
   const updateHarvestMapParams = useCallback(
@@ -560,8 +555,21 @@ export function HarvestWorkspace() {
   ])
 
   useEffect(() => {
-    void loadData()
-  }, [loadData])
+    void loadNationalData()
+  }, [loadNationalData])
+
+  useEffect(() => {
+    if (!parcelId) return
+    void loadCollectingTasks()
+  }, [loadCollectingTasks, parcelId])
+
+  useEffect(() => {
+    if (catalogError) {
+      setError(catalogError)
+    }
+  }, [catalogError])
+
+  const loading = catalogLoading || nationalLoading
 
   useEffect(() => {
     void loadFieldDetail()
@@ -707,13 +715,13 @@ export function HarvestWorkspace() {
 
       window.dispatchEvent(new Event('harvest:fields-updated'))
       handleClearFieldSelection()
-      await loadData()
+      await refreshWorkspace()
     } catch (deleteError) {
       setError(deleteError instanceof Error ? deleteError.message : 'Unable to delete field')
     } finally {
       setDeleteLoading(false)
     }
-  }, [activeField, handleClearFieldSelection, loadData])
+  }, [activeField, handleClearFieldSelection, refreshWorkspace])
 
   const runYieldEstimate = useCallback(async () => {
     if (!activeField?.parcel_id || !activeSeasonId) return
@@ -750,11 +758,7 @@ export function HarvestWorkspace() {
   }, [activeField?.parcel_id, activeSeasonId, mode])
 
   const updateMode = (nextMode: HarvestMode) => {
-    setMode(nextMode)
-    const params = new URLSearchParams(searchParams.toString())
-    params.set('module', 'harvest')
-    params.set('harvestMode', nextMode)
-    router.replace(`/dashboard?${params.toString()}`)
+    setHarvestMode(nextMode)
   }
 
   return (
@@ -762,8 +766,8 @@ export function HarvestWorkspace() {
       <IntelligenceHero
         eyebrow="Harvest Prediction"
         title={
-          isFieldDetailView && activeField
-            ? activeField.name
+          isFieldDetailView
+            ? activeField?.name ?? (parcelId ? 'Loading field...' : 'Production & Harvest Intelligence')
             : 'Production & Harvest Intelligence'
         }
         description={
@@ -827,7 +831,7 @@ export function HarvestWorkspace() {
         </button>
         <button
           type="button"
-          onClick={() => void loadData()}
+          onClick={() => void refreshWorkspace()}
           className="ml-auto inline-flex items-center gap-1.5 rounded-lg border border-border bg-card px-3 py-1.5 text-xs font-medium text-foreground hover:bg-secondary/40"
         >
           <RefreshCw className="h-3.5 w-3.5" />
@@ -874,7 +878,7 @@ export function HarvestWorkspace() {
           ) : null}
 
           {isFieldDetailView && activeField ? (
-            <div className="space-y-4">
+            <div key={activeField.parcel_id} className="space-y-4">
               <IntelligencePanel
                 title="Field overview"
                 subtitle="KPIs, yield estimate, and field actions"

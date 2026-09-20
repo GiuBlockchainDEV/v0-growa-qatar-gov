@@ -11,13 +11,13 @@ import { WaterIntelligenceWorkspace } from '@/components/dashboard/water-intelli
 import { EnergyIntelligenceWorkspace } from '@/components/dashboard/energy-intelligence-workspace'
 import { WeatherWorkspace } from '@/components/dashboard/weather-workspace'
 import { HarvestWorkspace } from '@/components/dashboard/harvest-workspace'
+import { HarvestDashboardProvider, useHarvestDashboardOptional } from '@/contexts/harvest-dashboard-context'
 import {
   generateQatarWeatherGrid,
   generateQatarWeatherGridLines,
   getQatarBoundaryCoordinates,
 } from '@/lib/weather/qatar-grid'
-import type { HarvestMapField, HarvestRasterOverlay } from '@/lib/harvest/types'
-import { buildHarvestFieldDashboardUrl } from '@/lib/harvest/field-navigation'
+import type { HarvestRasterOverlay } from '@/lib/harvest/types'
 import { extractBoundsFromGeoJson, type LatLngVertex } from '@/lib/harvest/geojson'
 
 function SlideFromLeftWorkspace({
@@ -82,9 +82,8 @@ function SlideFromLeftWorkspace({
   const selectedHarvestParcelId = searchParams.get('parcelId')
   const harvestCreateActive = searchParams.get('harvestCreate') === '1'
   const harvestDrawMethod = searchParams.get('harvestDraw') === 'circle' ? 'circle' : 'vertex'
-  const [harvestFields, setHarvestFields] = useState<HarvestMapField[]>([])
+  const harvestDashboard = useHarvestDashboardOptional()
   const [harvestTileUrl, setHarvestTileUrl] = useState<string | null>(null)
-  const [harvestMapRefreshKey, setHarvestMapRefreshKey] = useState(0)
   const [harvestRasterOverlay, setHarvestRasterOverlay] = useState<HarvestRasterOverlay | null>(null)
   const [harvestFocusBounds, setHarvestFocusBounds] = useState<[[number, number], [number, number]] | null>(
     null
@@ -95,12 +94,6 @@ function SlideFromLeftWorkspace({
   const [panelVisible, setPanelVisible] = useState(startsWithLateralPanel)
 
   const isHarvestModule = moduleKey === 'harvest' || moduleKey === 'production-harvest'
-
-  useEffect(() => {
-    const handleHarvestFieldsUpdated = () => setHarvestMapRefreshKey((value) => value + 1)
-    window.addEventListener('harvest:fields-updated', handleHarvestFieldsUpdated)
-    return () => window.removeEventListener('harvest:fields-updated', handleHarvestFieldsUpdated)
-  }, [])
 
   useEffect(() => {
     if (!harvestCreateActive) {
@@ -140,28 +133,16 @@ function SlideFromLeftWorkspace({
 
   useEffect(() => {
     if (!isHarvestModule) {
-      setHarvestFields([])
       setHarvestTileUrl(null)
       return
     }
 
     let cancelled = false
 
-    const loadHarvestMapData = async () => {
+    const loadHarvestTile = async () => {
       try {
-        const [fieldsResponse, tileResponse] = await Promise.all([
-          fetch(`/api/harvest/map/fields?mode=${harvestMode}&perpage=50`, { cache: 'no-store' }),
-          fetch('/api/harvest/map/tile-url', { cache: 'no-store' }),
-        ])
-
+        const tileResponse = await fetch('/api/harvest/map/tile-url', { cache: 'no-store' })
         if (cancelled) return
-
-        if (fieldsResponse.ok) {
-          const fieldsPayload = await fieldsResponse.json()
-          setHarvestFields(Array.isArray(fieldsPayload?.fields) ? fieldsPayload.fields : [])
-        } else {
-          setHarvestFields([])
-        }
 
         if (tileResponse.ok) {
           const tilePayload = await tileResponse.json()
@@ -170,19 +151,18 @@ function SlideFromLeftWorkspace({
           setHarvestTileUrl(null)
         }
       } catch {
-        if (!cancelled) {
-          setHarvestFields([])
-          setHarvestTileUrl(null)
-        }
+        if (!cancelled) setHarvestTileUrl(null)
       }
     }
 
-    void loadHarvestMapData()
+    void loadHarvestTile()
 
     return () => {
       cancelled = true
     }
-  }, [harvestMapRefreshKey, harvestMode, isHarvestModule])
+  }, [isHarvestModule])
+
+  const harvestFields = harvestDashboard?.mapFields ?? []
 
   useEffect(() => {
     if (!isHarvestModule || !selectedHarvestParcelId) {
@@ -278,18 +258,8 @@ function SlideFromLeftWorkspace({
           harvestFieldVertices={harvestFieldVertices}
           onHarvestFieldVerticesChange={setHarvestFieldVertices}
           onHarvestFieldClick={
-            isHarvestModule
-              ? (field) => {
-                  router.replace(
-                    buildHarvestFieldDashboardUrl(searchParams, field, {
-                      mode: harvestMode,
-                      harvestMetric: searchParams.get('harvestMetric'),
-                      harvestGranularity: searchParams.get('harvestGranularity'),
-                      preserveDekadPeriod:
-                        (searchParams.get('harvestGranularity') || 'season') === 'dekad',
-                    })
-                  )
-                }
+            isHarvestModule && harvestDashboard
+              ? (field) => harvestDashboard.selectField(field)
               : undefined
           }
           onWeatherGridPointClick={
@@ -447,17 +417,19 @@ export default function DashboardPage() {
 
   if (moduleKey === 'harvest' || moduleKey === 'production-harvest') {
     return (
-      <SlideFromLeftWorkspace
-        key="harvest-panel"
-        locale={locale}
-        moduleKey="harvest"
-        targetPointId={targetPointId}
-        targetFocusToken={targetFocusToken}
-        targetZoom={targetZoom}
-        targetCropFilter={targetCropFilter}
-      >
-        <HarvestWorkspace />
-      </SlideFromLeftWorkspace>
+      <HarvestDashboardProvider>
+        <SlideFromLeftWorkspace
+          key="harvest-panel"
+          locale={locale}
+          moduleKey="harvest"
+          targetPointId={targetPointId}
+          targetFocusToken={targetFocusToken}
+          targetZoom={targetZoom}
+          targetCropFilter={targetCropFilter}
+        >
+          <HarvestWorkspace />
+        </SlideFromLeftWorkspace>
+      </HarvestDashboardProvider>
     )
   }
 

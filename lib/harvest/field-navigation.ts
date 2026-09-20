@@ -12,7 +12,9 @@ export function applyHarvestFieldSelectionToParams(
     preserveDekadPeriod?: boolean
   }
 ) {
-  params.set('module', 'harvest')
+  if (!params.get('module')) {
+    params.set('module', 'harvest')
+  }
   params.set('parcelId', field.parcel_id)
   params.set('zoom', '13')
   params.set('focus', `harvest-${field.parcel_id}`)

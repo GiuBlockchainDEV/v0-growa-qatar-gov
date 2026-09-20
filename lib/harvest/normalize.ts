@@ -1,3 +1,4 @@
+import { deduplicateHarvestCatalogFields } from '@/lib/harvest/catalog'
 import type {
   HarvestAnalyticsField,
   HarvestAnalyticsResponse,
@@ -85,7 +86,7 @@ export function normalizeAnalyticsField(raw: unknown): HarvestAnalyticsField | n
   const record = asRecord(raw)
   if (!record) return null
 
-  const parcelId = pickString(record, ['parcel_id', 'parcelId', 'id'])
+  const parcelId = pickString(record, ['parcel_id', 'parcelId'])
   const name = pickString(record, ['name', 'field_name', 'label'])
   if (!parcelId || !name) return null
 
@@ -190,8 +191,9 @@ export function normalizePaginatedFieldsResponse(raw: unknown): HarvestPaginated
     .map((entry) => normalizeAnalyticsField(entry))
     .filter((entry): entry is HarvestAnalyticsField => Boolean(entry))
 
-  const total = pickNumber(record, ['total', 'count']) ?? results.length
-  return { total, results }
+  const deduped = deduplicateHarvestCatalogFields(results)
+  const total = pickNumber(record, ['total', 'count']) ?? deduped.length
+  return { total, results: deduped }
 }
 
 export function normalizeTimeseriesPoint(raw: unknown): HarvestTimeseriesPoint | null {
