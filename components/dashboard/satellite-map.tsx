@@ -1674,6 +1674,15 @@ export function SatelliteMap({
 
     const hasRasterOverlay = Boolean(harvestRasterOverlay?.imageUrl)
 
+    const selectFieldAtEvent = (event: any) => {
+      if (!onHarvestFieldClick || harvestFieldDrawActive) return
+      const lat = Number(event?.latlng?.lat)
+      const lng = Number(event?.latlng?.lng)
+      if (!Number.isFinite(lat) || !Number.isFinite(lng)) return
+      const match = findHarvestMapFieldAtLatLng(harvestFields, lat, lng)
+      if (match) onHarvestFieldClick(match)
+    }
+
     for (const field of harvestFields) {
       const selected = field.parcel_id === selectedHarvestParcelId
       for (const ring of field.rings) {
@@ -1685,9 +1694,10 @@ export function SatelliteMap({
             weight: hasRasterOverlay ? (selected ? 3 : 2) : selected ? 4 : 2,
             opacity: 1,
             fillColor: hasRasterOverlay ? 'transparent' : '#07f880',
-            fillOpacity: 0,
+            fillOpacity: hasRasterOverlay ? 0.01 : 0.08,
             interactive: true,
             bubblingMouseEvents: false,
+            className: 'leaflet-harvest-field-polygon',
           }
         ).addTo(map)
 
@@ -1695,6 +1705,12 @@ export function SatelliteMap({
           `<strong style="color:#07f880;">${escapeHtml(field.name)}</strong><br/><span style="font-size:11px;color:#bbb;">${escapeHtml(field.crop)}</span>`,
           { direction: 'top', opacity: 0.95, className: 'custom-tooltip' }
         )
+
+        layer.on('click', (event: any) => {
+          event?.originalEvent?.preventDefault?.()
+          event?.originalEvent?.stopPropagation?.()
+          selectFieldAtEvent(event)
+        })
 
         harvestFieldLayerInstancesRef.current.push(layer)
       }
@@ -1704,29 +1720,14 @@ export function SatelliteMap({
       harvestFieldLayerInstancesRef.current.forEach((layer) => layer.remove?.())
       harvestFieldLayerInstancesRef.current = []
     }
-  }, [harvestFields, harvestRasterOverlay, mapReady, selectedHarvestParcelId])
-
-  useEffect(() => {
-    if (!mapReady || !mapInstanceRef.current) return
-    if (!onHarvestFieldClick || harvestFields.length === 0) return
-    if (harvestFieldDrawActive) return
-
-    const map = mapInstanceRef.current
-
-    const handleMapClick = (event: any) => {
-      if (isLeafletUiClick(event)) return
-      const lat = Number(event?.latlng?.lat)
-      const lng = Number(event?.latlng?.lng)
-      if (!Number.isFinite(lat) || !Number.isFinite(lng)) return
-      const field = findHarvestMapFieldAtLatLng(harvestFields, lat, lng)
-      if (field) onHarvestFieldClick(field)
-    }
-
-    map.on('click', handleMapClick)
-    return () => {
-      map.off('click', handleMapClick)
-    }
-  }, [harvestFieldDrawActive, harvestFields, mapReady, onHarvestFieldClick])
+  }, [
+    harvestFieldDrawActive,
+    harvestFields,
+    harvestRasterOverlay,
+    mapReady,
+    onHarvestFieldClick,
+    selectedHarvestParcelId,
+  ])
 
   useEffect(() => {
     if (!mapReady || !mapInstanceRef.current || !leafletRef.current || !selectedHarvestParcelId) return

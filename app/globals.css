@@ -164,3 +164,7 @@
 .leaflet-harvest-raster-overlay {
   pointer-events: none !important;
 }
+
+.leaflet-harvest-field-polygon {
+  cursor: pointer;
+}
