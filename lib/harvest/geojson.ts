@@ -27,6 +27,17 @@ export function isInQatar(lat: number, lng: number) {
   )
 }
 
+export function isValidLatLng(lat: number, lng: number) {
+  return (
+    Number.isFinite(lat) &&
+    Number.isFinite(lng) &&
+    lat >= -90 &&
+    lat <= 90 &&
+    lng >= -180 &&
+    lng <= 180
+  )
+}
+
 function toVertex(coordinate: unknown): LatLngVertex | null {
   if (!Array.isArray(coordinate) || coordinate.length < 2) return null
   const lng = Number(coordinate[0])
@@ -133,7 +144,7 @@ export function geoJsonToHarvestFieldPolygon(
   if (rings.length === 0) return null
 
   const centroid = computeCentroid(rings[0])
-  if (!isInQatar(centroid.lat, centroid.lng)) return null
+  if (!isValidLatLng(centroid.lat, centroid.lng)) return null
 
   const properties = featurePropertiesFromGeoJson(geojson)
   const parcelId =
