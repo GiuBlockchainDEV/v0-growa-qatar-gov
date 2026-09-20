@@ -1,5 +1,5 @@
 import type { RasterImageCrop } from '@/lib/harvest/image-process'
-import { boundsFromRings, computeRingsCentroidOfMass } from '@/lib/harvest/geojson'
+import { boundsFromRings, computeCentroid } from '@/lib/harvest/geojson'
 
 export type RasterBounds = [[number, number], [number, number]]
 
@@ -164,7 +164,7 @@ export function resolveCenterScaledRasterBounds(
     return [[25.2, 51.1], [25.5, 51.4]]
   }
 
-  const center = computeRingsCentroidOfMass(fieldRings)
+  const center = computeCentroid(vertices)
   const [[south, west], [north, east]] = boundsFromRings(fieldRings)
   const latSpan = north - south
   const lngSpan = east - west

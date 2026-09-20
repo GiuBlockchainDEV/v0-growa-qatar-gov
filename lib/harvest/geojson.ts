@@ -92,7 +92,7 @@ export function geoJsonToHarvestFieldPolygon(
   const rings = ringsFromGeometry(geometryFromGeoJson(geojson))
   if (rings.length === 0) return null
 
-  const centroid = computeRingsCentroidOfMass(rings)
+  const centroid = computeCentroid(rings[0])
   if (!isInQatar(centroid.lat, centroid.lng)) return null
 
   return {
@@ -135,74 +135,6 @@ export function computeCentroid(vertices: LatLngVertex[]): LatLngVertex {
     lat: totals.lat / vertices.length,
     lng: totals.lng / vertices.length,
   }
-}
-
-function verticesToLocalMeters(vertices: LatLngVertex[]) {
-  const earthRadiusMeters = 6371008.8
-  const toRadians = (value: number) => (value * Math.PI) / 180
-  const meanLatRadians =
-    vertices.reduce((sum, vertex) => sum + toRadians(vertex.lat), 0) / vertices.length
-
-  return {
-    meanLatRadians,
-    earthRadiusMeters,
-    points: vertices.map((vertex) => ({
-      x: earthRadiusMeters * toRadians(vertex.lng) * Math.cos(meanLatRadians),
-      y: earthRadiusMeters * toRadians(vertex.lat),
-    })),
-  }
-}
-
-/** Area-weighted centroid of mass for a closed polygon ring. */
-export function computePolygonCentroidOfMass(vertices: LatLngVertex[]): LatLngVertex {
-  if (vertices.length < 3) return computeCentroid(vertices)
-
-  const { meanLatRadians, earthRadiusMeters, points } = verticesToLocalMeters(vertices)
-  let signedArea2 = 0
-  let centroidX = 0
-  let centroidY = 0
-
-  for (let i = 0; i < points.length; i += 1) {
-    const current = points[i]
-    const next = points[(i + 1) % points.length]
-    const cross = current.x * next.y - next.x * current.y
-    signedArea2 += cross
-    centroidX += (current.x + next.x) * cross
-    centroidY += (current.y + next.y) * cross
-  }
-
-  if (Math.abs(signedArea2) < 1e-12) return computeCentroid(vertices)
-
-  centroidX /= 3 * signedArea2
-  centroidY /= 3 * signedArea2
-
-  return {
-    lat: (centroidY / earthRadiusMeters) * (180 / Math.PI),
-    lng: (centroidX / (earthRadiusMeters * Math.cos(meanLatRadians))) * (180 / Math.PI),
-  }
-}
-
-/** Centroid of mass across all rings, weighted by polygon area. */
-export function computeRingsCentroidOfMass(rings: LatLngVertex[][]): LatLngVertex {
-  const flat = rings.flat()
-  if (flat.length === 0) return { lat: 25.3548, lng: 51.1839 }
-
-  let totalArea = 0
-  let weightedLat = 0
-  let weightedLng = 0
-
-  for (const ring of rings) {
-    if (ring.length < 3) continue
-    const area = calculatePolygonAreaHectares(ring)
-    if (area <= 0) continue
-    const centroid = computePolygonCentroidOfMass(ring)
-    totalArea += area
-    weightedLat += centroid.lat * area
-    weightedLng += centroid.lng * area
-  }
-
-  if (totalArea <= 0) return computeCentroid(flat)
-  return { lat: weightedLat / totalArea, lng: weightedLng / totalArea }
 }
 
 export function calculatePolygonAreaHectares(vertices: LatLngVertex[]): number {
