@@ -32,30 +32,46 @@ function toLatLngBounds(L: any, bounds: LeafletBounds) {
   return L.latLngBounds([south, west], [north, east])
 }
 
-/** ~1 mm left/up on a 4K display; constant in screen pixels so it stays subtle at any zoom. */
-const HARVEST_RASTER_SCREEN_NUDGE = { x: -6, y: -6 }
+/** ~6 screen px ≈ 1 mm on a 4K display; keeps adjustments subtle and zoom-independent. */
+const HARVEST_RASTER_PX_PER_MM = 6
 
-function nudgeBoundsByScreenPixels(
+const HARVEST_RASTER_FINE_TUNE = {
+  zoomMm: 1,
+  shiftLeftMm: 0.5,
+}
+
+function adjustFieldRasterBoundsInScreenSpace(
   L: any,
   map: any,
   bounds: LeafletBounds,
-  offsetX: number,
-  offsetY: number
+  { zoomMm, shiftLeftMm }: { zoomMm: number; shiftLeftMm: number }
 ): LeafletBounds {
   const [[south, west], [north, east]] = bounds
-  const centerLat = (south + north) / 2
-  const centerLng = (west + east) / 2
-  const latSpan = north - south
-  const lngSpan = east - west
+  const southWest = map.latLngToContainerPoint(L.latLng(south, west))
+  const northEast = map.latLngToContainerPoint(L.latLng(north, east))
 
-  const centerPoint = map.latLngToContainerPoint(L.latLng(centerLat, centerLng))
-  const nudged = map.containerPointToLatLng(
-    L.point(centerPoint.x + offsetX, centerPoint.y + offsetY)
+  const centerX = (southWest.x + northEast.x) / 2
+  const centerY = (southWest.y + northEast.y) / 2
+  const halfWidth = (northEast.x - southWest.x) / 2
+  const halfHeight = (southWest.y - northEast.y) / 2
+
+  const growPx = (zoomMm * HARVEST_RASTER_PX_PER_MM) / 2
+  const shiftXPx = -shiftLeftMm * HARVEST_RASTER_PX_PER_MM
+
+  const nextCenterX = centerX + shiftXPx
+  const nextHalfWidth = halfWidth + growPx
+  const nextHalfHeight = halfHeight + growPx
+
+  const nextSouthWest = map.containerPointToLatLng(
+    L.point(nextCenterX - nextHalfWidth, nextCenterY + nextHalfHeight)
+  )
+  const nextNorthEast = map.containerPointToLatLng(
+    L.point(nextCenterX + nextHalfWidth, nextCenterY - nextHalfHeight)
   )
 
   return [
-    [nudged.lat - latSpan / 2, nudged.lng - lngSpan / 2],
-    [nudged.lat + latSpan / 2, nudged.lng + lngSpan / 2],
+    [nextSouthWest.lat, nextSouthWest.lng],
+    [nextNorthEast.lat, nextNorthEast.lng],
   ]
 }
 
@@ -148,13 +164,7 @@ export function createHarvestRasterLayer(L: any, options: HarvestRasterLayerOpti
 
         const renderBounds =
           options.clipRings && options.clipRings.length > 0
-            ? nudgeBoundsByScreenPixels(
-                L,
-                map,
-                prepared.bounds,
-                HARVEST_RASTER_SCREEN_NUDGE.x,
-                HARVEST_RASTER_SCREEN_NUDGE.y
-              )
+            ? adjustFieldRasterBoundsInScreenSpace(L, map, prepared.bounds, HARVEST_RASTER_FINE_TUNE)
             : prepared.bounds
 
         this._overlay = L.imageOverlay(prepared.imageUrl, toLatLngBounds(L, renderBounds), {
