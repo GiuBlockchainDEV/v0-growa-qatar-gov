@@ -159,3 +159,8 @@
     background-size: 20px 20px;
   }
 }
+
+/* Harvest raster overlay must not steal polygon click events */
+.leaflet-harvest-raster-overlay {
+  pointer-events: none !important;
+}

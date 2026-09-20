@@ -359,18 +359,44 @@ export function HarvestWorkspace() {
     [router, searchParams]
   )
 
+  // URL parcelId wins over stale selectedField (e.g. map click before hydrate completes).
+  const activeParcelId = useMemo(
+    () => parcelId ?? selectedField?.parcel_id ?? null,
+    [parcelId, selectedField?.parcel_id]
+  )
+
   const activeSeasonId = useMemo(() => {
-    const fromField = selectedField?.season_id
     const fromUrl = harvestSeasonIdParam ? Number(harvestSeasonIdParam) : undefined
-    if (fromField && Number.isFinite(fromField)) return fromField
     if (fromUrl && Number.isFinite(fromUrl)) return fromUrl
+
+    const fieldForParcel =
+      selectedField?.parcel_id === activeParcelId
+        ? selectedField
+        : fields.find((field) => field.parcel_id === activeParcelId)
+
+    if (fieldForParcel?.season_id && Number.isFinite(fieldForParcel.season_id)) {
+      return fieldForParcel.season_id
+    }
+
     return undefined
-  }, [harvestSeasonIdParam, selectedField?.season_id])
+  }, [activeParcelId, fields, harvestSeasonIdParam, selectedField])
+
+  useEffect(() => {
+    if (!parcelId) return
+    if (selectedField?.parcel_id === parcelId) return
+
+    const match = fields.find((field) => field.parcel_id === parcelId)
+    if (match) {
+      setSelectedField(match)
+      return
+    }
+
+    void hydrateSelectedField(fields, parcelId)
+  }, [fields, hydrateSelectedField, parcelId, selectedField?.parcel_id])
 
   const isFieldDetailView = Boolean(parcelId && !harvestCreateActive)
   const seasonIdForParams = activeSeasonId ? String(activeSeasonId) : null
   const activeCollectingTask = useMemo(() => {
-    const activeParcelId = selectedField?.parcel_id || parcelId
     if (!activeParcelId) return null
     return (
       collectingTasks.find(
@@ -379,10 +405,9 @@ export function HarvestWorkspace() {
           (!activeSeasonId || entry.season_id === activeSeasonId)
       ) || collectingTasks.find((entry) => entry.parcel_id === activeParcelId) || null
     )
-  }, [activeSeasonId, collectingTasks, parcelId, selectedField?.parcel_id])
+  }, [activeParcelId, activeSeasonId, collectingTasks])
 
   const loadFieldDetail = useCallback(async () => {
-    const activeParcelId = selectedField?.parcel_id || parcelId
     if (!activeParcelId || !activeSeasonId) {
       setFieldStats(null)
       setFieldRaster(null)
@@ -437,11 +462,10 @@ export function HarvestWorkspace() {
       setFieldDetailLoading(false)
     }
   }, [
+    activeParcelId,
     activeSeasonId,
     mapGranularity,
     mode,
-    parcelId,
-    selectedField?.parcel_id,
     selectedPeriod,
     updateHarvestMapParams,
   ])
@@ -482,7 +506,6 @@ export function HarvestWorkspace() {
   )
 
   const loadFieldRaster = useCallback(async () => {
-    const activeParcelId = selectedField?.parcel_id || parcelId
     const seasonId = activeSeasonId
     if (!activeParcelId || !seasonId || !Number.isFinite(seasonId)) {
       setFieldRaster(null)
@@ -574,13 +597,12 @@ export function HarvestWorkspace() {
       }
     }
   }, [
+    activeParcelId,
     activeSeasonId,
     dispatchRasterOverlay,
     mapGranularity,
     mode,
-    parcelId,
     revokeRasterBlobUrl,
-    selectedField?.parcel_id,
     selectedMapMetric,
     selectedPeriod,
     updateHarvestMapParams,
