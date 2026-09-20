@@ -1698,6 +1698,7 @@ export function SatelliteMap({
         layer.on('click', (event: any) => {
           event?.originalEvent?.preventDefault?.()
           event?.originalEvent?.stopPropagation?.()
+          layer.bringToFront()
           onHarvestFieldClick?.(field)
         })
 

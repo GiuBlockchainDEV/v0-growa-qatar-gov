@@ -17,6 +17,7 @@ import {
   getQatarBoundaryCoordinates,
 } from '@/lib/weather/qatar-grid'
 import type { HarvestMapField, HarvestRasterOverlay } from '@/lib/harvest/types'
+import { buildHarvestFieldDashboardUrl } from '@/lib/harvest/field-navigation'
 import { extractBoundsFromGeoJson, type LatLngVertex } from '@/lib/harvest/geojson'
 
 function SlideFromLeftWorkspace({
@@ -279,26 +280,15 @@ function SlideFromLeftWorkspace({
           onHarvestFieldClick={
             isHarvestModule
               ? (field) => {
-                  const params = new URLSearchParams(searchParams.toString())
-                  params.set('module', 'harvest')
-                  params.set('parcelId', field.parcel_id)
-                  params.set('harvestMode', harvestMode)
-                  params.set('zoom', '13')
-                  params.set('focus', `harvest-${field.parcel_id}`)
-                  params.set('harvestMetric', searchParams.get('harvestMetric') || 'npp')
-                  params.set('harvestGranularity', searchParams.get('harvestGranularity') || 'season')
-                  if (field.season_id) {
-                    params.set('harvestSeasonId', String(field.season_id))
-                  } else {
-                    params.delete('harvestSeasonId')
-                  }
-                  if ((searchParams.get('harvestGranularity') || 'season') !== 'dekad') {
-                    params.delete('harvestPeriod')
-                  }
-                  params.delete('pointId')
-                  params.delete('farmId')
-                  params.delete('crop')
-                  router.replace(`/dashboard?${params.toString()}`)
+                  router.replace(
+                    buildHarvestFieldDashboardUrl(searchParams, field, {
+                      mode: harvestMode,
+                      harvestMetric: searchParams.get('harvestMetric'),
+                      harvestGranularity: searchParams.get('harvestGranularity'),
+                      preserveDekadPeriod:
+                        (searchParams.get('harvestGranularity') || 'season') === 'dekad',
+                    })
+                  )
                 }
               : undefined
           }
