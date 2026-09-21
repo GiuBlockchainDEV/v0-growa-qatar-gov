@@ -45,7 +45,6 @@ export function HarvestFieldCreatePanel({
   onCreated,
 }: HarvestFieldCreatePanelProps) {
   const router = useRouter()
-  const searchParams = useSearchParams()
   const [name, setName] = useState('')
   const [cropId, setCropId] = useState<string>('')
   const [startDate, setStartDate] = useState(getDefaultHarvestStartDate())
