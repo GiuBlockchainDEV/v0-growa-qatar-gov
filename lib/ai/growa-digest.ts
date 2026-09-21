@@ -1,11 +1,13 @@
-import type { GrowaAnalysisContext, GrowaModule } from './growa-types'
+import { HARVEST_METRIC_META } from '@/lib/harvest/metrics'
+import type { GrowaAnalysisContext, GrowaFarmAnalysisContext, GrowaModule, HarvestGrowaAnalysisContext } from './growa-types'
+import { isHarvestGrowaContext } from './growa-types'
 import { getGrowaModuleTitle } from './growa-prompts'
 
 function formatMetric(value: number, suffix = '', digits = 2) {
   return `${value.toLocaleString('en-US', { maximumFractionDigits: digits })}${suffix}`
 }
 
-function moduleFocusLines(context: GrowaAnalysisContext): string[] {
+function moduleFocusLines(context: GrowaFarmAnalysisContext): string[] {
   const { module, headline } = context
 
   if (module === 'water-intelligence') {
@@ -34,7 +36,7 @@ function moduleFocusLines(context: GrowaAnalysisContext): string[] {
   ]
 }
 
-export function buildGrowaDigest(context: GrowaAnalysisContext): string {
+export function buildGrowaDigest(context: GrowaFarmAnalysisContext): string {
   const { headline, crops, topProducers, atRiskProducers, alerts } = context
   const workspace = getGrowaModuleTitle(context.module)
 
@@ -89,7 +91,116 @@ export function buildGrowaDigest(context: GrowaAnalysisContext): string {
   ].join('\n')
 }
 
+export function buildHarvestGrowaDigest(context: HarvestGrowaAnalysisContext): string {
+  const { headline, fields, rankings, alerts, timeseries, fieldDetail } = context
+
+  const nationalMetricLines = (['aeti', 'npp', 'tbp', 'bwp', 'rwd', 'wcu', 'cost'] as const)
+    .map((key) => {
+      const metric = headline[key]
+      if (!metric) return null
+      const meta = HARVEST_METRIC_META[key]
+      return `  • ${meta.label}: ${formatMetric(metric.value, ` ${metric.unit}`)} (${metric.agg}, ${metric.fieldCount} fields)`
+    })
+    .filter(Boolean)
+
+  const fieldLines = fields.map(
+    (field) =>
+      `  • ${field.name} (${field.crop}, ${formatMetric(field.areaHa, ' ha')}): AETI ${field.metrics.aeti ?? 'n/a'}, TBP ${field.metrics.tbp ?? 'n/a'}, BWP ${field.metrics.bwp ?? 'n/a'}, harvest ${field.harvest_date}${field.isCollecting ? ' [COLLECTING]' : ''}`
+  )
+
+  const timeseriesLines = (timeseries?.points || []).map(
+    (point) => `  • ${point.period}: ${formatMetric(point.value, ` ${HARVEST_METRIC_META.aeti.unit}`)}`
+  )
+
+  const sections = [
+    'GROWA HARVEST OPERATIONAL DIGEST',
+    `Workspace: Harvest Prediction`,
+    `Snapshot time: ${context.generatedAt}`,
+    `View: ${context.view}`,
+    `Mode: ${headline.modeLabel}`,
+    `Demo data active: ${alerts.demoDataActive ? 'yes' : 'no'}`,
+    '',
+    'NATIONAL HEADLINE',
+    `- Tracked fields: ${headline.fieldCount}`,
+    `- Total area: ${formatMetric(headline.totalAreaHa, ' ha')}`,
+    `- Fields still collecting geospatial data: ${headline.collectingCount}`,
+    ...(nationalMetricLines.length > 0 ? nationalMetricLines : ['  • No national metric summaries available']),
+    '',
+    'FIELD REGISTRY',
+    ...(fieldLines.length > 0 ? fieldLines : ['  • No fields available']),
+    '',
+    'FIELD RANKINGS',
+    `- Highest AETI: ${rankings.highestAeti.join('; ') || 'n/a'}`,
+    `- Lowest BWP: ${rankings.lowestBwp.join('; ') || 'n/a'}`,
+    `- Highest TBP: ${rankings.highestTbp.join('; ') || 'n/a'}`,
+    `- Highest irrigation cost: ${rankings.highestCost.join('; ') || 'n/a'}`,
+    '',
+    'NATIONAL AETI TIMESERIES (latest points)',
+    ...(timeseriesLines.length > 0 ? timeseriesLines : ['  • No timeseries available']),
+    '',
+    'DATA ALERTS',
+    `- Collecting fields: ${alerts.collectingFields.join(', ') || 'none'}`,
+    `- Missing AETI: ${alerts.missingAeti.join(', ') || 'none'}`,
+    `- Missing TBP: ${alerts.missingTbp.join(', ') || 'none'}`,
+    `- Missing BWP: ${alerts.missingBwp.join(', ') || 'none'}`,
+  ]
+
+  if (fieldDetail) {
+    const raster = fieldDetail.raster
+    const trendLines = Object.entries(fieldDetail.trendHighlights).map(([key, trend]) => {
+      const meta = HARVEST_METRIC_META[key as keyof typeof HARVEST_METRIC_META]
+      const change =
+        trend.changePercent === null ? 'n/a' : `${formatMetric(trend.changePercent, '%', 1)} vs prior period`
+      return `  • ${meta.label}: ${formatMetric(trend.value, ` ${meta.unit}`)} at ${trend.period} (${change})`
+    })
+
+    sections.push(
+      '',
+      'ACTIVE FIELD DETAIL',
+      `- Field: ${fieldDetail.name} (${fieldDetail.crop})`,
+      `- Parcel: ${fieldDetail.parcel_id} • Season: ${fieldDetail.season_id}`,
+      `- Area: ${formatMetric(fieldDetail.areaHa, ' ha')} • Season window: ${fieldDetail.start_date} → ${fieldDetail.harvest_date}`,
+      `- Collecting: ${fieldDetail.isCollecting ? 'yes' : 'no'}`,
+      `- KPI snapshot: AETI ${fieldDetail.metrics.aeti ?? 'n/a'}, NPP ${fieldDetail.metrics.npp ?? 'n/a'}, TBP ${fieldDetail.metrics.tbp ?? 'n/a'}, BWP ${fieldDetail.metrics.bwp ?? 'n/a'}, RWD ${fieldDetail.metrics.rwd ?? 'n/a'}, WCU ${fieldDetail.metrics.wcu ?? 'n/a'}, Cost ${fieldDetail.metrics.cost ?? 'n/a'}`,
+      '',
+      'FIELD TREND HIGHLIGHTS',
+      ...(trendLines.length > 0 ? trendLines : ['  • No trend highlights available']),
+      '',
+      'SATELLITE RASTER LAYER',
+      raster
+        ? `- Active metric: ${HARVEST_METRIC_META[raster.metric].label} (${raster.unit})`
+        : '- No raster layer loaded',
+      raster ? `- Granularity: ${raster.granularity} • Period: ${raster.period || 'season aggregate'}` : '',
+      raster ? `- Value range: ${raster.vmin} – ${raster.vmax} ${raster.unit}` : '',
+      raster
+        ? `- Legend: ${raster.legend.map((item) => `${item.label} (${item.color})`).join(', ')}`
+        : '',
+      raster ? `- Image available for visual interpretation: yes` : '',
+      '',
+      'YIELD TASK',
+      fieldDetail.yieldTask
+        ? `- Status: ${fieldDetail.yieldTask.status}`
+        : '- No yield estimate task loaded',
+      fieldDetail.yieldTask?.result
+        ? `- Result: ${JSON.stringify(fieldDetail.yieldTask.result)}`
+        : ''
+    )
+  }
+
+  return sections.filter((line) => line !== undefined).join('\n')
+}
+
 export function getModuleAnalysisFramework(module: GrowaModule): string {
+  if (module === 'harvest') {
+    return `Analysis framework:
+1. Quantify national harvest performance using AETI (m³), TBP (t), BWP (kg/m³), NPP (gC/m²), RWD, WCU (%), and irrigation cost (QAR).
+2. Compare fields using observed vs forecast mode and explain what the active mode means for interpretation.
+3. Identify outliers using rankings (highest AETI, lowest BWP, highest TBP/cost) and collecting-field alerts.
+4. For field view, interpret KPI snapshots, trend highlights, and satellite raster ranges/legend bands.
+5. When a raster image is attached, describe spatial patterns (uniformity, hotspots, stress zones) and relate them to water productivity metrics.
+6. Recommend targeted actions with measurable KPIs tied to the cited metrics.`
+  }
+
   if (module === 'water-intelligence') {
     return `Analysis framework:
 1. Quantify national water burden using totalWaterM3, waterIntensityM3PerTon, and irrigationPressurePercent.

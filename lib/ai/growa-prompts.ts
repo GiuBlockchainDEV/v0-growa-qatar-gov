@@ -1,4 +1,5 @@
-import type { GrowaAnalysisContext, GrowaModule } from './growa-types'
+import type { GrowaAnalysisContext, GrowaFarmAnalysisContext, GrowaModule } from './growa-types'
+import { isHarvestGrowaContext } from './growa-types'
 
 export interface GrowaPromptOption {
   id: string
@@ -11,13 +12,91 @@ function formatMetric(value: number | undefined, suffix = '', digits = 1) {
   return `${value.toLocaleString('en-US', { maximumFractionDigits: digits })}${suffix}`
 }
 
-function topCropLine(context: GrowaAnalysisContext) {
+function topCropLine(context: GrowaFarmAnalysisContext) {
   const top = context.crops[0]
   if (!top) return 'No dominant crop identified in the current dataset.'
   return `${top.cropName} leads production at ${formatMetric(top.productionSharePercent, '%')} share (${formatMetric(top.totalProductionTons, ' t')}) with polygon score ${formatMetric(top.averageScore, '/100')}.`
 }
 
-function dataAnalyticsPrompts(context: GrowaAnalysisContext): GrowaPromptOption[] {
+function harvestNationalPrompts(context: GrowaAnalysisContext): GrowaPromptOption[] {
+  if (!isHarvestGrowaContext(context)) return FALLBACK_PROMPTS.harvest
+
+  const { headline, alerts, rankings } = context
+  const aeti = headline.aeti
+  const tbp = headline.tbp
+  const bwp = headline.bwp
+
+  return [
+    {
+      id: 'harvest-portfolio-briefing',
+      label: 'Portfolio briefing',
+      prompt: `Prepare an English government briefing on the national Harvest portfolio using ONLY the digest.
+
+Mandatory metrics:
+- ${headline.fieldCount} fields across ${formatMetric(headline.totalAreaHa, ' ha')}
+- Mode: ${headline.modeLabel}
+- National AETI: ${aeti ? formatMetric(aeti.value, ` ${aeti.unit}`) : 'n/a'}
+- National TBP: ${tbp ? formatMetric(tbp.value, ` ${tbp.unit}`) : 'n/a'}
+- National BWP: ${bwp ? formatMetric(bwp.value, ` ${bwp.unit}`) : 'n/a'}
+- Fields still collecting data: ${alerts.collectingFields.join(', ') || 'none'}
+
+Explain observed vs forecast implications, highlight top outliers (${rankings.highestAeti[0] || 'n/a'} AETI, ${rankings.lowestBwp[0] || 'n/a'} BWP), and recommend ministry monitoring priorities.`,
+    },
+    {
+      id: 'harvest-outliers',
+      label: 'Outlier analysis',
+      prompt: `Analyze Harvest field outliers and data-quality risks.
+
+Use rankings for highest AETI (${rankings.highestAeti.join('; ') || 'n/a'}), lowest BWP (${rankings.lowestBwp.join('; ') || 'n/a'}), and highest TBP (${rankings.highestTbp.join('; ') || 'n/a'}).
+
+Flag collecting fields (${alerts.collectingFields.join(', ') || 'none'}) and missing metrics (AETI: ${alerts.missingAeti.join(', ') || 'none'}). Recommend field visits or re-collection where confidence is low.`,
+    },
+    {
+      id: 'harvest-water-productivity',
+      label: 'Water productivity',
+      prompt: `Assess biomass water productivity across the national field registry.
+
+Relate AETI (m³) to TBP (t) and BWP (kg/m³). Identify whether high water use is justified by biomass output or signals inefficiency. Use the national AETI timeseries and field-level metrics from the digest. Recommend irrigation adjustments with measurable targets.`,
+    },
+  ]
+}
+
+function harvestFieldPrompts(context: GrowaAnalysisContext): GrowaPromptOption[] {
+  if (!isHarvestGrowaContext(context) || !context.fieldDetail) return FALLBACK_PROMPTS.harvest
+
+  const field = context.fieldDetail
+  const raster = field.raster
+
+  return [
+    {
+      id: 'harvest-field-health',
+      label: 'Field health review',
+      prompt: `Review the selected field "${field.name}" (${field.crop}) in English.
+
+Cite KPI values (AETI, NPP, TBP, BWP, RWD, WCU, cost), trend highlights, and whether geospatial collection is still in progress (${field.isCollecting ? 'yes' : 'no'}). Explain risks and opportunities before harvest on ${field.harvest_date}.`,
+    },
+    {
+      id: 'harvest-raster-interpretation',
+      label: 'Satellite map analysis',
+      prompt: raster
+        ? `Interpret the active satellite raster for "${field.name}".
+
+Metric: ${raster.metric} (${raster.unit}), range ${raster.vmin}–${raster.vmax}, granularity ${raster.granularity}, period ${raster.period || 'season'}.
+
+Describe spatial patterns visible in the attached raster image (hotspots, uniformity, stress zones) and relate them to field KPIs and trend highlights. If the image is unclear, state limitations explicitly.`
+        : `No raster image is currently loaded for "${field.name}". Use KPI and trend data to assess field condition and explain what satellite layers should be checked next.`,
+    },
+    {
+      id: 'harvest-yield-outlook',
+      label: 'Yield outlook',
+      prompt: `Provide a yield and harvest-readiness outlook for "${field.name}".
+
+Use TBP, BWP, NPP, RWD, and any yield-task result (${field.yieldTask ? field.yieldTask.status : 'not run'}). Recommend whether irrigation, scouting, or re-estimation is needed before ${field.harvest_date}.`,
+    },
+  ]
+}
+
+function dataAnalyticsPrompts(context: GrowaFarmAnalysisContext): GrowaPromptOption[] {
   const { headline, alerts } = context
 
   return [
@@ -61,7 +140,7 @@ Recommend monitoring and policy actions for the next reporting cycle with numeri
   ]
 }
 
-function waterIntelligencePrompts(context: GrowaAnalysisContext): GrowaPromptOption[] {
+function waterIntelligencePrompts(context: GrowaFarmAnalysisContext): GrowaPromptOption[] {
   const { headline, rankings, alerts } = context
   const highest = context.crops.find((crop) => crop.cropName === rankings.highestWaterIntensityCrops[0])
   const lowest = context.crops.find((crop) => crop.cropName === rankings.lowestWaterIntensityCrops[0])
@@ -102,7 +181,7 @@ Flag ${alerts.zeroPolygonCrops.join(', ') || 'no crops'} without polygon coverag
   ]
 }
 
-function energyIntelligencePrompts(context: GrowaAnalysisContext): GrowaPromptOption[] {
+function energyIntelligencePrompts(context: GrowaFarmAnalysisContext): GrowaPromptOption[] {
   const { headline, rankings, alerts } = context
   const highest = context.crops.find((crop) => crop.cropName === rankings.highestEnergyIntensityCrops[0])
   const lowest = context.crops.find((crop) => crop.cropName === rankings.lowestEnergyIntensityCrops[0])
@@ -152,13 +231,17 @@ export function getGrowaPrompts(module: GrowaModule, context?: GrowaAnalysisCont
   }
 
   switch (module) {
+    case 'harvest':
+      return isHarvestGrowaContext(context) && context.view === 'field'
+        ? harvestFieldPrompts(context)
+        : harvestNationalPrompts(context)
     case 'water-intelligence':
-      return waterIntelligencePrompts(context)
+      return isHarvestGrowaContext(context) ? FALLBACK_PROMPTS.harvest : waterIntelligencePrompts(context)
     case 'energy-intelligence':
-      return energyIntelligencePrompts(context)
+      return isHarvestGrowaContext(context) ? FALLBACK_PROMPTS.harvest : energyIntelligencePrompts(context)
     case 'data-analytics':
     default:
-      return dataAnalyticsPrompts(context)
+      return isHarvestGrowaContext(context) ? FALLBACK_PROMPTS.harvest : dataAnalyticsPrompts(context)
   }
 }
 
@@ -187,6 +270,14 @@ const FALLBACK_PROMPTS: Record<GrowaModule, GrowaPromptOption[]> = {
         'Prepare a government energy efficiency assessment using total energy, kWh/t, per-farm averages, crop intensity rankings, and producer alerts from the digest.',
     },
   ],
+  harvest: [
+    {
+      id: 'harvest-portfolio-briefing',
+      label: 'Portfolio briefing',
+      prompt:
+        'Prepare an English government briefing on the Harvest field portfolio using AETI, TBP, BWP, outliers, and collecting-field alerts from the digest.',
+    },
+  ],
 }
 
 export function getGrowaModuleTitle(module: GrowaModule): string {
@@ -197,6 +288,8 @@ export function getGrowaModuleTitle(module: GrowaModule): string {
       return 'Water Intelligence'
     case 'energy-intelligence':
       return 'Energy Intelligence Command'
+    case 'harvest':
+      return 'Harvest Prediction'
     default:
       return 'Intelligence Workspace'
   }

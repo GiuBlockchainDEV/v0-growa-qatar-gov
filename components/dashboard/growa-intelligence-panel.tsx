@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Bot, Loader2, Sparkles } from 'lucide-react'
 import type { GrowaAnalysisContext, GrowaModule } from '@/lib/ai/growa-types'
+import { isHarvestGrowaContext } from '@/lib/ai/growa-types'
 import { getGrowaPrompts } from '@/lib/ai/growa-prompts'
 import { GrowaMarkdown } from '@/components/dashboard/growa-markdown'
 import { IntelligencePanel } from '@/components/dashboard/intelligence-workspace-ui'
@@ -121,8 +122,9 @@ export function GrowaIntelligencePanel({ module, context, disabled = false }: Gr
             <p>Select a briefing type, then run the AI analysis to generate a formatted government report.</p>
             {context ? (
               <p className="mt-2 text-xs">
-                {context.headline.cropCount} crops • {context.headline.producerCount} producers •{' '}
-                {context.headline.trackedPolygons} polygons
+                {isHarvestGrowaContext(context)
+                  ? `${context.headline.fieldCount} fields • ${context.headline.totalAreaHa.toLocaleString()} ha • ${context.headline.modeLabel}`
+                  : `${context.headline.cropCount} crops • ${context.headline.producerCount} producers • ${context.headline.trackedPolygons} polygons`}
               </p>
             ) : (
               <p className="mt-2 text-xs">Waiting for operational data...</p>

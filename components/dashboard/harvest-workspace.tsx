@@ -17,9 +17,12 @@ import {
   Trash2,
   TrendingUp,
 } from 'lucide-react'
+import { GrowaIntelligencePanel } from '@/components/dashboard/growa-intelligence-panel'
 import { HarvestFieldCreatePanel } from '@/components/dashboard/harvest-field-create-panel'
+import { buildHarvestGrowaContext } from '@/lib/ai/build-harvest-growa-context'
 import type { LatLngVertex } from '@/lib/harvest/geojson'
 import {
+  IntelligenceCommandLayout,
   IntelligenceDataTable,
   IntelligenceErrorState,
   IntelligenceHero,
@@ -701,6 +704,49 @@ export function HarvestWorkspace() {
     )
   }, [fieldStats, trendGranularity])
 
+  const growaContext = useMemo(() => {
+    if (loading || error || harvestCreateActive) return null
+
+    return buildHarvestGrowaContext({
+      view: isFieldDetailView ? 'field' : 'national',
+      mode,
+      usingDemoData,
+      analytics,
+      timeseries,
+      fields,
+      collectingTasks,
+      activeField,
+      fieldStats,
+      fieldRaster,
+      yieldTask,
+      activeMapMetric,
+      mapGranularity,
+      selectedPeriod,
+      trendGranularity,
+      fieldTrendSeries,
+    })
+  }, [
+    activeField,
+    activeMapMetric,
+    analytics,
+    collectingTasks,
+    error,
+    fieldRaster,
+    fieldStats,
+    fieldTrendSeries,
+    fields,
+    harvestCreateActive,
+    isFieldDetailView,
+    loading,
+    mapGranularity,
+    mode,
+    selectedPeriod,
+    timeseries,
+    trendGranularity,
+    usingDemoData,
+    yieldTask,
+  ])
+
   const handleClearFieldSelection = useCallback(() => {
     clearFieldSelection()
     setFieldStats(null)
@@ -917,7 +963,10 @@ export function HarvestWorkspace() {
           ) : null}
 
           {isFieldDetailView && activeField ? (
-            <div key={activeField.parcel_id} className="space-y-4">
+            <IntelligenceCommandLayout
+              key={activeField.parcel_id}
+              main={
+            <div className="space-y-4">
               <IntelligencePanel
                 title="Field overview"
                 subtitle="KPIs, yield estimate, and field actions"
@@ -1135,10 +1184,49 @@ export function HarvestWorkspace() {
                 </div>
               </IntelligencePanel>
             </div>
+              }
+              insights={
+                <IntelligencePanel
+                  title="Field signals"
+                  subtitle="Quick read on the active field"
+                  icon={Activity}
+                >
+                  <div className="space-y-3 text-xs text-muted-foreground">
+                    <p>
+                      <span className="font-medium text-foreground">{activeField.name}</span> •{' '}
+                      {activeField.crop} • {formatArea(activeField.area)}
+                    </p>
+                    <div className="grid grid-cols-2 gap-2">
+                      {FIELD_KPI_METRICS.slice(0, 4).map((key) => (
+                        <div key={key} className="rounded-lg border border-border bg-secondary/20 px-2.5 py-2">
+                          <p className="text-[10px] uppercase tracking-wide">{HARVEST_METRIC_META[key].shortLabel}</p>
+                          <p className="mt-1 text-sm font-semibold text-foreground">
+                            {formatHarvestMetricWithUnit(activeField.metrics?.[key], key)}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                    {fieldRaster ? (
+                      <p>
+                        Active map layer: {HARVEST_METRIC_META[fieldRaster.metric].label} (
+                        {fieldRaster.vmin}–{fieldRaster.vmax} {fieldRaster.unit})
+                      </p>
+                    ) : (
+                      <p>No satellite raster loaded yet. Select a metric to enable map analysis.</p>
+                    )}
+                    {activeCollectingTask ? (
+                      <p className="text-amber-300">Geospatial collection still in progress.</p>
+                    ) : null}
+                  </div>
+                </IntelligencePanel>
+              }
+              assistant={<GrowaIntelligencePanel module="harvest" context={growaContext} />}
+            />
           ) : null}
 
           {!isFieldDetailView ? (
-          <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1.4fr)_minmax(0,0.9fr)]">
+          <IntelligenceCommandLayout
+            main={
             <IntelligencePanel
               title="Open-field registry"
               subtitle={
@@ -1213,39 +1301,60 @@ export function HarvestWorkspace() {
                 </IntelligenceTableBody>
               </IntelligenceDataTable>
             </IntelligencePanel>
+            }
+            insights={
+              <>
+                <IntelligencePanel
+                  title="Water consumption trend"
+                  subtitle="National dekad AETI series"
+                  icon={Droplets}
+                >
+                  <div className="space-y-2">
+                    {timeseriesPoints.slice(-12).map((point) => {
+                      const width =
+                        maxTimeseriesValue > 0 ? Math.max(4, (point.value / maxTimeseriesValue) * 100) : 4
+                      return (
+                        <div key={point.period} className="space-y-1">
+                          <div className="flex items-center justify-between text-[11px] text-muted-foreground">
+                            <span>{point.period}</span>
+                            <span>{formatHarvestMetricWithUnit(point.value, 'aeti')}</span>
+                          </div>
+                          <div className="h-2 rounded-full bg-secondary/50">
+                            <div
+                              className="h-2 rounded-full bg-sky-400/80"
+                              style={{ width: `${width}%` }}
+                            />
+                          </div>
+                        </div>
+                      )
+                    })}
+                    {timeseriesPoints.length === 0 ? (
+                      <p className="text-sm text-muted-foreground">No timeseries data available.</p>
+                    ) : null}
+                  </div>
+                </IntelligencePanel>
 
-            {!isFieldDetailView ? (
-              <IntelligencePanel
-                title="Water consumption trend"
-                subtitle="National dekad AETI series"
-                icon={Droplets}
-              >
-                <div className="space-y-2">
-                  {timeseriesPoints.slice(-12).map((point) => {
-                    const width =
-                      maxTimeseriesValue > 0 ? Math.max(4, (point.value / maxTimeseriesValue) * 100) : 4
-                    return (
-                      <div key={point.period} className="space-y-1">
-                        <div className="flex items-center justify-between text-[11px] text-muted-foreground">
-                          <span>{point.period}</span>
-                          <span>{formatHarvestMetricWithUnit(point.value, 'aeti')}</span>
-                        </div>
-                        <div className="h-2 rounded-full bg-secondary/50">
-                          <div
-                            className="h-2 rounded-full bg-sky-400/80"
-                            style={{ width: `${width}%` }}
-                          />
-                        </div>
-                      </div>
-                    )
-                  })}
-                  {timeseriesPoints.length === 0 ? (
-                    <p className="text-sm text-muted-foreground">No timeseries data available.</p>
-                  ) : null}
-                </div>
-              </IntelligencePanel>
-            ) : null}
-          </div>
+                <IntelligencePanel title="Portfolio signals" subtitle="Outliers and collection status" icon={Target}>
+                  <div className="space-y-2 text-xs text-muted-foreground">
+                    <p>
+                      <span className="font-medium text-foreground">Collecting:</span>{' '}
+                      {collectingTasks.length > 0
+                        ? collectingTasks
+                            .map((task) => fields.find((field) => field.parcel_id === task.parcel_id)?.name)
+                            .filter(Boolean)
+                            .join(', ')
+                        : 'none'}
+                    </p>
+                    <p>
+                      <span className="font-medium text-foreground">Mode:</span>{' '}
+                      {mode === 'current' ? 'Observed satellite values' : 'Forecast end-of-season values'}
+                    </p>
+                  </div>
+                </IntelligencePanel>
+              </>
+            }
+            assistant={<GrowaIntelligencePanel module="harvest" context={growaContext} />}
+          />
           ) : null}
         </>
       ) : null}

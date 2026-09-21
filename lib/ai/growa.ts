@@ -1,5 +1,6 @@
-import { GoogleGenerativeAI } from '@google/generative-ai'
+import { GoogleGenerativeAI, type Part } from '@google/generative-ai'
 import type { GrowaAnalyzeRequest } from './growa-types'
+import { isHarvestGrowaContext } from './growa-types'
 import { getGrowaModuleTitle } from './growa-prompts'
 import { getModuleAnalysisFramework } from './growa-digest'
 
@@ -44,6 +45,37 @@ Output format (use these headings):
 
 function buildUserMessage(request: GrowaAnalyzeRequest) {
   const digest = request.context.digest?.trim() || 'No digest available.'
+  const context = request.context
+
+  const structuredData = isHarvestGrowaContext(context)
+    ? {
+        view: context.view,
+        mode: context.mode,
+        usingDemoData: context.usingDemoData,
+        headline: context.headline,
+        rankings: context.rankings,
+        alerts: context.alerts,
+        fields: context.fields,
+        nationalMetrics: context.nationalMetrics,
+        timeseries: context.timeseries,
+        fieldDetail: context.fieldDetail,
+      }
+    : {
+        headline: context.headline,
+        rankings: context.rankings,
+        alerts: context.alerts,
+        crops: context.crops,
+        topProducers: context.topProducers,
+        atRiskProducers: context.atRiskProducers,
+      }
+
+  const harvestInstructions = isHarvestGrowaContext(context)
+    ? `- Quote at least 8 concrete Harvest metrics (with units) and at least 3 named fields when available.
+- Explain whether the active mode is observed (current) or forecast (predict).
+- If fieldDetail.raster is present and an image is attached, describe visible spatial patterns and relate them to KPI/trend data.
+- Use DATA ALERTS (collecting fields, missing metrics, demo data) to explain uncertainty.`
+    : `- Quote at least 8 concrete metrics (with units) and at least 3 named crops/producers.
+- Use DATA ALERTS to explain uncertainty or monitoring gaps.`
 
   return `GOVERNMENT ANALYSIS REQUEST
 ${request.prompt.trim()}
@@ -52,27 +84,53 @@ OPERATIONAL DIGEST
 ${digest}
 
 STRUCTURED DATA (for exact lookups)
-${JSON.stringify(
-    {
-      headline: request.context.headline,
-      rankings: request.context.rankings,
-      alerts: request.context.alerts,
-      crops: request.context.crops,
-      topProducers: request.context.topProducers,
-      atRiskProducers: request.context.atRiskProducers,
-    },
-    null,
-    2
-  )}
+${JSON.stringify(structuredData, null, 2)}
 
 INSTRUCTIONS
 - Answer the analysis request using the digest and structured data above.
-- Quote at least 8 concrete metrics (with units) and at least 3 named crops/producers.
-- Use DATA ALERTS to explain uncertainty or monitoring gaps.
+${harvestInstructions}
 - End with 3-5 measurable KPIs the government should track next cycle.`
 }
 
-export async function generateGrowaAnalysis(request: GrowaAnalyzeRequest): Promise<{
+async function fetchRasterImagePart(
+  imageUrl: string,
+  request?: Request
+): Promise<Part | null> {
+  try {
+    const resolvedUrl = imageUrl.startsWith('http')
+      ? imageUrl
+      : request
+        ? new URL(imageUrl, request.url).toString()
+        : imageUrl
+
+    const response = await fetch(resolvedUrl, {
+      headers: request?.headers.get('cookie')
+        ? { cookie: request.headers.get('cookie') || '' }
+        : undefined,
+      cache: 'no-store',
+    })
+
+    if (!response.ok) return null
+
+    const contentType = response.headers.get('content-type') || 'image/png'
+    const buffer = Buffer.from(await response.arrayBuffer())
+    if (!buffer.length) return null
+
+    return {
+      inlineData: {
+        mimeType: contentType.split(';')[0] || 'image/png',
+        data: buffer.toString('base64'),
+      },
+    }
+  } catch {
+    return null
+  }
+}
+
+export async function generateGrowaAnalysis(
+  request: GrowaAnalyzeRequest,
+  options?: { request?: Request }
+): Promise<{
   analysis: string
   model: string
 }> {
@@ -88,7 +146,23 @@ export async function generateGrowaAnalysis(request: GrowaAnalyzeRequest): Promi
     systemInstruction: buildSystemInstruction(request),
   })
 
-  const result = await model.generateContent(buildUserMessage(request))
+  const userMessage = buildUserMessage(request)
+  const parts: Part[] = [{ text: userMessage }]
+
+  if (isHarvestGrowaContext(request.context)) {
+    const imageUrl = request.context.fieldDetail?.raster?.image_url
+    if (imageUrl) {
+      const imagePart = await fetchRasterImagePart(imageUrl, options?.request)
+      if (imagePart) {
+        parts.push({
+          text: 'Attached satellite raster image for the active field metric layer. Interpret visible spatial patterns in relation to the digest metrics.',
+        })
+        parts.push(imagePart)
+      }
+    }
+  }
+
+  const result = await model.generateContent(parts)
   const analysis = result.response.text().trim()
 
   if (!analysis) {

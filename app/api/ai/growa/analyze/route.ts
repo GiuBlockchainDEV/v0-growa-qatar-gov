@@ -7,6 +7,7 @@ const ALLOWED_MODULES = new Set<GrowaModule>([
   'data-analytics',
   'water-intelligence',
   'energy-intelligence',
+  'harvest',
 ])
 
 function isGrowaModule(value: unknown): value is GrowaModule {
@@ -54,14 +55,17 @@ export async function POST(request: Request) {
   }
 
   try {
-    const result = await generateGrowaAnalysis({
-      module,
-      prompt,
-      context: {
-        ...context,
+    const result = await generateGrowaAnalysis(
+      {
         module,
+        prompt,
+        context: {
+          ...context,
+          module,
+        },
       },
-    })
+      { request }
+    )
 
     return NextResponse.json({
       analysis: result.analysis,
