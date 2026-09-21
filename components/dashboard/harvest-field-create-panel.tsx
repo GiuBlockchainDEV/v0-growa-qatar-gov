@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { useRouter } from 'next/navigation'
 import { Circle, Loader2, MapPin, Pentagon, Plus, X } from 'lucide-react'
 import { IntelligencePanel } from '@/components/dashboard/intelligence-workspace-ui'
 import { calculatePolygonAreaHectares } from '@/lib/harvest/geojson'
@@ -14,6 +14,7 @@ import {
   getLatestAllowedStartDate,
   validateHarvestFieldCreateInput,
 } from '@/lib/harvest/field-create'
+import { HARVEST_NATIONAL_DASHBOARD_PATH } from '@/lib/harvest/field-navigation'
 import type { LatLngVertex } from '@/lib/harvest/geojson'
 import type { HarvestCropGroup } from '@/lib/harvest/types'
 
@@ -89,13 +90,10 @@ export function HarvestFieldCreatePanel({
   )
 
   const exitCreateMode = useCallback(() => {
-    const params = new URLSearchParams(searchParams.toString())
-    params.delete('harvestCreate')
-    params.delete('harvestDraw')
-    router.replace(`/dashboard?${params.toString()}`)
+    router.replace(HARVEST_NATIONAL_DASHBOARD_PATH, { scroll: false })
     onClearDraw()
     setError(null)
-  }, [onClearDraw, router, searchParams])
+  }, [onClearDraw, router])
 
   const submitField = useCallback(async () => {
     if (validationError) {

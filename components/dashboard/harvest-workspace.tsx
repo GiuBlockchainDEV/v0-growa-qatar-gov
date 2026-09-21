@@ -225,6 +225,7 @@ export function HarvestWorkspace() {
     selectField,
     getFieldDetailHref,
     clearFieldSelection,
+    startFieldCreate,
     mergeFieldMetrics,
     patchActiveSeasonId,
   } = useHarvestDashboard()
@@ -674,31 +675,15 @@ export function HarvestWorkspace() {
   }, [dispatchRasterOverlay])
 
   const startCreateField = useCallback(() => {
-    const params = new URLSearchParams(searchParams.toString())
-    params.set('module', 'harvest')
-    params.set('harvestCreate', '1')
-    params.set('harvestDraw', 'vertex')
-    params.delete('parcelId')
-    params.delete('harvestMetric')
-    params.delete('harvestGranularity')
-    params.delete('harvestPeriod')
-    params.delete('harvestSeasonId')
-    params.delete('focus')
-    router.replace(`/dashboard?${params.toString()}`)
-    window.dispatchEvent(new Event('harvest:field-draw-clear'))
     dispatchRasterOverlay(null)
-  }, [dispatchRasterOverlay, router, searchParams])
+    startFieldCreate('vertex')
+  }, [dispatchRasterOverlay, startFieldCreate])
 
   const updateCreateDrawMethod = useCallback(
     (method: 'vertex' | 'circle') => {
-      const params = new URLSearchParams(searchParams.toString())
-      params.set('module', 'harvest')
-      params.set('harvestCreate', '1')
-      params.set('harvestDraw', method)
-      router.replace(`/dashboard?${params.toString()}`)
-      window.dispatchEvent(new Event('harvest:field-draw-clear'))
+      startFieldCreate(method)
     },
-    [router, searchParams]
+    [startFieldCreate]
   )
 
   const clearCreateDraw = useCallback(() => {

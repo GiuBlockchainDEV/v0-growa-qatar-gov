@@ -13,6 +13,7 @@ import {
 import { useRouter, useSearchParams } from 'next/navigation'
 import { deduplicateHarvestCatalogFields, resolveCatalogField } from '@/lib/harvest/catalog'
 import {
+  buildHarvestCreateDashboardUrl,
   buildHarvestFieldDashboardUrl,
   defaultHarvestFieldNavOptions,
   HARVEST_NATIONAL_DASHBOARD_PATH,
@@ -49,6 +50,7 @@ interface HarvestDashboardContextValue {
   openField: (field: HarvestFieldNavTarget) => void
   selectFieldAtLatLng: (lat: number, lng: number) => boolean
   clearFieldSelection: () => void
+  startFieldCreate: (drawMethod?: 'vertex' | 'circle') => void
   mergeFieldMetrics: (parcelIdForStats: string, metrics: HarvestFieldMetrics) => void
   patchActiveSeasonId: (seasonId: number) => void
 }
@@ -191,6 +193,12 @@ export function HarvestDashboardProvider({ children }: { children: ReactNode }) 
   }, [parcelId])
 
   useEffect(() => {
+    if (!harvestCreateActive) return
+    setHydratedField(null)
+    setMetricOverlay({})
+  }, [harvestCreateActive])
+
+  useEffect(() => {
     if (!parcelId) {
       setHydratedField(null)
       return
@@ -276,6 +284,16 @@ export function HarvestDashboardProvider({ children }: { children: ReactNode }) 
     setMetricOverlay({})
   }, [router])
 
+  const startFieldCreate = useCallback(
+    (drawMethod: 'vertex' | 'circle' = 'vertex') => {
+      setHydratedField(null)
+      setMetricOverlay({})
+      router.replace(buildHarvestCreateDashboardUrl(drawMethod, mode), { scroll: false })
+      window.dispatchEvent(new Event('harvest:field-draw-clear'))
+    },
+    [mode, router]
+  )
+
   const setMode = useCallback(
     (nextMode: HarvestMode) => {
       setModeState(nextMode)
@@ -333,6 +351,7 @@ export function HarvestDashboardProvider({ children }: { children: ReactNode }) 
       openField: selectField,
       selectFieldAtLatLng,
       clearFieldSelection,
+      startFieldCreate,
       mergeFieldMetrics,
       patchActiveSeasonId,
     }),
@@ -353,6 +372,7 @@ export function HarvestDashboardProvider({ children }: { children: ReactNode }) 
       getFieldDetailHref,
       selectFieldAtLatLng,
       clearFieldSelection,
+      startFieldCreate,
       mergeFieldMetrics,
       patchActiveSeasonId,
     ]

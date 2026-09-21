@@ -60,11 +60,27 @@ export function applyHarvestFieldSelectionToParams(
   params.delete('pointId')
   params.delete('farmId')
   params.delete('crop')
+  params.delete('harvestCreate')
+  params.delete('harvestDraw')
 
   return params
 }
 
 export const HARVEST_NATIONAL_DASHBOARD_PATH = '/dashboard?module=harvest'
+
+export function buildHarvestCreateDashboardUrl(
+  drawMethod: 'vertex' | 'circle' = 'vertex',
+  mode?: HarvestMode
+) {
+  const params = new URLSearchParams()
+  params.set('module', 'harvest')
+  params.set('harvestCreate', '1')
+  params.set('harvestDraw', drawMethod)
+  if (mode === 'predict') {
+    params.set('harvestMode', 'predict')
+  }
+  return `/dashboard?${params.toString()}`
+}
 
 export function buildHarvestFieldDashboardUrl(
   currentParams: URLSearchParams,

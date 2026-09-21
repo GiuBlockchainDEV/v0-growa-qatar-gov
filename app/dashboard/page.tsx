@@ -98,7 +98,10 @@ function SlideFromLeftWorkspace({
   useEffect(() => {
     if (!harvestCreateActive) {
       setHarvestFieldVertices([])
+      return
     }
+    setHarvestRasterOverlay(null)
+    setHarvestFocusBounds(null)
   }, [harvestCreateActive])
 
   useEffect(() => {
@@ -238,10 +241,12 @@ function SlideFromLeftWorkspace({
           weatherGridLines={isHarvestModule ? [] : weatherGridLines}
           weatherBoundary={weatherBoundary}
           harvestFields={isHarvestModule ? harvestFields : []}
-          selectedHarvestParcelId={isHarvestModule ? selectedHarvestParcelId : null}
+          selectedHarvestParcelId={
+            isHarvestModule && !harvestCreateActive ? selectedHarvestParcelId : null
+          }
           mapTileUrl={isHarvestModule ? harvestTileUrl : null}
           harvestRasterOverlay={
-            isHarvestModule && harvestRasterOverlay
+            isHarvestModule && !harvestCreateActive && harvestRasterOverlay
               ? {
                   imageUrl: harvestRasterOverlay.imageUrl,
                   bounds: harvestRasterOverlay.bounds,
@@ -249,13 +254,13 @@ function SlideFromLeftWorkspace({
                 }
               : null
           }
-          harvestFocusBounds={isHarvestModule ? harvestFocusBounds : null}
+          harvestFocusBounds={isHarvestModule && !harvestCreateActive ? harvestFocusBounds : null}
           harvestFieldDrawActive={isHarvestModule && harvestCreateActive}
           harvestFieldDrawMethod={harvestDrawMethod}
           harvestFieldVertices={harvestFieldVertices}
           onHarvestFieldVerticesChange={setHarvestFieldVertices}
           onHarvestFieldClick={
-            isHarvestModule && harvestDashboard
+            isHarvestModule && harvestDashboard && !harvestCreateActive
               ? (field) => harvestDashboard.selectField(field)
               : undefined
           }
