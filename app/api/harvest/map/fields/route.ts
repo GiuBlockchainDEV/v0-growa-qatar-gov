@@ -1,8 +1,8 @@
 import { requireHarvestAccess, harvestErrorResponse } from '@/lib/harvest/auth'
-import { harvestGetAllFields, harvestGetParcel } from '@/lib/harvest/client'
+import { harvestGetParcel } from '@/lib/harvest/client'
+import { loadHarvestAllFields } from '@/lib/harvest/fields-load'
 import { getDemoAnalyticsFields, getDemoMapFields } from '@/lib/harvest/demo-data'
 import { geoJsonToHarvestFieldPolygon } from '@/lib/harvest/geojson'
-import { normalizePaginatedFieldsResponse } from '@/lib/harvest/normalize'
 import { harvestJsonResponse, resolveHarvestPayload } from '@/lib/harvest/resolve'
 import type { HarvestMapField, HarvestMode } from '@/lib/harvest/types'
 
@@ -35,13 +35,7 @@ export async function GET(request: Request) {
   try {
     const { payload: fieldsPayload, usedDemo } = await resolveHarvestPayload({
       demoMode: access.demoMode,
-      fetchLive: async () =>
-        normalizePaginatedFieldsResponse(
-          await harvestGetAllFields({
-            sort_by: searchParams.get('sort_by') || 'harvest_date',
-            sort_dir: searchParams.get('sort_dir') || 'desc',
-          })
-        ),
+      fetchLive: async () => loadHarvestAllFields(searchParams),
       fetchDemo: () => getDemoAnalyticsFields(mode),
     })
 

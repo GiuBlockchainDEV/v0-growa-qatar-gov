@@ -12,6 +12,7 @@ import {
 } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { deduplicateHarvestCatalogFields, resolveCatalogField } from '@/lib/harvest/catalog'
+import { sortCatalogFieldsByHarvestDate } from '@/lib/harvest/fields-load'
 import {
   buildHarvestCreateDashboardUrl,
   buildHarvestFieldDashboardUrl,
@@ -169,7 +170,11 @@ export function HarvestDashboardProvider({ children }: { children: ReactNode }) 
       if (requestId !== catalogSeqRef.current) return
 
       setUsingDemoData(catalogPayload.isDemo || mapPayload.isDemo)
-      setFields(deduplicateHarvestCatalogFields(catalogPayload.data.results || []))
+      setFields(
+        sortCatalogFieldsByHarvestDate(
+          deduplicateHarvestCatalogFields(catalogPayload.data.results || [])
+        )
+      )
       setMapFields(Array.isArray(mapPayload.data.fields) ? mapPayload.data.fields : [])
     } catch (error) {
       if (requestId !== catalogSeqRef.current) return
