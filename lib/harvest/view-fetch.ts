@@ -319,18 +319,6 @@ export async function fetchHarvestRasterMeta({
     for (const tryMode of modesToTry) {
       if (granularity === 'season') {
         try {
-          return await fetchViewRasterMeta({
-            mode: tryMode,
-            parcelId,
-            seasonId: trySeasonId,
-            metric,
-            fieldPolygonBounds,
-          })
-        } catch (error) {
-          lastError = error instanceof Error ? error : new Error('Harvest view raster unavailable')
-        }
-
-        try {
           return await fetchDynamicRasterMeta({
             mode: tryMode,
             parcelId,
@@ -342,6 +330,18 @@ export async function fetchHarvestRasterMeta({
           })
         } catch (error) {
           lastError = error instanceof Error ? error : new Error('Harvest raster unavailable')
+        }
+
+        try {
+          return await fetchViewRasterMeta({
+            mode: tryMode,
+            parcelId,
+            seasonId: trySeasonId,
+            metric,
+            fieldPolygonBounds,
+          })
+        } catch (error) {
+          lastError = error instanceof Error ? error : new Error('Harvest view raster unavailable')
         }
       }
 
@@ -380,18 +380,6 @@ export async function fetchHarvestRasterMeta({
     for (const trySeasonId of seasonsToTry) {
       for (const tryMode of modesToTry) {
         try {
-          return await fetchViewRasterMeta({
-            mode: tryMode,
-            parcelId,
-            seasonId: trySeasonId,
-            metric,
-            fieldPolygonBounds,
-          })
-        } catch (error) {
-          lastError = error instanceof Error ? error : new Error('Harvest season view fallback unavailable')
-        }
-
-        try {
           const seasonMeta = await fetchDynamicRasterMeta({
             mode: tryMode,
             parcelId,
@@ -404,6 +392,18 @@ export async function fetchHarvestRasterMeta({
           return seasonMeta
         } catch (error) {
           lastError = error instanceof Error ? error : new Error('Harvest season raster fallback unavailable')
+        }
+
+        try {
+          return await fetchViewRasterMeta({
+            mode: tryMode,
+            parcelId,
+            seasonId: trySeasonId,
+            metric,
+            fieldPolygonBounds,
+          })
+        } catch (error) {
+          lastError = error instanceof Error ? error : new Error('Harvest season view fallback unavailable')
         }
       }
     }
