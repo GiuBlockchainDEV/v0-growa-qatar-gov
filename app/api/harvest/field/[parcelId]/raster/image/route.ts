@@ -3,10 +3,7 @@ import { requireHarvestAccess, harvestErrorResponse } from '@/lib/harvest/auth'
 import { harvestGetFieldRaster } from '@/lib/harvest/client'
 import { getDemoFieldRaster } from '@/lib/harvest/demo-data'
 import { isLiveRasterMetric } from '@/lib/harvest/field-raster-fallback'
-import { resolveHarvestDataMode } from '@/lib/harvest/mode-resolve'
-import { listHarvestSeasonIds } from '@/lib/harvest/season-resolve'
 import { readRasterImageDimensions } from '@/lib/harvest/raster-image'
-import { fetchHarvestRasterBinary, fetchHarvestRasterMeta } from '@/lib/harvest/view-fetch'
 import type { HarvestMetricKey, HarvestMode, HarvestTrendGranularity } from '@/lib/harvest/types'
 
 interface RouteContext {
@@ -24,10 +21,8 @@ export async function GET(request: Request, context: RouteContext) {
 
   const { searchParams } = new URL(request.url)
   const mode = (searchParams.get('mode') || 'current') as HarvestMode
-  const rasterMode = (searchParams.get('raster_mode') || mode) as HarvestMode
   const metric = (searchParams.get('metric') || 'npp') as HarvestMetricKey
-  const granularity = (searchParams.get('granularity') || 'dekad') as HarvestTrendGranularity
-  const resolvedRasterMode = resolveHarvestDataMode(rasterMode, granularity)
+  const granularity = (searchParams.get('granularity') || 'season') as HarvestTrendGranularity
   const period = searchParams.get('period')
   const seasonId = searchParams.get('season_id')
 
@@ -62,39 +57,13 @@ export async function GET(request: Request, context: RouteContext) {
   }
 
   try {
-    const seasonIds = await listHarvestSeasonIds(parcelId, Number(seasonId))
-    const meta = await fetchHarvestRasterMeta({
-      mode: resolvedRasterMode,
-      parcelId,
-      seasonId,
-      metric,
-      granularity,
-      period,
-      seasonIds,
-    })
-
-    if (meta.imageSource === 'view') {
-      return NextResponse.redirect(
-        new URL(
-          `/api/harvest/field/${parcelId}/view/${meta.imageFilename}?mode=${meta.rasterMode}&season_id=${meta.resolvedSeasonId ?? seasonId}`,
-          request.url
-        ),
-        307
-      )
-    }
-
     const query = {
       var: metric,
-      granularity: meta.granularity,
-      ...(meta.granularity === 'dekad' && meta.period ? { period: meta.period } : {}),
+      granularity,
+      ...(granularity === 'dekad' && period ? { period } : {}),
     }
 
-    let buffer: ArrayBuffer
-    try {
-      buffer = await harvestGetFieldRaster(meta.rasterMode, parcelId, meta.resolvedSeasonId ?? seasonId, query)
-    } catch {
-      buffer = await fetchHarvestRasterBinary({ meta, parcelId, metric })
-    }
+    const buffer = await harvestGetFieldRaster(mode, parcelId, seasonId, query)
 
     if (!buffer.byteLength) {
       return NextResponse.json({ error: 'Empty raster response from Harvest API' }, { status: 502 })
@@ -108,6 +77,8 @@ export async function GET(request: Request, context: RouteContext) {
         'Content-Type': 'image/png',
         'Cache-Control': 'no-store',
         'Access-Control-Allow-Origin': '*',
+        'X-Harvest-Raster-Mode': mode,
+        'X-Harvest-Raster-Source': 'entity/raster',
         ...(dimensions
           ? {
               'X-Harvest-Raster-Width': String(dimensions.width),

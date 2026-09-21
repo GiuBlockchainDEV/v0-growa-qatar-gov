@@ -536,7 +536,7 @@ export function HarvestWorkspace() {
       return
     }
 
-    const rasterMode = mapGranularity === 'dekad' ? 'current' : mode
+    const rasterMode = mode
     const requestId = ++rasterLoadSeqRef.current
 
     setFieldRasterLoading(true)

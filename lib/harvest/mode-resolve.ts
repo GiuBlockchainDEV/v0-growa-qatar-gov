@@ -1,14 +1,11 @@
 import type { HarvestMode, HarvestTrendGranularity } from '@/lib/harvest/types'
 
-/**
- * Harvest API rule: dekad data always lives under `current` mode.
- * Season overlays can use `current` or `predict` depending on user selection.
- */
+/** Raster API uses the selected mode (`current` or `predict`) for both season and dekad. */
 export function resolveHarvestDataMode(
   mode: HarvestMode,
-  granularity: HarvestTrendGranularity
+  _granularity: HarvestTrendGranularity
 ): HarvestMode {
-  return granularity === 'dekad' ? 'current' : mode
+  return mode
 }
 
 export function harvestStatsModesToTry(mode: HarvestMode): HarvestMode[] {

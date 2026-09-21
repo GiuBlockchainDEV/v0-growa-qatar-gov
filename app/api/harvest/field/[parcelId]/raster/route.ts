@@ -6,7 +6,6 @@ import {
   buildFieldRasterFallback,
   isLiveRasterMetric,
 } from '@/lib/harvest/field-raster-fallback'
-import { resolveHarvestDataMode } from '@/lib/harvest/mode-resolve'
 import { normalizeRasterLegend, tryNormalizeRasterBounds } from '@/lib/harvest/raster-bounds'
 import { harvestJsonResponse } from '@/lib/harvest/resolve'
 import { listHarvestSeasonIds, resolveHarvestSeasonId } from '@/lib/harvest/season-resolve'
@@ -25,26 +24,15 @@ function buildImageUrl({
   parcelId,
   meta,
   metric,
-  mode,
   resolvedSeasonId,
 }: {
   parcelId: string
   meta: Awaited<ReturnType<typeof fetchHarvestRasterMeta>>
   metric: HarvestMetricKey
-  mode: HarvestMode
   resolvedSeasonId: number
 }) {
-  if (meta.imageSource === 'view') {
-    const viewParams = new URLSearchParams({
-      mode: meta.rasterMode,
-      season_id: String(resolvedSeasonId),
-    })
-    return `/api/harvest/field/${parcelId}/view/${meta.imageFilename}?${viewParams.toString()}`
-  }
-
   const imageParams = new URLSearchParams({
-    mode,
-    raster_mode: meta.rasterMode,
+    mode: meta.rasterMode,
     metric,
     granularity: meta.granularity,
     season_id: String(resolvedSeasonId),
@@ -152,9 +140,8 @@ export async function GET(request: Request, context: RouteContext) {
     const clipRings = await loadHarvestClipRings(parcelId, false)
     const fieldPolygonBounds = fieldBoundsFromClipRings(clipRings)
     const seasonIds = await listHarvestSeasonIds(parcelId, requestedSeasonId)
-    const dataMode = resolveHarvestDataMode(mode, granularity)
     const meta = await fetchHarvestRasterMeta({
-      mode: dataMode,
+      mode,
       parcelId,
       seasonId: requestedSeasonId,
       metric,
@@ -170,7 +157,7 @@ export async function GET(request: Request, context: RouteContext) {
       granularity: meta.granularity,
       period: meta.period,
       raster_mode: meta.rasterMode,
-      image_source: meta.imageSource,
+      image_source: 'raster',
       bounds_extent: meta.boundsExtent,
       requested_season_id: requestedSeasonId,
       resolved_season_id: resolvedSeasonId,
@@ -178,7 +165,6 @@ export async function GET(request: Request, context: RouteContext) {
         parcelId,
         meta,
         metric,
-        mode,
         resolvedSeasonId,
       }),
       bounds: meta.bounds,
