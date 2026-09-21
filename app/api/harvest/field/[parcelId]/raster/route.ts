@@ -34,6 +34,14 @@ function buildImageUrl({
   mode: HarvestMode
   resolvedSeasonId: number
 }) {
+  if (meta.imageSource === 'view') {
+    const viewParams = new URLSearchParams({
+      mode: meta.rasterMode,
+      season_id: String(resolvedSeasonId),
+    })
+    return `/api/harvest/field/${parcelId}/view/${meta.imageFilename}?${viewParams.toString()}`
+  }
+
   const imageParams = new URLSearchParams({
     mode,
     raster_mode: meta.rasterMode,
@@ -141,6 +149,8 @@ export async function GET(request: Request, context: RouteContext) {
       return NextResponse.json({ error: 'season_id is required' }, { status: 400 })
     }
 
+    const clipRings = await loadHarvestClipRings(parcelId, false)
+    const fieldPolygonBounds = fieldBoundsFromClipRings(clipRings)
     const seasonIds = await listHarvestSeasonIds(parcelId, requestedSeasonId)
     const dataMode = resolveHarvestDataMode(mode, granularity)
     const meta = await fetchHarvestRasterMeta({
@@ -151,6 +161,7 @@ export async function GET(request: Request, context: RouteContext) {
       granularity,
       period,
       seasonIds,
+      fieldPolygonBounds,
     })
 
     const resolvedSeasonId = meta.resolvedSeasonId ?? requestedSeasonId
@@ -159,7 +170,7 @@ export async function GET(request: Request, context: RouteContext) {
       granularity: meta.granularity,
       period: meta.period,
       raster_mode: meta.rasterMode,
-      image_source: 'raster',
+      image_source: meta.imageSource,
       bounds_extent: meta.boundsExtent,
       requested_season_id: requestedSeasonId,
       resolved_season_id: resolvedSeasonId,
@@ -171,6 +182,7 @@ export async function GET(request: Request, context: RouteContext) {
         resolvedSeasonId,
       }),
       bounds: meta.bounds,
+      clip_rings: clipRings,
       georef_debug: meta.georefDebug,
       vmin: meta.vmin,
       vmax: meta.vmax,

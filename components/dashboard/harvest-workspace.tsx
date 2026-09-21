@@ -326,7 +326,7 @@ export function HarvestWorkspace() {
           params.set(key, value)
         }
       }
-      router.replace(`/dashboard?${params.toString()}`)
+      router.replace(`/dashboard?${params.toString()}`, { scroll: false })
     },
     [router, searchParams]
   )
@@ -946,7 +946,7 @@ export function HarvestWorkspace() {
                         onClick={() =>
                           updateHarvestMapParams({
                             harvestMetric: metric,
-                            harvestSeasonId: seasonIdForParams,
+                            ...(seasonIdForParams ? { harvestSeasonId: seasonIdForParams } : {}),
                           })
                         }
                         className={`rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors ${
@@ -966,7 +966,7 @@ export function HarvestWorkspace() {
                       onClick={() =>
                         updateHarvestMapParams({
                           harvestGranularity: 'dekad',
-                          harvestSeasonId: seasonIdForParams,
+                          ...(seasonIdForParams ? { harvestSeasonId: seasonIdForParams } : {}),
                         })
                       }
                       className={`rounded-md border px-2.5 py-1 text-[11px] ${
@@ -983,7 +983,7 @@ export function HarvestWorkspace() {
                         updateHarvestMapParams({
                           harvestGranularity: 'season',
                           harvestPeriod: null,
-                          harvestSeasonId: seasonIdForParams,
+                          ...(seasonIdForParams ? { harvestSeasonId: seasonIdForParams } : {}),
                         })
                       }
                       className={`rounded-md border px-2.5 py-1 text-[11px] ${
@@ -1000,7 +1000,7 @@ export function HarvestWorkspace() {
                         onChange={(event) =>
                           updateHarvestMapParams({
                             harvestPeriod: event.target.value || null,
-                            harvestSeasonId: seasonIdForParams,
+                            ...(seasonIdForParams ? { harvestSeasonId: seasonIdForParams } : {}),
                           })
                         }
                         className="rounded-md border border-border bg-card px-2 py-1 text-[11px] text-foreground"

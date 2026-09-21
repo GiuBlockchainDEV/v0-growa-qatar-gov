@@ -4,7 +4,9 @@ import { harvestGetFieldRaster } from '@/lib/harvest/client'
 import { getDemoFieldRaster } from '@/lib/harvest/demo-data'
 import { isLiveRasterMetric } from '@/lib/harvest/field-raster-fallback'
 import { resolveHarvestDataMode } from '@/lib/harvest/mode-resolve'
+import { listHarvestSeasonIds } from '@/lib/harvest/season-resolve'
 import { readRasterImageDimensions } from '@/lib/harvest/raster-image'
+import { fetchHarvestRasterBinary, fetchHarvestRasterMeta } from '@/lib/harvest/view-fetch'
 import type { HarvestMetricKey, HarvestMode, HarvestTrendGranularity } from '@/lib/harvest/types'
 
 interface RouteContext {
@@ -60,13 +62,39 @@ export async function GET(request: Request, context: RouteContext) {
   }
 
   try {
-    const query = {
-      var: metric,
+    const seasonIds = await listHarvestSeasonIds(parcelId, Number(seasonId))
+    const meta = await fetchHarvestRasterMeta({
+      mode: resolvedRasterMode,
+      parcelId,
+      seasonId,
+      metric,
       granularity,
-      ...(granularity === 'dekad' && period ? { period } : {}),
+      period,
+      seasonIds,
+    })
+
+    if (meta.imageSource === 'view') {
+      return NextResponse.redirect(
+        new URL(
+          `/api/harvest/field/${parcelId}/view/${meta.imageFilename}?mode=${meta.rasterMode}&season_id=${meta.resolvedSeasonId ?? seasonId}`,
+          request.url
+        ),
+        307
+      )
     }
 
-    const buffer = await harvestGetFieldRaster(resolvedRasterMode, parcelId, seasonId, query)
+    const query = {
+      var: metric,
+      granularity: meta.granularity,
+      ...(meta.granularity === 'dekad' && meta.period ? { period: meta.period } : {}),
+    }
+
+    let buffer: ArrayBuffer
+    try {
+      buffer = await harvestGetFieldRaster(meta.rasterMode, parcelId, meta.resolvedSeasonId ?? seasonId, query)
+    } catch {
+      buffer = await fetchHarvestRasterBinary({ meta, parcelId, metric })
+    }
 
     if (!buffer.byteLength) {
       return NextResponse.json({ error: 'Empty raster response from Harvest API' }, { status: 502 })
