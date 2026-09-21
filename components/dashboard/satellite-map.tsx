@@ -1692,22 +1692,24 @@ export function SatelliteMap({
             opacity: 1,
             fillColor: hasRasterOverlay ? 'transparent' : '#07f880',
             fillOpacity: hasRasterOverlay ? 0.01 : 0.08,
-            interactive: true,
-            bubblingMouseEvents: false,
+            interactive: !harvestFieldDrawActive,
+            bubblingMouseEvents: harvestFieldDrawActive,
             className: 'leaflet-harvest-field-polygon',
           }
         ).addTo(map)
 
-        layer.bindTooltip(
-          `<strong style="color:#07f880;">${escapeHtml(field.name)}</strong><br/><span style="font-size:11px;color:#bbb;">${escapeHtml(field.crop)}</span>`,
-          { direction: 'top', opacity: 0.95, className: 'custom-tooltip' }
-        )
+        if (!harvestFieldDrawActive) {
+          layer.bindTooltip(
+            `<strong style="color:#07f880;">${escapeHtml(field.name)}</strong><br/><span style="font-size:11px;color:#bbb;">${escapeHtml(field.crop)}</span>`,
+            { direction: 'top', opacity: 0.95, className: 'custom-tooltip' }
+          )
 
-        layer.on('click', (event: any) => {
-          event?.originalEvent?.preventDefault?.()
-          event?.originalEvent?.stopPropagation?.()
-          selectFieldAtEvent(event)
-        })
+          layer.on('click', (event: any) => {
+            event?.originalEvent?.preventDefault?.()
+            event?.originalEvent?.stopPropagation?.()
+            selectFieldAtEvent(event)
+          })
+        }
 
         harvestFieldLayerInstancesRef.current.push(layer)
       }

@@ -247,8 +247,16 @@ export function HarvestWorkspace() {
     setCreateDrawMethod(harvestDrawMethod)
   }, [harvestDrawMethod])
 
+  useEffect(() => {
+    if (!harvestCreateActive) return
+    setFieldStats(null)
+    setFieldRaster(null)
+    setFieldRasterError(null)
+    dispatchRasterOverlay(null)
+  }, [dispatchRasterOverlay, harvestCreateActive])
+
   const loadNationalData = useCallback(async () => {
-    if (parcelId) {
+    if (parcelId || harvestCreateActive) {
       setAnalytics(null)
       setTimeseries(null)
       return
@@ -278,7 +286,7 @@ export function HarvestWorkspace() {
     } finally {
       setNationalLoading(false)
     }
-  }, [mode, parcelId])
+  }, [harvestCreateActive, mode, parcelId])
 
   const loadCollectingTasks = useCallback(async () => {
     try {
@@ -853,8 +861,11 @@ export function HarvestWorkspace() {
         <button
           type="button"
           onClick={() => startCreateField()}
-          disabled={harvestCreateActive}
-          className="inline-flex items-center gap-1.5 rounded-lg border border-primary/30 bg-primary/10 px-3 py-1.5 text-xs font-medium text-primary disabled:cursor-not-allowed disabled:opacity-50"
+          className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium ${
+            harvestCreateActive
+              ? 'border-primary/50 bg-primary/20 text-primary'
+              : 'border-primary/30 bg-primary/10 text-primary'
+          }`}
         >
           <Plus className="h-3.5 w-3.5" />
           Create field
@@ -869,21 +880,23 @@ export function HarvestWorkspace() {
         </button>
       </div>
 
-      {loading ? <IntelligenceLoadingState message="Loading Harvest analytics..." /> : null}
-      {!loading && error ? <IntelligenceErrorState message={error} /> : null}
+      {loading && !harvestCreateActive ? (
+        <IntelligenceLoadingState message="Loading Harvest analytics..." />
+      ) : null}
+      {!loading && error && !harvestCreateActive ? <IntelligenceErrorState message={error} /> : null}
 
-      {!loading && !error ? (
+      {harvestCreateActive ? (
+        <HarvestFieldCreatePanel
+          drawMethod={createDrawMethod}
+          vertices={createVertices}
+          onDrawMethodChange={updateCreateDrawMethod}
+          onClearDraw={clearCreateDraw}
+          onCreated={handleFieldCreated}
+        />
+      ) : null}
+
+      {!loading && !error && !harvestCreateActive ? (
         <>
-          {harvestCreateActive ? (
-            <HarvestFieldCreatePanel
-              drawMethod={createDrawMethod}
-              vertices={createVertices}
-              onDrawMethodChange={updateCreateDrawMethod}
-              onClearDraw={clearCreateDraw}
-              onCreated={handleFieldCreated}
-            />
-          ) : null}
-
           {!isFieldDetailView ? (
             <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
               {headlineMetrics.map((metric, index) => {

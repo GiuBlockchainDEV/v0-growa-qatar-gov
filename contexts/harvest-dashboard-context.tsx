@@ -288,8 +288,9 @@ export function HarvestDashboardProvider({ children }: { children: ReactNode }) 
     (drawMethod: 'vertex' | 'circle' = 'vertex') => {
       setHydratedField(null)
       setMetricOverlay({})
-      router.replace(buildHarvestCreateDashboardUrl(drawMethod, mode), { scroll: false })
+      const href = buildHarvestCreateDashboardUrl(drawMethod, mode)
       window.dispatchEvent(new Event('harvest:field-draw-clear'))
+      router.push(href, { scroll: false })
     },
     [mode, router]
   )
