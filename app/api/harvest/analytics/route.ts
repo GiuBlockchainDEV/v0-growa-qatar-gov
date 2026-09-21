@@ -25,7 +25,6 @@ export async function GET(request: Request) {
           })
         ),
       fetchDemo: () => getDemoAnalytics(mode),
-      validateLive: (data) => data.metrics.length > 0 || data.fields.length > 0,
     })
 
     return harvestJsonResponse(payload, usedDemo)

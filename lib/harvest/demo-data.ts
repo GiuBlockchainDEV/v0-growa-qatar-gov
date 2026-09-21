@@ -188,10 +188,16 @@ export function getDemoTimeseries(mode: HarvestMode): HarvestTimeseriesResponse 
     metric: 'aeti',
     granularity: 'dekad',
     mode,
-    points: base.map((value, index) => ({
-      period: `2025-${String(10 + Math.floor(index / 3)).padStart(2, '0')}-${String((index % 3) * 10 + 1).padStart(2, '0')}`,
-      value: Math.round(value * factor * (1 + index * 0.02)),
-    })),
+    points: base.map((value, index) => {
+      const month = 10 + Math.floor(index / 3)
+      const day = (index % 3) * 10 + 1
+      const year = month > 12 ? 2026 : 2025
+      const normalizedMonth = month > 12 ? month - 12 : month
+      return {
+        period: `${year}-${String(normalizedMonth).padStart(2, '0')}-${String(day).padStart(2, '0')}`,
+        value: Math.round(value * factor * (1 + index * 0.02)),
+      }
+    }),
   }
 }
 

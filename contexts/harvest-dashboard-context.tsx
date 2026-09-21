@@ -38,6 +38,7 @@ interface HarvestDashboardContextValue {
   mapFields: HarvestMapField[]
   catalogLoading: boolean
   catalogError: string | null
+  usingDemoData: boolean
   refreshCatalog: () => void
   parcelId: string | null
   activeSeasonId: number | undefined
@@ -57,8 +58,9 @@ interface HarvestDashboardContextValue {
 
 const HarvestDashboardContext = createContext<HarvestDashboardContextValue | null>(null)
 
-async function fetchHarvestJson<T>(url: string): Promise<T> {
+async function fetchHarvestJson<T>(url: string): Promise<{ data: T; isDemo: boolean }> {
   const response = await fetch(url, { cache: 'no-store' })
+  const isDemo = response.headers.get('X-Harvest-Demo') === 'true'
   const contentType = response.headers.get('content-type') || ''
   const rawBody = await response.text()
 
@@ -77,7 +79,7 @@ async function fetchHarvestJson<T>(url: string): Promise<T> {
     throw new Error(message)
   }
 
-  return payload as T
+  return { data: payload as T, isDemo }
 }
 
 export function HarvestDashboardProvider({ children }: { children: ReactNode }) {
@@ -99,6 +101,7 @@ export function HarvestDashboardProvider({ children }: { children: ReactNode }) 
   const [mapFields, setMapFields] = useState<HarvestMapField[]>([])
   const [catalogLoading, setCatalogLoading] = useState(true)
   const [catalogError, setCatalogError] = useState<string | null>(null)
+  const [usingDemoData, setUsingDemoData] = useState(false)
   const [hydratedField, setHydratedField] = useState<HarvestAnalyticsField | null>(null)
   const [metricOverlay, setMetricOverlay] = useState<HarvestFieldMetrics>({})
   const catalogSeqRef = useRef(0)
@@ -165,11 +168,13 @@ export function HarvestDashboardProvider({ children }: { children: ReactNode }) 
 
       if (requestId !== catalogSeqRef.current) return
 
-      setFields(deduplicateHarvestCatalogFields(catalogPayload.results || []))
-      setMapFields(Array.isArray(mapPayload.fields) ? mapPayload.fields : [])
+      setUsingDemoData(catalogPayload.isDemo || mapPayload.isDemo)
+      setFields(deduplicateHarvestCatalogFields(catalogPayload.data.results || []))
+      setMapFields(Array.isArray(mapPayload.data.fields) ? mapPayload.data.fields : [])
     } catch (error) {
       if (requestId !== catalogSeqRef.current) return
       setCatalogError(error instanceof Error ? error.message : 'Unable to load harvest catalog')
+      setUsingDemoData(false)
       setFields([])
       setMapFields([])
     } finally {
@@ -355,6 +360,7 @@ export function HarvestDashboardProvider({ children }: { children: ReactNode }) 
       mapFields: enrichedMapFields,
       catalogLoading,
       catalogError,
+      usingDemoData,
       refreshCatalog,
       parcelId,
       activeSeasonId,
@@ -377,6 +383,7 @@ export function HarvestDashboardProvider({ children }: { children: ReactNode }) 
       enrichedMapFields,
       catalogLoading,
       catalogError,
+      usingDemoData,
       refreshCatalog,
       parcelId,
       activeSeasonId,

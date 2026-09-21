@@ -36,15 +36,6 @@ export async function GET(_request: Request, context: RouteContext) {
       headers: { 'Cache-Control': 'no-store' },
     })
   } catch (error) {
-    const demoPayload = getDemoParcelGeojson(parcelId)
-    if (demoPayload) {
-      return withDemoHeaders(
-        NextResponse.json(demoPayload, {
-          headers: { 'Cache-Control': 'no-store' },
-        }),
-        true
-      )
-    }
     return harvestErrorResponse(error)
   }
 }

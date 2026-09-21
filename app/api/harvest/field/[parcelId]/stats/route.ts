@@ -87,9 +87,6 @@ export async function GET(request: Request, context: RouteContext) {
       }
     }
 
-    const demoStats = getDemoFieldStats(parcelId, mode)
-    if (demoStats) return harvestJsonResponse(demoStats, true)
-
     const collecting = await findHarvestCollectingTask(parcelId, requestedSeasonId)
     return NextResponse.json(
       {

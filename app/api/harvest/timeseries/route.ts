@@ -34,7 +34,6 @@ export async function GET(request: Request) {
           mode
         ),
       fetchDemo: () => getDemoTimeseries(mode),
-      validateLive: (data) => data.points.length > 0,
     })
 
     return harvestJsonResponse(payload, usedDemo)

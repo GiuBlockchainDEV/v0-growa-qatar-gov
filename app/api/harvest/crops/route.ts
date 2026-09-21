@@ -14,7 +14,6 @@ export async function GET() {
       demoMode: access.demoMode,
       fetchLive: () => harvestGetCrops(),
       fetchDemo: () => getDemoHarvestCrops(),
-      validateLive: (data) => Array.isArray(data) && data.length > 0,
     })
 
     const crops = Array.isArray(payload) ? payload : []

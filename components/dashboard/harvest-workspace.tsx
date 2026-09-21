@@ -218,6 +218,7 @@ export function HarvestWorkspace() {
     fields,
     catalogLoading,
     catalogError,
+    usingDemoData,
     refreshCatalog,
     parcelId,
     activeSeasonId,
@@ -841,6 +842,13 @@ export function HarvestWorkspace() {
           },
         ]}
       />
+
+      {usingDemoData ? (
+        <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-100">
+          Demo sample data is active. Configure Harvest API credentials on Vercel to load your real
+          fields (Hassad N, Baladna, mazrati, etc.).
+        </div>
+      ) : null}
 
       {isFieldDetailView ? (
         <button

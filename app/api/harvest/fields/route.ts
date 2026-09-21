@@ -74,15 +74,21 @@ export async function GET(request: Request) {
 
         const allFields = normalizePaginatedFieldsResponse(allFieldsRaw)
         const merged = mergeHarvestFieldsWithAnalytics(allFields.results, analyticsFields.results)
-        const enriched = await enrichHarvestFieldsWithStats(merged, mode)
 
-        return {
-          total: allFields.total,
-          results: enriched,
+        try {
+          const enriched = await enrichHarvestFieldsWithStats(merged, mode)
+          return {
+            total: allFields.total,
+            results: enriched,
+          }
+        } catch {
+          return {
+            total: allFields.total,
+            results: merged,
+          }
         }
       },
       fetchDemo: () => getDemoAnalyticsFields(mode),
-      validateLive: (data) => data.results.length > 0,
     })
 
     return harvestJsonResponse(payload, usedDemo)

@@ -43,7 +43,6 @@ export async function GET(request: Request) {
           })
         ),
       fetchDemo: () => getDemoAnalyticsFields(mode),
-      validateLive: (data) => data.results.length > 0,
     })
 
     if (usedDemo) {
@@ -53,10 +52,6 @@ export async function GET(request: Request) {
     const fields = (
       await Promise.all(fieldsPayload.results.map((field) => loadLiveFieldPolygon(field)))
     ).filter((field): field is HarvestMapField => Boolean(field))
-
-    if (fields.length === 0) {
-      return harvestJsonResponse({ fields: getDemoMapFields() }, true)
-    }
 
     return harvestJsonResponse({ fields }, false)
   } catch (error) {
