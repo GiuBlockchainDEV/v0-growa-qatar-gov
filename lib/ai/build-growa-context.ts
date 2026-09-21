@@ -1,6 +1,6 @@
 import type {
   GrowaAlerts,
-  GrowaAnalysisContext,
+  GrowaFarmAnalysisContext,
   GrowaCropSnapshot,
   GrowaModule,
   GrowaProducerSnapshot,
@@ -206,7 +206,7 @@ function buildAlerts(crops: GrowaCropSnapshot[], producers: GrowaProducerSnapsho
   }
 }
 
-export function buildGrowaContext(input: BuildGrowaContextInput): GrowaAnalysisContext {
+export function buildGrowaContext(input: BuildGrowaContextInput): GrowaFarmAnalysisContext {
   const {
     module,
     insights,
@@ -240,7 +240,7 @@ export function buildGrowaContext(input: BuildGrowaContextInput): GrowaAnalysisC
     analyticsMeta.efficiencySpread ??
     Math.max(0, (topProducers[0]?.efficiencyScore ?? 0) - (atRiskProducers[0]?.efficiencyScore ?? 0))
 
-  const context: GrowaAnalysisContext = {
+  const context: GrowaFarmAnalysisContext = {
     module,
     generatedAt: new Date().toISOString(),
     headline: {
