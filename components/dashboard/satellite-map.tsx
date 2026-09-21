@@ -76,9 +76,6 @@ interface SatelliteMapProps {
     imageUrl: string
     bounds: [[number, number], [number, number]]
     opacity?: number
-    imageSource?: 'view' | 'raster'
-    boundsExtent?: 'plot' | 'full_image'
-    clipRings?: Array<Array<{ lat: number; lng: number }>>
   } | null
   harvestFocusBounds?: [[number, number], [number, number]] | null
   harvestFieldDrawActive?: boolean
@@ -1798,21 +1795,9 @@ export function SatelliteMap({
 
     if (!harvestRasterOverlay?.imageUrl || !harvestRasterOverlay.bounds) return
 
-    const selectedField = selectedHarvestParcelId
-      ? harvestFields.find((field) => field.parcel_id === selectedHarvestParcelId)
-      : undefined
-    // Prefer map field rings — same geometry as the white polygon outline.
-    const clipRings =
-      selectedField?.rings && selectedField.rings.length > 0
-        ? selectedField.rings
-        : harvestRasterOverlay.clipRings
-
     const rasterLayer = createHarvestRasterLayer(L, {
       imageUrl: harvestRasterOverlay.imageUrl,
       bounds: harvestRasterOverlay.bounds,
-      imageSource: harvestRasterOverlay.imageSource,
-      boundsExtent: harvestRasterOverlay.boundsExtent,
-      clipRings,
       opacity: harvestRasterOverlay.opacity ?? 0.5,
     })
     rasterLayer.addTo(map)
@@ -1824,7 +1809,7 @@ export function SatelliteMap({
         harvestRasterOverlayRef.current = null
       }
     }
-  }, [harvestFields, harvestRasterOverlay, mapReady, selectedHarvestParcelId])
+  }, [harvestRasterOverlay, mapReady])
 
   useEffect(() => {
     if (!mapReady || !mapInstanceRef.current || !leafletRef.current) return

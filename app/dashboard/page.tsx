@@ -246,9 +246,6 @@ function SlideFromLeftWorkspace({
                   imageUrl: harvestRasterOverlay.imageUrl,
                   bounds: harvestRasterOverlay.bounds,
                   opacity: harvestRasterOverlay.opacity,
-                  imageSource: harvestRasterOverlay.imageSource,
-                  boundsExtent: harvestRasterOverlay.boundsExtent,
-                  clipRings: harvestRasterOverlay.clipRings,
                 }
               : null
           }

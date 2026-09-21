@@ -1,19 +1,9 @@
-import {
-  harvestGetFieldRaster,
-  harvestGetFieldRasterMeta,
-  harvestGetFieldViewFile,
-  harvestGetFieldViewJson,
-  harvestGetParcel,
-} from '@/lib/harvest/client'
+import { harvestGetFieldRasterMeta, harvestGetParcel } from '@/lib/harvest/client'
 import { extractBoundsFromGeoJson } from '@/lib/harvest/geojson'
 import { resolveHarvestDataMode } from '@/lib/harvest/mode-resolve'
-import { fieldBoundsFromClipRings } from '@/lib/harvest/raster-georef'
-import {
-  enrichRasterMetaDimensions,
-  resolveRasterGeorefFromMeta,
-} from '@/lib/harvest/raster-meta-resolve'
+import { enrichRasterMetaDimensions } from '@/lib/harvest/raster-meta-resolve'
 import type { HarvestRasterBoundsExtent, HarvestRasterGeorefDebug } from '@/lib/harvest/types'
-import { normalizeRasterLegend } from '@/lib/harvest/raster-bounds'
+import { normalizeRasterLegend, tryNormalizeRasterBounds, type RasterBounds } from '@/lib/harvest/raster-bounds'
 import type { HarvestMetricKey, HarvestMode, HarvestTrendGranularity } from '@/lib/harvest/types'
 
 export type HarvestRasterImageSource = 'view' | 'raster'
@@ -43,33 +33,6 @@ const METRIC_UNITS: Partial<Record<HarvestMetricKey, string>> = {
   rwd: '—',
 }
 
-function parseLegendJson(raw: unknown) {
-  const record = raw && typeof raw === 'object' ? (raw as Record<string, unknown>) : null
-  if (!record) {
-    return {
-      bounds: null,
-      vmin: 0,
-      vmax: 100,
-      unit: '',
-      legend: [] as Array<{ color: string; label: string }>,
-    }
-  }
-
-  const cmap = Array.isArray(record.cmap)
-    ? record.cmap
-    : Array.isArray(record.legend)
-      ? record.legend
-      : []
-
-  return {
-    bounds: record.bounds,
-    vmin: typeof record.vmin === 'number' ? record.vmin : 0,
-    vmax: typeof record.vmax === 'number' ? record.vmax : 100,
-    unit: typeof record.unit === 'string' ? record.unit : '',
-    legend: normalizeRasterLegend(cmap),
-  }
-}
-
 async function resolveParcelBounds(parcelId: string) {
   try {
     const payload = await harvestGetParcel(parcelId)
@@ -79,110 +42,34 @@ async function resolveParcelBounds(parcelId: string) {
   }
 }
 
-async function resolveViewImageFile({
-  mode,
-  parcelId,
-  seasonId,
-  metric,
-}: {
-  mode: HarvestMode
-  parcelId: string
-  seasonId: number
-  metric: HarvestMetricKey
-}): Promise<{ filename: string; buffer: ArrayBuffer }> {
-  const candidates = [`${metric}.jpeg`, `${metric}.jpg`, `${metric}.png`]
-
-  for (const filename of candidates) {
-    try {
-      const buffer = await harvestGetFieldViewFile(mode, parcelId, seasonId, filename)
-      if (buffer.byteLength > 0) {
-        return { filename, buffer }
-      }
-    } catch {
-      // try next extension
-    }
-  }
-
-  throw new Error('HARVEST_VIEW_IMAGE_UNAVAILABLE')
+function resolveBoundsFromRasterMeta(
+  rawMeta: Record<string, unknown>,
+  fallbackBounds?: RasterBounds | null
+): RasterBounds {
+  const fromApi =
+    tryNormalizeRasterBounds(rawMeta.bounds) ?? tryNormalizeRasterBounds(rawMeta.bbox)
+  if (fromApi) return fromApi
+  if (fallbackBounds) return fallbackBounds
+  throw new Error('HARVEST_RASTER_BOUNDS_UNAVAILABLE')
 }
 
-async function fetchViewRasterMeta({
-  mode,
-  parcelId,
-  seasonId,
-  metric,
-  fieldPolygonBounds,
-}: {
-  mode: HarvestMode
-  parcelId: string
-  seasonId: number
-  metric: HarvestMetricKey
-  fieldPolygonBounds?: [[number, number], [number, number]] | null
-}): Promise<HarvestRasterMetaResult> {
-  let legend: unknown = null
-  try {
-    legend = await harvestGetFieldViewJson(mode, parcelId, seasonId, 'legend.json')
-  } catch {
-    // legend.json is optional; season maps can exist without it
-  }
-
-  const parsedLegend = parseLegendJson(legend)
-  const rawMeta = legend && typeof legend === 'object' ? (legend as Record<string, unknown>) : {}
-  if (parsedLegend.bounds) {
-    rawMeta.bounds = parsedLegend.bounds
-  }
-
-  const viewImage = await resolveViewImageFile({ mode, parcelId, seasonId, metric })
-
-  let imageWidth = typeof rawMeta.width === 'number' ? rawMeta.width : null
-  let imageHeight = typeof rawMeta.height === 'number' ? rawMeta.height : null
-  if (!imageWidth || !imageHeight) {
-    const dimensions = await enrichRasterMetaDimensions({
-      rasterMode: mode,
-      parcelId,
-      seasonId,
-      metric,
-      granularity: 'season',
-      period: null,
-      imageBuffer: viewImage.buffer,
-    })
-    imageWidth = dimensions.width
-    imageHeight = dimensions.height
-  }
-
-  const georef = resolveRasterGeorefFromMeta({
-    rawMeta,
-    imageWidth,
-    imageHeight,
-    fieldPolygonBounds,
-  })
-
-  const boundsExtent: HarvestRasterBoundsExtent = parsedLegend.bounds ? 'plot' : 'full_image'
-
-  if (!parsedLegend.bounds && !parseTransform(rawMeta)) {
-    const parcelBounds = await resolveParcelBounds(parcelId)
-    if (parcelBounds) {
-      georef.bounds = parcelBounds
-      georef.debug.boundsSource = 'leaflet_bounds'
-      georef.debug.computedLeafletBounds = parcelBounds
-    }
-  }
-
+function buildRasterGeorefDebug(
+  rawMeta: Record<string, unknown>,
+  bounds: RasterBounds
+): HarvestRasterGeorefDebug {
   return {
-    bounds: georef.bounds,
-    vmin: parsedLegend.vmin,
-    vmax: parsedLegend.vmax,
-    unit: parsedLegend.unit || METRIC_UNITS[metric] || '',
-    legend: parsedLegend.legend,
-    rasterMode: mode,
-    granularity: 'season',
-    period: null,
-    resolvedSeasonId: seasonId,
-    imageSource: 'view',
-    imageFilename: viewImage.filename,
-    boundsExtent,
-    rawMeta,
-    georefDebug: georef.debug,
+    rasterCrs: typeof rawMeta.crs === 'string' ? rawMeta.crs : typeof rawMeta.srs === 'string' ? rawMeta.srs : null,
+    rasterTransform: null,
+    rawBounds: rawMeta.bounds ?? null,
+    rawBbox: Array.isArray(rawMeta.bbox) ? (rawMeta.bbox as number[]) : null,
+    imageWidth: typeof rawMeta.width === 'number' ? rawMeta.width : null,
+    imageHeight: typeof rawMeta.height === 'number' ? rawMeta.height : null,
+    computedLeafletBounds: bounds,
+    fieldPolygonBounds: null,
+    boundsSource: 'leaflet_bounds',
+    fieldOverlap: null,
+    hasRotation: false,
+    rotationWarning: null,
   }
 }
 
@@ -228,24 +115,21 @@ async function fetchDynamicRasterMeta({
     imageHeight = dimensions.height
   }
 
-  const georef = resolveRasterGeorefFromMeta({
-    rawMeta,
-    imageWidth,
-    imageHeight,
-    fieldPolygonBounds,
-  })
-
+  let bounds = resolveBoundsFromRasterMeta(rawMeta, fieldPolygonBounds)
   if (!meta.bounds && !meta.bbox && !parseTransform(rawMeta) && !fieldPolygonBounds) {
     const parcelBounds = await resolveParcelBounds(parcelId)
     if (parcelBounds) {
-      georef.bounds = parcelBounds
-      georef.debug.boundsSource = 'leaflet_bounds'
-      georef.debug.computedLeafletBounds = parcelBounds
+      bounds = parcelBounds
     }
   }
 
+  if (imageWidth && imageHeight) {
+    rawMeta.width = imageWidth
+    rawMeta.height = imageHeight
+  }
+
   return {
-    bounds: georef.bounds,
+    bounds,
     vmin: meta.vmin ?? 0,
     vmax: meta.vmax ?? 100,
     unit: meta.unit || METRIC_UNITS[metric] || '',
@@ -258,7 +142,7 @@ async function fetchDynamicRasterMeta({
     imageFilename: `${metric}.jpeg`,
     boundsExtent: 'full_image',
     rawMeta,
-    georefDebug: georef.debug,
+    georefDebug: buildRasterGeorefDebug(rawMeta, bounds),
   }
 }
 
@@ -315,18 +199,6 @@ export async function fetchHarvestRasterMeta({
         } catch (error) {
           lastError = error instanceof Error ? error : new Error('Harvest raster unavailable')
         }
-
-        try {
-          return await fetchViewRasterMeta({
-            mode: tryMode,
-            parcelId,
-            seasonId: trySeasonId,
-            metric,
-            fieldPolygonBounds,
-          })
-        } catch (error) {
-          lastError = error instanceof Error ? error : new Error('Harvest view raster unavailable')
-        }
       }
 
       if (granularity === 'dekad' && period) {
@@ -342,18 +214,6 @@ export async function fetchHarvestRasterMeta({
           })
         } catch (error) {
           lastError = error instanceof Error ? error : new Error('Harvest dekad raster unavailable')
-        }
-
-        try {
-          return await fetchViewRasterMeta({
-            mode: tryMode,
-            parcelId,
-            seasonId: trySeasonId,
-            metric,
-            fieldPolygonBounds,
-          })
-        } catch (error) {
-          lastError = error instanceof Error ? error : new Error('Harvest view raster unavailable')
         }
       }
     }
@@ -377,85 +237,9 @@ export async function fetchHarvestRasterMeta({
         } catch (error) {
           lastError = error instanceof Error ? error : new Error('Harvest season raster fallback unavailable')
         }
-
-        try {
-          return await fetchViewRasterMeta({
-            mode: tryMode,
-            parcelId,
-            seasonId: trySeasonId,
-            metric,
-            fieldPolygonBounds,
-          })
-        } catch (error) {
-          lastError = error instanceof Error ? error : new Error('Harvest season view fallback unavailable')
-        }
       }
     }
   }
 
   throw lastError || new Error('HARVEST_RASTER_META_UNAVAILABLE')
-}
-
-export function applyHarvestRasterGeoref({
-  meta,
-  parcelId,
-  clipRings,
-}: {
-  meta: HarvestRasterMetaResult
-  parcelId: string
-  clipRings?: Array<Array<{ lat: number; lng: number }>>
-}): HarvestRasterMetaResult {
-  const fieldPolygonBounds = clipRings ? fieldBoundsFromClipRings(clipRings) : null
-  const georef = resolveRasterGeorefFromMeta({
-    rawMeta: meta.rawMeta,
-    imageWidth: typeof meta.rawMeta.width === 'number' ? meta.rawMeta.width : null,
-    imageHeight: typeof meta.rawMeta.height === 'number' ? meta.rawMeta.height : null,
-    fieldPolygonBounds,
-  })
-
-  return {
-    ...meta,
-    bounds: georef.bounds,
-    georefDebug: georef.debug,
-  }
-}
-
-export async function fetchHarvestRasterBinary({
-  meta,
-  parcelId,
-  metric,
-}: {
-  meta: HarvestRasterMetaResult
-  parcelId: string
-  metric: HarvestMetricKey
-}): Promise<ArrayBuffer> {
-  const seasonId = meta.resolvedSeasonId
-  if (!seasonId) {
-    throw new Error('HARVEST_RASTER_SEASON_UNAVAILABLE')
-  }
-
-  if (meta.imageSource === 'view') {
-    const buffer = await harvestGetFieldViewFile(
-      meta.rasterMode,
-      parcelId,
-      seasonId,
-      meta.imageFilename
-    )
-    if (!buffer.byteLength) {
-      throw new Error('HARVEST_REQUEST_FAILED:502:Empty view image response from Harvest API')
-    }
-    return buffer
-  }
-
-  const query = {
-    var: metric,
-    granularity: meta.granularity,
-    ...(meta.granularity === 'dekad' && meta.period ? { period: meta.period } : {}),
-  }
-
-  const buffer = await harvestGetFieldRaster(meta.rasterMode, parcelId, seasonId, query)
-  if (!buffer.byteLength) {
-    throw new Error('HARVEST_REQUEST_FAILED:502:Empty raster response from Harvest API')
-  }
-  return buffer
 }
