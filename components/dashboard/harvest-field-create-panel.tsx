@@ -15,7 +15,6 @@ import {
   validateHarvestFieldCreateInput,
 } from '@/lib/harvest/field-create'
 import { buildHarvestNationalDashboardUrl } from '@/lib/harvest/field-navigation'
-import { useSearchParams } from 'next/navigation'
 import type { LatLngVertex } from '@/lib/harvest/geojson'
 import type { HarvestCropGroup } from '@/lib/harvest/types'
 
@@ -104,7 +103,7 @@ export function HarvestFieldCreatePanel({
     router.replace(buildHarvestNationalDashboardUrl(harvestMode), { scroll: false })
     onClearDraw()
     setError(null)
-  }, [onClearDraw, router])
+  }, [harvestMode, onClearDraw, router])
 
   const submitField = useCallback(async () => {
     if (hasDraftInProgress) {
