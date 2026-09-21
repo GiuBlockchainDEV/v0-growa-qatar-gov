@@ -207,6 +207,7 @@ export function HarvestWorkspace() {
   >([])
   const [createRings, setCreateRings] = useState<LatLngVertex[][]>([])
   const [createDraftVertices, setCreateDraftVertices] = useState<LatLngVertex[]>([])
+  const [createDrawMethod, setCreateDrawMethod] = useState<'vertex' | 'circle'>(harvestDrawMethod)
   const rasterBlobUrlRef = useRef<string | null>(null)
   const rasterLoadSeqRef = useRef(0)
   const fieldDetailSeqRef = useRef(0)
@@ -231,6 +232,10 @@ export function HarvestWorkspace() {
   } = useHarvestDashboard()
 
   const activeParcelId = parcelId
+
+  useEffect(() => {
+    setCreateDrawMethod(harvestDrawMethod)
+  }, [harvestDrawMethod])
 
   useEffect(() => {
     const handleDrawUpdate = (event: Event) => {
@@ -685,8 +690,12 @@ export function HarvestWorkspace() {
 
   const updateCreateDrawMethod = useCallback(
     (method: 'vertex' | 'circle') => {
+      setCreateDrawMethod(method)
+      window.dispatchEvent(
+        new CustomEvent('harvest:field-draw-method-change', { detail: { method } })
+      )
       if (harvestCreateActive) {
-        updateHarvestMapParams({ harvestDraw: method })
+        updateHarvestMapParams({ harvestCreate: '1', harvestDraw: method })
         window.dispatchEvent(new Event('harvest:field-draw-clear-draft'))
         return
       }
@@ -892,7 +901,7 @@ export function HarvestWorkspace() {
 
       {harvestCreateActive ? (
         <HarvestFieldCreatePanel
-          drawMethod={harvestDrawMethod}
+          drawMethod={createDrawMethod}
           rings={createRings}
           draftVertices={createDraftVertices}
           onDrawMethodChange={updateCreateDrawMethod}

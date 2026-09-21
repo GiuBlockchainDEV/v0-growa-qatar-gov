@@ -81,7 +81,8 @@ function SlideFromLeftWorkspace({
   const harvestMode = searchParams.get('harvestMode') === 'predict' ? 'predict' : 'current'
   const selectedHarvestParcelId = searchParams.get('parcelId')
   const harvestCreateActive = searchParams.get('harvestCreate') === '1'
-  const harvestDrawMethod = searchParams.get('harvestDraw') === 'circle' ? 'circle' : 'vertex'
+  const harvestDrawMethodFromUrl = searchParams.get('harvestDraw') === 'circle' ? 'circle' : 'vertex'
+  const [harvestDrawMethod, setHarvestDrawMethod] = useState<'vertex' | 'circle'>(harvestDrawMethodFromUrl)
   const harvestDashboard = useHarvestDashboardOptional()
   const [harvestTileUrl, setHarvestTileUrl] = useState<string | null>(null)
   const [harvestRasterOverlay, setHarvestRasterOverlay] = useState<HarvestRasterOverlay | null>(null)
@@ -95,6 +96,21 @@ function SlideFromLeftWorkspace({
   const [panelVisible, setPanelVisible] = useState(startsWithLateralPanel)
 
   const isHarvestModule = moduleKey === 'harvest' || moduleKey === 'production-harvest'
+
+  useEffect(() => {
+    setHarvestDrawMethod(harvestDrawMethodFromUrl)
+  }, [harvestDrawMethodFromUrl])
+
+  useEffect(() => {
+    const handleDrawMethodChange = (event: Event) => {
+      const method = (event as CustomEvent<{ method: 'vertex' | 'circle' }>).detail?.method
+      if (method === 'circle' || method === 'vertex') {
+        setHarvestDrawMethod(method)
+      }
+    }
+    window.addEventListener('harvest:field-draw-method-change', handleDrawMethodChange)
+    return () => window.removeEventListener('harvest:field-draw-method-change', handleDrawMethodChange)
+  }, [])
 
   useEffect(() => {
     if (!harvestCreateActive) {
