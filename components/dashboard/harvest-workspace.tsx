@@ -184,9 +184,10 @@ export function HarvestWorkspace() {
   const harvestCreateActive = searchParams.get('harvestCreate') === '1'
   const harvestDrawMethod = searchParams.get('harvestDraw') === 'circle' ? 'circle' : 'vertex'
   const selectedMapMetric = (searchParams.get('harvestMetric') || 'npp') as HarvestMetricKey
-  const activeMapMetric = pendingMapMetric ?? selectedMapMetric
   const mapGranularity = (searchParams.get('harvestGranularity') || 'season') as HarvestTrendGranularity
   const selectedPeriod = searchParams.get('harvestPeriod')
+  const [pendingMapMetric, setPendingMapMetric] = useState<HarvestMetricKey | null>(null)
+  const activeMapMetric = pendingMapMetric ?? selectedMapMetric
   const [nationalLoading, setNationalLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [analytics, setAnalytics] = useState<HarvestAnalyticsResponse | null>(null)
@@ -197,7 +198,6 @@ export function HarvestWorkspace() {
   const [fieldRasterLoading, setFieldRasterLoading] = useState(false)
   const [fieldStatsError, setFieldStatsError] = useState<string | null>(null)
   const [fieldRasterError, setFieldRasterError] = useState<string | null>(null)
-  const [pendingMapMetric, setPendingMapMetric] = useState<HarvestMetricKey | null>(null)
   const [trendGranularity, setTrendGranularity] = useState<HarvestTrendGranularity>('dekad')
   const [yieldTask, setYieldTask] = useState<HarvestTaskStatus | null>(null)
   const [yieldLoading, setYieldLoading] = useState(false)
