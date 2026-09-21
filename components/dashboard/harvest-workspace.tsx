@@ -247,14 +247,6 @@ export function HarvestWorkspace() {
     setCreateDrawMethod(harvestDrawMethod)
   }, [harvestDrawMethod])
 
-  useEffect(() => {
-    if (!harvestCreateActive) return
-    setFieldStats(null)
-    setFieldRaster(null)
-    setFieldRasterError(null)
-    dispatchRasterOverlay(null)
-  }, [dispatchRasterOverlay, harvestCreateActive])
-
   const loadNationalData = useCallback(async () => {
     if (parcelId || harvestCreateActive) {
       setAnalytics(null)
@@ -475,6 +467,14 @@ export function HarvestWorkspace() {
     },
     [revokeRasterBlobUrl]
   )
+
+  useEffect(() => {
+    if (!harvestCreateActive) return
+    setFieldStats(null)
+    setFieldRaster(null)
+    setFieldRasterError(null)
+    dispatchRasterOverlay(null)
+  }, [dispatchRasterOverlay, harvestCreateActive])
 
   const selectMapMetric = useCallback(
     (metric: HarvestMetricKey) => {
