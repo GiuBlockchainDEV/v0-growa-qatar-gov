@@ -359,52 +359,6 @@ export async function fetchHarvestRasterMeta({
         } catch (error) {
           lastError = error instanceof Error ? error : new Error('Harvest dekad raster unavailable')
         }
-
-        try {
-          return await fetchViewRasterMeta({
-            mode: tryMode,
-            parcelId,
-            seasonId: trySeasonId,
-            metric,
-            fieldPolygonBounds,
-          })
-        } catch (error) {
-          lastError = error instanceof Error ? error : new Error('Harvest view raster unavailable')
-        }
-      }
-    }
-  }
-
-  // Dekad-specific raster missing: fall back to season aggregate (maps often exist only at season level).
-  if (granularity === 'dekad') {
-    for (const trySeasonId of seasonsToTry) {
-      for (const tryMode of modesToTry) {
-        try {
-          const seasonMeta = await fetchDynamicRasterMeta({
-            mode: tryMode,
-            parcelId,
-            seasonId: trySeasonId,
-            metric,
-            granularity: 'season',
-            period: null,
-            fieldPolygonBounds,
-          })
-          return seasonMeta
-        } catch (error) {
-          lastError = error instanceof Error ? error : new Error('Harvest season raster fallback unavailable')
-        }
-
-        try {
-          return await fetchViewRasterMeta({
-            mode: tryMode,
-            parcelId,
-            seasonId: trySeasonId,
-            metric,
-            fieldPolygonBounds,
-          })
-        } catch (error) {
-          lastError = error instanceof Error ? error : new Error('Harvest season view fallback unavailable')
-        }
       }
     }
   }
