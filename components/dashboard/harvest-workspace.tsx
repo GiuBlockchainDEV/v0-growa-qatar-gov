@@ -31,6 +31,11 @@ import {
   IntelligenceWorkspaceRoot,
 } from '@/components/dashboard/intelligence-workspace-ui'
 import { useHarvestDashboard } from '@/contexts/harvest-dashboard-context'
+import {
+  HARVEST_METRIC_META,
+  formatHarvestMetricWithUnit,
+  harvestMetricColumnHeader,
+} from '@/lib/harvest/metrics'
 import type {
   HarvestAnalyticsField,
   HarvestAnalyticsResponse,
@@ -46,59 +51,14 @@ import type {
   HarvestTrendGranularity,
 } from '@/lib/harvest/types'
 
-const METRIC_LABELS: Record<HarvestMetricKey, { label: string; unit: string }> = {
-  aeti: { label: 'Water Consumption (AETI)', unit: 'm³' },
-  npp: { label: 'Net Primary Production', unit: '—' },
-  tbp: { label: 'Total Biomass Product', unit: 't' },
-  bwp: { label: 'Biomass Water Productivity', unit: 'kg/m³' },
-  rwd: { label: 'Relative Water Deficit', unit: '—' },
-  wcu: { label: 'Water Consumption Uniformity', unit: '%' },
-  cost: { label: 'Irrigation Cost', unit: 'QAR' },
-}
-
 const FIELD_KPI_METRICS: HarvestMetricKey[] = ['aeti', 'npp', 'tbp', 'bwp', 'rwd', 'wcu', 'cost']
 const MAP_METRICS: HarvestMetricKey[] = ['npp', 'aeti', 'tbp', 'bwp', 'rwd']
 const TREND_METRICS: HarvestMetricKey[] = ['aeti', 'npp', 'tbp', 'bwp', 'rwd', 'wcu', 'cost']
-
-function formatMetricValue(metric: HarvestMetricSummary) {
-  const value = metric.value
-  if (!Number.isFinite(value)) return '—'
-
-  if (metric.key === 'cost') {
-    return value.toLocaleString(undefined, { maximumFractionDigits: 0 })
-  }
-
-  if (metric.key === 'wcu') {
-    return `${value.toFixed(1)}%`
-  }
-
-  if (metric.agg === 'mean' || metric.key === 'bwp' || metric.key === 'rwd') {
-    return value.toFixed(2)
-  }
-
-  return value.toLocaleString(undefined, { maximumFractionDigits: 1 })
-}
 
 function formatArea(areaM2: number) {
   if (!Number.isFinite(areaM2)) return '—'
   const hectares = areaM2 / 10_000
   return `${hectares.toFixed(2)} ha`
-}
-
-function formatFieldMetric(value: number | undefined, key: HarvestMetricKey) {
-  if (value === undefined || !Number.isFinite(value)) return '—'
-  if (key === 'cost') return value.toLocaleString(undefined, { maximumFractionDigits: 0 })
-  if (key === 'wcu') return `${value.toFixed(1)}%`
-  if (key === 'bwp' || key === 'rwd') return value.toFixed(2)
-  return value.toLocaleString(undefined, { maximumFractionDigits: 1 })
-}
-
-function formatTimeseriesValue(value: number | undefined, key?: HarvestMetricKey) {
-  if (value === undefined || !Number.isFinite(value)) return '—'
-  if (key === 'wcu') return `${value.toFixed(1)}%`
-  if (key === 'cost') return value.toLocaleString(undefined, { maximumFractionDigits: 0 })
-  if (key === 'bwp' || key === 'rwd') return value.toFixed(2)
-  return value.toLocaleString(undefined, { maximumFractionDigits: 1 })
 }
 
 async function fetchJson<T>(url: string): Promise<{ data: T; isDemo: boolean }> {
@@ -152,7 +112,7 @@ function HarvestTrendBars({
       <div className="mb-2 flex items-center justify-between gap-2">
         <p className="text-xs font-medium text-foreground">{title}</p>
         <span className="text-[10px] uppercase tracking-wide text-muted-foreground">
-          {METRIC_LABELS[metric].unit}
+          {HARVEST_METRIC_META[metric].unit}
         </span>
       </div>
       <div className="space-y-1.5">
@@ -162,7 +122,7 @@ function HarvestTrendBars({
             <div key={`${metric}-${point.period}`} className="space-y-1">
               <div className="flex items-center justify-between text-[10px] text-muted-foreground">
                 <span className="truncate pr-2">{point.period}</span>
-                <span>{formatTimeseriesValue(point.value, metric)}</span>
+                <span>{formatHarvestMetricWithUnit(point.value, metric)}</span>
               </div>
               <div className="h-1.5 rounded-full bg-secondary/50">
                 <div className="h-1.5 rounded-full bg-primary/80" style={{ width: `${width}%` }} />
@@ -935,14 +895,14 @@ export function HarvestWorkspace() {
           {!isFieldDetailView ? (
             <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
               {headlineMetrics.map((metric, index) => {
-                const meta = METRIC_LABELS[metric.key]
+                const meta = HARVEST_METRIC_META[metric.key]
                 const icons = [Droplets, Leaf, TrendingUp, Target]
                 const Icon = icons[index] || Activity
                 return (
                   <IntelligenceKpiCard
                     key={metric.key}
                     label={meta.label}
-                    value={`${formatMetricValue(metric)} ${meta.unit}`.trim()}
+                    value={formatHarvestMetricWithUnit(metric.value, metric.key, { agg: metric.agg })}
                     icon={Icon}
                     accent={index === 0}
                     tone={index === 2 ? 'sky' : 'default'}
@@ -968,10 +928,10 @@ export function HarvestWorkspace() {
                     {FIELD_KPI_METRICS.map((key) => (
                       <div key={key} className="rounded-lg border border-border bg-secondary/20 px-3 py-2">
                         <p className="text-[10px] uppercase tracking-wide text-muted-foreground">
-                          {METRIC_LABELS[key].label}
+                          {HARVEST_METRIC_META[key].label}
                         </p>
                         <p className="mt-1 text-sm font-semibold text-foreground">
-                          {formatFieldMetric(activeField.metrics?.[key], key)}
+                          {formatHarvestMetricWithUnit(activeField.metrics?.[key], key)}
                         </p>
                       </div>
                     ))}
@@ -1029,7 +989,7 @@ export function HarvestWorkspace() {
                             : 'border-border bg-card text-muted-foreground hover:text-foreground'
                         }`}
                       >
-                        {METRIC_LABELS[metric].label}
+                        {`${HARVEST_METRIC_META[metric].label} (${HARVEST_METRIC_META[metric].unit})`}
                       </button>
                     ))}
                   </div>
@@ -1101,7 +1061,10 @@ export function HarvestWorkspace() {
                   ) : fieldRaster ? (
                     <div className="space-y-3 rounded-xl border border-primary/20 bg-primary/5 px-3 py-3">
                       <p className="text-xs text-foreground">
-                        <span className="font-medium">{METRIC_LABELS[fieldRaster.metric].label}</span>{' '}
+                        <span className="font-medium">
+                          {HARVEST_METRIC_META[fieldRaster.metric].label} (
+                          {HARVEST_METRIC_META[fieldRaster.metric].unit})
+                        </span>{' '}
                         is active on the satellite map at 50% opacity.
                       </p>
                       <div className="flex flex-wrap items-center gap-3 text-[11px] text-muted-foreground">
@@ -1163,7 +1126,7 @@ export function HarvestWorkspace() {
                     {TREND_METRICS.map((metric) => (
                       <HarvestTrendBars
                         key={`${trendGranularity}-${metric}`}
-                        title={METRIC_LABELS[metric].label}
+                        title={`${HARVEST_METRIC_META[metric].label} (${HARVEST_METRIC_META[metric].unit})`}
                         metric={metric}
                         points={fieldTrendSeries[metric] || []}
                       />
@@ -1191,9 +1154,9 @@ export function HarvestWorkspace() {
                     <th className="px-3 py-2.5 font-medium">Field</th>
                     <th className="px-3 py-2.5 font-medium">Crop</th>
                     <th className="px-3 py-2.5 font-medium">Area</th>
-                    <th className="px-3 py-2.5 font-medium">AETI</th>
-                    <th className="px-3 py-2.5 font-medium">TBP</th>
-                    <th className="px-3 py-2.5 font-medium">BWP</th>
+                    <th className="px-3 py-2.5 font-medium">{harvestMetricColumnHeader('aeti')}</th>
+                    <th className="px-3 py-2.5 font-medium">{harvestMetricColumnHeader('tbp')}</th>
+                    <th className="px-3 py-2.5 font-medium">{harvestMetricColumnHeader('bwp')}</th>
                     <th className="px-3 py-2.5 font-medium">Harvest</th>
                   </tr>
                 </IntelligenceTableHead>
@@ -1235,13 +1198,13 @@ export function HarvestWorkspace() {
                         <td className="px-3 py-2 text-muted-foreground">{field.crop}</td>
                         <td className="px-3 py-2 text-muted-foreground">{formatArea(field.area)}</td>
                         <td className="px-3 py-2 text-muted-foreground">
-                          {formatFieldMetric(field.metrics?.aeti, 'aeti')}
+                          {formatHarvestMetricWithUnit(field.metrics?.aeti, 'aeti')}
                         </td>
                         <td className="px-3 py-2 text-muted-foreground">
-                          {formatFieldMetric(field.metrics?.tbp, 'tbp')}
+                          {formatHarvestMetricWithUnit(field.metrics?.tbp, 'tbp')}
                         </td>
                         <td className="px-3 py-2 text-muted-foreground">
-                          {formatFieldMetric(field.metrics?.bwp, 'bwp')}
+                          {formatHarvestMetricWithUnit(field.metrics?.bwp, 'bwp')}
                         </td>
                         <td className="px-3 py-2 text-muted-foreground">{field.harvest_date}</td>
                       </tr>
@@ -1265,7 +1228,7 @@ export function HarvestWorkspace() {
                       <div key={point.period} className="space-y-1">
                         <div className="flex items-center justify-between text-[11px] text-muted-foreground">
                           <span>{point.period}</span>
-                          <span>{formatTimeseriesValue(point.value, 'aeti')}</span>
+                          <span>{formatHarvestMetricWithUnit(point.value, 'aeti')}</span>
                         </div>
                         <div className="h-2 rounded-full bg-secondary/50">
                           <div
