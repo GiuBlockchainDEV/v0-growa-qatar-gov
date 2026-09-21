@@ -80,7 +80,9 @@ interface SatelliteMapProps {
   harvestFocusBounds?: [[number, number], [number, number]] | null
   harvestFieldDrawActive?: boolean
   harvestFieldDrawMethod?: 'vertex' | 'circle'
+  harvestFieldRings?: PolygonVertex[][]
   harvestFieldVertices?: PolygonVertex[]
+  onHarvestFieldRingsChange?: (rings: PolygonVertex[][]) => void
   onHarvestFieldVerticesChange?: (vertices: PolygonVertex[]) => void
 }
 
@@ -598,7 +600,9 @@ export function SatelliteMap({
   harvestFocusBounds = null,
   harvestFieldDrawActive = false,
   harvestFieldDrawMethod = 'vertex',
+  harvestFieldRings = [],
   harvestFieldVertices = [],
+  onHarvestFieldRingsChange,
   onHarvestFieldVerticesChange,
 }: SatelliteMapProps) {
   const { user } = useAuth()
@@ -2157,6 +2161,11 @@ export function SatelliteMap({
       setHarvestShapeSeedVertex(null)
       return
     }
+    setHarvestShapeSeedVertex(null)
+  }, [harvestFieldDrawActive, harvestFieldDrawMethod])
+
+  useEffect(() => {
+    if (!harvestFieldDrawActive) return
     if (!mapReady || !mapInstanceRef.current) return
     const map = mapInstanceRef.current
 
@@ -2177,9 +2186,11 @@ export function SatelliteMap({
         return
       }
 
-      onHarvestFieldVerticesChange?.(
-        createCircleVertices(harvestShapeSeedVertex, vertex, circleSegments)
-      )
+      const circleRing = createCircleVertices(harvestShapeSeedVertex, vertex, circleSegments)
+      if (circleRing.length >= 3) {
+        onHarvestFieldRingsChange?.([...harvestFieldRings, circleRing])
+      }
+      onHarvestFieldVerticesChange?.([])
       setHarvestShapeSeedVertex(null)
     }
 
@@ -2204,9 +2215,11 @@ export function SatelliteMap({
     circleSegments,
     harvestFieldDrawActive,
     harvestFieldDrawMethod,
+    harvestFieldRings,
     harvestFieldVertices,
     harvestShapeSeedVertex,
     mapReady,
+    onHarvestFieldRingsChange,
     onHarvestFieldVerticesChange,
   ])
 
@@ -2220,32 +2233,48 @@ export function SatelliteMap({
     harvestDraftVertexInstancesRef.current.forEach((layer) => layer.remove?.())
     harvestDraftVertexInstancesRef.current = []
 
-    if (!harvestFieldDrawActive || harvestFieldVertices.length === 0) return
+    if (!harvestFieldDrawActive) return
+
+    const draftLayers: any[] = []
+
+    harvestFieldRings.forEach((ring) => {
+      if (ring.length < 3) return
+      draftLayers.push(
+        L.polygon(ring.map((vertex) => [vertex.lat, vertex.lng]), {
+          color: '#22c55e',
+          weight: 2,
+          opacity: 0.95,
+          fillColor: '#22c55e',
+          fillOpacity: 0.14,
+          interactive: false,
+        }).addTo(map)
+      )
+    })
 
     if (harvestFieldVertices.length >= 3) {
-      harvestDraftLayerRef.current = L.polygon(
-        harvestFieldVertices.map((vertex) => [vertex.lat, vertex.lng]),
-        {
+      draftLayers.push(
+        L.polygon(harvestFieldVertices.map((vertex) => [vertex.lat, vertex.lng]), {
           color: '#fbbf24',
           weight: 3,
           opacity: 0.95,
           fillColor: '#fbbf24',
           fillOpacity: 0.18,
           interactive: false,
-        }
-      ).addTo(map)
-    } else {
-      harvestDraftLayerRef.current = L.polyline(
-        harvestFieldVertices.map((vertex) => [vertex.lat, vertex.lng]),
-        {
+        }).addTo(map)
+      )
+    } else if (harvestFieldVertices.length > 0) {
+      draftLayers.push(
+        L.polyline(harvestFieldVertices.map((vertex) => [vertex.lat, vertex.lng]), {
           color: '#fbbf24',
           weight: 3,
           dashArray: '8 6',
           opacity: 0.95,
           interactive: false,
-        }
-      ).addTo(map)
+        }).addTo(map)
+      )
     }
+
+    harvestDraftLayerRef.current = L.layerGroup(draftLayers).addTo(map)
 
     harvestDraftVertexInstancesRef.current = harvestFieldVertices.map((vertex, index) =>
       L.circleMarker([vertex.lat, vertex.lng], {
@@ -2264,7 +2293,7 @@ export function SatelliteMap({
       harvestDraftVertexInstancesRef.current.forEach((layer) => layer.remove?.())
       harvestDraftVertexInstancesRef.current = []
     }
-  }, [harvestFieldDrawActive, harvestFieldVertices, mapReady])
+  }, [harvestFieldDrawActive, harvestFieldRings, harvestFieldVertices, mapReady])
 
   useEffect(() => {
     if (!isGrowaAdmin || !polygonDrawPointId) return

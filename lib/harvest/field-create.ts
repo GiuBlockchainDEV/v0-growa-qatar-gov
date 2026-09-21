@@ -1,5 +1,5 @@
 import type { LatLngVertex } from '@/lib/harvest/geojson'
-import { calculatePolygonAreaHectares, verticesToCreateGeoJson } from '@/lib/harvest/geojson'
+import { calculateRingsAreaHectares, ringsToCreateGeoJson } from '@/lib/harvest/geojson'
 
 export const MIN_FIELD_AREA_HECTARES = 1
 export const MAX_FIELD_AREA_HECTARES = 5000
@@ -34,7 +34,7 @@ export interface HarvestFieldCreateInput {
   crop_id: number | null
   start_date: string
   harvest_date: string
-  vertices: LatLngVertex[]
+  rings: LatLngVertex[][]
 }
 
 export function validateHarvestFieldCreateInput(input: HarvestFieldCreateInput) {
@@ -56,9 +56,10 @@ export function validateHarvestFieldCreateInput(input: HarvestFieldCreateInput) 
   if (input.harvest_date < MIN_START_DATE) return 'Harvest date cannot be before 2018-01-01.'
   if (input.harvest_date <= input.start_date) return 'Harvest date must be after start date.'
 
-  if (input.vertices.length < 3) return 'Draw a field boundary with at least 3 points.'
+  const validRings = input.rings.filter((ring) => ring.length >= 3)
+  if (validRings.length === 0) return 'Draw at least one field boundary with 3 or more points.'
 
-  const areaHa = calculatePolygonAreaHectares(input.vertices)
+  const areaHa = calculateRingsAreaHectares(validRings)
   if (areaHa < MIN_FIELD_AREA_HECTARES) {
     return `Field area must be at least ${MIN_FIELD_AREA_HECTARES} hectare.`
   }
@@ -78,6 +79,6 @@ export function buildHarvestCreateFieldPayload(input: HarvestFieldCreateInput) {
     crop_id: input.crop_id as number,
     start_date: input.start_date,
     harvest_date: input.harvest_date,
-    geojson: verticesToCreateGeoJson(input.vertices),
+    geojson: ringsToCreateGeoJson(input.rings.filter((ring) => ring.length >= 3)),
   }
 }

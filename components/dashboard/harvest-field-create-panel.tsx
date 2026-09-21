@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Circle, Loader2, MapPin, Pentagon, Plus, X } from 'lucide-react'
 import { IntelligencePanel } from '@/components/dashboard/intelligence-workspace-ui'
-import { calculatePolygonAreaHectares } from '@/lib/harvest/geojson'
+import { calculatePolygonAreaHectares, calculateRingsAreaHectares } from '@/lib/harvest/geojson'
 import {
   MAX_FIELD_AREA_HECTARES,
   MIN_FIELD_AREA_HECTARES,
@@ -22,9 +22,11 @@ type HarvestDrawMethod = 'vertex' | 'circle'
 
 interface HarvestFieldCreatePanelProps {
   drawMethod: HarvestDrawMethod
-  vertices: LatLngVertex[]
+  rings: LatLngVertex[][]
+  draftVertices: LatLngVertex[]
   onDrawMethodChange: (method: HarvestDrawMethod) => void
   onClearDraw: () => void
+  onFinishPolygon: () => void
   onCreated?: (parcelId: string, seasonId?: number) => void
 }
 
@@ -39,9 +41,11 @@ async function fetchJson<T>(url: string): Promise<T> {
 
 export function HarvestFieldCreatePanel({
   drawMethod,
-  vertices,
+  rings,
+  draftVertices,
   onDrawMethodChange,
   onClearDraw,
+  onFinishPolygon,
   onCreated,
 }: HarvestFieldCreatePanelProps) {
   const router = useRouter()
@@ -54,8 +58,13 @@ export function HarvestFieldCreatePanel({
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const areaHa = useMemo(() => calculatePolygonAreaHectares(vertices), [vertices])
+  const completedAreaHa = useMemo(() => calculateRingsAreaHectares(rings), [rings])
+  const draftAreaHa = useMemo(() => calculatePolygonAreaHectares(draftVertices), [draftVertices])
+  const totalAreaHa = completedAreaHa + draftAreaHa
+  const polygonCount = rings.length
   const latestStartDate = getLatestAllowedStartDate()
+  const hasDraftInProgress = draftVertices.length > 0
+  const canFinishPolygon = drawMethod === 'vertex' && draftVertices.length >= 3
 
   useEffect(() => {
     let cancelled = false
@@ -83,9 +92,9 @@ export function HarvestFieldCreatePanel({
         crop_id: cropId ? Number(cropId) : null,
         start_date: startDate,
         harvest_date: harvestDate,
-        vertices,
+        rings,
       }),
-    [cropId, harvestDate, name, startDate, vertices]
+    [cropId, harvestDate, name, rings, startDate]
   )
 
   const exitCreateMode = useCallback(() => {
@@ -95,6 +104,11 @@ export function HarvestFieldCreatePanel({
   }, [onClearDraw, router])
 
   const submitField = useCallback(async () => {
+    if (hasDraftInProgress) {
+      setError('Finish the current polygon or clear it before creating the field.')
+      return
+    }
+
     if (validationError) {
       setError(validationError)
       return
@@ -111,7 +125,7 @@ export function HarvestFieldCreatePanel({
           crop_id: Number(cropId),
           start_date: startDate,
           harvest_date: harvestDate,
-          vertices,
+          rings,
         }),
       })
       const payload = await response.json()
@@ -131,15 +145,18 @@ export function HarvestFieldCreatePanel({
     cropId,
     exitCreateMode,
     harvestDate,
+    hasDraftInProgress,
     name,
     onCreated,
+    rings,
     startDate,
     validationError,
-    vertices,
   ])
 
   const areaValid =
-    areaHa >= MIN_FIELD_AREA_HECTARES && areaHa <= MAX_FIELD_AREA_HECTARES && vertices.length >= 3
+    totalAreaHa >= MIN_FIELD_AREA_HECTARES &&
+    totalAreaHa <= MAX_FIELD_AREA_HECTARES &&
+    polygonCount >= 1
 
   return (
     <IntelligencePanel
@@ -185,26 +202,40 @@ export function HarvestFieldCreatePanel({
 
         <div className="rounded-lg border border-border bg-secondary/20 px-3 py-2 text-xs text-muted-foreground">
           {drawMethod === 'vertex'
-            ? 'Click on the map to add vertices. The polygon closes automatically when you create the field.'
-            : 'Click the circle center, move the mouse to set the radius, then click again to confirm.'}
+            ? 'Click on the map to add vertices. Use "Finish polygon" to save it, then draw more polygons in the same field.'
+            : 'Click the circle center, move the mouse to set the radius, then click again to confirm. You can add multiple circles.'}
         </div>
 
-        <div className="grid grid-cols-2 gap-2 text-xs">
+        <div className="grid grid-cols-3 gap-2 text-xs">
           <div className="rounded-lg border border-border bg-card/70 px-3 py-2">
-            <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Vertices</p>
-            <p className="mt-1 font-semibold text-foreground">{vertices.length}</p>
+            <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Polygons</p>
+            <p className="mt-1 font-semibold text-foreground">{polygonCount}</p>
+          </div>
+          <div className="rounded-lg border border-border bg-card/70 px-3 py-2">
+            <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Draft pts</p>
+            <p className="mt-1 font-semibold text-foreground">{draftVertices.length}</p>
           </div>
           <div className="rounded-lg border border-border bg-card/70 px-3 py-2">
             <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Area</p>
             <p className={`mt-1 font-semibold ${areaValid ? 'text-foreground' : 'text-amber-300'}`}>
-              {vertices.length >= 3 ? `${areaHa.toFixed(2)} ha` : '—'}
+              {polygonCount > 0 || draftVertices.length >= 3 ? `${totalAreaHa.toFixed(2)} ha` : '—'}
             </p>
           </div>
         </div>
 
+        {canFinishPolygon ? (
+          <button
+            type="button"
+            onClick={onFinishPolygon}
+            className="w-full rounded-lg border border-primary/30 bg-primary/10 px-3 py-2 text-xs font-medium text-primary hover:bg-primary/15"
+          >
+            Finish polygon and add another
+          </button>
+        ) : null}
+
         <p className="text-[11px] text-muted-foreground">
           Constraints: start date at least {START_DATE_LOOKBACK_DAYS} days before today (latest{' '}
-          {latestStartDate}), area between {MIN_FIELD_AREA_HECTARES} and {MAX_FIELD_AREA_HECTARES} ha.
+          {latestStartDate}), total area between {MIN_FIELD_AREA_HECTARES} and {MAX_FIELD_AREA_HECTARES} ha.
         </p>
 
         <div className="space-y-3">
@@ -271,7 +302,7 @@ export function HarvestFieldCreatePanel({
           <button
             type="button"
             onClick={() => void submitField()}
-            disabled={submitting || Boolean(validationError)}
+            disabled={submitting || Boolean(validationError) || hasDraftInProgress}
             className="inline-flex flex-1 items-center justify-center gap-2 rounded-lg border border-primary/30 bg-primary/10 px-3 py-2 text-xs font-medium text-primary disabled:cursor-not-allowed disabled:opacity-50"
           >
             {submitting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <MapPin className="h-3.5 w-3.5" />}

@@ -224,21 +224,44 @@ export function closePolygonRing(vertices: LatLngVertex[]): LatLngVertex[] {
   return [...vertices, first]
 }
 
-export function verticesToCreateGeoJson(vertices: LatLngVertex[]) {
-  const ring = closePolygonRing(vertices)
+export function calculateRingsAreaHectares(rings: LatLngVertex[][]): number {
+  return rings.reduce((total, ring) => total + calculatePolygonAreaHectares(ring), 0)
+}
+
+export function ringsToCreateGeoJson(rings: LatLngVertex[][]) {
+  const closedRings = rings
+    .filter((ring) => ring.length >= 3)
+    .map((ring) => closePolygonRing(ring))
+
+  if (closedRings.length === 0) {
+    throw new Error('At least one polygon ring is required.')
+  }
+
+  const coordinates = closedRings.map((ring) => [ring.map((vertex) => [vertex.lng, vertex.lat])])
+
   return {
     type: 'FeatureCollection',
     features: [
       {
         type: 'Feature',
         properties: {},
-        geometry: {
-          type: 'Polygon',
-          coordinates: [ring.map((vertex) => [vertex.lng, vertex.lat])],
-        },
+        geometry:
+          closedRings.length === 1
+            ? {
+                type: 'Polygon',
+                coordinates: coordinates[0],
+              }
+            : {
+                type: 'MultiPolygon',
+                coordinates,
+              },
       },
     ],
   }
+}
+
+export function verticesToCreateGeoJson(vertices: LatLngVertex[]) {
+  return ringsToCreateGeoJson([vertices])
 }
 
 export function createRectangleRing(

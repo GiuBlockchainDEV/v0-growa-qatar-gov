@@ -2,7 +2,7 @@ import { shouldUseHarvestDemo } from '@/lib/harvest/config'
 import { parseHarvestFieldStatsCsv } from '@/lib/harvest/csv-stats'
 import { computeCentroid, createRectangleRing } from '@/lib/harvest/geojson'
 import { buildDemoRasterMeta, buildDemoRasterSvg } from '@/lib/harvest/raster'
-import { calculatePolygonAreaHectares } from '@/lib/harvest/geojson'
+import { calculateRingsAreaHectares } from '@/lib/harvest/geojson'
 import type {
   HarvestAnalyticsField,
   HarvestAnalyticsResponse,
@@ -96,13 +96,13 @@ export function createDemoField({
   cropId,
   startDate,
   harvestDate,
-  vertices,
+  rings,
 }: {
   name: string
   cropId: number
   startDate: string
   harvestDate: string
-  vertices: LatLngVertex[]
+  rings: LatLngVertex[][]
 }): HarvestCreateFieldResponse {
   const parcelId =
     typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
@@ -113,7 +113,8 @@ export function createDemoField({
     DEMO_CROPS.find((entry) => entry.id === cropId) ||
     ({ id: cropId, name: 'custom crop', field_type: 'open_field', cultivation_method: 'soil' } satisfies HarvestCropOption)
 
-  const areaM2 = Math.round(calculatePolygonAreaHectares(vertices) * 10_000)
+  const validRings = rings.filter((ring) => ring.length >= 3)
+  const areaM2 = Math.round(calculateRingsAreaHectares(validRings) * 10_000)
   const field: HarvestAnalyticsField = {
     parcel_id: parcelId,
     season_id: seasonId,
@@ -135,8 +136,8 @@ export function createDemoField({
   }
 
   createdDemoFields.push(field)
-  createdDemoRings.set(parcelId, [vertices])
-  DEMO_PARCEL_RINGS[parcelId] = [vertices]
+  createdDemoRings.set(parcelId, validRings)
+  DEMO_PARCEL_RINGS[parcelId] = validRings
 
   return {
     parcel_id: parcelId,

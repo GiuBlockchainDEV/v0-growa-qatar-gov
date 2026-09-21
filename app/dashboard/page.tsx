@@ -88,7 +88,8 @@ function SlideFromLeftWorkspace({
   const [harvestFocusBounds, setHarvestFocusBounds] = useState<[[number, number], [number, number]] | null>(
     null
   )
-  const [harvestFieldVertices, setHarvestFieldVertices] = useState<LatLngVertex[]>([])
+  const [harvestFieldRings, setHarvestFieldRings] = useState<LatLngVertex[][]>([])
+  const [harvestFieldDraftVertices, setHarvestFieldDraftVertices] = useState<LatLngVertex[]>([])
   const startsWithLateralPanel =
     moduleKey === 'weather' || moduleKey === 'harvest' || moduleKey === 'production-harvest'
   const [panelVisible, setPanelVisible] = useState(startsWithLateralPanel)
@@ -97,7 +98,8 @@ function SlideFromLeftWorkspace({
 
   useEffect(() => {
     if (!harvestCreateActive) {
-      setHarvestFieldVertices([])
+      setHarvestFieldRings([])
+      setHarvestFieldDraftVertices([])
       return
     }
     setHarvestRasterOverlay(null)
@@ -109,17 +111,36 @@ function SlideFromLeftWorkspace({
     window.dispatchEvent(
       new CustomEvent('harvest:field-draw-update', {
         detail: {
-          vertices: harvestFieldVertices,
-          drawMethod: harvestDrawMethod,
+          rings: harvestFieldRings,
+          draft: harvestFieldDraftVertices,
         },
       })
     )
-  }, [harvestDrawMethod, harvestFieldVertices, isHarvestModule])
+  }, [harvestFieldDraftVertices, harvestFieldRings, isHarvestModule])
 
   useEffect(() => {
-    const handleClearDraw = () => setHarvestFieldVertices([])
+    const handleClearDraw = () => {
+      setHarvestFieldRings([])
+      setHarvestFieldDraftVertices([])
+    }
+    const handleClearDraft = () => {
+      setHarvestFieldDraftVertices([])
+    }
+    const handleFinishPolygon = () => {
+      setHarvestFieldDraftVertices((draft) => {
+        if (draft.length < 3) return draft
+        setHarvestFieldRings((current) => [...current, draft])
+        return []
+      })
+    }
     window.addEventListener('harvest:field-draw-clear', handleClearDraw)
-    return () => window.removeEventListener('harvest:field-draw-clear', handleClearDraw)
+    window.addEventListener('harvest:field-draw-clear-draft', handleClearDraft)
+    window.addEventListener('harvest:field-draw-finish-polygon', handleFinishPolygon)
+    return () => {
+      window.removeEventListener('harvest:field-draw-clear', handleClearDraw)
+      window.removeEventListener('harvest:field-draw-clear-draft', handleClearDraft)
+      window.removeEventListener('harvest:field-draw-finish-polygon', handleFinishPolygon)
+    }
   }, [])
 
   useEffect(() => {
@@ -257,8 +278,10 @@ function SlideFromLeftWorkspace({
           harvestFocusBounds={isHarvestModule && !harvestCreateActive ? harvestFocusBounds : null}
           harvestFieldDrawActive={isHarvestModule && harvestCreateActive}
           harvestFieldDrawMethod={harvestDrawMethod}
-          harvestFieldVertices={harvestFieldVertices}
-          onHarvestFieldVerticesChange={setHarvestFieldVertices}
+          harvestFieldRings={harvestFieldRings}
+          harvestFieldVertices={harvestFieldDraftVertices}
+          onHarvestFieldRingsChange={setHarvestFieldRings}
+          onHarvestFieldVerticesChange={setHarvestFieldDraftVertices}
           onHarvestFieldClick={
             isHarvestModule && harvestDashboard && !harvestCreateActive
               ? (field) => harvestDashboard.selectField(field)

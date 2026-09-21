@@ -12,14 +12,18 @@ export async function POST(request: Request) {
 
   try {
     const body = await request.json()
-    const vertices = Array.isArray(body?.vertices) ? (body.vertices as LatLngVertex[]) : []
+    const rings = Array.isArray(body?.rings)
+      ? (body.rings as LatLngVertex[][]).filter((ring) => Array.isArray(ring))
+      : Array.isArray(body?.vertices) && body.vertices.length >= 3
+        ? [body.vertices as LatLngVertex[]]
+        : []
 
     const payload = buildHarvestCreateFieldPayload({
       name: typeof body?.name === 'string' ? body.name : '',
       crop_id: typeof body?.crop_id === 'number' ? body.crop_id : Number(body?.crop_id),
       start_date: typeof body?.start_date === 'string' ? body.start_date : '',
       harvest_date: typeof body?.harvest_date === 'string' ? body.harvest_date : '',
-      vertices,
+      rings,
     })
 
     if (access.demoMode) {
@@ -28,7 +32,7 @@ export async function POST(request: Request) {
         cropId: payload.crop_id,
         startDate: payload.start_date,
         harvestDate: payload.harvest_date,
-        vertices,
+        rings,
       })
       return harvestJsonResponse(created, true)
     }

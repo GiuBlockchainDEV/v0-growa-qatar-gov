@@ -205,8 +205,8 @@ export function HarvestWorkspace() {
   const [collectingTasks, setCollectingTasks] = useState<
     Array<{ parcel_id: string; season_id: number; task_id: string }>
   >([])
-  const [createVertices, setCreateVertices] = useState<LatLngVertex[]>([])
-  const [createDrawMethod, setCreateDrawMethod] = useState<'vertex' | 'circle'>(harvestDrawMethod)
+  const [createRings, setCreateRings] = useState<LatLngVertex[][]>([])
+  const [createDraftVertices, setCreateDraftVertices] = useState<LatLngVertex[]>([])
   const rasterBlobUrlRef = useRef<string | null>(null)
   const rasterLoadSeqRef = useRef(0)
   const fieldDetailSeqRef = useRef(0)
@@ -234,18 +234,14 @@ export function HarvestWorkspace() {
 
   useEffect(() => {
     const handleDrawUpdate = (event: Event) => {
-      const detail = (event as CustomEvent<{ vertices: LatLngVertex[]; drawMethod: 'vertex' | 'circle' }>).detail
+      const detail = (event as CustomEvent<{ rings: LatLngVertex[][]; draft: LatLngVertex[] }>).detail
       if (!detail) return
-      setCreateVertices(detail.vertices || [])
-      setCreateDrawMethod(detail.drawMethod === 'circle' ? 'circle' : 'vertex')
+      setCreateRings(Array.isArray(detail.rings) ? detail.rings : [])
+      setCreateDraftVertices(Array.isArray(detail.draft) ? detail.draft : [])
     }
     window.addEventListener('harvest:field-draw-update', handleDrawUpdate)
     return () => window.removeEventListener('harvest:field-draw-update', handleDrawUpdate)
   }, [])
-
-  useEffect(() => {
-    setCreateDrawMethod(harvestDrawMethod)
-  }, [harvestDrawMethod])
 
   const loadNationalData = useCallback(async () => {
     if (parcelId || harvestCreateActive) {
@@ -689,13 +685,22 @@ export function HarvestWorkspace() {
 
   const updateCreateDrawMethod = useCallback(
     (method: 'vertex' | 'circle') => {
+      if (harvestCreateActive) {
+        updateHarvestMapParams({ harvestDraw: method })
+        window.dispatchEvent(new Event('harvest:field-draw-clear-draft'))
+        return
+      }
       startFieldCreate(method)
     },
-    [startFieldCreate]
+    [harvestCreateActive, startFieldCreate, updateHarvestMapParams]
   )
 
   const clearCreateDraw = useCallback(() => {
     window.dispatchEvent(new Event('harvest:field-draw-clear'))
+  }, [])
+
+  const finishCreatePolygon = useCallback(() => {
+    window.dispatchEvent(new Event('harvest:field-draw-finish-polygon'))
   }, [])
 
   const headlineMetrics = useMemo(() => {
@@ -887,10 +892,12 @@ export function HarvestWorkspace() {
 
       {harvestCreateActive ? (
         <HarvestFieldCreatePanel
-          drawMethod={createDrawMethod}
-          vertices={createVertices}
+          drawMethod={harvestDrawMethod}
+          rings={createRings}
+          draftVertices={createDraftVertices}
           onDrawMethodChange={updateCreateDrawMethod}
           onClearDraw={clearCreateDraw}
+          onFinishPolygon={finishCreatePolygon}
           onCreated={handleFieldCreated}
         />
       ) : null}
