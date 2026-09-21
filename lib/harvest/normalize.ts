@@ -59,16 +59,79 @@ export function normalizeMetricSummary(raw: unknown): HarvestMetricSummary | nul
   return { key, agg, value, field_count: fieldCount }
 }
 
+const METRIC_ALIASES: Partial<Record<string, HarvestMetricKey>> = {
+  water_consumption: 'aeti',
+  water_consumption_m3: 'aeti',
+  total_biomass_product: 'tbp',
+  biomass_product: 'tbp',
+  biomass_water_productivity: 'bwp',
+}
+
+function normalizeMetricsArray(raw: unknown): HarvestFieldMetrics {
+  if (!Array.isArray(raw)) return {}
+
+  const metrics: HarvestFieldMetrics = {}
+  for (const entry of raw) {
+    const summary = normalizeMetricSummary(entry)
+    if (summary) metrics[summary.key] = summary.value
+  }
+  return metrics
+}
+
+function normalizeFieldMetricsFromRecord(record: Record<string, unknown>): HarvestFieldMetrics {
+  const metrics: HarvestFieldMetrics = {}
+
+  for (const key of METRIC_KEYS) {
+    const directValue = pickNumber(record, [
+      key,
+      `${key}_sum`,
+      `${key}_mean`,
+      `${key}_value`,
+      key.toUpperCase(),
+    ])
+    if (directValue !== undefined) {
+      metrics[key] = directValue
+      continue
+    }
+
+    const nested = record[key]
+    const nestedRecord = asRecord(nested)
+    if (nestedRecord) {
+      const nestedValue = pickNumber(nestedRecord, ['value', 'sum', 'mean', 'total', 'metric_value'])
+      if (nestedValue !== undefined) metrics[key] = nestedValue
+    }
+  }
+
+  for (const [alias, target] of Object.entries(METRIC_ALIASES)) {
+    if (metrics[target] !== undefined) continue
+    const aliasValue = pickNumber(record, [alias, `${alias}_sum`, `${alias}_mean`, `${alias}_value`])
+    if (aliasValue !== undefined) metrics[target] = aliasValue
+  }
+
+  return metrics
+}
+
 function normalizeFieldMetrics(raw: unknown): HarvestFieldMetrics {
+  if (Array.isArray(raw)) return normalizeMetricsArray(raw)
+
   const record = asRecord(raw)
   if (!record) return {}
 
-  const metrics: HarvestFieldMetrics = {}
-  for (const key of METRIC_KEYS) {
-    const value = pickNumber(record, [key, `${key}_sum`, `${key}_mean`, `${key}_value`])
-    if (value !== undefined) metrics[key] = value
+  if (Array.isArray(record.metrics)) {
+    return {
+      ...normalizeFieldMetricsFromRecord(record),
+      ...normalizeMetricsArray(record.metrics),
+    }
   }
-  return metrics
+
+  if (Array.isArray(record.values)) {
+    return {
+      ...normalizeFieldMetricsFromRecord(record),
+      ...normalizeMetricsArray(record.values),
+    }
+  }
+
+  return normalizeFieldMetricsFromRecord(record)
 }
 
 function normalizeSeasonRecord(raw: unknown) {

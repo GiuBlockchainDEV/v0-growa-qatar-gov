@@ -829,7 +829,11 @@ export function HarvestWorkspace() {
         }
         icon={Sprout}
         statusItems={[
-          { label: 'Mode', value: mode === 'current' ? 'Observed' : 'Forecast', accent: true },
+          {
+            label: 'View',
+            value: mode === 'current' ? 'Observed (current)' : 'Forecast (predict)',
+            accent: true,
+          },
           { label: 'Fields', value: String(fields.length) },
           {
             label: 'Source',
@@ -849,7 +853,8 @@ export function HarvestWorkspace() {
         </button>
       ) : null}
 
-      <div className="flex flex-wrap items-center gap-2">
+      <div className="space-y-2">
+        <div className="flex flex-wrap items-center gap-2">
         <button
           type="button"
           onClick={() => updateMode('current')}
@@ -859,7 +864,7 @@ export function HarvestWorkspace() {
               : 'border-border bg-card text-muted-foreground hover:text-foreground'
           }`}
         >
-          Current
+          Observed
         </button>
         <button
           type="button"
@@ -870,7 +875,7 @@ export function HarvestWorkspace() {
               : 'border-border bg-card text-muted-foreground hover:text-foreground'
           }`}
         >
-          Predict
+          Forecast
         </button>
         <button
           type="button"
@@ -892,6 +897,12 @@ export function HarvestWorkspace() {
           <RefreshCw className="h-3.5 w-3.5" />
           Refresh
         </button>
+        </div>
+        <p className="text-[11px] text-muted-foreground">
+          {mode === 'current'
+            ? 'Observed shows satellite-derived values recorded to date for each field.'
+            : 'Forecast projects end-of-season values using the predict model (falls back to observed data when forecast is unavailable).'}
+        </p>
       </div>
 
       {loading && !harvestCreateActive ? (
@@ -1157,7 +1168,15 @@ export function HarvestWorkspace() {
 
           {!isFieldDetailView ? (
           <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1.4fr)_minmax(0,0.9fr)]">
-            <IntelligencePanel title="Open-field registry" subtitle="Harvest entities with analytics metrics" icon={Leaf}>
+            <IntelligencePanel
+              title="Open-field registry"
+              subtitle={
+                mode === 'current'
+                  ? 'Observed AETI, TBP, and BWP per field'
+                  : 'Forecast AETI, TBP, and BWP per field'
+              }
+              icon={Leaf}
+            >
               <IntelligenceDataTable>
                 <IntelligenceTableHead>
                   <tr>
@@ -1183,16 +1202,7 @@ export function HarvestWorkspace() {
                       return (
                       <tr
                         key={`${field.parcel_id}-${field.season_id || index}`}
-                        onClick={() => selectField(field)}
-                        onKeyDown={(event) => {
-                          if (event.key === 'Enter' || event.key === ' ') {
-                            event.preventDefault()
-                            selectField(field)
-                          }
-                        }}
-                        tabIndex={0}
-                        role="button"
-                        className={`relative cursor-pointer text-sm transition-colors hover:bg-primary/10 ${
+                        className={`text-sm transition-colors hover:bg-primary/10 ${
                           parcelId === field.parcel_id
                             ? 'bg-primary/10'
                             : index % 2 === 0
@@ -1200,14 +1210,14 @@ export function HarvestWorkspace() {
                               : 'bg-secondary/20'
                         }`}
                       >
-                        <td className="relative px-3 py-2 font-medium text-foreground">
+                        <td className="px-3 py-2 font-medium text-foreground">
                           <Link
                             href={fieldHref}
                             scroll={false}
-                            className="absolute inset-0 z-10"
-                            aria-label={`Open ${field.name}`}
-                          />
-                          <span className="relative z-0">{field.name}</span>
+                            className="hover:text-primary hover:underline"
+                          >
+                            {field.name}
+                          </Link>
                           {collectingTasks.some((entry) => entry.parcel_id === field.parcel_id) ? (
                             <span className="ml-2 rounded-full bg-amber-500/15 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-amber-300">
                               Collecting

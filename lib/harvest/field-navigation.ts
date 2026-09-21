@@ -68,6 +68,15 @@ export function applyHarvestFieldSelectionToParams(
 
 export const HARVEST_NATIONAL_DASHBOARD_PATH = '/dashboard?module=harvest'
 
+export function buildHarvestNationalDashboardUrl(mode?: HarvestMode) {
+  const params = new URLSearchParams()
+  params.set('module', 'harvest')
+  if (mode === 'predict') {
+    params.set('harvestMode', 'predict')
+  }
+  return `/dashboard?${params.toString()}`
+}
+
 export function buildHarvestCreateDashboardUrl(
   drawMethod: 'vertex' | 'circle' = 'vertex',
   mode?: HarvestMode

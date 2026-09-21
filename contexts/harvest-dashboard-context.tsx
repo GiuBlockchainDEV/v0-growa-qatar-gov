@@ -15,8 +15,8 @@ import { deduplicateHarvestCatalogFields, resolveCatalogField } from '@/lib/harv
 import {
   buildHarvestCreateDashboardUrl,
   buildHarvestFieldDashboardUrl,
+  buildHarvestNationalDashboardUrl,
   defaultHarvestFieldNavOptions,
-  HARVEST_NATIONAL_DASHBOARD_PATH,
   resolveHarvestParcelId,
   type HarvestFieldNavTarget,
 } from '@/lib/harvest/field-navigation'
@@ -90,6 +90,11 @@ export function HarvestDashboardProvider({ children }: { children: ReactNode }) 
   const [mode, setModeState] = useState<HarvestMode>(
     searchParams.get('harvestMode') === 'predict' ? 'predict' : 'current'
   )
+
+  useEffect(() => {
+    const urlMode = searchParams.get('harvestMode') === 'predict' ? 'predict' : 'current'
+    setModeState(urlMode)
+  }, [searchParams])
   const [fields, setFields] = useState<HarvestAnalyticsField[]>([])
   const [mapFields, setMapFields] = useState<HarvestMapField[]>([])
   const [catalogLoading, setCatalogLoading] = useState(true)
@@ -279,10 +284,10 @@ export function HarvestDashboardProvider({ children }: { children: ReactNode }) 
   )
 
   const clearFieldSelection = useCallback(() => {
-    router.replace(HARVEST_NATIONAL_DASHBOARD_PATH)
+    router.replace(buildHarvestNationalDashboardUrl(mode), { scroll: false })
     setHydratedField(null)
     setMetricOverlay({})
-  }, [router])
+  }, [mode, router])
 
   const startFieldCreate = useCallback(
     (drawMethod: 'vertex' | 'circle' = 'vertex') => {
@@ -308,8 +313,17 @@ export function HarvestDashboardProvider({ children }: { children: ReactNode }) 
 
   const mergeFieldMetrics = useCallback(
     (parcelIdForStats: string, metrics: HarvestFieldMetrics) => {
-      if (!parcelId || parcelIdForStats !== parcelId) return
       if (Object.keys(metrics).length === 0) return
+
+      setFields((current) =>
+        current.map((field) =>
+          field.parcel_id === parcelIdForStats
+            ? { ...field, metrics: { ...field.metrics, ...metrics } }
+            : field
+        )
+      )
+
+      if (!parcelId || parcelIdForStats !== parcelId) return
 
       setMetricOverlay((current) => {
         const hasChanges = FIELD_KPI_METRICS.some(

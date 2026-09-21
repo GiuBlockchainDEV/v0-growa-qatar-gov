@@ -1,10 +1,37 @@
 import { requireHarvestAccess, harvestErrorResponse } from '@/lib/harvest/auth'
 import { harvestGetAnalyticsFields, harvestGetAllFields } from '@/lib/harvest/client'
 import { getDemoAnalyticsFields } from '@/lib/harvest/demo-data'
+import { enrichHarvestFieldsWithStats } from '@/lib/harvest/field-metrics'
 import { mergeHarvestFieldsWithAnalytics } from '@/lib/harvest/merge-fields'
+import { harvestAnalyticsModesToTry } from '@/lib/harvest/mode-resolve'
 import { normalizePaginatedFieldsResponse } from '@/lib/harvest/normalize'
 import { harvestJsonResponse, resolveHarvestPayload } from '@/lib/harvest/resolve'
 import type { HarvestMode } from '@/lib/harvest/types'
+
+async function loadAnalyticsFields(mode: HarvestMode) {
+  let lastError: unknown = null
+
+  for (const analyticsMode of harvestAnalyticsModesToTry(mode)) {
+    try {
+      const analyticsFieldsRaw = await harvestGetAnalyticsFields({
+        mode: analyticsMode,
+        page: '1',
+        perpage: '500',
+        sort: 'name',
+        order: 'asc',
+      })
+      const analyticsFields = normalizePaginatedFieldsResponse(analyticsFieldsRaw)
+      if (analyticsFields.results.length > 0) {
+        return analyticsFields
+      }
+    } catch (error) {
+      lastError = error
+    }
+  }
+
+  if (lastError) throw lastError
+  return { total: 0, results: [] }
+}
 
 export async function GET(request: Request) {
   const access = await requireHarvestAccess()
@@ -33,7 +60,7 @@ export async function GET(request: Request) {
           )
         }
 
-        const [allFieldsRaw, analyticsFieldsRaw] = await Promise.all([
+        const [allFieldsRaw, analyticsFields] = await Promise.all([
           harvestGetAllFields({
             name: searchParams.get('name') || undefined,
             crop_id: searchParams.get('crop_id') || undefined,
@@ -42,21 +69,16 @@ export async function GET(request: Request) {
             sort_by: searchParams.get('sort_by') || undefined,
             sort_dir: searchParams.get('sort_dir') || undefined,
           }),
-          harvestGetAnalyticsFields({
-            mode,
-            page: '1',
-            perpage: '500',
-            sort: 'name',
-            order: 'asc',
-          }).catch(() => ({ results: [] })),
+          loadAnalyticsFields(mode),
         ])
 
         const allFields = normalizePaginatedFieldsResponse(allFieldsRaw)
-        const analyticsFields = normalizePaginatedFieldsResponse(analyticsFieldsRaw)
+        const merged = mergeHarvestFieldsWithAnalytics(allFields.results, analyticsFields.results)
+        const enriched = await enrichHarvestFieldsWithStats(merged, mode)
 
         return {
           total: allFields.total,
-          results: mergeHarvestFieldsWithAnalytics(allFields.results, analyticsFields.results),
+          results: enriched,
         }
       },
       fetchDemo: () => getDemoAnalyticsFields(mode),

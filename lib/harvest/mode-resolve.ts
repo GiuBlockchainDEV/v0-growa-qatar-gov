@@ -12,3 +12,8 @@ export function harvestStatsModesToTry(mode: HarvestMode): HarvestMode[] {
   if (mode === 'predict') return ['current', 'predict']
   return ['current']
 }
+
+export function harvestAnalyticsModesToTry(mode: HarvestMode): HarvestMode[] {
+  if (mode === 'predict') return ['predict', 'current']
+  return ['current']
+}
