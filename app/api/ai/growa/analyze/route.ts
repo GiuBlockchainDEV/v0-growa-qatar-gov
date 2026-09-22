@@ -1,6 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { generateGrowaAnalysis } from '@/lib/ai/growa'
-import type { GrowaAnalyzeRequest, GrowaModule } from '@/lib/ai/growa-types'
+import type { GrowaAnalyzeRequest, GrowaChatMessage, GrowaModule } from '@/lib/ai/growa-types'
 import { NextResponse } from 'next/server'
 
 const ALLOWED_MODULES = new Set<GrowaModule>([
@@ -17,6 +17,26 @@ function isGrowaModule(value: unknown): value is GrowaModule {
 function normalizePrompt(input: unknown) {
   if (typeof input !== 'string') return ''
   return input.trim().slice(0, 4000)
+}
+
+function normalizeMessages(input: unknown): GrowaChatMessage[] | undefined {
+  if (!Array.isArray(input)) return undefined
+
+  const messages = input
+    .filter(
+      (entry): entry is GrowaChatMessage =>
+        Boolean(entry) &&
+        typeof entry === 'object' &&
+        (entry.role === 'user' || entry.role === 'assistant') &&
+        typeof entry.content === 'string' &&
+        entry.content.trim().length > 0
+    )
+    .map((entry) => ({
+      role: entry.role,
+      content: entry.content.trim().slice(0, 12000),
+    }))
+
+  return messages.length > 0 ? messages : undefined
 }
 
 export async function POST(request: Request) {
@@ -41,6 +61,7 @@ export async function POST(request: Request) {
   const module = payload.module
   const prompt = normalizePrompt(payload.prompt)
   const context = payload.context
+  const messages = normalizeMessages(payload.messages)
 
   if (!isGrowaModule(module)) {
     return NextResponse.json({ error: 'Invalid or missing module' }, { status: 400 })
@@ -63,6 +84,7 @@ export async function POST(request: Request) {
           ...context,
           module,
         },
+        messages,
       },
       { request }
     )

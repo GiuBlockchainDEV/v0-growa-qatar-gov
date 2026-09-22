@@ -216,10 +216,16 @@ export function isFarmGrowaContext(context: GrowaAnalysisContext): context is Gr
   return context.module !== 'harvest'
 }
 
+export interface GrowaChatMessage {
+  role: 'user' | 'assistant'
+  content: string
+}
+
 export interface GrowaAnalyzeRequest {
   module: GrowaModule
   prompt: string
   context: GrowaAnalysisContext
+  messages?: GrowaChatMessage[]
 }
 
 export interface GrowaAnalyzeResponse {
