@@ -4,7 +4,7 @@ import { ArrowRight, MapPin } from 'lucide-react'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
 import type { IntelligenceSignal } from '@/lib/domain/types'
-import { navigateToSignal } from '@/lib/dashboard/operational-navigation'
+import { navigateToSignal, navigateToSignalOnMap } from '@/lib/dashboard/operational-navigation'
 import { cn } from '@/lib/utils'
 
 const SEVERITY_STYLES: Record<IntelligenceSignal['severity'], string> = {
@@ -33,6 +33,7 @@ export function WatchtowerSignalQueue({ signals }: SignalQueueProps) {
     <div className="space-y-2">
       {signals.slice(0, 8).map((signal) => {
         const href = navigateToSignal(searchParams, signal)
+        const mapHref = navigateToSignalOnMap(searchParams, signal)
         const entityCount =
           signal.farmIds?.length || signal.pointIds?.length || signal.parcelIds?.length || 0
 
@@ -78,6 +79,13 @@ export function WatchtowerSignalQueue({ signals }: SignalQueueProps) {
               </div>
             </div>
             <div className="mt-3 flex flex-wrap gap-2">
+              <Link
+                href={mapHref}
+                className="inline-flex items-center gap-1 rounded-md bg-[#07f880]/15 px-2.5 py-1 text-[11px] font-medium text-[#07f880] hover:bg-[#07f880]/25 transition-colors"
+              >
+                <MapPin className="h-3 w-3" />
+                View on map
+              </Link>
               <Link
                 href={href}
                 className="inline-flex items-center gap-1 rounded-md bg-white/10 px-2.5 py-1 text-[11px] font-medium text-white hover:bg-white/15 transition-colors"

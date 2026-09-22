@@ -1,6 +1,6 @@
 import { GoogleGenerativeAI, type Part } from '@google/generative-ai'
 import type { GrowaAnalyzeRequest } from './growa-types'
-import { isHarvestGrowaContext } from './growa-types'
+import { isHarvestGrowaContext, isWatchtowerGrowaContext } from './growa-types'
 import { getGrowaModuleTitle } from './growa-prompts'
 import { getModuleAnalysisFramework } from './growa-digest'
 
@@ -71,6 +71,18 @@ function buildStructuredData(request: GrowaAnalyzeRequest) {
       nationalMetrics: context.nationalMetrics,
       timeseries: context.timeseries,
       fieldDetail: context.fieldDetail,
+    }
+  }
+
+  if (isWatchtowerGrowaContext(context)) {
+    return {
+      timeframe: context.timeframe,
+      usingDemoData: context.usingDemoData,
+      headline: context.headline,
+      nationalStatus: context.nationalStatus,
+      prioritySignals: context.prioritySignals,
+      changes: context.changes,
+      dataGaps: context.dataGaps,
     }
   }
 

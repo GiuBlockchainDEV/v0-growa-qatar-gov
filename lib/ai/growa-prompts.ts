@@ -239,6 +239,8 @@ export function getGrowaPrompts(module: GrowaModule, context?: GrowaAnalysisCont
       return isHarvestGrowaContext(context) ? FALLBACK_PROMPTS.harvest : waterIntelligencePrompts(context)
     case 'energy-intelligence':
       return isHarvestGrowaContext(context) ? FALLBACK_PROMPTS.harvest : energyIntelligencePrompts(context)
+    case 'watchtower':
+      return FALLBACK_PROMPTS.watchtower
     case 'data-analytics':
     default:
       return isHarvestGrowaContext(context) ? FALLBACK_PROMPTS.harvest : dataAnalyticsPrompts(context)
@@ -278,6 +280,26 @@ const FALLBACK_PROMPTS: Record<GrowaModule, GrowaPromptOption[]> = {
         'Prepare an English government briefing on the Harvest field portfolio using AETI, TBP, BWP, outliers, and collecting-field alerts from the digest.',
     },
   ],
+  watchtower: [
+    {
+      id: 'national-situation-briefing',
+      label: 'National situation briefing',
+      prompt:
+        'Prepare an executive national agricultural situation briefing using ONLY the Watchtower digest. Cover national status domains, priority signals, strategic KPIs, and data gaps. Distinguish observed facts from interpretation.',
+    },
+    {
+      id: 'priority-investigations',
+      label: 'Recommended investigations',
+      prompt:
+        'Based on the priority signals and national status in the digest, recommend specific investigations ministry officials should pursue. Name domains, affected entity counts, and which intelligence modules to open.',
+    },
+    {
+      id: 'outlook-assessment',
+      label: 'Outlook assessment',
+      prompt:
+        'Assess the 7-day outlook and strategic KPIs in the digest. Explain operational and food-security implications for Qatar. Flag where outlook is limited by missing or demo data.',
+    },
+  ],
 }
 
 export function getGrowaModuleTitle(module: GrowaModule): string {
@@ -290,6 +312,8 @@ export function getGrowaModuleTitle(module: GrowaModule): string {
       return 'Energy Intelligence Command'
     case 'harvest':
       return 'Harvest Prediction'
+    case 'watchtower':
+      return 'National Agricultural Watchtower'
     default:
       return 'Intelligence Workspace'
   }

@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Bot, Loader2, Send, Sparkles, Trash2 } from 'lucide-react'
 import type { GrowaAnalysisContext, GrowaChatMessage, GrowaModule } from '@/lib/ai/growa-types'
-import { isHarvestGrowaContext } from '@/lib/ai/growa-types'
+import { isHarvestGrowaContext, isWatchtowerGrowaContext } from '@/lib/ai/growa-types'
 import { getGrowaPrompts } from '@/lib/ai/growa-prompts'
 import { GrowaMarkdown } from '@/components/dashboard/growa-markdown'
 import { Textarea } from '@/components/ui/textarea'
@@ -25,6 +25,10 @@ function contextSessionKey(context: GrowaAnalysisContext | null) {
       context.fieldDetail?.parcel_id ?? 'national',
       context.fieldDetail?.season_id ?? 'none',
     ].join(':')
+  }
+
+  if (isWatchtowerGrowaContext(context)) {
+    return [context.module, context.timeframe, context.generatedAt.slice(0, 13)].join(':')
   }
 
   return `${context.module}:${context.generatedAt.slice(0, 13)}`

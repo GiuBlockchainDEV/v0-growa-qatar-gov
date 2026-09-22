@@ -8,6 +8,7 @@ const ALLOWED_MODULES = new Set<GrowaModule>([
   'water-intelligence',
   'energy-intelligence',
   'harvest',
+  'watchtower',
 ])
 
 function isGrowaModule(value: unknown): value is GrowaModule {

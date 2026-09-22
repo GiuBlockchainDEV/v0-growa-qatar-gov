@@ -28,6 +28,9 @@ Live work log for the National Agricultural Watchtower program.
 | Metric definitions | `docs/METRIC_DEFINITIONS.md` | KPI methodology |
 | Architecture decisions | `docs/ARCHITECTURE_DECISIONS.md` | Key technical choices |
 | Unit tests | `lib/**/*.test.ts`, vitest | Signals, timeframes, navigation |
+| Phase 7: Map integration | `page.tsx`, `signal-queue.tsx`, `operational-navigation.ts` | Watchtower 75/25 map layout, View on map links |
+| Phase 13: AI Watchtower briefing | `lib/ai/build-watchtower-growa-context.ts` | Growa panel in watchtower workspace |
+| pnpm lockfile sync | `pnpm-lock.yaml` | Vercel frozen-lockfile CI fix |
 
 ---
 
@@ -35,8 +38,8 @@ Live work log for the National Agricultural Watchtower program.
 
 | Task | Files | Remaining |
 |------|-------|-----------|
-| Phase 7: Map integration | `satellite-map.tsx`, watchtower | Signal → map layer focus |
-| Phase 13: AI Watchtower briefing | `lib/ai/build-watchtower-context.ts` | Gemini digest for watchtower |
+| Farm unified intelligence panel | `components/dashboard/farm-intelligence-panel.tsx` | Cross-module farm context |
+| Supply ↔ production linkage | supply overview + watchtower | Commodity coverage objects |
 
 ---
 

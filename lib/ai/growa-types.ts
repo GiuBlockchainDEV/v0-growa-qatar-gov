@@ -11,6 +11,7 @@ export type GrowaModule =
   | 'water-intelligence'
   | 'energy-intelligence'
   | 'harvest'
+  | 'watchtower'
 
 export interface GrowaCropSnapshot {
   cropName: string
@@ -69,7 +70,7 @@ export interface GrowaAlerts {
 }
 
 export interface GrowaFarmAnalysisContext {
-  module: Exclude<GrowaModule, 'harvest'>
+  module: Exclude<GrowaModule, 'harvest' | 'watchtower'>
   generatedAt: string
   headline: {
     totalProductionTons: number
@@ -204,7 +205,49 @@ export interface HarvestGrowaAnalysisContext {
   }
 }
 
-export type GrowaAnalysisContext = GrowaFarmAnalysisContext | HarvestGrowaAnalysisContext
+export interface WatchtowerGrowaAnalysisContext {
+  module: 'watchtower'
+  generatedAt: string
+  timeframe: string
+  usingDemoData: boolean
+  digest: string
+  headline: {
+    productionTons: number | null
+    waterDemandM3: number | null
+    energyKwh: number | null
+    peakTemperatureC: number | null
+    peakVpdKpa: number | null
+    signalCount: number
+    criticalDomains: number
+    unknownDomains: number
+  }
+  nationalStatus: Array<{
+    domain: string
+    level: string
+    reason: string
+    affectedEntityCount?: number
+  }>
+  prioritySignals: Array<{
+    id: string
+    type: string
+    severity: string
+    title: string
+    summary: string
+    recommendedModule?: string
+  }>
+  changes: Array<{
+    domain: string
+    direction: string
+    significance: string
+    description: string
+  }>
+  dataGaps: string[]
+}
+
+export type GrowaAnalysisContext =
+  | GrowaFarmAnalysisContext
+  | HarvestGrowaAnalysisContext
+  | WatchtowerGrowaAnalysisContext
 
 export function isHarvestGrowaContext(
   context: GrowaAnalysisContext
@@ -212,8 +255,14 @@ export function isHarvestGrowaContext(
   return context.module === 'harvest'
 }
 
+export function isWatchtowerGrowaContext(
+  context: GrowaAnalysisContext
+): context is WatchtowerGrowaAnalysisContext {
+  return context.module === 'watchtower'
+}
+
 export function isFarmGrowaContext(context: GrowaAnalysisContext): context is GrowaFarmAnalysisContext {
-  return context.module !== 'harvest'
+  return context.module !== 'harvest' && context.module !== 'watchtower'
 }
 
 export interface GrowaChatMessage {

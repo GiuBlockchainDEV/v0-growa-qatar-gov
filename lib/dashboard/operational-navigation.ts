@@ -1,6 +1,7 @@
 import { buildDashboardMapFocusParams, clearIncompatibleDashboardParams } from '@/lib/dashboard/map-navigation'
 import type { IntelligenceSignal } from '@/lib/domain/types'
 import type { WatchtowerTimeframe } from '@/lib/domain/types'
+import { getLayersForSignalType } from '@/lib/watchtower/map-layers'
 
 export interface NavigationTarget {
   module: string
@@ -67,10 +68,18 @@ export function navigateToParcel(
   return `/dashboard?${params.toString()}`
 }
 
-export function navigateToSignal(current: URLSearchParams, signal: IntelligenceSignal) {
-  if (signal.deepLink) return signal.deepLink
+export function navigateToSignal(
+  current: URLSearchParams,
+  signal: IntelligenceSignal,
+  options?: { stayOnWatchtower?: boolean }
+) {
+  if (!options?.stayOnWatchtower && signal.deepLink) return signal.deepLink
 
-  const targetModule = signal.recommendedModule || 'live-map'
+  const layers = getLayersForSignalType(signal.type)
+  const targetModule = options?.stayOnWatchtower
+    ? 'watchtower'
+    : signal.recommendedModule || 'live-map'
+
   const target: NavigationTarget = {
     module: targetModule,
     signalId: signal.id,
@@ -80,15 +89,22 @@ export function navigateToSignal(current: URLSearchParams, signal: IntelligenceS
     lat: signal.lat,
     lng: signal.lng,
     zoom: signal.farmIds?.length || signal.pointIds?.length ? 13 : 10,
+    mapLayer: layers[0],
   }
 
-  if (signal.type === 'water') target.module = 'water-intelligence'
-  if (signal.type === 'energy') target.module = 'energy-intelligence'
-  if (signal.type === 'crop_health' || signal.type === 'production') target.module = 'harvest'
-  if (signal.type === 'weather') target.module = 'weather'
-  if (signal.type === 'supply') return '/dashboard/supply-overview'
+  if (!options?.stayOnWatchtower) {
+    if (signal.type === 'water') target.module = 'water-intelligence'
+    if (signal.type === 'energy') target.module = 'energy-intelligence'
+    if (signal.type === 'crop_health' || signal.type === 'production') target.module = 'harvest'
+    if (signal.type === 'weather') target.module = 'weather'
+    if (signal.type === 'supply') return '/dashboard/supply-overview'
+  }
 
   return buildModuleUrl(current, target)
+}
+
+export function navigateToSignalOnMap(current: URLSearchParams, signal: IntelligenceSignal) {
+  return navigateToSignal(current, signal, { stayOnWatchtower: true })
 }
 
 export function navigateToModuleWithContext(

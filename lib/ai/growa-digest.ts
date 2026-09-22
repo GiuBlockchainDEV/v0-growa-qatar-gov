@@ -191,6 +191,16 @@ export function buildHarvestGrowaDigest(context: HarvestGrowaAnalysisContext): s
 }
 
 export function getModuleAnalysisFramework(module: GrowaModule): string {
+  if (module === 'watchtower') {
+    return `Analysis framework:
+1. Summarize the national situation using status domains (production, water, climate, crop health, supply) and distinguish normal vs elevated vs unknown states.
+2. Prioritize the top signals by severity — cite exact metrics, deviations, and affected entity counts from the digest.
+3. Explain what changed compared to the observation window using the change records provided.
+4. Assess outlook implications only where outlook text exists in the digest; otherwise state insufficient data.
+5. List data gaps and source health issues that limit confidence.
+6. Recommend investigations mapped to specific intelligence modules (water, harvest, weather, supply) without inventing new metrics.`
+  }
+
   if (module === 'harvest') {
     return `Analysis framework:
 1. Quantify national harvest performance using AETI (m³), TBP (t), BWP (kg/m³), NPP (gC/m²), RWD, WCU (%), and irrigation cost (QAR).

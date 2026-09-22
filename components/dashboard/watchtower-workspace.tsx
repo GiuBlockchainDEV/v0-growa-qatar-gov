@@ -11,6 +11,8 @@ import { WatchtowerChangesPanel } from '@/components/dashboard/watchtower/change
 import { WatchtowerKpiSummary } from '@/components/dashboard/watchtower/kpi-summary'
 import { WatchtowerOutlookPanel } from '@/components/dashboard/watchtower/outlook-panel'
 import { WatchtowerDataHealth } from '@/components/dashboard/watchtower/data-health'
+import { GrowaIntelligencePanel } from '@/components/dashboard/growa-intelligence-panel'
+import { buildWatchtowerGrowaContext } from '@/lib/ai/build-watchtower-growa-context'
 import { cn } from '@/lib/utils'
 
 export function WatchtowerWorkspace() {
@@ -87,6 +89,7 @@ export function WatchtowerWorkspace() {
 
   if (!summary) return null
 
+  const growaContext = buildWatchtowerGrowaContext(summary)
   const systemHealth = summary.sourceStatus.filter((s) => s.health === 'healthy').length
   const totalSources = summary.sourceStatus.length
 
@@ -215,6 +218,16 @@ export function WatchtowerWorkspace() {
             dataQuality={summary.dataQuality}
             sourceStatus={summary.sourceStatus}
           />
+        </section>
+
+        {/* Growa AI Briefing */}
+        <section>
+          <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-white/50">
+            Growa AI executive briefing
+          </h2>
+          <div className="rounded-lg border border-white/10 bg-white/[0.02] overflow-hidden min-h-[320px]">
+            <GrowaIntelligencePanel module="watchtower" context={growaContext} />
+          </div>
         </section>
       </div>
     </div>

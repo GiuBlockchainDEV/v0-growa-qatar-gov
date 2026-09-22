@@ -382,7 +382,20 @@ export default function DashboardPage() {
   }
 
   if (moduleKey === 'watchtower') {
-    return <WatchtowerWorkspace />
+    return (
+      <SlideFromLeftWorkspace
+        key="watchtower-panel"
+        locale={locale}
+        moduleKey="watchtower"
+        targetPointId={targetPointId}
+        targetFarmId={targetFarmId}
+        targetFocusToken={targetFocusToken}
+        targetZoom={targetZoom}
+        targetCropFilter={targetCropFilter}
+      >
+        <WatchtowerWorkspace />
+      </SlideFromLeftWorkspace>
+    )
   }
 
   if (moduleKey === 'rss-feed') {
