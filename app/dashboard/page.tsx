@@ -12,6 +12,7 @@ import { EnergyIntelligenceWorkspace } from '@/components/dashboard/energy-intel
 import { WeatherWorkspace } from '@/components/dashboard/weather-workspace'
 import { HarvestWorkspace } from '@/components/dashboard/harvest-workspace'
 import { HarvestDashboardProvider, useHarvestDashboardOptional } from '@/contexts/harvest-dashboard-context'
+import { buildWeatherDashboardParams } from '@/lib/dashboard/weather-url'
 import {
   generateQatarWeatherGrid,
   generateQatarWeatherGridLines,
@@ -309,17 +310,24 @@ function SlideFromLeftWorkspace({
                   const lat = Number(point.lat)
                   const lng = Number(point.lng)
                   if (!Number.isFinite(lat) || !Number.isFinite(lng)) return
-                  const params = new URLSearchParams(searchParams.toString())
-                  params.set('module', 'weather')
-                  params.set('weatherGridId', point.id)
-                  params.set('weatherLat', lat.toFixed(6))
-                  params.set('weatherLng', lng.toFixed(6))
-                  params.set('zoom', String(targetZoom ?? 10))
-                  params.delete('pointId')
-                  params.delete('farmId')
-                  params.delete('crop')
-                  params.delete('focus')
-                  router.replace(`/dashboard?${params.toString()}`)
+                  const params = buildWeatherDashboardParams(searchParams, {
+                    lat,
+                    lng,
+                    gridId: point.id,
+                    zoom: targetZoom ?? 10,
+                    requestedAt: searchParams.get('weatherRequestedAt'),
+                  })
+                  window.dispatchEvent(
+                    new CustomEvent('weather:grid-select', {
+                      detail: {
+                        gridId: point.id,
+                        lat,
+                        lng,
+                        requestedAt: searchParams.get('weatherRequestedAt'),
+                      },
+                    })
+                  )
+                  router.replace(`/dashboard?${params.toString()}`, { scroll: false })
                 }
               : undefined
           }

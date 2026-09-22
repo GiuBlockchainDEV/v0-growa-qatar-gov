@@ -2,6 +2,7 @@
 
 import { type ComponentType, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
+import { buildWeatherDashboardParams } from '@/lib/dashboard/weather-url'
 import {
   BarChart3,
   CloudRain,
@@ -545,55 +546,71 @@ export function WeatherWorkspace() {
     [getHistoryCacheKey, prefetchHistory]
   )
 
+  const applyWeatherSelection = useCallback(
+    (nextLatitude: string, nextLongitude: string, nextRequestedAt: string) => {
+      setLatitude(nextLatitude)
+      setLongitude(nextLongitude)
+      setRequestedAt(nextRequestedAt)
+      if (!nextLatitude || !nextLongitude) {
+        setReading(null)
+        setHistoryPoints([])
+        setSelectedMetricKey(null)
+        setChartModalOpen(false)
+        activeHistoryKeyRef.current = ''
+        historyPrefetchAbortRef.current?.abort()
+        setError(null)
+        return
+      }
+      loadWeatherFor(nextLatitude, nextLongitude, nextRequestedAt)
+    },
+    [loadWeatherFor]
+  )
+
   useEffect(() => {
     const nextLatitude = searchParams.get('weatherLat') || ''
     const nextLongitude = searchParams.get('weatherLng') || ''
-    const nextRequestedAt = searchParams.get('weatherRequestedAt') || searchParams.get('requested_at') || DEFAULT_REQUESTED_AT
-    setLatitude(nextLatitude)
-    setLongitude(nextLongitude)
-    setRequestedAt(nextRequestedAt)
-    if (!nextLatitude || !nextLongitude) {
-      setReading(null)
-      setHistoryPoints([])
-      setSelectedMetricKey(null)
-      setChartModalOpen(false)
-      activeHistoryKeyRef.current = ''
-      historyPrefetchAbortRef.current?.abort()
-      setError(null)
-      return
+    const nextRequestedAt =
+      searchParams.get('weatherRequestedAt') || searchParams.get('requested_at') || DEFAULT_REQUESTED_AT
+    applyWeatherSelection(nextLatitude, nextLongitude, nextRequestedAt)
+  }, [applyWeatherSelection, searchParams])
+
+  useEffect(() => {
+    const handleGridSelect = (event: Event) => {
+      const detail = (event as CustomEvent<{
+        lat?: number
+        lng?: number
+        requestedAt?: string | null
+      }>).detail
+      if (!detail || !Number.isFinite(detail.lat) || !Number.isFinite(detail.lng)) return
+      const nextRequestedAt = detail.requestedAt || requestedAt || DEFAULT_REQUESTED_AT
+      applyWeatherSelection(detail.lat!.toFixed(6), detail.lng!.toFixed(6), nextRequestedAt)
     }
-    loadWeatherFor(nextLatitude, nextLongitude, nextRequestedAt)
-  }, [loadWeatherFor, searchParams])
+
+    window.addEventListener('weather:grid-select', handleGridSelect)
+    return () => window.removeEventListener('weather:grid-select', handleGridSelect)
+  }, [applyWeatherSelection, requestedAt])
 
   const loadSelectedWeather = useCallback(() => {
     if (!latitude.trim() || !longitude.trim()) {
       setError('Select one of the yellow grid points on the lateral map, or enter latitude and longitude manually.')
       return
     }
-    const params = new URLSearchParams(searchParams.toString())
-    params.set('module', 'weather')
-    params.set('weatherLat', latitude.trim())
-    params.set('weatherLng', longitude.trim())
+    const latValue = Number(latitude)
+    const lonValue = Number(longitude)
+    if (!Number.isFinite(latValue) || !Number.isFinite(lonValue)) {
+      setError('Enter valid latitude and longitude values.')
+      return
+    }
+
+    const params = buildWeatherDashboardParams(searchParams, {
+      lat: latValue,
+      lng: lonValue,
+      requestedAt,
+    })
     params.delete('weatherGridId')
-    if (requestedAt.trim()) params.set('weatherRequestedAt', requestedAt.trim())
-    router.push(`/dashboard?${params.toString()}`)
+    router.replace(`/dashboard?${params.toString()}`, { scroll: false })
     loadWeatherFor(latitude, longitude, requestedAt)
   }, [latitude, loadWeatherFor, longitude, requestedAt, router, searchParams])
-
-
-
-  const selectCoordinate = useCallback(
-    (latValue: number, lonValue: number, gridId?: string) => {
-      const params = new URLSearchParams(searchParams.toString())
-      params.set('module', 'weather')
-      params.set('weatherLat', latValue.toFixed(6))
-      params.set('weatherLng', lonValue.toFixed(6))
-      if (gridId) params.set('weatherGridId', gridId)
-      if (requestedAt.trim()) params.set('weatherRequestedAt', requestedAt.trim())
-      router.push(`/dashboard?${params.toString()}`)
-    },
-    [requestedAt, router, searchParams]
-  )
 
   const hasSelection = Boolean(latitude.trim() && longitude.trim())
   const summary = useMemo(() => {

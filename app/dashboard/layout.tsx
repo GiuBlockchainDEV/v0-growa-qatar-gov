@@ -19,6 +19,8 @@ const WORKSPACE_MODULES = new Set([
   'production-harvest',
 ])
 
+const LAST_DASHBOARD_MODULE_KEY = 'growa:last-dashboard-module'
+
 function readBrowserSearchParams() {
   if (typeof window === 'undefined') return null
   return new URLSearchParams(window.location.search)
@@ -53,11 +55,21 @@ function DashboardShell({
   const handledReloadRedirectRef = useRef(false)
   const lastModuleRef = useRef<string | null>(null)
 
+  const browserSearchParams = readBrowserSearchParams()
   const moduleFromHook = searchParams.get('module')
+  const moduleFromBrowser = browserSearchParams?.get('module') || null
+  const persistedModule =
+    typeof window !== 'undefined' ? window.sessionStorage.getItem(LAST_DASHBOARD_MODULE_KEY) : null
+
   if (moduleFromHook) {
     lastModuleRef.current = moduleFromHook
+    if (typeof window !== 'undefined') {
+      window.sessionStorage.setItem(LAST_DASHBOARD_MODULE_KEY, moduleFromHook)
+    }
   }
-  const effectiveModule = moduleFromHook || lastModuleRef.current
+
+  const effectiveModule =
+    moduleFromHook || moduleFromBrowser || lastModuleRef.current || persistedModule
 
   useEffect(() => {
     if (!loading && !user) {
@@ -140,10 +152,13 @@ function DashboardShell({
   const hasWeatherContext = Boolean(
     searchParams.get('weatherGridId') ||
       searchParams.get('weatherLat') ||
-      searchParams.get('weatherLng')
+      searchParams.get('weatherLng') ||
+      browserSearchParams?.get('weatherGridId') ||
+      browserSearchParams?.get('weatherLat') ||
+      browserSearchParams?.get('weatherLng')
   )
   const isWorkspaceModule = Boolean(
-    effectiveModule && (WORKSPACE_MODULES.has(effectiveModule) || hasWeatherContext)
+    (effectiveModule && WORKSPACE_MODULES.has(effectiveModule)) || hasWeatherContext
   )
   const shouldRenderMapSurface =
     pathname === '/dashboard' &&

@@ -1902,6 +1902,7 @@ export function SatelliteMap({
         className: 'custom-tooltip',
       })
       clickLayer.on('click', (event: any) => {
+        L.DomEvent.stopPropagation(event)
         event?.originalEvent?.preventDefault?.()
         event?.originalEvent?.stopPropagation?.()
         const lat = Number(point.lat)
