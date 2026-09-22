@@ -71,9 +71,10 @@ export function GrowaIntelligencePanel({ module, context, disabled = false }: Gr
       title="Growa Assistant"
       subtitle="Government briefing powered by live dashboard data."
       icon={Bot}
-      className="h-full"
+      fillHeight
+      className="h-full min-h-0"
     >
-      <div className="space-y-3">
+      <div className="shrink-0 space-y-3">
         <p className="text-xs uppercase tracking-[0.14em] text-muted-foreground">Suggested prompts</p>
         <div className="flex flex-wrap gap-2">
           {promptOptions.map((option) => (
@@ -107,9 +108,9 @@ export function GrowaIntelligencePanel({ module, context, disabled = false }: Gr
         </button>
       </div>
 
-      <div className="mt-4 min-h-[280px] rounded-lg border border-border/80 bg-background/40 p-4">
+      <div className="mt-4 min-h-0 flex-1 overflow-y-auto overscroll-contain rounded-lg border border-border/80 bg-background/40 p-4">
         {loading ? (
-          <div className="flex h-full min-h-[220px] items-center justify-center gap-2 text-sm text-muted-foreground">
+          <div className="flex min-h-[220px] items-center justify-center gap-2 text-sm text-muted-foreground">
             <Loader2 className="h-4 w-4 animate-spin text-primary" />
             Preparing briefing...
           </div>
@@ -118,7 +119,7 @@ export function GrowaIntelligencePanel({ module, context, disabled = false }: Gr
         ) : analysis ? (
           <GrowaMarkdown content={analysis} />
         ) : (
-          <div className="flex h-full min-h-[220px] flex-col justify-center text-sm text-muted-foreground">
+          <div className="flex min-h-[220px] flex-col justify-center text-sm text-muted-foreground">
             <p>Select a briefing type, then run the AI analysis to generate a formatted government report.</p>
             {context ? (
               <p className="mt-2 text-xs">

@@ -117,6 +117,7 @@ interface IntelligencePanelProps {
   children: ReactNode
   className?: string
   variant?: 'default' | 'success' | 'warning'
+  fillHeight?: boolean
 }
 
 export function IntelligencePanel({
@@ -126,6 +127,7 @@ export function IntelligencePanel({
   children,
   className = '',
   variant = 'default',
+  fillHeight = false,
 }: IntelligencePanelProps) {
   const variantClass =
     variant === 'success'
@@ -136,16 +138,22 @@ export function IntelligencePanel({
 
   return (
     <section
-      className={`rounded-xl border p-4 shadow-[inset_0_0_0_1px_rgba(148,163,184,0.05)] ${variantClass} ${className}`}
+      className={`rounded-xl border p-4 shadow-[inset_0_0_0_1px_rgba(148,163,184,0.05)] ${variantClass} ${
+        fillHeight ? 'flex min-h-0 flex-col overflow-hidden' : ''
+      } ${className}`}
     >
-      <div className="mb-3">
+      <div className={`${fillHeight ? 'shrink-0' : ''} mb-3`}>
         <h2 className="flex items-center gap-2 text-sm font-semibold text-foreground">
           {Icon ? <Icon className="h-4 w-4 text-primary" /> : null}
           {title}
         </h2>
         {subtitle ? <p className="mt-1 text-xs text-muted-foreground">{subtitle}</p> : null}
       </div>
-      {children}
+      {fillHeight ? (
+        <div className="flex min-h-0 flex-1 flex-col overflow-hidden">{children}</div>
+      ) : (
+        children
+      )}
     </section>
   )
 }
@@ -161,7 +169,11 @@ export function IntelligenceCommandLayout({ main, insights, assistant }: Intelli
     <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1.45fr)_minmax(260px,0.8fr)_minmax(280px,0.85fr)]">
       <div className="min-w-0">{main}</div>
       <div className="space-y-4">{insights}</div>
-      <div className="min-w-0 xl:sticky xl:top-20 xl:self-start">{assistant}</div>
+      <div className="min-w-0 xl:sticky xl:top-20 xl:max-h-[calc(100dvh-5rem)] xl:self-start">
+        <div className="flex max-h-[min(720px,calc(100dvh-8rem))] flex-col overflow-hidden xl:h-full xl:max-h-none">
+          {assistant}
+        </div>
+      </div>
     </div>
   )
 }
