@@ -17,6 +17,7 @@ import {
   IntelligenceTableBody,
   IntelligenceTableHead,
   IntelligenceWorkspaceBody,
+  IntelligenceWorkspaceCommand,
   IntelligenceWorkspaceHeader,
   IntelligenceWorkspaceRoot,
 } from '@/components/dashboard/intelligence-workspace-ui'
@@ -438,7 +439,7 @@ export function DataAnalyticsWorkspace() {
         <IntelligenceErrorState message={error} />
       ) : (
         <IntelligenceWorkspaceBody>
-          <div className="mb-5 grid shrink-0 grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-6">
+          <div className="mb-3 grid shrink-0 grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-6">
             <IntelligenceKpiCard label="Crops tracked" value={String(headline.cropCount)} />
             <IntelligenceKpiCard label="Producers" value={String(headline.producerCount)} />
             <IntelligenceKpiCard
@@ -464,6 +465,7 @@ export function DataAnalyticsWorkspace() {
             />
           </div>
 
+          <IntelligenceWorkspaceCommand>
           <IntelligenceCommandLayout
             main={
               <IntelligencePanel
@@ -606,6 +608,7 @@ export function DataAnalyticsWorkspace() {
             }
             assistant={<GrowaIntelligencePanel module="data-analytics" context={growaContext} />}
           />
+          </IntelligenceWorkspaceCommand>
         </IntelligenceWorkspaceBody>
       )}
     </IntelligenceWorkspaceRoot>

@@ -32,6 +32,7 @@ import {
   IntelligenceTableBody,
   IntelligenceTableHead,
   IntelligenceWorkspaceBody,
+  IntelligenceWorkspaceCommand,
   IntelligenceWorkspaceHeader,
   IntelligenceWorkspaceRoot,
 } from '@/components/dashboard/intelligence-workspace-ui'
@@ -946,7 +947,7 @@ export function HarvestWorkspace() {
       {!loading && !error && !harvestCreateActive ? (
         <IntelligenceWorkspaceBody>
           {!isFieldDetailView ? (
-            <div className="mb-5 grid shrink-0 grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
+            <div className="mb-3 grid shrink-0 grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
               {headlineMetrics.map((metric, index) => {
                 const meta = HARVEST_METRIC_META[metric.key]
                 const icons = [Droplets, Leaf, TrendingUp, Target]
@@ -969,6 +970,7 @@ export function HarvestWorkspace() {
             <IntelligenceLoadingState message="Loading field details..." />
           ) : null}
 
+          <IntelligenceWorkspaceCommand>
           {isFieldDetailView && activeField ? (
             <IntelligenceCommandLayout
               key={activeField.parcel_id}
@@ -1363,6 +1365,7 @@ export function HarvestWorkspace() {
             assistant={<GrowaIntelligencePanel module="harvest" context={growaContext} />}
           />
           ) : null}
+          </IntelligenceWorkspaceCommand>
         </IntelligenceWorkspaceBody>
       ) : null}
     </IntelligenceWorkspaceRoot>

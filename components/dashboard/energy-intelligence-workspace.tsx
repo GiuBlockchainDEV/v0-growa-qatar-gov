@@ -16,6 +16,7 @@ import {
   IntelligenceTableBody,
   IntelligenceTableHead,
   IntelligenceWorkspaceBody,
+  IntelligenceWorkspaceCommand,
   IntelligenceWorkspaceHeader,
   IntelligenceWorkspaceRoot,
 } from '@/components/dashboard/intelligence-workspace-ui'
@@ -99,7 +100,7 @@ export function EnergyIntelligenceWorkspace() {
         <IntelligenceErrorState message={error} />
       ) : (
         <IntelligenceWorkspaceBody>
-          <div className="mb-5 grid shrink-0 grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
+          <div className="mb-3 grid shrink-0 grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
             <IntelligenceKpiCard
               label="Total Energy"
               value={formatNumber(headline.totalEnergy, ' kWh')}
@@ -121,6 +122,7 @@ export function EnergyIntelligenceWorkspace() {
             />
           </div>
 
+          <IntelligenceWorkspaceCommand>
           <IntelligenceCommandLayout
             main={
               <IntelligencePanel
@@ -218,6 +220,7 @@ export function EnergyIntelligenceWorkspace() {
             }
             assistant={<GrowaIntelligencePanel module="energy-intelligence" context={growaContext} />}
           />
+          </IntelligenceWorkspaceCommand>
         </IntelligenceWorkspaceBody>
       )}
     </IntelligenceWorkspaceRoot>

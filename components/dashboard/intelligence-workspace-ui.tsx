@@ -43,13 +43,17 @@ interface IntelligenceWorkspaceBodyProps {
 export function IntelligenceWorkspaceBody({ children, scrollable = false }: IntelligenceWorkspaceBodyProps) {
   return (
     <div
-      className={`min-h-[min(420px,52vh)] min-w-0 flex-1 ${
+      className={`flex min-h-0 min-w-0 flex-1 flex-col ${
         scrollable ? 'overflow-y-auto overscroll-contain' : 'overflow-hidden'
       }`}
     >
       {children}
     </div>
   )
+}
+
+export function IntelligenceWorkspaceCommand({ children }: { children: ReactNode }) {
+  return <div className="flex min-h-0 flex-1 flex-col">{children}</div>
 }
 
 interface IntelligenceStatusItem {
@@ -207,10 +211,10 @@ interface IntelligenceCommandLayoutProps {
 
 export function IntelligenceCommandLayout({ main, insights, assistant }: IntelligenceCommandLayoutProps) {
   return (
-    <div className="grid h-full min-h-0 grid-cols-1 gap-3 xl:grid-cols-[minmax(0,1.35fr)_minmax(240px,0.75fr)_minmax(260px,0.9fr)] xl:items-stretch">
+    <div className="grid h-full min-h-0 flex-1 grid-cols-1 gap-3 xl:grid-cols-[minmax(0,1.35fr)_minmax(240px,0.75fr)_minmax(260px,0.9fr)] xl:items-stretch">
       <div className="min-h-0 min-w-0 overflow-y-auto overscroll-contain pr-1">{main}</div>
       <div className="min-h-0 min-w-0 space-y-4 overflow-y-auto overscroll-contain pr-1">{insights}</div>
-      <div className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden">
+      <div className="flex min-h-[min(520px,62vh)] min-w-0 flex-col overflow-hidden xl:min-h-0 xl:h-full">
         {assistant}
       </div>
     </div>

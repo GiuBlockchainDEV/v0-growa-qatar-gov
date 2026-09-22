@@ -6,7 +6,6 @@ import type { GrowaAnalysisContext, GrowaChatMessage, GrowaModule } from '@/lib/
 import { isHarvestGrowaContext } from '@/lib/ai/growa-types'
 import { getGrowaPrompts } from '@/lib/ai/growa-prompts'
 import { GrowaMarkdown } from '@/components/dashboard/growa-markdown'
-import { IntelligencePanel } from '@/components/dashboard/intelligence-workspace-ui'
 import { Textarea } from '@/components/ui/textarea'
 
 interface GrowaIntelligencePanelProps {
@@ -40,7 +39,6 @@ export function GrowaIntelligencePanel({ module, context, disabled = false }: Gr
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
 
-  const messagesEndRef = useRef<HTMLDivElement | null>(null)
   const messagesContainerRef = useRef<HTMLDivElement | null>(null)
 
   useEffect(() => {
@@ -128,15 +126,17 @@ export function GrowaIntelligencePanel({ module, context, disabled = false }: Gr
     : 'Waiting for operational data...'
 
   return (
-    <IntelligencePanel
-      title="Growa Assistant"
-      subtitle="Chat in English with live dashboard context."
-      icon={Bot}
-      fillHeight
-      className="flex h-full min-h-0 flex-col overflow-hidden"
-    >
-      <div className="flex h-full min-h-0 flex-1 flex-col gap-2 overflow-hidden">
-        <div className="shrink-0 space-y-2">
+    <section className="flex h-full min-h-0 flex-col overflow-hidden rounded-xl border border-border bg-card p-3 shadow-[inset_0_0_0_1px_rgba(148,163,184,0.05)]">
+      <header className="shrink-0 pb-2">
+        <h2 className="flex items-center gap-2 text-sm font-semibold text-foreground">
+          <Bot className="h-4 w-4 text-primary" />
+          Growa Assistant
+        </h2>
+        <p className="mt-1 text-xs text-muted-foreground">Chat in English with live dashboard context.</p>
+      </header>
+
+      <div className="grid min-h-0 flex-1 grid-rows-[auto_minmax(0,1fr)_auto] gap-2 overflow-hidden">
+        <div className="space-y-2 overflow-hidden">
           <div className="flex items-center justify-between gap-2">
             <p className="text-xs uppercase tracking-[0.14em] text-muted-foreground">Suggested prompts</p>
             {messages.length > 0 ? (
@@ -155,7 +155,7 @@ export function GrowaIntelligencePanel({ module, context, disabled = false }: Gr
               </button>
             ) : null}
           </div>
-          <div className="max-h-[88px] overflow-y-auto overscroll-contain pr-1">
+          <div className="max-h-[72px] overflow-y-auto overscroll-contain pr-1">
             <div className="flex flex-wrap gap-1.5">
               {promptOptions.map((option) => (
                 <button
@@ -174,16 +174,12 @@ export function GrowaIntelligencePanel({ module, context, disabled = false }: Gr
 
         <div
           ref={messagesContainerRef}
-          className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain rounded-lg border border-border/80 bg-background/40 p-3 [scrollbar-gutter:stable]"
-          onWheel={(event) => {
-            event.stopPropagation()
-          }}
-          onTouchMove={(event) => {
-            event.stopPropagation()
-          }}
+          className="min-h-0 overflow-y-auto overscroll-y-contain rounded-lg border border-border/80 bg-background/40 p-3 [scrollbar-gutter:stable]"
+          onWheel={(event) => event.stopPropagation()}
+          onTouchMove={(event) => event.stopPropagation()}
         >
           {messages.length === 0 && !loading ? (
-            <div className="flex min-h-[120px] flex-col justify-center text-sm text-muted-foreground">
+            <div className="py-2 text-sm text-muted-foreground">
               <p>Ask a custom question or tap a suggested prompt to start the briefing.</p>
               <p className="mt-2 text-xs">{contextSummary}</p>
             </div>
@@ -222,13 +218,11 @@ export function GrowaIntelligencePanel({ module, context, disabled = false }: Gr
                   {error}
                 </div>
               ) : null}
-
-              <div ref={messagesEndRef} />
             </div>
           )}
         </div>
 
-        <form onSubmit={handleSubmit} className="shrink-0 space-y-1.5 border-t border-border/70 pt-2">
+        <form onSubmit={handleSubmit} className="space-y-1.5 border-t border-border/70 pt-2">
           <Textarea
             value={customInput}
             onChange={(event) => setCustomInput(event.target.value)}
@@ -236,7 +230,7 @@ export function GrowaIntelligencePanel({ module, context, disabled = false }: Gr
             placeholder="Ask a follow-up or type a custom question..."
             disabled={disabled || loading || !context}
             rows={2}
-            className="min-h-[52px] resize-none border-border bg-background/70 text-sm"
+            className="min-h-[48px] resize-none border-border bg-background/70 text-sm"
           />
           <button
             type="submit"
@@ -252,6 +246,6 @@ export function GrowaIntelligencePanel({ module, context, disabled = false }: Gr
           </p>
         </form>
       </div>
-    </IntelligencePanel>
+    </section>
   )
 }
