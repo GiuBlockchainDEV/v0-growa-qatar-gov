@@ -9,6 +9,7 @@ import { LanguageToggle } from '@/components/language-toggle'
 import { Bell, Search, Command, Activity, PanelLeft, Globe, MapPin } from 'lucide-react'
 import { useSharedRoleNavigation } from '@/contexts/role-navigation-context'
 import { useAuth } from '@/hooks/use-auth'
+import { PlatformShellControls } from '@/components/platform/platform-shell-controls'
 
 interface DashboardHeaderProps {
   onMenuToggle: () => void
@@ -16,6 +17,7 @@ interface DashboardHeaderProps {
   sidebarOffsetClassName?: string
   hideMenuToggle?: boolean
   hideBrand?: boolean
+  platformShell?: boolean
 }
 
 type FarmSearchOption = {
@@ -31,6 +33,7 @@ export function DashboardHeader({
   sidebarOffsetClassName = '',
   hideMenuToggle = false,
   hideBrand = false,
+  platformShell = false,
 }: DashboardHeaderProps) {
   const { locale } = useI18n()
   const router = useRouter()
@@ -355,30 +358,31 @@ export function DashboardHeader({
           )}
         </div>
 
+        {platformShell ? <PlatformShellControls /> : null}
+
         {/* Right - Status, Notifications, Language, User */}
         <div className="flex items-center gap-2">
-          {/* Active Role Badge */}
-          <div className="hidden lg:flex items-center gap-2 px-3 py-1.5 rounded-full border border-white/10 bg-white/5">
-            <Globe className="h-3.5 w-3.5 text-white/60" />
-            <span className="text-[11px] text-white/55 uppercase tracking-wider">
-              {locale === 'ar' ? 'الدور' : 'Role'}
-            </span>
-            <span className="text-xs font-medium text-white">
-              {roleLoading ? (locale === 'ar' ? 'جار التحميل...' : 'Loading...') : activeRoleLabel}
-            </span>
-          </div>
-
-          {/* Online Status */}
-          <div className="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-full border border-[#07f880]/30 bg-[#07f880]/10">
-            <Activity className="h-3.5 w-3.5 text-[#07f880]" />
-            <span className="text-xs font-medium text-[#07f880]">Online</span>
-          </div>
-
-          {/* Notifications */}
-          <button className="relative h-10 w-10 flex items-center justify-center rounded-lg border border-white/10 bg-white/5 hover:bg-white/10 transition-all">
-            <Bell className="h-4 w-4 text-white/70" />
-            <span className="absolute top-2 right-2 h-2 w-2 rounded-full bg-[#07f880]" />
-          </button>
+          {!platformShell && (
+            <>
+              <div className="hidden lg:flex items-center gap-2 px-3 py-1.5 rounded-full border border-white/10 bg-white/5">
+                <Globe className="h-3.5 w-3.5 text-white/60" />
+                <span className="text-[11px] text-white/55 uppercase tracking-wider">
+                  {locale === 'ar' ? 'الدور' : 'Role'}
+                </span>
+                <span className="text-xs font-medium text-white">
+                  {roleLoading ? (locale === 'ar' ? 'جار التحميل...' : 'Loading...') : activeRoleLabel}
+                </span>
+              </div>
+              <div className="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-full border border-[#07f880]/30 bg-[#07f880]/10">
+                <Activity className="h-3.5 w-3.5 text-[#07f880]" />
+                <span className="text-xs font-medium text-[#07f880]">Online</span>
+              </div>
+              <button className="relative h-10 w-10 flex items-center justify-center rounded-lg border border-white/10 bg-white/5 hover:bg-white/10 transition-all">
+                <Bell className="h-4 w-4 text-white/70" />
+                <span className="absolute top-2 right-2 h-2 w-2 rounded-full bg-[#07f880]" />
+              </button>
+            </>
+          )}
 
           {/* Language */}
           <div className="hidden sm:block">

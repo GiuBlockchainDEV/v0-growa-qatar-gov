@@ -75,7 +75,7 @@ export function SignalCard({ signal, selected, onCreateAlert }: SignalCardProps)
         </button>
         <button
           type="button"
-          onClick={() => opCtx?.goToSignal(signal)}
+          onClick={() => opCtx?.goToModule('investigations', { signalId: signal.id, farmId: signal.farmIds?.[0] })}
           className="inline-flex items-center gap-1 rounded border border-white/10 px-2 py-1 text-[10px] text-white/70 hover:text-white"
         >
           Investigate

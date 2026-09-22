@@ -1,5 +1,6 @@
 'use client'
 
+import Link from 'next/link'
 import { useEffect, useState } from 'react'
 import { useI18n } from '@/lib/i18n'
 import { useOrganization } from '@/hooks/use-organization'
@@ -223,9 +224,12 @@ export default function FarmsPage() {
                       </span>
                     </td>
                     <td className="px-6 py-4 text-right">
-                      <Button variant="ghost" size="sm" className="h-8 w-8 p-0 hover:bg-secondary">
-                        <MoreVertical className="h-4 w-4 text-muted-foreground" />
-                      </Button>
+                      <Link
+                        href={`/dashboard/farms/${farm.id}`}
+                        className="inline-flex items-center rounded-md border border-[#07f880]/25 bg-[#07f880]/10 px-2.5 py-1 text-xs font-medium text-[#07f880] hover:bg-[#07f880]/20"
+                      >
+                        {locale === 'ar' ? 'فتح' : 'Open'}
+                      </Link>
                     </td>
                   </tr>
                 ))}

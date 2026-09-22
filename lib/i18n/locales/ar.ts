@@ -81,6 +81,15 @@ const ar: Record<string, string> = {
 
   'module.investigate_via': 'التحقيق عبر الوحدات المرتبطة',
 
+  'nav.area.watchtower': 'برج المراقبة',
+  'nav.area.operations': 'العمليات',
+  'nav.area.intelligence': 'الذكاء',
+  'nav.area.food_security': 'الأمن الغذائي',
+  'nav.area.risk_response': 'المخاطر والاستجابة',
+  'nav.area.governance': 'الحوكمة',
+  'nav.area.ai_operations': 'عمليات الذكاء الاصطناعي',
+  'nav.area.platform': 'المنصة',
+
   'nav.section.watchtower': 'برج المراقبة',
   'nav.section.operations': 'العمليات',
   'nav.section.intelligence': 'الذكاء',

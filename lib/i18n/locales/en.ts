@@ -85,6 +85,15 @@ const en: Record<string, string> = {
   'module.investigate_via': 'Investigate via connected modules',
 
   // Navigation sections
+  'nav.area.watchtower': 'Watchtower',
+  'nav.area.operations': 'Operations',
+  'nav.area.intelligence': 'Intelligence',
+  'nav.area.food_security': 'Food Security',
+  'nav.area.risk_response': 'Risk & Response',
+  'nav.area.governance': 'Governance',
+  'nav.area.ai_operations': 'AI Operations',
+  'nav.area.platform': 'Platform',
+
   'nav.section.watchtower': 'Watchtower',
   'nav.section.operations': 'Operations',
   'nav.section.intelligence': 'Intelligence',

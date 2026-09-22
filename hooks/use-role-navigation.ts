@@ -12,7 +12,8 @@ import {
   Navigation, FileText, AlertCircle, CheckSquare, Paperclip,
   TrendingUp, Leaf, Link, ShoppingCart, PieChart, Briefcase,
   DollarSign, Droplets, Wifi, Home, ToggleRight, Clock,
-  Terminal, Cpu, Zap, Wrench, BookOpen, Lightbulb, CloudSun, type LucideIcon
+  Terminal, Cpu, Zap, Wrench, BookOpen, Lightbulb, CloudSun, Shield, Search, Bot,
+  Building2, Share2, type LucideIcon
 } from 'lucide-react'
 import {
   buildRoleNavigation,
@@ -98,6 +99,11 @@ const iconMap: Record<string, LucideIcon> = {
   Lightbulb,
   CloudSun,
   Harvest,
+  Shield,
+  Search,
+  Bot,
+  Building2,
+  Share2,
 }
 
 export function getIconComponent(iconName: string): LucideIcon {

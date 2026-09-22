@@ -2,7 +2,7 @@
 
 import { createContext, useContext, useMemo, type ReactNode } from 'react'
 import { useRoleNavigation as useRoleNavigationState } from '@/hooks/use-role-navigation'
-import { buildPlatformNavigation } from '@/lib/navigation/platform-navigation'
+import { buildProductNavigation } from '@/lib/platform/product-navigation'
 
 type RoleNavigationContextValue = ReturnType<typeof useRoleNavigationState>
 
@@ -11,7 +11,7 @@ const RoleNavigationContext = createContext<RoleNavigationContextValue | null>(n
 export function RoleNavigationProvider({ children }: { children: ReactNode }) {
   const baseValue = useRoleNavigationState()
   const platformNav = useMemo(
-    () => buildPlatformNavigation(baseValue.effectiveRole, baseValue.roleProfile),
+    () => buildProductNavigation(baseValue.effectiveRole, baseValue.roleProfile),
     [baseValue.effectiveRole, baseValue.roleProfile]
   )
 

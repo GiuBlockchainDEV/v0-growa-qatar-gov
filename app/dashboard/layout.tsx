@@ -3,7 +3,7 @@
 import { Suspense, useEffect, useRef } from 'react'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { useAuth } from '@/hooks/use-auth'
-import { DashboardSidebar } from '@/components/dashboard/sidebar'
+import { PlatformSidebar } from '@/components/platform/platform-sidebar'
 import { DashboardHeader } from '@/components/dashboard/header'
 import { RoleNavigationProvider, useSharedRoleNavigation } from '@/contexts/role-navigation-context'
 import { OperationalContextProvider } from '@/contexts/operational-context-provider'
@@ -112,17 +112,19 @@ function DashboardShellContent({
   }
 
   return (
-    <div className="h-screen w-screen overflow-hidden bg-background relative">
-      <main className="absolute inset-y-0 right-0 left-64">{children}</main>
+    <div className="h-screen w-screen overflow-hidden bg-[#050608] relative">
+      <PlatformSidebar />
 
       <DashboardHeader
         onMenuToggle={() => {}}
         menuOpen={sidebarOpen}
-        sidebarOffsetClassName="left-0"
+        sidebarOffsetClassName="left-[15.5rem]"
         hideMenuToggle
+        hideBrand
+        platformShell
       />
 
-      <DashboardSidebar isOpen={sidebarOpen} onClose={() => {}} persistent />
+      <main className="absolute inset-y-0 right-0 left-[15.5rem] top-16 overflow-hidden">{children}</main>
     </div>
   )
 }
