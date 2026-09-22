@@ -7,7 +7,7 @@ import { useOrganization } from '@/hooks/use-organization'
 import { usePermissions } from '@/hooks/use-permissions'
 import { useGovernance } from '@/hooks/use-governance'
 import {
-  Globe, Map, Layers, Sprout, Activity, AlertTriangle, CheckCircle,
+  Globe, Map, Layers, Sprout, Activity, AlertTriangle, CheckCircle, Radio,
   Users, Target, BarChart3, HelpCircle, Settings, LayoutDashboard,
   Navigation, FileText, AlertCircle, CheckSquare, Paperclip,
   TrendingUp, Leaf, Link, ShoppingCart, PieChart, Briefcase,
@@ -60,6 +60,7 @@ export interface RoleNavigation {
 // Map icon names to actual Lucide components
 const iconMap: Record<string, LucideIcon> = {
   Globe,
+  Radio,
   Map,
   Layers,
   Sprout,

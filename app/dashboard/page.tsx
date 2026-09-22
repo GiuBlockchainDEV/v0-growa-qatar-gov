@@ -12,6 +12,7 @@ import { WaterIntelligenceWorkspace } from '@/components/dashboard/water-intelli
 import { EnergyIntelligenceWorkspace } from '@/components/dashboard/energy-intelligence-workspace'
 import { WeatherWorkspace } from '@/components/dashboard/weather-workspace'
 import { HarvestWorkspace } from '@/components/dashboard/harvest-workspace'
+import { WatchtowerWorkspace } from '@/components/dashboard/watchtower-workspace'
 import { HarvestDashboardProvider, useHarvestDashboardOptional } from '@/contexts/harvest-dashboard-context'
 import { buildWeatherDashboardParams } from '@/lib/dashboard/weather-url'
 import {
@@ -378,6 +379,10 @@ export default function DashboardPage() {
         targetCropFilter={targetCropFilter}
       />
     )
+  }
+
+  if (moduleKey === 'watchtower') {
+    return <WatchtowerWorkspace />
   }
 
   if (moduleKey === 'rss-feed') {

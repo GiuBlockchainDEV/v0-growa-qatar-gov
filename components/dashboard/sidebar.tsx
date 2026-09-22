@@ -11,6 +11,7 @@ import {
 } from 'lucide-react'
 import { getIconComponent, isHarvestModuleKey } from '@/hooks/use-role-navigation'
 import { useSharedRoleNavigation } from '@/contexts/role-navigation-context'
+import { groupMenuItemsBySection } from '@/lib/navigation/sections'
 
 // Admin items are always the same
 const adminItems = [
@@ -40,6 +41,8 @@ const arabicMenuLabels: Record<string, string> = {
   support: 'الدعم',
   settings: 'الإعدادات',
   'supply-overview': 'نظرة عامة على الإمداد',
+  watchtower: 'برج المراقبة الوطني',
+  'national-overview': 'برج المراقبة الوطني',
   overview: 'نظرة عامة',
 }
 
@@ -87,11 +90,42 @@ export function DashboardSidebar({
   const isNavItemActive = (itemKey: string, href: string) => {
     if (activeModule) {
       if (itemKey === activeModule) return true
+      if (
+        (itemKey === 'watchtower' || itemKey === 'national-overview') &&
+        (activeModule === 'watchtower' || activeModule === 'national-overview')
+      ) {
+        return true
+      }
       if (isHarvestModuleKey(itemKey) && isHarvestModuleKey(activeModule)) return true
       return false
     }
     return isActive(href)
   }
+
+  const renderNavLink = (item: { key: string; label: string; path: string; icon: string }) => {
+    const Icon = getIconComponent(item.icon)
+    const active = isNavItemActive(item.key, item.path)
+    return (
+      <Link
+        key={item.key}
+        href={item.path}
+        onClick={persistent ? undefined : onClose}
+        className={cn(
+          'flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all',
+          active
+            ? 'bg-[#07f880]/10 text-[#07f880] border border-[#07f880]/20'
+            : 'text-white/60 hover:bg-white/5 hover:text-white border border-transparent'
+        )}
+      >
+        <Icon className={cn('h-4 w-4', active ? 'text-[#07f880]' : '')} />
+        <span>{resolveItemLabel(item)}</span>
+      </Link>
+    )
+  }
+
+  const sectionedNav = isMinistryWorkspace
+    ? groupMenuItemsBySection([...mainNavItems, ...moreNavItems])
+    : null
 
   return (
     <>
@@ -120,54 +154,26 @@ export function DashboardSidebar({
             <div className="px-3 py-2">
               <div className="h-4 w-24 bg-white/10 rounded animate-pulse" />
             </div>
+          ) : sectionedNav ? (
+            sectionedNav.map(({ section, items }) => (
+              <div key={section.id} className="mb-4">
+                <p className="px-3 mb-2 text-[10px] uppercase tracking-widest text-white/35 font-semibold">
+                  {locale === 'ar' ? section.labelAr : section.label}
+                </p>
+                {items.map((item) => renderNavLink(item))}
+              </div>
+            ))
           ) : (
-            mainNavItems.map((item) => {
-              const Icon = getIconComponent(item.icon)
-              const active = isNavItemActive(item.key, item.path)
-              return (
-                <Link
-                  key={item.key}
-                  href={item.path}
-                  onClick={persistent ? undefined : onClose}
-                  className={cn(
-                    'flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all',
-                    active
-                      ? 'bg-[#07f880]/10 text-[#07f880] border border-[#07f880]/20'
-                      : 'text-white/60 hover:bg-white/5 hover:text-white border border-transparent'
-                  )}
-                >
-                  <Icon className={cn('h-4 w-4', active ? 'text-[#07f880]' : '')} />
-                  <span>{resolveItemLabel(item)}</span>
-                </Link>
-              )
-            })
-          )}
-
-          {moreNavItems.length > 0 && (
             <>
-              <p className="px-3 mt-5 mb-2 text-[10px] uppercase tracking-widest text-white/35 font-semibold">
-                {locale === 'ar' ? 'المزيد' : 'More'}
-              </p>
-              {moreNavItems.map((item) => {
-                const Icon = getIconComponent(item.icon)
-                const active = isNavItemActive(item.key, item.path)
-                return (
-                  <Link
-                    key={item.key}
-                    href={item.path}
-                    onClick={persistent ? undefined : onClose}
-                    className={cn(
-                      'flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all',
-                      active
-                        ? 'bg-[#07f880]/10 text-[#07f880] border border-[#07f880]/20'
-                        : 'text-white/60 hover:bg-white/5 hover:text-white border border-transparent'
-                    )}
-                  >
-                    <Icon className={cn('h-4 w-4', active ? 'text-[#07f880]' : '')} />
-                    <span>{resolveItemLabel(item)}</span>
-                  </Link>
-                )
-              })}
+              {mainNavItems.map((item) => renderNavLink(item))}
+              {moreNavItems.length > 0 && (
+                <>
+                  <p className="px-3 mt-5 mb-2 text-[10px] uppercase tracking-widest text-white/35 font-semibold">
+                    {locale === 'ar' ? 'المزيد' : 'More'}
+                  </p>
+                  {moreNavItems.map((item) => renderNavLink(item))}
+                </>
+              )}
             </>
           )}
 

@@ -6,6 +6,8 @@ export const DASHBOARD_MAP_SURFACE_MODULES = new Set([
 ])
 
 export const DASHBOARD_WORKSPACE_MODULES = new Set([
+  'watchtower',
+  'national-overview',
   'rss-feed',
   'data-analytics',
   'water-intelligence',
@@ -14,6 +16,9 @@ export const DASHBOARD_WORKSPACE_MODULES = new Set([
   'harvest',
   'production-harvest',
 ])
+
+/** Modules that render the National Watchtower workspace */
+export const DASHBOARD_WATCHTOWER_MODULES = new Set(['watchtower', 'national-overview'])
 
 function createFocusToken() {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
@@ -39,7 +44,10 @@ export function hasDashboardDeepLinkContext(params: URLSearchParams | null) {
       params.get('harvestPeriod') ||
       params.get('harvestSeasonId') ||
       params.get('harvestCreate') ||
-      params.get('harvestDraw')
+      params.get('harvestDraw') ||
+      params.get('timeframe') ||
+      params.get('timeRange') ||
+      params.get('signalId')
   )
 }
 
@@ -51,6 +59,7 @@ export function hasWeatherDashboardContext(params: URLSearchParams) {
 
 export function resolveDashboardPageModule(searchParams: URLSearchParams) {
   const explicitModule = searchParams.get('module')?.trim()
+  if (explicitModule === 'national-overview') return 'watchtower'
   if (explicitModule) return explicitModule
   if (hasWeatherDashboardContext(searchParams)) return 'weather'
   return null

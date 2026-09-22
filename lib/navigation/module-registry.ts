@@ -82,12 +82,40 @@ export interface ResolvedRoleNavigation {
 }
 
 const MODULE_REGISTRY: Record<string, ModuleDefinition> = {
+  watchtower: {
+    id: 'watchtower',
+    backendRoute: '/dashboard',
+    icon: 'Radio',
+    label: { default: 'National Watchtower', byRole: { ministry_admin: 'National Watchtower' } },
+    purpose: 'National agricultural situational awareness — aggregate signals and guide investigation.',
+    defaultContent: 'Priority signals, national status, KPIs, outlook, and data health.',
+    allowedActions: [
+      'View national status',
+      'Investigate priority signals',
+      'Navigate to domain intelligence',
+      'Monitor data coverage',
+    ],
+    visibilityScope: {
+      allowedOrgTypes: ['government_master', 'government'],
+      requiredPermissions: ['canView'],
+      requiredLayerVisibility: { regulatory: ['FULL', 'SUMMARY', 'APPROVAL'] },
+    },
+    submenu: {
+      default: [
+        { key: 'national-status', label: 'National Status' },
+        { key: 'priority-signals', label: 'Priority Signals' },
+        { key: 'what-changed', label: 'What Changed' },
+        { key: 'outlook', label: 'Outlook' },
+        { key: 'data-health', label: 'Data Health' },
+      ],
+    },
+  },
   'national-overview': {
     id: 'national-overview',
     backendRoute: '/dashboard',
     icon: 'Globe',
     label: { default: 'National Overview' },
-    purpose: 'Provide sovereign executive situational awareness across regions and programs.',
+    purpose: 'Legacy alias — redirects to National Watchtower.',
     defaultContent: 'Executive summary with priorities, KPIs, hotspots, and recent critical changes.',
     allowedActions: ['View national summary', 'Drill down by region', 'Pin executive priority views'],
     visibilityScope: {
@@ -527,9 +555,9 @@ const MODULE_REGISTRY: Record<string, ModuleDefinition> = {
 
 const ROLE_MENU_BLUEPRINTS: Record<MinistryRoleProfile, RoleMenuBlueprint> = {
   ministry_admin: {
-    defaultLandingModule: 'national-overview',
+    defaultLandingModule: 'watchtower',
     primary: [
-      'national-overview',
+      'watchtower',
       'live-map',
       'monitoring',
       'alerts-center',
@@ -562,6 +590,7 @@ function buildModuleHref(moduleId: string): string {
   if (moduleId === 'support') return '/dashboard/support'
   if (moduleId === 'settings') return '/dashboard/settings'
   if (moduleId === 'production-harvest') return '/dashboard?module=harvest'
+  if (moduleId === 'national-overview') return '/dashboard?module=watchtower'
   return `/dashboard?module=${moduleId}`
 }
 
