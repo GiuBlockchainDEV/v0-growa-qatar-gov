@@ -5,10 +5,45 @@ import type { ReactNode } from 'react'
 
 interface IntelligenceWorkspaceRootProps {
   children: ReactNode
+  layout?: 'scroll' | 'viewport'
 }
 
-export function IntelligenceWorkspaceRoot({ children }: IntelligenceWorkspaceRootProps) {
-  return <div className="space-y-5 p-6 pt-20 text-foreground">{children}</div>
+export function IntelligenceWorkspaceRoot({
+  children,
+  layout = 'scroll',
+}: IntelligenceWorkspaceRootProps) {
+  if (layout === 'viewport') {
+    return (
+      <div className="flex h-full min-h-0 flex-col gap-5 overflow-hidden p-6 pt-20 text-foreground">
+        {children}
+      </div>
+    )
+  }
+
+  return (
+    <div className="h-full overflow-y-auto overscroll-contain space-y-5 p-6 pt-20 text-foreground">
+      {children}
+    </div>
+  )
+}
+
+export function IntelligenceWorkspaceHeader({ children }: { children: ReactNode }) {
+  return <div className="shrink-0 space-y-5">{children}</div>
+}
+
+interface IntelligenceWorkspaceBodyProps {
+  children: ReactNode
+  scrollable?: boolean
+}
+
+export function IntelligenceWorkspaceBody({ children, scrollable = false }: IntelligenceWorkspaceBodyProps) {
+  return (
+    <div
+      className={`min-h-0 flex-1 ${scrollable ? 'overflow-y-auto overscroll-contain' : 'overflow-hidden'}`}
+    >
+      {children}
+    </div>
+  )
 }
 
 interface IntelligenceStatusItem {
@@ -166,11 +201,11 @@ interface IntelligenceCommandLayoutProps {
 
 export function IntelligenceCommandLayout({ main, insights, assistant }: IntelligenceCommandLayoutProps) {
   return (
-    <div className="grid grid-cols-1 items-start gap-4 xl:grid-cols-[minmax(0,1.45fr)_minmax(260px,0.8fr)_minmax(280px,0.85fr)]">
-      <div className="min-w-0">{main}</div>
-      <div className="space-y-4">{insights}</div>
-      <div className="min-w-0 xl:sticky xl:top-20 xl:z-10 xl:max-h-[calc(100dvh-5rem)]">
-        <div className="flex h-[min(640px,calc(100dvh-7rem))] min-h-0 flex-col overflow-hidden xl:h-[calc(100dvh-5rem)]">
+    <div className="grid h-full min-h-0 grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1.45fr)_minmax(260px,0.8fr)_minmax(280px,0.85fr)] xl:items-stretch">
+      <div className="min-h-0 min-w-0 overflow-y-auto overscroll-contain pr-1">{main}</div>
+      <div className="min-h-0 space-y-4 overflow-y-auto overscroll-contain pr-1">{insights}</div>
+      <div className="flex min-h-0 min-w-0 flex-col overflow-hidden">
+        <div className="flex h-full min-h-0 max-h-[min(72dvh,760px)] flex-col overflow-hidden xl:max-h-none">
           {assistant}
         </div>
       </div>

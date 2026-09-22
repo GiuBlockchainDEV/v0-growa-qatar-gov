@@ -15,6 +15,8 @@ import {
   IntelligenceProducerCard,
   IntelligenceTableBody,
   IntelligenceTableHead,
+  IntelligenceWorkspaceBody,
+  IntelligenceWorkspaceHeader,
   IntelligenceWorkspaceRoot,
 } from '@/components/dashboard/intelligence-workspace-ui'
 import {
@@ -119,7 +121,8 @@ export function WaterIntelligenceWorkspace() {
   }
 
   return (
-    <IntelligenceWorkspaceRoot>
+    <IntelligenceWorkspaceRoot layout="viewport">
+      <IntelligenceWorkspaceHeader>
       <IntelligenceHero
         eyebrow="Resource Intelligence Layer"
         title="Water Intelligence"
@@ -133,13 +136,15 @@ export function WaterIntelligenceWorkspace() {
         ]}
       />
 
+      </IntelligenceWorkspaceHeader>
+
       {loading ? (
         <IntelligenceLoadingState message="Loading water intelligence..." />
       ) : error ? (
         <IntelligenceErrorState message={error} />
       ) : (
-        <>
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
+        <IntelligenceWorkspaceBody>
+          <div className="mb-5 grid shrink-0 grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
             <IntelligenceKpiCard
               label="Total Water"
               value={formatNumber(headline.totalWater, ' m³')}
@@ -243,7 +248,7 @@ export function WaterIntelligenceWorkspace() {
             }
             assistant={<GrowaIntelligencePanel module="water-intelligence" context={growaContext} />}
           />
-        </>
+        </IntelligenceWorkspaceBody>
       )}
     </IntelligenceWorkspaceRoot>
   )

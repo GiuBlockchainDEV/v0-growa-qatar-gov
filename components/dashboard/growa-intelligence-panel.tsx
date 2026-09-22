@@ -50,7 +50,12 @@ export function GrowaIntelligencePanel({ module, context, disabled = false }: Gr
   }, [sessionKey])
 
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' })
+    const container = messagesContainerRef.current
+    if (!container) return
+    container.scrollTo({
+      top: container.scrollHeight,
+      behavior: 'smooth',
+    })
   }, [messages, loading])
 
   const sendMessage = useCallback(
@@ -128,9 +133,9 @@ export function GrowaIntelligencePanel({ module, context, disabled = false }: Gr
       subtitle="Chat in English with live dashboard context."
       icon={Bot}
       fillHeight
-      className="h-full min-h-0"
+      className="h-full min-h-0 max-h-full"
     >
-      <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden">
+      <div className="flex h-full min-h-0 flex-1 flex-col gap-3 overflow-hidden">
         <div className="shrink-0 space-y-2">
           <div className="flex items-center justify-between gap-2">
             <p className="text-xs uppercase tracking-[0.14em] text-muted-foreground">Suggested prompts</p>
@@ -168,7 +173,12 @@ export function GrowaIntelligencePanel({ module, context, disabled = false }: Gr
         <div
           ref={messagesContainerRef}
           className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain rounded-lg border border-border/80 bg-background/40 p-3 [scrollbar-gutter:stable]"
-          onWheel={(event) => event.stopPropagation()}
+          onWheel={(event) => {
+            event.stopPropagation()
+          }}
+          onTouchMove={(event) => {
+            event.stopPropagation()
+          }}
         >
           {messages.length === 0 && !loading ? (
             <div className="flex min-h-[180px] flex-col justify-center text-sm text-muted-foreground">

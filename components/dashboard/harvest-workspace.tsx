@@ -31,6 +31,8 @@ import {
   IntelligencePanel,
   IntelligenceTableBody,
   IntelligenceTableHead,
+  IntelligenceWorkspaceBody,
+  IntelligenceWorkspaceHeader,
   IntelligenceWorkspaceRoot,
 } from '@/components/dashboard/intelligence-workspace-ui'
 import { useHarvestDashboard } from '@/contexts/harvest-dashboard-context'
@@ -821,7 +823,8 @@ export function HarvestWorkspace() {
   }
 
   return (
-    <IntelligenceWorkspaceRoot>
+    <IntelligenceWorkspaceRoot layout="viewport">
+      <IntelligenceWorkspaceHeader>
       <IntelligenceHero
         eyebrow="Harvest Prediction"
         title={
@@ -919,12 +922,15 @@ export function HarvestWorkspace() {
         </p>
       </div>
 
+      </IntelligenceWorkspaceHeader>
+
       {loading && !harvestCreateActive ? (
         <IntelligenceLoadingState message="Loading Harvest analytics..." />
       ) : null}
       {!loading && error && !harvestCreateActive ? <IntelligenceErrorState message={error} /> : null}
 
       {harvestCreateActive ? (
+        <IntelligenceWorkspaceBody scrollable>
         <HarvestFieldCreatePanel
           drawMethod={createDrawMethod}
           rings={createRings}
@@ -934,12 +940,13 @@ export function HarvestWorkspace() {
           onFinishPolygon={finishCreatePolygon}
           onCreated={handleFieldCreated}
         />
+        </IntelligenceWorkspaceBody>
       ) : null}
 
       {!loading && !error && !harvestCreateActive ? (
-        <>
+        <IntelligenceWorkspaceBody>
           {!isFieldDetailView ? (
-            <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
+            <div className="mb-5 grid shrink-0 grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
               {headlineMetrics.map((metric, index) => {
                 const meta = HARVEST_METRIC_META[metric.key]
                 const icons = [Droplets, Leaf, TrendingUp, Target]
@@ -1356,7 +1363,7 @@ export function HarvestWorkspace() {
             assistant={<GrowaIntelligencePanel module="harvest" context={growaContext} />}
           />
           ) : null}
-        </>
+        </IntelligenceWorkspaceBody>
       ) : null}
     </IntelligenceWorkspaceRoot>
   )

@@ -348,7 +348,7 @@ function SlideFromLeftWorkspace({
           panelVisible ? 'translate-x-0' : '-translate-x-full'
         }`}
       >
-        <div className="relative z-[1] h-full overflow-y-auto border-r border-white/10 bg-[#070a10]/95 backdrop-blur-md shadow-2xl">
+        <div className="relative z-[1] flex h-full min-h-0 flex-col overflow-hidden border-r border-white/10 bg-[#070a10]/95 backdrop-blur-md shadow-2xl">
           {children}
         </div>
       </div>
