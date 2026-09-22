@@ -1,7 +1,8 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
+import { buildDashboardMapFocusParams, resolveDashboardModule } from '@/lib/dashboard/map-navigation'
 
 export interface InsightRow {
   id: string
@@ -377,33 +378,31 @@ export function useIntelligenceData() {
 
 export function useMapNavigation(moduleKey: string) {
   const router = useRouter()
+  const searchParams = useSearchParams()
+
+  const resolveModule = () =>
+    resolveDashboardModule(searchParams.get('module'), moduleKey)
 
   const navigateToCropOnMap = (cropName: string) => {
     const normalized = cropName.trim()
     if (!normalized) return
-    const focusToken = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
-    const params = new URLSearchParams({
-      module: moduleKey,
+    const params = buildDashboardMapFocusParams(searchParams, {
+      module: resolveModule(),
       crop: normalized,
-      zoom: '10',
-      focus: focusToken,
+      zoom: 10,
     })
-    params.delete('pointId')
-    router.push(`/dashboard?${params.toString()}`)
+    router.replace(`/dashboard?${params.toString()}`, { scroll: false })
   }
 
   const navigateToProducerPoint = (pointId: string) => {
     const normalizedPointId = pointId.trim()
     if (!normalizedPointId) return
-    const focusToken = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
-    const params = new URLSearchParams({
-      module: moduleKey,
+    const params = buildDashboardMapFocusParams(searchParams, {
+      module: resolveModule(),
       pointId: normalizedPointId,
-      zoom: '16',
-      focus: focusToken,
+      zoom: 16,
     })
-    params.delete('crop')
-    router.push(`/dashboard?${params.toString()}`)
+    router.replace(`/dashboard?${params.toString()}`, { scroll: false })
   }
 
   return { navigateToCropOnMap, navigateToProducerPoint }

@@ -7,17 +7,7 @@ import { DashboardSidebar } from '@/components/dashboard/sidebar'
 import { DashboardHeader } from '@/components/dashboard/header'
 import { useRoleNavigation } from '@/hooks/use-role-navigation'
 import { SatelliteMap } from '@/components/dashboard/satellite-map'
-
-const MAP_SURFACE_MODULES = new Set(['live-map', 'map', 'national-map', 'inspection-map'])
-const WORKSPACE_MODULES = new Set([
-  'rss-feed',
-  'data-analytics',
-  'water-intelligence',
-  'energy-intelligence',
-  'weather',
-  'harvest',
-  'production-harvest',
-])
+import { isDashboardMapSurfaceModule, isDashboardWorkspaceModule } from '@/lib/dashboard/map-navigation'
 
 const LAST_DASHBOARD_MODULE_KEY = 'growa:last-dashboard-module'
 
@@ -58,9 +48,6 @@ function DashboardShell({
   const browserSearchParams = readBrowserSearchParams()
   const moduleFromHook = searchParams.get('module')
   const moduleFromBrowser = browserSearchParams?.get('module') || null
-  const persistedModule =
-    typeof window !== 'undefined' ? window.sessionStorage.getItem(LAST_DASHBOARD_MODULE_KEY) : null
-
   if (moduleFromHook) {
     lastModuleRef.current = moduleFromHook
     if (typeof window !== 'undefined') {
@@ -68,8 +55,7 @@ function DashboardShell({
     }
   }
 
-  const effectiveModule =
-    moduleFromHook || moduleFromBrowser || lastModuleRef.current || persistedModule
+  const moduleFromUrl = moduleFromHook || moduleFromBrowser
 
   useEffect(() => {
     if (!loading && !user) {
@@ -158,12 +144,12 @@ function DashboardShell({
       browserSearchParams?.get('weatherLng')
   )
   const isWorkspaceModule = Boolean(
-    (effectiveModule && WORKSPACE_MODULES.has(effectiveModule)) || hasWeatherContext
+    isDashboardWorkspaceModule(moduleFromUrl) || hasWeatherContext
   )
   const shouldRenderMapSurface =
     pathname === '/dashboard' &&
     !isWorkspaceModule &&
-    (!effectiveModule || MAP_SURFACE_MODULES.has(effectiveModule))
+    isDashboardMapSurfaceModule(moduleFromUrl)
 
   return (
     <div className="h-screen w-screen overflow-hidden bg-background relative">

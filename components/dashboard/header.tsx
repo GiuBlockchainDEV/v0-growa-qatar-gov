@@ -1,7 +1,8 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { usePathname, useRouter } from 'next/navigation'
+import { usePathname, useRouter, useSearchParams } from 'next/navigation'
+import { buildDashboardMapFocusParams, resolveDashboardModule } from '@/lib/dashboard/map-navigation'
 import { useI18n } from '@/lib/i18n'
 import { UserMenu } from './user-menu'
 import { LanguageToggle } from '@/components/language-toggle'
@@ -34,6 +35,7 @@ export function DashboardHeader({
   const { locale } = useI18n()
   const router = useRouter()
   const pathname = usePathname()
+  const searchParams = useSearchParams()
   const { user } = useAuth()
   const { effectiveRole, roleProfile, isLoading: roleLoading } = useRoleNavigation()
   const [searchQuery, setSearchQuery] = useState('')
@@ -268,20 +270,16 @@ export function DashboardHeader({
   }, [])
 
   const handleSelectFarm = (farm: FarmSearchOption) => {
-    const focusToken = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
-    const params = new URLSearchParams({
-      module: 'live-map',
-      zoom: '17',
-      focus: focusToken,
+    const module = resolveDashboardModule(searchParams.get('module'))
+    const params = buildDashboardMapFocusParams(searchParams, {
+      module,
+      zoom: 17,
+      pointId: farm.source === 'point' ? farm.id : undefined,
+      farmId: farm.source === 'farm' ? farm.id : undefined,
     })
-    if (farm.source === 'point') {
-      params.set('pointId', farm.id)
-    } else {
-      params.set('farmId', farm.id)
-    }
     setSearchQuery(farm.name)
     setIsSearchOpen(false)
-    router.push(`/dashboard?${params.toString()}`)
+    router.replace(`/dashboard?${params.toString()}`, { scroll: false })
   }
 
   const shouldShowSearchDropdown =

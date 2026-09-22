@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { useI18n } from '@/lib/i18n'
+import { Maximize2 } from 'lucide-react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { SatelliteMap } from '@/components/dashboard/satellite-map'
 import { ModuleWorkspace } from '@/components/dashboard/module-workspace'
@@ -334,14 +335,20 @@ function SlideFromLeftWorkspace({
         />
       </div>
 
-      {moduleKey !== 'weather' && moduleKey !== 'harvest' && moduleKey !== 'production-harvest' && (
-        <button
-          type="button"
-          aria-label="Return to live map"
-          className="absolute inset-y-16 left-[75%] z-[1700] w-[10%] bg-transparent"
-          onClick={() => router.push('/dashboard?module=live-map&zoom=10')}
-        />
-      )}
+      {panelVisible &&
+        moduleKey !== 'weather' &&
+        moduleKey !== 'harvest' &&
+        moduleKey !== 'production-harvest' && (
+          <button
+            type="button"
+            aria-label="Open full live map"
+            title="Open full live map"
+            className="absolute top-20 z-[1700] flex h-9 w-9 items-center justify-center rounded-lg border border-white/15 bg-[#0c0c0e]/90 text-white/80 shadow-lg transition-colors hover:border-[#07f880]/50 hover:text-[#07f880] left-[calc(75%-1.125rem)]"
+            onClick={() => router.replace('/dashboard?module=live-map&zoom=10', { scroll: false })}
+          >
+            <Maximize2 className="h-4 w-4" />
+          </button>
+        )}
 
       <div
         className={`pointer-events-auto absolute bottom-0 left-0 top-16 z-[1800] w-3/4 transform transition-transform duration-300 ease-out ${

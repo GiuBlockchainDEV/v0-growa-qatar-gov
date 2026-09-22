@@ -1,7 +1,6 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import { useRouter } from 'next/navigation'
 import { Activity, BarChart3, Cpu, Droplets, Flame, Gauge, Leaf, TrendingDown, TrendingUp } from 'lucide-react'
 import { buildGrowaContext } from '@/lib/ai/build-growa-context'
 import { GrowaIntelligencePanel } from '@/components/dashboard/growa-intelligence-panel'
@@ -21,6 +20,7 @@ import {
   IntelligenceWorkspaceHeader,
   IntelligenceWorkspaceRoot,
 } from '@/components/dashboard/intelligence-workspace-ui'
+import { useMapNavigation } from '@/components/dashboard/intelligence-metrics-shared'
 
 interface InsightRow {
   id: string
@@ -182,7 +182,7 @@ function getProducerDisplayName(pointId: string, labelsById: Record<string, stri
 }
 
 export function DataAnalyticsWorkspace() {
-  const router = useRouter()
+  const { navigateToCropOnMap, navigateToProducerPoint } = useMapNavigation('data-analytics')
   const [insights, setInsights] = useState<InsightRow[]>([])
   const [polygons, setPolygons] = useState<PolygonRow[]>([])
   const [producerLabelsById, setProducerLabelsById] = useState<Record<string, string>>({})
@@ -387,33 +387,6 @@ export function DataAnalyticsWorkspace() {
     producerLabelsById,
     producerRanking,
   ])
-
-  const navigateToCropOnMap = (cropName: string) => {
-    const normalized = cropName.trim()
-    if (!normalized) return
-    const focusToken = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
-    const params = new URLSearchParams({
-      module: 'data-analytics',
-      crop: normalized,
-      zoom: '10',
-      focus: focusToken,
-    })
-    params.delete('pointId')
-    router.push(`/dashboard?${params.toString()}`)
-  }
-
-  const navigateToProducerPoint = (pointId: string) => {
-    const normalizedPointId = pointId.trim()
-    if (!normalizedPointId) return
-    const focusToken = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
-    const params = new URLSearchParams({
-      module: 'data-analytics',
-      pointId: normalizedPointId,
-      zoom: '16',
-      focus: focusToken,
-    })
-    router.push(`/dashboard?${params.toString()}`)
-  }
 
   return (
     <IntelligenceWorkspaceRoot layout="viewport">
