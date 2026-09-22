@@ -2,9 +2,11 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import Link from 'next/link'
+import { useSearchParams } from 'next/navigation'
 import { Plus, RefreshCw, Search } from 'lucide-react'
 import { OperationalContextBanner } from '@/components/dashboard/operational-context-banner'
 import { useI18n } from '@/lib/i18n'
+import type { WatchtowerSummary } from '@/lib/domain/types'
 import { cn } from '@/lib/utils'
 
 interface Investigation {
@@ -19,12 +21,15 @@ interface Investigation {
 
 export function InvestigationsWorkspace() {
   const { locale } = useI18n()
+  const searchParams = useSearchParams()
+  const signalId = searchParams.get('signalId')
   const [items, setItems] = useState<Investigation[]>([])
   const [loading, setLoading] = useState(true)
   const [unavailable, setUnavailable] = useState(false)
   const [showForm, setShowForm] = useState(false)
   const [title, setTitle] = useState('')
   const [summary, setSummary] = useState('')
+  const [sourceSignalId, setSourceSignalId] = useState<string | null>(signalId)
 
   const load = useCallback(async () => {
     try {
@@ -43,19 +48,46 @@ export function InvestigationsWorkspace() {
 
   useEffect(() => { load() }, [load])
 
+  useEffect(() => {
+    if (!signalId) return
+    let cancelled = false
+
+    const prefillFromSignal = async () => {
+      try {
+        const res = await fetch('/api/watchtower/summary?timeframe=7d', { cache: 'no-store' })
+        const payload = (await res.json()) as WatchtowerSummary
+        if (!res.ok || cancelled) return
+        const signal = payload.signals.find((entry) => entry.id === signalId)
+        if (!signal) return
+        setSourceSignalId(signal.id)
+        setTitle(`Investigate: ${signal.title}`)
+        setSummary(signal.summary)
+        setShowForm(true)
+      } catch {
+        // Keep manual form usable if signal lookup fails.
+      }
+    }
+
+    prefillFromSignal()
+    return () => {
+      cancelled = true
+    }
+  }, [signalId])
+
   const create = async () => {
     if (!title.trim()) return
     try {
       const res = await fetch('/api/investigations', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title, summary }),
+        body: JSON.stringify({ title, summary, sourceSignalId }),
       })
       const payload = await res.json()
       if (!res.ok) throw new Error(payload.error || 'Failed to create')
       setShowForm(false)
       setTitle('')
       setSummary('')
+      setSourceSignalId(null)
       load()
     } catch (e) {
       alert(e instanceof Error ? e.message : 'Failed')
@@ -92,6 +124,11 @@ export function InvestigationsWorkspace() {
 
       {showForm && (
         <div className="shrink-0 border-b border-white/10 px-5 py-3 space-y-2">
+          {sourceSignalId && (
+            <p className="text-xs text-[#07f880]/80">
+              Linked signal: {sourceSignalId}
+            </p>
+          )}
           <input
             value={title}
             onChange={(e) => setTitle(e.target.value)}

@@ -150,7 +150,7 @@ const NAV: ProductNavItem[] = [
     label: 'Commodities',
     path: '/dashboard?module=commodities',
     icon: 'PieChart',
-    availability: 'upcoming',
+    availability: 'partial',
     area: 'food_security',
   },
   {

@@ -4,11 +4,15 @@ import { parseWatchtowerTimeframe } from '@/lib/domain/timeframes'
 export interface OperationalContext {
   countryCode?: string
   organizationId?: string
+  departmentId?: string
+  regionId?: string
   farmId?: string
   siteId?: string
+  productionUnitId?: string
   parcelId?: string
   cropId?: string
   growingCycleId?: string
+  commodityId?: string
   lat?: number
   lng?: number
   zoom?: number
@@ -17,6 +21,9 @@ export interface OperationalContext {
   endDate?: string
   alertId?: string
   signalId?: string
+  investigationId?: string
+  inspectionId?: string
+  caseId?: string
   mapLayer?: string
   focus?: string
   module?: string
@@ -27,15 +34,22 @@ export interface OperationalContext {
 const CONTEXT_PARAM_KEYS: Array<keyof OperationalContext> = [
   'countryCode',
   'organizationId',
+  'departmentId',
+  'regionId',
   'farmId',
   'siteId',
+  'productionUnitId',
   'parcelId',
   'cropId',
   'growingCycleId',
+  'commodityId',
   'startDate',
   'endDate',
   'alertId',
   'signalId',
+  'investigationId',
+  'inspectionId',
+  'caseId',
   'mapLayer',
   'focus',
   'module',
@@ -74,6 +88,11 @@ export function parseOperationalContext(params: URLSearchParams): OperationalCon
   if (!context.parcelId) {
     const parcelId = params.get('parcelId')?.trim()
     if (parcelId) context.parcelId = parcelId
+  }
+
+  if (!context.commodityId) {
+    const commodityId = params.get('commodityId')?.trim() || params.get('commodity')?.trim()
+    if (commodityId) context.commodityId = commodityId
   }
 
   return context
@@ -116,6 +135,10 @@ export function hasOperationalContext(params: URLSearchParams): boolean {
       context.crop ||
       context.signalId ||
       context.alertId ||
+      context.investigationId ||
+      context.inspectionId ||
+      context.caseId ||
+      context.commodityId ||
       (context.lat !== undefined && context.lng !== undefined)
   )
 }

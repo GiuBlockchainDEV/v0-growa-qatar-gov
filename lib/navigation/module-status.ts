@@ -59,8 +59,28 @@ const MODULE_STATUS: Record<string, ModuleStatusDefinition> = {
   },
   'supply-overview': {
     status: 'partial',
-    relatedModules: ['watchtower', 'harvest'],
+    relatedModules: ['watchtower', 'harvest', 'commodities'],
     description: 'Supply chain overview with partial production linkage.',
+  },
+  commodities: {
+    status: 'partial',
+    relatedModules: ['supply-overview', 'watchtower', 'data-analytics'],
+    description: 'Commodity-centric investigation bridging farms and food security.',
+  },
+  investigations: {
+    status: 'partial',
+    relatedModules: ['watchtower', 'alerts-center', 'ai-mission-control'],
+    description: 'Operational investigations from signals and cross-domain analysis.',
+  },
+  'ai-mission-control': {
+    status: 'partial',
+    relatedModules: ['watchtower', 'investigations'],
+    description: 'Agentic AI missions with specialist handoffs and human approval.',
+  },
+  'data-health': {
+    status: 'live',
+    relatedModules: ['watchtower'],
+    description: 'Platform data coverage and source health monitoring.',
   },
   'alerts-center': {
     status: 'partial',

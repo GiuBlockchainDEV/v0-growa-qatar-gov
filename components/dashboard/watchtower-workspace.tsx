@@ -20,6 +20,7 @@ import { FarmIntelligencePanel } from '@/components/dashboard/farm-intelligence-
 import { GrowaIntelligencePanel } from '@/components/dashboard/growa-intelligence-panel'
 import { buildWatchtowerGrowaContext } from '@/lib/ai/build-watchtower-growa-context'
 import { buildDashboardMapProps } from '@/lib/dashboard/map-navigation'
+import { partitionSignalsByPriority } from '@/lib/watchtower/signal-priority'
 import { cn } from '@/lib/utils'
 
 export function WatchtowerWorkspace() {
@@ -117,6 +118,10 @@ export function WatchtowerWorkspace() {
   const healthySources = summary.sourceStatus.filter((s) => s.health === 'healthy').length
   const freshDatasets = summary.dataQuality.filter((d) => d.status === 'fresh' || d.status === 'partial').length
   const selectedFarmId = context.farmId || mapProps.targetFarmId
+  const { priority: prioritySignals, routine: routineSignals } = partitionSignalsByPriority(summary.signals)
+  const abnormalDomains = summary.nationalStatus.filter(
+    (status) => status.level === 'attention' || status.level === 'high' || status.level === 'critical'
+  )
 
   return (
     <div className="flex h-full flex-col overflow-hidden bg-[#050608] text-white">
@@ -200,19 +205,40 @@ export function WatchtowerWorkspace() {
               <h2 className="text-[10px] font-bold uppercase tracking-widest text-white/45">
                 {t('watchtower.priority_signals')} ({summary.signals.length})
               </h2>
+              {abnormalDomains.length > 0 && (
+                <p className="mt-1 text-[10px] text-amber-300/90">
+                  {abnormalDomains.length} domain{abnormalDomains.length > 1 ? 's' : ''} require attention
+                </p>
+              )}
             </div>
             <div className="flex-1 overflow-y-auto p-3 space-y-2">
               {summary.signals.length === 0 ? (
                 <p className="text-xs text-white/40">{t('watchtower.no_signals')}</p>
               ) : (
-                summary.signals.slice(0, 10).map((signal) => (
-                  <SignalCard
-                    key={signal.id}
-                    signal={signal}
-                    selected={selectedSignalId === signal.id}
-                    onCreateAlert={handleCreateAlert}
-                  />
-                ))
+                <>
+                  {prioritySignals.map((signal) => (
+                    <div key={signal.id} className="ring-1 ring-amber-500/20 rounded-lg">
+                      <SignalCard
+                        signal={signal}
+                        selected={selectedSignalId === signal.id}
+                        onCreateAlert={handleCreateAlert}
+                        emphasized
+                      />
+                    </div>
+                  ))}
+                  {routineSignals.length > 0 && prioritySignals.length > 0 && (
+                    <p className="pt-1 text-[9px] uppercase tracking-widest text-white/30">Routine signals</p>
+                  )}
+                  {routineSignals.slice(0, Math.max(0, 8 - prioritySignals.length)).map((signal) => (
+                    <SignalCard
+                      key={signal.id}
+                      signal={signal}
+                      selected={selectedSignalId === signal.id}
+                      onCreateAlert={handleCreateAlert}
+                      compact
+                    />
+                  ))}
+                </>
               )}
             </div>
 
@@ -232,6 +258,7 @@ export function WatchtowerWorkspace() {
             energy={summary.energy}
             climate={summary.climate}
             supply={summary.supply}
+            nationalStatus={summary.nationalStatus}
           />
         </div>
 

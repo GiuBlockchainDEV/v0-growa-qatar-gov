@@ -9,6 +9,10 @@ export interface NavigationTarget {
   pointId?: string
   parcelId?: string
   crop?: string
+  commodityId?: string
+  investigationId?: string
+  inspectionId?: string
+  caseId?: string
   lat?: number
   lng?: number
   zoom?: number
@@ -36,6 +40,10 @@ export function buildModuleUrl(current: URLSearchParams, target: NavigationTarge
   }
 
   if (target.parcelId) params.set('parcelId', target.parcelId)
+  if (target.commodityId) params.set('commodityId', target.commodityId)
+  if (target.investigationId) params.set('investigationId', target.investigationId)
+  if (target.inspectionId) params.set('inspectionId', target.inspectionId)
+  if (target.caseId) params.set('caseId', target.caseId)
   if (target.signalId) params.set('signalId', target.signalId)
   if (target.timeframe) {
     params.set('timeframe', target.timeframe)

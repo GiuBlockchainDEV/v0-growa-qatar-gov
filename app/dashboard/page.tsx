@@ -17,6 +17,7 @@ import { AlertsCenterWorkspace } from '@/components/dashboard/alerts-center-work
 import { AiMissionControlWorkspace } from '@/components/dashboard/ai-mission-control-workspace'
 import { InvestigationsWorkspace } from '@/components/dashboard/investigations-workspace'
 import { DataHealthWorkspace } from '@/components/dashboard/data-health-workspace'
+import { CommodityWorkspace } from '@/components/dashboard/commodity-workspace'
 import { HarvestDashboardProvider, useHarvestDashboardOptional } from '@/contexts/harvest-dashboard-context'
 import { buildWeatherDashboardParams } from '@/lib/dashboard/weather-url'
 import {
@@ -421,6 +422,14 @@ export default function DashboardPage() {
     return (
       <div className="h-full w-full overflow-hidden">
         <DataHealthWorkspace />
+      </div>
+    )
+  }
+
+  if (moduleKey === 'commodities') {
+    return (
+      <div className="h-full w-full overflow-hidden">
+        <CommodityWorkspace />
       </div>
     )
   }

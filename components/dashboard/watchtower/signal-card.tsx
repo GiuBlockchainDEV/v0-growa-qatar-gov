@@ -16,9 +16,11 @@ interface SignalCardProps {
   signal: IntelligenceSignal
   selected?: boolean
   onCreateAlert?: (signal: IntelligenceSignal) => void
+  emphasized?: boolean
+  compact?: boolean
 }
 
-export function SignalCard({ signal, selected, onCreateAlert }: SignalCardProps) {
+export function SignalCard({ signal, selected, onCreateAlert, emphasized, compact }: SignalCardProps) {
   const opCtx = useOperationalContextOptional()
   const styles = SEVERITY_STYLES[signal.severity]
   const entityCount =
@@ -27,8 +29,10 @@ export function SignalCard({ signal, selected, onCreateAlert }: SignalCardProps)
   return (
     <div
       className={cn(
-        'rounded-lg border bg-[#0a0d12] p-3 transition-all',
+        'rounded-lg border bg-[#0a0d12] transition-all',
+        compact ? 'p-2.5' : emphasized ? 'p-3.5' : 'p-3',
         styles.border,
+        emphasized && 'shadow-[0_0_24px_rgba(251,146,60,0.08)]',
         selected && 'ring-1 ring-[#07f880]/40 border-[#07f880]/30'
       )}
     >
@@ -41,10 +45,13 @@ export function SignalCard({ signal, selected, onCreateAlert }: SignalCardProps)
         )}
       </div>
 
-      <h4 className="mt-2 text-sm font-medium text-white leading-snug">{signal.title}</h4>
+      <h4 className={cn('mt-2 font-medium text-white leading-snug', emphasized ? 'text-sm' : compact ? 'text-xs' : 'text-sm')}>
+        {signal.title}
+      </h4>
 
-      <div className="mt-2 space-y-1 text-[11px] text-white/55">
-        <p>{signal.summary}</p>
+      <div className={cn('mt-2 space-y-1 text-white/55', compact ? 'text-[10px]' : 'text-[11px]')}>
+        {!compact && <p>{signal.summary}</p>}
+        {compact && <p className="line-clamp-2">{signal.summary}</p>}
         {signal.deviationPercent !== undefined && (
           <p className="text-white/70">
             <span className="text-white/40">Deviation:</span>{' '}
