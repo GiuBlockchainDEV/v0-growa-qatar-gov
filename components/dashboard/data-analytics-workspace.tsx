@@ -21,6 +21,7 @@ import {
   IntelligenceWorkspaceRoot,
 } from '@/components/dashboard/intelligence-workspace-ui'
 import { useMapNavigation } from '@/components/dashboard/intelligence-metrics-shared'
+import { OperationalContextBanner } from '@/components/dashboard/operational-context-banner'
 
 interface InsightRow {
   id: string
@@ -405,6 +406,10 @@ export function DataAnalyticsWorkspace() {
       />
 
       </IntelligenceWorkspaceHeader>
+
+      <div className="px-4 pb-2">
+        <OperationalContextBanner />
+      </div>
 
       {loading ? (
         <IntelligenceLoadingState message="Loading analytics..." />

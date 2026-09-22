@@ -6,6 +6,7 @@ import { useAuth } from '@/hooks/use-auth'
 import { DashboardSidebar } from '@/components/dashboard/sidebar'
 import { DashboardHeader } from '@/components/dashboard/header'
 import { RoleNavigationProvider, useSharedRoleNavigation } from '@/contexts/role-navigation-context'
+import { OperationalContextProvider } from '@/contexts/operational-context-provider'
 import {
   hasDashboardDeepLinkContext,
   isDashboardMapSurfaceModule,
@@ -146,7 +147,9 @@ function DashboardShell({
 }) {
   return (
     <RoleNavigationProvider>
-      <DashboardShellContent>{children}</DashboardShellContent>
+      <OperationalContextProvider>
+        <DashboardShellContent>{children}</DashboardShellContent>
+      </OperationalContextProvider>
     </RoleNavigationProvider>
   )
 }

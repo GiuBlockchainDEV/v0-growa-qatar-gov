@@ -12,6 +12,7 @@ import {
 import { getIconComponent, isHarvestModuleKey } from '@/hooks/use-role-navigation'
 import { useSharedRoleNavigation } from '@/contexts/role-navigation-context'
 import { groupMenuItemsBySection } from '@/lib/navigation/sections'
+import { buildPlatformNavigation, mergeWithRoleNavigation } from '@/lib/navigation/platform-navigation'
 
 // Admin items are always the same
 const adminItems = [
@@ -51,7 +52,7 @@ export function DashboardSidebar({
   onClose,
   persistent = false,
 }: DashboardSidebarProps) {
-  const { locale } = useI18n()
+  const { locale, t } = useI18n()
   const {
     primaryItems,
     secondaryItems,
@@ -59,6 +60,7 @@ export function DashboardSidebar({
     isLoading: navLoading,
     isMinistryWorkspace,
     effectiveRole,
+    roleProfile,
   } =
     useSharedRoleNavigation()
   const pathname = usePathname()
@@ -70,12 +72,10 @@ export function DashboardSidebar({
   }
 
   const activeModule = searchParams.get('module')
-  const mainNavItems = primaryItems.length > 0
-    ? primaryItems
-    : menuItems.filter((item) => !['settings', 'support'].includes(item.key))
-  const moreNavItems = secondaryItems.length > 0
-    ? secondaryItems
-    : menuItems.filter((item) => ['settings', 'support'].includes(item.key))
+  const platformNav = buildPlatformNavigation(effectiveRole, roleProfile)
+  const mergedItems = mergeWithRoleNavigation(platformNav.items, menuItems.length > 0 ? menuItems : platformNav.items)
+  const mainNavItems = mergedItems.filter((item) => !['settings', 'support'].includes(item.key))
+  const moreNavItems = mergedItems.filter((item) => ['settings', 'support'].includes(item.key))
 
   const isAdminRole = effectiveRole && [
     'admin', 'super_admin', 'ministry_admin', 'ministry_super_admin', 
@@ -88,6 +88,8 @@ export function DashboardSidebar({
   }
 
   const isNavItemActive = (itemKey: string, href: string) => {
+    if (itemKey === 'farms-sites' && pathname.startsWith('/dashboard/farms')) return true
+    if (itemKey === 'supply-overview' && pathname.startsWith('/dashboard/supply-overview')) return true
     if (activeModule) {
       if (itemKey === activeModule) return true
       if (
@@ -123,9 +125,7 @@ export function DashboardSidebar({
     )
   }
 
-  const sectionedNav = isMinistryWorkspace
-    ? groupMenuItemsBySection([...mainNavItems, ...moreNavItems])
-    : null
+  const sectionedNav = groupMenuItemsBySection([...mainNavItems, ...moreNavItems])
 
   return (
     <>
@@ -154,11 +154,11 @@ export function DashboardSidebar({
             <div className="px-3 py-2">
               <div className="h-4 w-24 bg-white/10 rounded animate-pulse" />
             </div>
-          ) : sectionedNav ? (
+          ) : sectionedNav.length > 0 ? (
             sectionedNav.map(({ section, items }) => (
               <div key={section.id} className="mb-4">
                 <p className="px-3 mb-2 text-[10px] uppercase tracking-widest text-white/35 font-semibold">
-                  {locale === 'ar' ? section.labelAr : section.label}
+                  {t(`nav.section.${section.id}`) || (locale === 'ar' ? section.labelAr : section.label)}
                 </p>
                 {items.map((item) => renderNavLink(item))}
               </div>

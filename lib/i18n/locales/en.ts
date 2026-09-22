@@ -45,6 +45,55 @@ const en: Record<string, string> = {
   'auth.signOut': 'Sign Out',
   'auth.resetPassword': 'Reset Password',
 
+  // Watchtower
+  'watchtower.title': 'Qatar Agricultural Watchtower',
+  'watchtower.subtitle': 'National situational awareness & operational intelligence',
+  'watchtower.loading': 'Loading national watchtower...',
+  'watchtower.refresh': 'Refresh',
+  'watchtower.last_refresh': 'Last refresh',
+  'watchtower.data_coverage': 'Data coverage',
+  'watchtower.demo_mode': 'Demo data active',
+  'watchtower.partial_degradation': 'Partial degradation',
+  'watchtower.priority_signals': 'Priority signals',
+  'watchtower.no_signals': 'No priority signals in current window',
+  'watchtower.what_changed': 'What changed',
+  'watchtower.outlook': 'Outlook',
+  'watchtower.data_health': 'Data confidence',
+  'watchtower.ai_briefing': 'Growa AI briefing',
+  'watchtower.ai_ready': 'AI briefing ready',
+  'watchtower.ai_available': 'AI available',
+  'watchtower.national_map': 'National situation map',
+  'watchtower.layers_active': 'layers active',
+  'watchtower.alert_created': 'Alert created successfully',
+  'watchtower.upcoming_module': 'Module upcoming',
+  'watchtower.upcoming_description': 'This module is structured in navigation but backend integration is not yet complete. Use the National Watchtower and linked intelligence modules for live data.',
+
+  // Operational context
+  'context.active': 'Active context',
+  'context.back_to_watchtower': 'Back to Watchtower',
+  'context.clear': 'Clear',
+
+  // Alerts
+  'alerts.title': 'Alerts Center',
+  'alerts.subtitle': 'Operational alert lifecycle from Watchtower intelligence signals',
+  'alerts.empty': 'No alerts in the current filter. Create alerts from Watchtower priority signals.',
+  'alerts.from_watchtower': 'Open National Watchtower',
+  'alerts.migration_required': 'Alerts persistence requires database migration 00028_operational_alerts. Alert creation from Watchtower will be unavailable until applied.',
+  'alerts.workflow_note': 'Signals from the Watchtower can be promoted to alerts. Alerts follow: new → acknowledged → investigating → action required → monitoring → resolved.',
+
+  // Module workspace
+  'module.investigate_via': 'Investigate via connected modules',
+
+  // Navigation sections
+  'nav.section.watchtower': 'Watchtower',
+  'nav.section.operations': 'Operations',
+  'nav.section.intelligence': 'Intelligence',
+  'nav.section.food_security': 'Food Security',
+  'nav.section.risk_compliance': 'Risk & Compliance',
+  'nav.section.collaboration': 'Collaboration',
+  'nav.section.feeds': 'Intelligence Feeds',
+  'nav.section.platform': 'Platform',
+
   // Navigation
   'nav.dashboard': 'Dashboard',
   'nav.map': 'Operations Map',

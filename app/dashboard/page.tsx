@@ -13,6 +13,7 @@ import { EnergyIntelligenceWorkspace } from '@/components/dashboard/energy-intel
 import { WeatherWorkspace } from '@/components/dashboard/weather-workspace'
 import { HarvestWorkspace } from '@/components/dashboard/harvest-workspace'
 import { WatchtowerWorkspace } from '@/components/dashboard/watchtower-workspace'
+import { AlertsCenterWorkspace } from '@/components/dashboard/alerts-center-workspace'
 import { HarvestDashboardProvider, useHarvestDashboardOptional } from '@/contexts/harvest-dashboard-context'
 import { buildWeatherDashboardParams } from '@/lib/dashboard/weather-url'
 import {
@@ -381,20 +382,19 @@ export default function DashboardPage() {
     )
   }
 
-  if (moduleKey === 'watchtower') {
+  if (moduleKey === 'watchtower' || moduleKey === 'national-overview') {
     return (
-      <SlideFromLeftWorkspace
-        key="watchtower-panel"
-        locale={locale}
-        moduleKey="watchtower"
-        targetPointId={targetPointId}
-        targetFarmId={targetFarmId}
-        targetFocusToken={targetFocusToken}
-        targetZoom={targetZoom}
-        targetCropFilter={targetCropFilter}
-      >
+      <div className="h-full w-full overflow-hidden">
         <WatchtowerWorkspace />
-      </SlideFromLeftWorkspace>
+      </div>
+    )
+  }
+
+  if (moduleKey === 'alerts-center') {
+    return (
+      <div className="h-full w-full overflow-hidden">
+        <AlertsCenterWorkspace />
+      </div>
     )
   }
 

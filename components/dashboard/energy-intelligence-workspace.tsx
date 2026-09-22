@@ -29,6 +29,7 @@ import {
   useIntelligenceData,
   useMapNavigation,
 } from './intelligence-metrics-shared'
+import { OperationalContextBanner } from '@/components/dashboard/operational-context-banner'
 
 export function EnergyIntelligenceWorkspace() {
   const {
@@ -93,6 +94,10 @@ export function EnergyIntelligenceWorkspace() {
       />
 
       </IntelligenceWorkspaceHeader>
+
+      <div className="px-4 pb-2">
+        <OperationalContextBanner />
+      </div>
 
       {loading ? (
         <IntelligenceLoadingState message="Loading energy intelligence..." />

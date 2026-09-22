@@ -192,12 +192,9 @@ const WEATHER_ITEM: MenuItem = {
   icon: 'CloudSun',
 }
 
-export const HARVEST_MENU_ITEM: MenuItem = {
-  key: 'harvest',
-  label: 'Harvest Prediction',
-  path: '/dashboard?module=harvest',
-  icon: 'Harvest',
-}
+import { HARVEST_MENU_ITEM } from '@/lib/navigation/shared-menu-items'
+
+export { HARVEST_MENU_ITEM }
 
 const HARVEST_MODULE_ALIASES = [
   'production-harvest',
