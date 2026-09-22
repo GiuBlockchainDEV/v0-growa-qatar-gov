@@ -9,7 +9,8 @@ import {
   Share2,
   Settings
 } from 'lucide-react'
-import { useRoleNavigation, getIconComponent, isHarvestModuleKey } from '@/hooks/use-role-navigation'
+import { getIconComponent, isHarvestModuleKey } from '@/hooks/use-role-navigation'
+import { useSharedRoleNavigation } from '@/contexts/role-navigation-context'
 
 // Admin items are always the same
 const adminItems = [
@@ -56,7 +57,7 @@ export function DashboardSidebar({
     isMinistryWorkspace,
     effectiveRole,
   } =
-    useRoleNavigation()
+    useSharedRoleNavigation()
   const pathname = usePathname()
   const searchParams = useSearchParams()
 

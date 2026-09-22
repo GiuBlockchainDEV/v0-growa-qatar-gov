@@ -7,7 +7,7 @@ import { useI18n } from '@/lib/i18n'
 import { UserMenu } from './user-menu'
 import { LanguageToggle } from '@/components/language-toggle'
 import { Bell, Search, Command, Activity, PanelLeft, Globe, MapPin } from 'lucide-react'
-import { useRoleNavigation } from '@/hooks/use-role-navigation'
+import { useSharedRoleNavigation } from '@/contexts/role-navigation-context'
 import { useAuth } from '@/hooks/use-auth'
 
 interface DashboardHeaderProps {
@@ -37,7 +37,7 @@ export function DashboardHeader({
   const pathname = usePathname()
   const searchParams = useSearchParams()
   const { user } = useAuth()
-  const { effectiveRole, roleProfile, isLoading: roleLoading } = useRoleNavigation()
+  const { effectiveRole, roleProfile, isLoading: roleLoading } = useSharedRoleNavigation()
   const [searchQuery, setSearchQuery] = useState('')
   const [farmOptions, setFarmOptions] = useState<FarmSearchOption[]>([])
   const [cachedFarmOptions, setCachedFarmOptions] = useState<FarmSearchOption[]>([])
@@ -108,35 +108,17 @@ export function DashboardHeader({
       if (normalizedQuery) {
         params.set('q', normalizedQuery)
       }
-      params.set('debugSearch', '1')
       const requestUrl = `/api/operations/farms${params.size ? `?${params.toString()}` : ''}`
-      console.log('[farm-search-debug] fetching farms', {
-        query: normalizedQuery,
-        requestUrl,
-      })
       const response = await fetch(requestUrl, {
         cache: 'no-store',
         signal,
       })
       const payload = await response.json().catch(() => null)
-      console.log('[farm-search-debug] farms response', {
-        query: normalizedQuery,
-        status: response.status,
-        ok: response.ok,
-        isArray: Array.isArray(payload),
-        rawCount: Array.isArray(payload) ? payload.length : null,
-        payload,
-      })
       if (!response.ok) {
         throw new Error((payload as { error?: string } | null)?.error || 'Failed to load farms')
       }
 
       const mapped = mapFarmRows(payload)
-      console.log('[farm-search-debug] mapped farm options', {
-        query: normalizedQuery,
-        mappedCount: mapped.length,
-        mapped,
-      })
       let pointMapped: FarmSearchOption[] = []
       let polygonCountByPointId: Record<string, number> = {}
       try {
@@ -196,7 +178,7 @@ export function DashboardHeader({
       // from the cached full list so users still get autocomplete while typing.
       let effectiveCache = cachedFarmOptions
       if (mapped.length === 0 && effectiveCache.length === 0) {
-        const fullListResponse = await fetch('/api/operations/farms?debugSearch=1', {
+        const fullListResponse = await fetch('/api/operations/farms', {
           cache: 'no-store',
           signal,
         })
@@ -204,9 +186,6 @@ export function DashboardHeader({
         if (fullListResponse.ok) {
           effectiveCache = [...mapFarmRows(fullListPayload), ...pointMapped]
           setCachedFarmOptions(effectiveCache)
-          console.log('[farm-search-debug] populated fallback cache from full list', {
-            fullCount: effectiveCache.length,
-          })
         }
       }
 
@@ -218,11 +197,6 @@ export function DashboardHeader({
             farm.location.toLowerCase().includes(q) ||
             farm.id.toLowerCase().includes(q)
           )
-        })
-        console.log('[farm-search-debug] fallback options from cache', {
-          query: normalizedQuery,
-          fallbackCount: fallback.length,
-          fallback,
         })
         setFarmOptions(fallback)
       } else {
@@ -239,15 +213,9 @@ export function DashboardHeader({
 
   useEffect(() => {
     const controller = new AbortController()
-    loadFarms(controller.signal, '')
-    return () => controller.abort()
-  }, [locale, user?.id])
-
-  useEffect(() => {
-    const controller = new AbortController()
     loadFarms(controller.signal, searchQuery)
     return () => controller.abort()
-  }, [pathname, searchQuery])
+  }, [locale, pathname, searchQuery, user?.id])
 
   useEffect(() => {
     if (searchQuery.trim()) {
@@ -270,9 +238,9 @@ export function DashboardHeader({
   }, [])
 
   const handleSelectFarm = (farm: FarmSearchOption) => {
-    const module = resolveDashboardModule(searchParams.get('module'))
+    const dashboardModule = resolveDashboardModule(searchParams.get('module'))
     const params = buildDashboardMapFocusParams(searchParams, {
-      module,
+      module: dashboardModule,
       zoom: 17,
       pointId: farm.source === 'point' ? farm.id : undefined,
       farmId: farm.source === 'farm' ? farm.id : undefined,
@@ -327,12 +295,10 @@ export function DashboardHeader({
               type="text"
               value={searchQuery}
               onChange={(event) => {
-                console.log('[farm-search-debug] input change', { value: event.target.value })
                 setSearchQuery(event.target.value)
                 setIsSearchOpen(true)
               }}
               onFocus={() => {
-                console.log('[farm-search-debug] input focus')
                 setIsSearchOpen(true)
               }}
               onKeyDown={(event) => {

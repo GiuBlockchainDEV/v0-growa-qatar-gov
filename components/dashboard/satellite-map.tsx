@@ -54,9 +54,17 @@ interface HarvestMapField {
   centroid: { lat: number; lng: number }
 }
 
+interface OperationsFarmTarget {
+  id: string
+  label: string
+  lat: number
+  lng: number
+}
+
 interface SatelliteMapProps {
   locale?: string
   targetPointId?: string | null
+  targetFarmId?: string | null
   targetCropFilter?: string | null
   targetFocusToken?: string | null
   targetZoom?: number
@@ -581,6 +589,7 @@ function isLeafletUiClick(event: any) {
 export function SatelliteMap({
   locale = 'en',
   targetPointId = null,
+  targetFarmId = null,
   targetCropFilter = null,
   targetFocusToken = null,
   targetZoom,
@@ -629,6 +638,7 @@ export function SatelliteMap({
   const [mapReady, setMapReady] = useState(false)
   const [currentZoom, setCurrentZoom] = useState(DEFAULT_ZOOM)
   const [customPoints, setCustomPoints] = useState<CustomPoint[]>([])
+  const [operationsFarmTarget, setOperationsFarmTarget] = useState<OperationsFarmTarget | null>(null)
   const [pointPolygons, setPointPolygons] = useState<PointPolygonsMap>({})
   const [isAddPointMode, setIsAddPointMode] = useState(false)
   const [newPointType, setNewPointType] = useState<MapPointType>('custom')
@@ -1257,12 +1267,58 @@ export function SatelliteMap({
     }
   }, [polygonDrawMethod, shapeSeedVertex])
 
+  useEffect(() => {
+    if (!targetFarmId || targetPointId) {
+      setOperationsFarmTarget(null)
+      return
+    }
+
+    let cancelled = false
+
+    const loadFarmTarget = async () => {
+      try {
+        const response = await fetch(`/api/operations/farms?id=${encodeURIComponent(targetFarmId)}`, {
+          cache: 'no-store',
+        })
+        if (!response.ok || cancelled) return
+        const row = (await response.json()) as Record<string, unknown>
+        const lat = Number(row.gps_latitude ?? row.gpsLatitude ?? row.lat)
+        const lng = Number(row.gps_longitude ?? row.gpsLongitude ?? row.lng)
+        if (!Number.isFinite(lat) || !Number.isFinite(lng)) return
+        const label =
+          (typeof row.name_en === 'string' && row.name_en.trim()) ||
+          (typeof row.name === 'string' && row.name.trim()) ||
+          (typeof row.name_ar === 'string' && row.name_ar.trim()) ||
+          `Farm ${targetFarmId.slice(0, 8)}`
+        if (!cancelled) {
+          setOperationsFarmTarget({ id: targetFarmId, label, lat, lng })
+        }
+      } catch {
+        if (!cancelled) setOperationsFarmTarget(null)
+      }
+    }
+
+    void loadFarmTarget()
+
+    return () => {
+      cancelled = true
+    }
+  }, [targetFarmId, targetPointId])
+
   const resolvedTargetFarm = useMemo(() => {
-    // When a specific point is requested from search, keep point focus priority.
     if (targetPointId) return null
+    if (operationsFarmTarget) {
+      return {
+        id: operationsFarmTarget.id,
+        lat: operationsFarmTarget.lat,
+        lng: operationsFarmTarget.lng,
+        label: operationsFarmTarget.label,
+        type: 'farm' as MapPointType,
+      }
+    }
     if (!isFarmCompanyContext) return null
     return mapMarkers.find((marker) => marker.type === 'farm') || null
-  }, [mapMarkers, isFarmCompanyContext, targetPointId])
+  }, [isFarmCompanyContext, mapMarkers, operationsFarmTarget, targetPointId])
 
   const explicitTargetPoint = useMemo(() => {
     if (!targetPointId) return null

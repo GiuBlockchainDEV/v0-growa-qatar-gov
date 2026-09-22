@@ -21,12 +21,18 @@ import {
 } from '@/lib/weather/qatar-grid'
 import type { HarvestRasterOverlay } from '@/lib/harvest/types'
 import { extractBoundsFromGeoJson, type LatLngVertex } from '@/lib/harvest/geojson'
+import {
+  buildDashboardMapProps,
+  DASHBOARD_MAP_SURFACE_MODULES,
+  resolveDashboardPageModule,
+} from '@/lib/dashboard/map-navigation'
 
 function SlideFromLeftWorkspace({
   children,
   locale,
   moduleKey,
   targetPointId,
+  targetFarmId,
   targetFocusToken,
   targetZoom,
   targetCropFilter,
@@ -35,6 +41,7 @@ function SlideFromLeftWorkspace({
   locale: string
   moduleKey: string
   targetPointId: string | null
+  targetFarmId: string | null
   targetFocusToken: string | null
   targetZoom?: number
   targetCropFilter: string | null
@@ -80,7 +87,6 @@ function SlideFromLeftWorkspace({
         : [],
     [moduleKey]
   )
-  const harvestMode = searchParams.get('harvestMode') === 'predict' ? 'predict' : 'current'
   const selectedHarvestParcelId = searchParams.get('parcelId')
   const harvestCreateActive = searchParams.get('harvestCreate') === '1'
   const harvestDrawMethodFromUrl = searchParams.get('harvestDraw') === 'circle' ? 'circle' : 'vertex'
@@ -269,6 +275,7 @@ function SlideFromLeftWorkspace({
         <SatelliteMap
           locale={locale}
           targetPointId={targetPointId}
+          targetFarmId={targetFarmId}
           targetFocusToken={targetFocusToken}
           targetZoom={targetZoom}
           targetCropFilter={targetCropFilter}
@@ -318,16 +325,6 @@ function SlideFromLeftWorkspace({
                     zoom: targetZoom ?? 10,
                     requestedAt: searchParams.get('weatherRequestedAt'),
                   })
-                  window.dispatchEvent(
-                    new CustomEvent('weather:grid-select', {
-                      detail: {
-                        gridId: point.id,
-                        lat,
-                        lng,
-                        requestedAt: searchParams.get('weatherRequestedAt'),
-                      },
-                    })
-                  )
                   router.replace(`/dashboard?${params.toString()}`, { scroll: false })
                 }
               : undefined
@@ -366,24 +363,16 @@ function SlideFromLeftWorkspace({
 export default function DashboardPage() {
   const { locale } = useI18n()
   const searchParams = useSearchParams()
-  const moduleKey = searchParams.get('module')
-  const targetPointId = searchParams.get('pointId')
-  const targetFocusToken = searchParams.get('focus')
-  const targetCropFilter = searchParams.get('crop')
-  const zoomParam = searchParams.get('zoom')
-  const requestedZoom = zoomParam ? Number(zoomParam) : Number.NaN
-  const targetZoom =
-    Number.isFinite(requestedZoom) && requestedZoom >= 3 && requestedZoom <= 19
-      ? requestedZoom
-      : undefined
+  const moduleKey = resolveDashboardPageModule(searchParams)
+  const { targetPointId, targetFarmId, targetFocusToken, targetCropFilter, targetZoom } =
+    buildDashboardMapProps(searchParams)
 
-  const mapModules = new Set(['live-map', 'map', 'national-map', 'inspection-map'])
-
-  if (!moduleKey || mapModules.has(moduleKey)) {
+  if (!moduleKey || DASHBOARD_MAP_SURFACE_MODULES.has(moduleKey)) {
     return (
       <SatelliteMap
         locale={locale}
         targetPointId={targetPointId}
+        targetFarmId={targetFarmId}
         targetFocusToken={targetFocusToken}
         targetZoom={targetZoom}
         targetCropFilter={targetCropFilter}
@@ -398,6 +387,7 @@ export default function DashboardPage() {
         locale={locale}
         moduleKey="rss-feed"
         targetPointId={targetPointId}
+        targetFarmId={targetFarmId}
         targetFocusToken={targetFocusToken}
         targetZoom={targetZoom}
         targetCropFilter={targetCropFilter}
@@ -414,6 +404,7 @@ export default function DashboardPage() {
         locale={locale}
         moduleKey="data-analytics"
         targetPointId={targetPointId}
+        targetFarmId={targetFarmId}
         targetFocusToken={targetFocusToken}
         targetZoom={targetZoom}
         targetCropFilter={targetCropFilter}
@@ -430,6 +421,7 @@ export default function DashboardPage() {
         locale={locale}
         moduleKey="water-intelligence"
         targetPointId={targetPointId}
+        targetFarmId={targetFarmId}
         targetFocusToken={targetFocusToken}
         targetZoom={targetZoom}
         targetCropFilter={targetCropFilter}
@@ -446,6 +438,7 @@ export default function DashboardPage() {
         locale={locale}
         moduleKey="energy-intelligence"
         targetPointId={targetPointId}
+        targetFarmId={targetFarmId}
         targetFocusToken={targetFocusToken}
         targetZoom={targetZoom}
         targetCropFilter={targetCropFilter}
@@ -462,6 +455,7 @@ export default function DashboardPage() {
         locale={locale}
         moduleKey="weather"
         targetPointId={targetPointId}
+        targetFarmId={targetFarmId}
         targetFocusToken={targetFocusToken}
         targetZoom={targetZoom}
         targetCropFilter={targetCropFilter}
@@ -479,6 +473,7 @@ export default function DashboardPage() {
           locale={locale}
           moduleKey="harvest"
           targetPointId={targetPointId}
+          targetFarmId={targetFarmId}
           targetFocusToken={targetFocusToken}
           targetZoom={targetZoom}
           targetCropFilter={targetCropFilter}

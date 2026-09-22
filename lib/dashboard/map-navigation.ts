@@ -19,6 +19,43 @@ function createFocusToken() {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
 }
 
+export function hasDashboardDeepLinkContext(params: URLSearchParams | null) {
+  if (!params) return false
+  return Boolean(
+    params.get('module') ||
+      params.get('farmId') ||
+      params.get('pointId') ||
+      params.get('zoom') ||
+      params.get('focus') ||
+      params.get('crop') ||
+      params.get('weatherGridId') ||
+      params.get('weatherLat') ||
+      params.get('weatherLng') ||
+      params.get('weatherRequestedAt') ||
+      params.get('parcelId') ||
+      params.get('harvestMode') ||
+      params.get('harvestMetric') ||
+      params.get('harvestGranularity') ||
+      params.get('harvestPeriod') ||
+      params.get('harvestSeasonId') ||
+      params.get('harvestCreate') ||
+      params.get('harvestDraw')
+  )
+}
+
+export function hasWeatherDashboardContext(params: URLSearchParams) {
+  return Boolean(
+    params.get('weatherGridId') || params.get('weatherLat') || params.get('weatherLng')
+  )
+}
+
+export function resolveDashboardPageModule(searchParams: URLSearchParams) {
+  const explicitModule = searchParams.get('module')?.trim()
+  if (explicitModule) return explicitModule
+  if (hasWeatherDashboardContext(searchParams)) return 'weather'
+  return null
+}
+
 export function isDashboardWorkspaceModule(moduleKey: string | null | undefined) {
   if (!moduleKey) return false
   return DASHBOARD_WORKSPACE_MODULES.has(moduleKey)
@@ -44,15 +81,15 @@ export function resolveDashboardModule(
   return fallbackModule
 }
 
-function clearIncompatibleDashboardParams(params: URLSearchParams, module: string) {
-  if (module !== 'weather') {
+export function clearIncompatibleDashboardParams(params: URLSearchParams, moduleKey: string) {
+  if (moduleKey !== 'weather') {
     params.delete('weatherGridId')
     params.delete('weatherLat')
     params.delete('weatherLng')
     params.delete('weatherRequestedAt')
   }
 
-  if (module !== 'harvest' && module !== 'production-harvest') {
+  if (moduleKey !== 'harvest' && moduleKey !== 'production-harvest') {
     params.delete('parcelId')
     params.delete('harvestMode')
     params.delete('harvestMetric')
@@ -110,4 +147,21 @@ export function buildDashboardMapFocusParams(
   clearIncompatibleDashboardParams(params, selection.module)
 
   return params
+}
+
+export function buildDashboardMapProps(searchParams: URLSearchParams) {
+  const zoomParam = searchParams.get('zoom')
+  const requestedZoom = zoomParam ? Number(zoomParam) : Number.NaN
+  const targetZoom =
+    Number.isFinite(requestedZoom) && requestedZoom >= 3 && requestedZoom <= 19
+      ? requestedZoom
+      : undefined
+
+  return {
+    targetPointId: searchParams.get('pointId'),
+    targetFarmId: searchParams.get('farmId'),
+    targetFocusToken: searchParams.get('focus'),
+    targetCropFilter: searchParams.get('crop'),
+    targetZoom,
+  }
 }

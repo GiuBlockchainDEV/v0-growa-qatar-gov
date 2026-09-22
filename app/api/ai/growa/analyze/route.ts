@@ -58,12 +58,12 @@ export async function POST(request: Request) {
   }
 
   const payload = body as Partial<GrowaAnalyzeRequest>
-  const module = payload.module
+  const growaModule = payload.module
   const prompt = normalizePrompt(payload.prompt)
   const context = payload.context
   const messages = normalizeMessages(payload.messages)
 
-  if (!isGrowaModule(module)) {
+  if (!isGrowaModule(growaModule)) {
     return NextResponse.json({ error: 'Invalid or missing module' }, { status: 400 })
   }
 
@@ -78,11 +78,11 @@ export async function POST(request: Request) {
   try {
     const result = await generateGrowaAnalysis(
       {
-        module,
+        module: growaModule,
         prompt,
         context: {
           ...context,
-          module,
+          module: growaModule,
         },
         messages,
       },

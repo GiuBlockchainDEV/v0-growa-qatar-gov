@@ -1,3 +1,5 @@
+import { clearIncompatibleDashboardParams } from '@/lib/dashboard/map-navigation'
+
 export function buildWeatherDashboardParams(
   current: URLSearchParams,
   selection: {
@@ -19,6 +21,6 @@ export function buildWeatherDashboardParams(
   params.delete('farmId')
   params.delete('crop')
   params.delete('focus')
-  params.delete('parcelId')
+  clearIncompatibleDashboardParams(params, 'weather')
   return params
 }

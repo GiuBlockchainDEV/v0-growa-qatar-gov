@@ -46,6 +46,32 @@ export async function GET(request: Request) {
     })
   }
 
+  const farmId = searchParams.get('id')?.trim()
+  if (farmId) {
+    const detailSelectAttempts = [
+      'id, name, name_en, name_ar, location, gps_latitude, gps_longitude',
+      'id, name_en, name_ar, location, gps_latitude, gps_longitude',
+      'id, name, location',
+      'id, name_en, location',
+    ]
+
+    for (const select of detailSelectAttempts) {
+      const { data, error } = await searchClient.from('farms').select(select).eq('id', farmId).maybeSingle()
+      if (!error && data) {
+        return NextResponse.json(data)
+      }
+
+      const message = error?.message.toLowerCase() || ''
+      const retryable =
+        message.includes('column') || message.includes('does not exist') || message.includes('schema cache')
+      if (!retryable && error) {
+        return NextResponse.json({ error: error.message }, { status: 500 })
+      }
+    }
+
+    return NextResponse.json({ error: 'Farm not found' }, { status: 404 })
+  }
+
   const escapedSearch = searchQuery.replace(/[%_]/g, '\\$&')
   const selectAttempts = [
     'id, name, name_en, name_ar, location',
