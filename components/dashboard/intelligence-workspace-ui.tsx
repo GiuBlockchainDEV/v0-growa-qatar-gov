@@ -166,11 +166,11 @@ interface IntelligenceCommandLayoutProps {
 
 export function IntelligenceCommandLayout({ main, insights, assistant }: IntelligenceCommandLayoutProps) {
   return (
-    <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1.45fr)_minmax(260px,0.8fr)_minmax(280px,0.85fr)]">
+    <div className="grid grid-cols-1 items-start gap-4 xl:grid-cols-[minmax(0,1.45fr)_minmax(260px,0.8fr)_minmax(280px,0.85fr)]">
       <div className="min-w-0">{main}</div>
       <div className="space-y-4">{insights}</div>
-      <div className="min-w-0 xl:sticky xl:top-20 xl:max-h-[calc(100dvh-5rem)] xl:self-start">
-        <div className="flex max-h-[min(720px,calc(100dvh-8rem))] flex-col overflow-hidden xl:h-full xl:max-h-none">
+      <div className="min-w-0 xl:sticky xl:top-20 xl:z-10 xl:max-h-[calc(100dvh-5rem)]">
+        <div className="flex h-[min(640px,calc(100dvh-7rem))] min-h-0 flex-col overflow-hidden xl:h-[calc(100dvh-5rem)]">
           {assistant}
         </div>
       </div>
