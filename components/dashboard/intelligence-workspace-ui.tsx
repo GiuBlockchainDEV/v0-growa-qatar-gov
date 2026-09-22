@@ -14,7 +14,7 @@ export function IntelligenceWorkspaceRoot({
 }: IntelligenceWorkspaceRootProps) {
   if (layout === 'viewport') {
     return (
-      <div className="flex h-full min-h-0 flex-col gap-5 overflow-hidden p-6 pt-20 text-foreground">
+      <div className="flex h-full min-h-0 flex-col gap-3 overflow-hidden px-4 py-4 text-foreground sm:px-6">
         {children}
       </div>
     )
@@ -28,7 +28,11 @@ export function IntelligenceWorkspaceRoot({
 }
 
 export function IntelligenceWorkspaceHeader({ children }: { children: ReactNode }) {
-  return <div className="shrink-0 space-y-5">{children}</div>
+  return (
+    <div className="max-h-[min(36vh,380px)] shrink-0 space-y-4 overflow-y-auto overscroll-contain pr-1">
+      {children}
+    </div>
+  )
 }
 
 interface IntelligenceWorkspaceBodyProps {
@@ -39,7 +43,9 @@ interface IntelligenceWorkspaceBodyProps {
 export function IntelligenceWorkspaceBody({ children, scrollable = false }: IntelligenceWorkspaceBodyProps) {
   return (
     <div
-      className={`min-h-0 flex-1 ${scrollable ? 'overflow-y-auto overscroll-contain' : 'overflow-hidden'}`}
+      className={`min-h-[min(420px,52vh)] min-w-0 flex-1 ${
+        scrollable ? 'overflow-y-auto overscroll-contain' : 'overflow-hidden'
+      }`}
     >
       {children}
     </div>
@@ -173,8 +179,8 @@ export function IntelligencePanel({
 
   return (
     <section
-      className={`rounded-xl border p-4 shadow-[inset_0_0_0_1px_rgba(148,163,184,0.05)] ${variantClass} ${
-        fillHeight ? 'flex min-h-0 flex-col overflow-hidden' : ''
+      className={`rounded-xl border shadow-[inset_0_0_0_1px_rgba(148,163,184,0.05)] ${variantClass} ${
+        fillHeight ? 'flex min-h-0 flex-col overflow-hidden p-3' : 'p-4'
       } ${className}`}
     >
       <div className={`${fillHeight ? 'shrink-0' : ''} mb-3`}>
@@ -201,13 +207,11 @@ interface IntelligenceCommandLayoutProps {
 
 export function IntelligenceCommandLayout({ main, insights, assistant }: IntelligenceCommandLayoutProps) {
   return (
-    <div className="grid h-full min-h-0 grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1.45fr)_minmax(260px,0.8fr)_minmax(280px,0.85fr)] xl:items-stretch">
+    <div className="grid h-full min-h-0 grid-cols-1 gap-3 xl:grid-cols-[minmax(0,1.35fr)_minmax(240px,0.75fr)_minmax(260px,0.9fr)] xl:items-stretch">
       <div className="min-h-0 min-w-0 overflow-y-auto overscroll-contain pr-1">{main}</div>
-      <div className="min-h-0 space-y-4 overflow-y-auto overscroll-contain pr-1">{insights}</div>
-      <div className="flex min-h-0 min-w-0 flex-col overflow-hidden">
-        <div className="flex h-full min-h-0 max-h-[min(72dvh,760px)] flex-col overflow-hidden xl:max-h-none">
-          {assistant}
-        </div>
+      <div className="min-h-0 min-w-0 space-y-4 overflow-y-auto overscroll-contain pr-1">{insights}</div>
+      <div className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden">
+        {assistant}
       </div>
     </div>
   )

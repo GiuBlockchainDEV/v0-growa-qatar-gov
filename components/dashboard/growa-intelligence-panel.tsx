@@ -133,9 +133,9 @@ export function GrowaIntelligencePanel({ module, context, disabled = false }: Gr
       subtitle="Chat in English with live dashboard context."
       icon={Bot}
       fillHeight
-      className="h-full min-h-0 max-h-full"
+      className="flex h-full min-h-0 flex-col overflow-hidden"
     >
-      <div className="flex h-full min-h-0 flex-1 flex-col gap-3 overflow-hidden">
+      <div className="flex h-full min-h-0 flex-1 flex-col gap-2 overflow-hidden">
         <div className="shrink-0 space-y-2">
           <div className="flex items-center justify-between gap-2">
             <p className="text-xs uppercase tracking-[0.14em] text-muted-foreground">Suggested prompts</p>
@@ -155,18 +155,20 @@ export function GrowaIntelligencePanel({ module, context, disabled = false }: Gr
               </button>
             ) : null}
           </div>
-          <div className="flex flex-wrap gap-2">
-            {promptOptions.map((option) => (
-              <button
-                key={option.id}
-                type="button"
-                disabled={disabled || loading || !context}
-                onClick={() => void sendMessage(option.prompt)}
-                className="rounded-lg border border-border bg-secondary/30 px-3 py-2 text-left text-xs text-foreground transition-colors hover:border-primary/30 hover:bg-primary/10 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                {option.label}
-              </button>
-            ))}
+          <div className="max-h-[88px] overflow-y-auto overscroll-contain pr-1">
+            <div className="flex flex-wrap gap-1.5">
+              {promptOptions.map((option) => (
+                <button
+                  key={option.id}
+                  type="button"
+                  disabled={disabled || loading || !context}
+                  onClick={() => void sendMessage(option.prompt)}
+                  className="rounded-lg border border-border bg-secondary/30 px-2.5 py-1.5 text-left text-[11px] text-foreground transition-colors hover:border-primary/30 hover:bg-primary/10 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {option.label}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
 
@@ -181,7 +183,7 @@ export function GrowaIntelligencePanel({ module, context, disabled = false }: Gr
           }}
         >
           {messages.length === 0 && !loading ? (
-            <div className="flex min-h-[180px] flex-col justify-center text-sm text-muted-foreground">
+            <div className="flex min-h-[120px] flex-col justify-center text-sm text-muted-foreground">
               <p>Ask a custom question or tap a suggested prompt to start the briefing.</p>
               <p className="mt-2 text-xs">{contextSummary}</p>
             </div>
@@ -226,27 +228,27 @@ export function GrowaIntelligencePanel({ module, context, disabled = false }: Gr
           )}
         </div>
 
-        <form onSubmit={handleSubmit} className="shrink-0 space-y-2 border-t border-border/70 pt-3">
+        <form onSubmit={handleSubmit} className="shrink-0 space-y-1.5 border-t border-border/70 pt-2">
           <Textarea
             value={customInput}
             onChange={(event) => setCustomInput(event.target.value)}
             onKeyDown={handleComposerKeyDown}
             placeholder="Ask a follow-up or type a custom question..."
             disabled={disabled || loading || !context}
-            rows={3}
-            className="min-h-[72px] resize-none border-border bg-background/70 text-sm"
+            rows={2}
+            className="min-h-[52px] resize-none border-border bg-background/70 text-sm"
           />
           <button
             type="submit"
             disabled={!canSend}
-            className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-primary/35 bg-primary/15 px-4 py-2.5 text-sm font-medium text-primary transition-colors hover:bg-primary/25 disabled:cursor-not-allowed disabled:opacity-50"
+            className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-primary/35 bg-primary/15 px-3 py-2 text-sm font-medium text-primary transition-colors hover:bg-primary/25 disabled:cursor-not-allowed disabled:opacity-50"
           >
             {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
             {loading ? 'Sending...' : messages.length === 0 ? 'Send message' : 'Send follow-up'}
           </button>
-          <p className="text-[10px] text-muted-foreground">
+          <p className="text-[10px] leading-4 text-muted-foreground">
             <Sparkles className="mr-1 inline h-3 w-3" />
-            Press Enter to send, Shift+Enter for a new line. Follow-ups keep conversation context.
+            Enter to send, Shift+Enter for a new line.
           </p>
         </form>
       </div>
