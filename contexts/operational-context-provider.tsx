@@ -87,7 +87,8 @@ export function OperationalContextProvider({ children }: { children: ReactNode }
       const nextParams = new URLSearchParams(href.split('?')[1] || '')
       const currentModule = searchParams.get('module') || 'watchtower'
       const nextModule = nextParams.get('module') || 'watchtower'
-      const navigate = currentModule === nextModule ? router.replace : router.push
+      const opensField = Boolean(nextParams.get('parcelId')) && nextParams.get('parcelId') !== searchParams.get('parcelId')
+      const navigate = currentModule === nextModule && !opensField ? router.replace : router.push
       navigate(href, { scroll: false })
     },
     [router, searchParams]

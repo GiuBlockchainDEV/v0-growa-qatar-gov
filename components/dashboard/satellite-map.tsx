@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Crosshair, Minus, Plus } from 'lucide-react'
 import { createHarvestRasterLayer } from '@/components/dashboard/harvest-raster-layer'
-import { findHarvestMapFieldAtLatLng } from '@/lib/harvest/field-hit-test'
 import { useAuth } from '@/hooks/use-auth'
 import { useOrganization } from '@/hooks/use-organization'
 import type { IntelligenceSignal } from '@/lib/domain/types'
@@ -1879,15 +1878,6 @@ export function SatelliteMap({
 
     const hasRasterOverlay = Boolean(harvestRasterOverlay?.imageUrl)
 
-    const selectFieldAtEvent = (event: any) => {
-      if (!onHarvestFieldClick || harvestFieldDrawActive) return
-      const lat = Number(event?.latlng?.lat)
-      const lng = Number(event?.latlng?.lng)
-      if (!Number.isFinite(lat) || !Number.isFinite(lng)) return
-      const match = findHarvestMapFieldAtLatLng(harvestFields, lat, lng)
-      if (match) onHarvestFieldClick(match)
-    }
-
     for (const field of harvestFields) {
       const selected = field.parcel_id === selectedHarvestParcelId
       for (const ring of field.rings) {
@@ -1913,10 +1903,11 @@ export function SatelliteMap({
           )
 
           layer.on('click', (event: any) => {
-            event?.originalEvent?.preventDefault?.()
-            event?.originalEvent?.stopPropagation?.()
-            selectFieldAtEvent(event)
+            L.DomEvent.stop(event)
+            if (!onHarvestFieldClick || harvestFieldDrawActive) return
+            onHarvestFieldClick(field)
           })
+          layer.bringToFront?.()
         }
 
         harvestFieldLayerInstancesRef.current.push(layer)

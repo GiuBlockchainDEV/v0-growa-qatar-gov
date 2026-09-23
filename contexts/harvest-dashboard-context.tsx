@@ -278,7 +278,7 @@ export function HarvestDashboardProvider({ children }: { children: ReactNode }) 
       if (!resolveHarvestParcelId(field)) return
       const href = getFieldDetailHref(field)
       window.dispatchEvent(new Event('harvest:field-selected'))
-      router.replace(href, { scroll: false })
+      router.push(href, { scroll: false })
     },
     [getFieldDetailHref, router]
   )

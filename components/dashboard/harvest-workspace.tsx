@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import {
   Activity,
@@ -202,6 +203,7 @@ export function HarvestWorkspace() {
     activeField,
     isFieldDetailView,
     selectField: selectFieldFromContext,
+    getFieldDetailHref,
     clearFieldSelection,
     startFieldCreate,
     patchActiveSeasonId,
@@ -1359,7 +1361,14 @@ export function HarvestWorkspace() {
                         }`}
                       >
                         <td className="px-3 py-2 font-medium text-foreground">
-                          <span className="hover:text-primary hover:underline">{field.name}</span>
+                          <Link
+                            href={getFieldDetailHref(field)}
+                            scroll={false}
+                            className="hover:text-primary hover:underline"
+                            onClick={(event) => event.stopPropagation()}
+                          >
+                            {field.name}
+                          </Link>
                           {collectingTasks.some((entry) => entry.parcel_id === field.parcel_id) ? (
                             <span className="ml-2 rounded-full bg-amber-500/15 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-amber-300">
                               Collecting
