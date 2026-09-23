@@ -1,6 +1,7 @@
 'use client'
 
 import type { LucideIcon } from 'lucide-react'
+import Link from 'next/link'
 import type { ReactNode } from 'react'
 import { cn } from '@/lib/utils'
 
@@ -169,9 +170,9 @@ export function InvestigationActionButton({
 
   if (href) {
     return (
-      <a href={href} className={className}>
+      <Link href={href} scroll={false} className={className}>
         {children}
-      </a>
+      </Link>
     )
   }
 

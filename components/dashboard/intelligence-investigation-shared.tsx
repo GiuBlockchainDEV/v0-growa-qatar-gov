@@ -35,6 +35,8 @@ export function IntelligenceWatchtowerSignals({
   module?: string
 }) {
   const opCtx = useOperationalContextOptional()
+  const searchParams = useSearchParams()
+  const activeModule = searchParams.get('module') || module
 
   if (loading) {
     return <p className="text-sm text-white/45">Loading platform signals…</p>
@@ -50,7 +52,23 @@ export function IntelligenceWatchtowerSignals({
         <button
           key={signal.id}
           type="button"
-          onClick={() => opCtx?.goToSignal(signal, { onMap: true })}
+          onClick={() =>
+            opCtx?.goToModule(activeModule, {
+              signalId: signal.id,
+              parcelId:
+                activeModule === 'harvest' || activeModule === 'production-harvest'
+                  ? signal.parcelIds?.[0]
+                  : undefined,
+              pointId:
+                activeModule === 'water-intelligence' || activeModule === 'energy-intelligence'
+                  ? signal.pointIds?.[0]
+                  : undefined,
+              zoom:
+                activeModule === 'water-intelligence' || activeModule === 'energy-intelligence'
+                  ? 16
+                  : undefined,
+            })
+          }
           className="flex w-full items-start gap-2 rounded-lg border border-white/10 px-3 py-2 text-left hover:border-white/20"
         >
           <AlertTriangle

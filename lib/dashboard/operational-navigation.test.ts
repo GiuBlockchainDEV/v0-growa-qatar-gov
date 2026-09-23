@@ -85,6 +85,27 @@ describe('operational-navigation', () => {
     expect(url).toContain('zoom=16')
   })
 
+  it('opens another module without carrying the previous page context', () => {
+    const url = buildModuleUrl(
+      new URLSearchParams('module=harvest&parcelId=p1&harvestPeriod=2025-09-01&focus=harvest-p1'),
+      { module: 'watchtower' }
+    )
+    expect(url).toContain('module=watchtower')
+    expect(url).not.toContain('parcelId=')
+    expect(url).not.toContain('harvestPeriod=')
+    expect(url).not.toContain('focus=')
+  })
+
+  it('keeps the current module context when only a signal is selected', () => {
+    const url = buildModuleUrl(new URLSearchParams('module=water-intelligence&farmId=f1&zoom=14'), {
+      module: 'water-intelligence',
+      signalId: 's1',
+    })
+    expect(url).toContain('module=water-intelligence')
+    expect(url).toContain('farmId=f1')
+    expect(url).toContain('signalId=s1')
+  })
+
   it('navigateToSignal ignores stale deep links without entity context', () => {
     const signal: IntelligenceSignal = {
       id: 'water-test',

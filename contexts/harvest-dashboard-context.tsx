@@ -278,7 +278,7 @@ export function HarvestDashboardProvider({ children }: { children: ReactNode }) 
       if (!resolveHarvestParcelId(field)) return
       const href = getFieldDetailHref(field)
       window.dispatchEvent(new Event('harvest:field-selected'))
-      router.push(href, { scroll: false })
+      router.replace(href, { scroll: false })
     },
     [getFieldDetailHref, router]
   )
@@ -305,7 +305,7 @@ export function HarvestDashboardProvider({ children }: { children: ReactNode }) 
       setMetricOverlay({})
       const href = buildHarvestCreateDashboardUrl(drawMethod, mode)
       window.dispatchEvent(new Event('harvest:field-draw-clear'))
-      router.push(href, { scroll: false })
+      router.replace(href, { scroll: false })
     },
     [mode, router]
   )

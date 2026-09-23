@@ -83,7 +83,12 @@ export function OperationalContextProvider({ children }: { children: ReactNode }
 
   const navigateToUrl = useCallback(
     (target: string) => {
-      router.push(resolveDashboardHref(searchParams, target), { scroll: false })
+      const href = resolveDashboardHref(searchParams, target)
+      const nextParams = new URLSearchParams(href.split('?')[1] || '')
+      const currentModule = searchParams.get('module') || 'watchtower'
+      const nextModule = nextParams.get('module') || 'watchtower'
+      const navigate = currentModule === nextModule ? router.replace : router.push
+      navigate(href, { scroll: false })
     },
     [router, searchParams]
   )

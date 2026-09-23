@@ -27,6 +27,27 @@ export interface NavigationTarget {
   harvestMode?: string
 }
 
+function isSameDashboardModule(current: URLSearchParams, module: string) {
+  return (current.get('module') || 'watchtower') === module
+}
+
+export function navigationBase(current: URLSearchParams, module: string) {
+  if (isSameDashboardModule(current, module)) {
+    const params = new URLSearchParams(current.toString())
+    params.set('module', module)
+    return params
+  }
+
+  const params = new URLSearchParams()
+  params.set('module', module)
+  const timeframe = current.get('timeframe') || current.get('timeRange')
+  if (timeframe) {
+    params.set('timeframe', timeframe)
+    params.set('timeRange', timeframe)
+  }
+  return params
+}
+
 function defaultNavigationZoom(target: NavigationTarget): number | undefined {
   if (target.zoom !== undefined) return target.zoom
   if (target.farmId) return 14
@@ -84,6 +105,8 @@ function buildSignalNavigationTarget(
 }
 
 export function buildModuleUrl(current: URLSearchParams, target: NavigationTarget): string {
+  const base = navigationBase(current, target.module)
+
   if (
     target.module === 'weather' &&
     target.lat !== undefined &&
@@ -91,7 +114,7 @@ export function buildModuleUrl(current: URLSearchParams, target: NavigationTarge
     Number.isFinite(target.lat) &&
     Number.isFinite(target.lng)
   ) {
-    const params = buildWeatherDashboardParams(current, {
+    const params = buildWeatherDashboardParams(base, {
       lat: target.lat,
       lng: target.lng,
       zoom: target.zoom ?? 12,
@@ -104,8 +127,7 @@ export function buildModuleUrl(current: URLSearchParams, target: NavigationTarge
     (target.module === 'harvest' || target.module === 'production-harvest') &&
     target.parcelId
   ) {
-    const params = new URLSearchParams(current.toString())
-    params.set('module', target.module)
+    const params = base
     applyHarvestFieldSelectionToParams(
       params,
       { parcel_id: target.parcelId },
@@ -124,22 +146,18 @@ export function buildModuleUrl(current: URLSearchParams, target: NavigationTarge
 
   const hasGeoFocus = Boolean(target.farmId || target.pointId || target.crop)
   const params = hasGeoFocus
-    ? buildDashboardMapFocusParams(current, {
+    ? buildDashboardMapFocusParams(base, {
         module: target.module,
         farmId: target.farmId,
         pointId: target.pointId,
         crop: target.crop,
         zoom: defaultNavigationZoom(target),
       })
-    : (() => {
-        const base = new URLSearchParams(current.toString())
-        base.set('module', target.module)
-        if (!target.farmId) base.delete('farmId')
-        if (!target.pointId) base.delete('pointId')
-        if (!target.crop) base.delete('crop')
-        if (target.zoom !== undefined) base.set('zoom', String(target.zoom))
-        return base
-      })()
+    : base
+
+  if (!hasGeoFocus && target.zoom !== undefined) {
+    params.set('zoom', String(target.zoom))
+  }
 
   if (target.parcelId && target.module !== 'harvest' && target.module !== 'production-harvest') {
     params.set('parcelId', target.parcelId)
@@ -156,7 +174,7 @@ export function buildModuleUrl(current: URLSearchParams, target: NavigationTarge
 }
 
 export function navigateToFarm(current: URLSearchParams, farmId: string, module = 'harvest', zoom = 14) {
-  const params = buildDashboardMapFocusParams(current, { module, farmId, zoom })
+  const params = buildDashboardMapFocusParams(navigationBase(current, module), { module, farmId, zoom })
   return `/dashboard?${params.toString()}`
 }
 
@@ -166,8 +184,7 @@ export function navigateToParcel(
   options?: { module?: string; zoom?: number; seasonId?: number; harvestMode?: HarvestMode }
 ) {
   const module = options?.module || 'harvest'
-  const params = new URLSearchParams(current.toString())
-  params.set('module', module)
+  const params = navigationBase(current, module)
 
   if (module === 'harvest' || module === 'production-harvest') {
     applyHarvestFieldSelectionToParams(
@@ -198,8 +215,7 @@ export function navigateToHarvestField(
     timeframe?: WatchtowerTimeframe
   }
 ) {
-  const params = new URLSearchParams(current.toString())
-  params.set('module', 'harvest')
+  const params = navigationBase(current, 'harvest')
   applyHarvestFieldSelectionToParams(params, field, {
     mode: options?.mode || 'predict',
     harvestMetric: 'npp',
