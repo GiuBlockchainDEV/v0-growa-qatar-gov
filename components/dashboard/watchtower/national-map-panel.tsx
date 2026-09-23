@@ -4,8 +4,14 @@ import { useMemo } from 'react'
 import { Layers } from 'lucide-react'
 import { SatelliteMap } from '@/components/dashboard/satellite-map'
 import { WATCHTOWER_MAP_LAYERS } from '@/lib/watchtower/map-layers'
+import { resolveMapLayerVisibility } from '@/lib/watchtower/map-layer-visibility'
 import { useOperationalContextOptional } from '@/contexts/operational-context-provider'
 import { useI18n } from '@/lib/i18n'
+import {
+  generateQatarWeatherGrid,
+  generateQatarWeatherGridLines,
+  getQatarBoundaryCoordinates,
+} from '@/lib/weather/qatar-grid'
 import { cn } from '@/lib/utils'
 
 interface NationalMapPanelProps {
@@ -28,6 +34,30 @@ export function NationalMapPanel({
   const { t } = useI18n()
   const opCtx = useOperationalContextOptional()
   const activeLayers = opCtx?.activeMapLayers ?? ['farms', 'intelligence-signals']
+  const layerVisibility = useMemo(() => resolveMapLayerVisibility(activeLayers), [activeLayers])
+  const weatherGridPoints = useMemo(
+    () =>
+      layerVisibility.showWeatherClimate
+        ? generateQatarWeatherGrid().map((cell) => ({
+            id: cell.id,
+            lat: cell.latitude,
+            lng: cell.longitude,
+            north: cell.north,
+            south: cell.south,
+            east: cell.east,
+            west: cell.west,
+          }))
+        : [],
+    [layerVisibility.showWeatherClimate]
+  )
+  const weatherGridLines = useMemo(
+    () => (layerVisibility.showWeatherClimate ? generateQatarWeatherGridLines() : []),
+    [layerVisibility.showWeatherClimate]
+  )
+  const weatherBoundary = useMemo(
+    () => (layerVisibility.showWeatherClimate ? getQatarBoundaryCoordinates() : []),
+    [layerVisibility.showWeatherClimate]
+  )
 
   const layersByCategory = useMemo(() => {
     const groups = new Map<string, typeof WATCHTOWER_MAP_LAYERS>()
@@ -89,6 +119,10 @@ export function NationalMapPanel({
             targetFocusToken={targetFocusToken}
             targetZoom={targetZoom}
             targetCropFilter={targetCropFilter}
+            activeMapLayers={activeLayers}
+            weatherGridPoints={weatherGridPoints}
+            weatherGridLines={weatherGridLines}
+            weatherBoundary={weatherBoundary}
             isLateralMode
             lateralPanelOpen={false}
           />

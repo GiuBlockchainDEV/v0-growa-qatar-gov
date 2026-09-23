@@ -16,9 +16,11 @@ import { WatchtowerWorkspace } from '@/components/dashboard/watchtower-workspace
 import { AlertsCenterWorkspace } from '@/components/dashboard/alerts-center-workspace'
 import { AiMissionControlWorkspace } from '@/components/dashboard/ai-mission-control-workspace'
 import { InvestigationsWorkspace } from '@/components/dashboard/investigations-workspace'
+import { InspectionsWorkspace } from '@/components/dashboard/inspections-workspace'
 import { DataHealthWorkspace } from '@/components/dashboard/data-health-workspace'
 import { CommodityWorkspace } from '@/components/dashboard/commodity-workspace'
 import { HarvestDashboardProvider, useHarvestDashboardOptional } from '@/contexts/harvest-dashboard-context'
+import { useOperationalContextOptional } from '@/contexts/operational-context-provider'
 import { buildWeatherDashboardParams } from '@/lib/dashboard/weather-url'
 import {
   generateQatarWeatherGrid,
@@ -369,6 +371,7 @@ function SlideFromLeftWorkspace({
 export default function DashboardPage() {
   const { locale } = useI18n()
   const searchParams = useSearchParams()
+  const opCtx = useOperationalContextOptional()
   const moduleKey = resolveDashboardPageModule(searchParams)
   const { targetPointId, targetFarmId, targetFocusToken, targetCropFilter, targetZoom } =
     buildDashboardMapProps(searchParams)
@@ -382,6 +385,7 @@ export default function DashboardPage() {
         targetFocusToken={targetFocusToken}
         targetZoom={targetZoom}
         targetCropFilter={targetCropFilter}
+        activeMapLayers={opCtx?.activeMapLayers}
       />
     )
   }
@@ -414,6 +418,14 @@ export default function DashboardPage() {
     return (
       <div className="h-full w-full overflow-hidden">
         <InvestigationsWorkspace />
+      </div>
+    )
+  }
+
+  if (moduleKey === 'inspection-dashboard' || moduleKey === 'compliance-inspections') {
+    return (
+      <div className="h-full w-full overflow-hidden">
+        <InspectionsWorkspace />
       </div>
     )
   }

@@ -184,7 +184,7 @@ const NAV: ProductNavItem[] = [
     label: 'Inspections',
     path: '/dashboard?module=inspection-dashboard',
     icon: 'CheckCircle',
-    availability: 'upcoming',
+    availability: 'partial',
     area: 'risk_response',
   },
   {
@@ -192,7 +192,7 @@ const NAV: ProductNavItem[] = [
     label: 'Compliance',
     path: '/dashboard?module=compliance-inspections',
     icon: 'Shield',
-    availability: 'upcoming',
+    availability: 'partial',
     area: 'risk_response',
   },
   {

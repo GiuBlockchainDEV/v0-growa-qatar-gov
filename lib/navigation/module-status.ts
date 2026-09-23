@@ -93,14 +93,14 @@ const MODULE_STATUS: Record<string, ModuleStatusDefinition> = {
     description: 'Sensor and monitoring signal aggregation.',
   },
   'inspection-dashboard': {
-    status: 'upcoming',
-    relatedModules: ['alerts-center', 'compliance-inspections'],
-    description: 'Inspection scheduling and field operations.',
+    status: 'partial',
+    relatedModules: ['alerts-center', 'compliance-inspections', 'farms-sites'],
+    description: 'Field inspection queue with workflow stages and evidence capture.',
   },
   'compliance-inspections': {
-    status: 'upcoming',
+    status: 'partial',
     relatedModules: ['inspection-dashboard', 'corrective-actions'],
-    description: 'Compliance inspection workflows.',
+    description: 'Compliance inspection workflows routed through the inspections workspace.',
   },
   'compliance-cases': {
     status: 'upcoming',

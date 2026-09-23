@@ -21,6 +21,16 @@
 | 16 | `ai-mission-control-workspace.tsx` |
 | 18 | `data-health-workspace.tsx` |
 | — | Signal → investigation navigation on Watchtower cards |
+| 5 | Watchtower exception-driven signal/KPI hierarchy (`signal-priority`, KPI emphasis) |
+| 8 | `intelligence-investigation-layout.tsx` shared component |
+| 9 | `commodity-workspace.tsx` + commodity catalog + route |
+| 4 | Extended `OperationalContext` with platform investigation fields |
+| — | Investigations pre-fill from `signalId` URL param |
+
+---
+
+| 6 | Map layer registry wired in `SatelliteMap` + `national-map-panel` |
+| 12 | Inspection workflow v1 — migration, API, inspections workspace |
 
 ---
 
@@ -28,11 +38,8 @@
 
 | Phase | Task |
 |-------|------|
-| 5 | Watchtower exception-driven visual hierarchy pass |
-| 6 | Full map layer registry wiring in SatelliteMap |
-| 8 | `IntelligenceInvestigationLayout` shared component |
-| 9 | Commodity workspace route |
-| — | Commit, push, PR for shell + AI foundations |
+| 8 | Apply `IntelligenceInvestigationLayout` to water/weather/harvest workspaces |
+| 12 | Non-conformity + corrective action linkage |
 
 ---
 

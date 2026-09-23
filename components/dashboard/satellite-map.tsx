@@ -6,6 +6,9 @@ import { createHarvestRasterLayer } from '@/components/dashboard/harvest-raster-
 import { findHarvestMapFieldAtLatLng } from '@/lib/harvest/field-hit-test'
 import { useAuth } from '@/hooks/use-auth'
 import { useOrganization } from '@/hooks/use-organization'
+import type { IntelligenceSignal } from '@/lib/domain/types'
+import { resolvePolygonColor, SIGNAL_SEVERITY_COLORS } from '@/lib/watchtower/map-layer-colors'
+import { resolveMapLayerVisibility } from '@/lib/watchtower/map-layer-visibility'
 
 const QATAR_CENTER = { lat: 25.3548, lng: 51.1839 }
 const DEFAULT_ZOOM = 10
@@ -92,6 +95,7 @@ interface SatelliteMapProps {
   harvestFieldVertices?: PolygonVertex[]
   onHarvestFieldRingsChange?: (rings: PolygonVertex[][]) => void
   onHarvestFieldVerticesChange?: (vertices: PolygonVertex[]) => void
+  activeMapLayers?: string[]
 }
 
 interface MapController {
@@ -613,9 +617,15 @@ export function SatelliteMap({
   harvestFieldVertices = [],
   onHarvestFieldRingsChange,
   onHarvestFieldVerticesChange,
+  activeMapLayers,
 }: SatelliteMapProps) {
   const { user } = useAuth()
   const { organization } = useOrganization()
+
+  const layerVisibility = useMemo(
+    () => (activeMapLayers ? resolveMapLayerVisibility(activeMapLayers) : null),
+    [activeMapLayers]
+  )
 
   const mapRef = useRef<HTMLDivElement>(null)
   const mapInstanceRef = useRef<MapController | null>(null)
@@ -628,6 +638,7 @@ export function SatelliteMap({
   const harvestDraftVertexInstancesRef = useRef<any[]>([])
   const tileLayerRef = useRef<any>(null)
   const polygonInstancesRef = useRef<any[]>([])
+  const signalMarkerInstancesRef = useRef<any[]>([])
   const draftPolylineRef = useRef<any | null>(null)
   const draftVertexInstancesRef = useRef<any[]>([])
   const polygonDrawPointIdRef = useRef<string | null>(null)
@@ -638,6 +649,8 @@ export function SatelliteMap({
   const [mapReady, setMapReady] = useState(false)
   const [currentZoom, setCurrentZoom] = useState(DEFAULT_ZOOM)
   const [customPoints, setCustomPoints] = useState<CustomPoint[]>([])
+  const [nationalFarmMarkers, setNationalFarmMarkers] = useState<MapMarker[]>([])
+  const [intelligenceSignals, setIntelligenceSignals] = useState<IntelligenceSignal[]>([])
   const [operationsFarmTarget, setOperationsFarmTarget] = useState<OperationsFarmTarget | null>(null)
   const [pointPolygons, setPointPolygons] = useState<PointPolygonsMap>({})
   const [isAddPointMode, setIsAddPointMode] = useState(false)
@@ -880,8 +893,76 @@ export function SatelliteMap({
       label: point.label,
       type: point.pointType,
     }))
-    return custom
-  }, [customPoints])
+    if (!layerVisibility?.showFarms) return custom
+    const merged = [...custom]
+    for (const marker of nationalFarmMarkers) {
+      if (!merged.some((entry) => entry.id === marker.id)) merged.push(marker)
+    }
+    return merged
+  }, [customPoints, layerVisibility?.showFarms, nationalFarmMarkers])
+
+  useEffect(() => {
+    if (!layerVisibility?.showFarms) {
+      setNationalFarmMarkers([])
+      return
+    }
+
+    let cancelled = false
+    async function loadNationalFarms() {
+      try {
+        const response = await fetch('/api/operations/farms', { cache: 'no-store' })
+        const payload = await response.json()
+        if (!response.ok || cancelled || !Array.isArray(payload)) return
+        const markers = payload
+          .map((row: Record<string, unknown>) => {
+            const lat = Number(row.gps_latitude ?? row.gpsLatitude)
+            const lng = Number(row.gps_longitude ?? row.gpsLongitude)
+            if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null
+            const id = typeof row.id === 'string' ? row.id : ''
+            if (!id) return null
+            const label =
+              (typeof row.name_en === 'string' && row.name_en.trim()) ||
+              (typeof row.name === 'string' && row.name.trim()) ||
+              (typeof row.name_ar === 'string' && row.name_ar.trim()) ||
+              `Farm ${id.slice(0, 8)}`
+            return { id, lat, lng, label, type: 'farm' as MapPointType }
+          })
+          .filter((marker): marker is MapMarker => Boolean(marker))
+        if (!cancelled) setNationalFarmMarkers(markers)
+      } catch {
+        if (!cancelled) setNationalFarmMarkers([])
+      }
+    }
+
+    loadNationalFarms()
+    return () => {
+      cancelled = true
+    }
+  }, [layerVisibility?.showFarms])
+
+  useEffect(() => {
+    if (!layerVisibility?.showIntelligenceSignals) {
+      setIntelligenceSignals([])
+      return
+    }
+
+    let cancelled = false
+    async function loadSignals() {
+      try {
+        const response = await fetch('/api/watchtower/summary?timeframe=7d', { cache: 'no-store' })
+        const payload = await response.json()
+        if (!response.ok || cancelled) return
+        setIntelligenceSignals(Array.isArray(payload.signals) ? payload.signals : [])
+      } catch {
+        if (!cancelled) setIntelligenceSignals([])
+      }
+    }
+
+    loadSignals()
+    return () => {
+      cancelled = true
+    }
+  }, [layerVisibility?.showIntelligenceSignals])
 
   const pointScoreStatsById = useMemo(() => {
     const stats: Record<string, { count: number; average: number | null }> = {}
@@ -1657,7 +1738,17 @@ export function SatelliteMap({
     }
 
     markerInstancesRef.current.forEach((marker) => marker.remove?.())
-    if (weatherGridPoints.length > 0 || harvestFields.length > 0 || hideMarkersForCropFocus) {
+    const farmsLayerEnabled = layerVisibility ? layerVisibility.showFarms : true
+
+    if (!layerVisibility) {
+      if (weatherGridPoints.length > 0 || harvestFields.length > 0 || hideMarkersForCropFocus) {
+        markerInstancesRef.current = []
+        return
+      }
+    } else if (!farmsLayerEnabled || hideMarkersForCropFocus) {
+      markerInstancesRef.current = []
+      return
+    } else if (harvestFields.length > 0 && !layerVisibility.showFields) {
       markerInstancesRef.current = []
       return
     }
@@ -1705,7 +1796,51 @@ export function SatelliteMap({
     pointScoreStatsById,
     weatherGridPoints,
     harvestFields,
+    layerVisibility,
   ])
+
+  useEffect(() => {
+    if (!mapReady || !mapInstanceRef.current || !leafletRef.current) return
+    const L = leafletRef.current
+    const map = mapInstanceRef.current
+
+    signalMarkerInstancesRef.current.forEach((marker) => marker.remove?.())
+    signalMarkerInstancesRef.current = []
+
+    if (!layerVisibility?.showIntelligenceSignals || intelligenceSignals.length === 0) return
+
+    for (const signal of intelligenceSignals) {
+      if (signal.lat === undefined || signal.lng === undefined) continue
+      const color = SIGNAL_SEVERITY_COLORS[signal.severity] || '#38bdf8'
+      const marker = L.marker([signal.lat, signal.lng], {
+        icon: L.divIcon({
+          className: 'custom-marker',
+          html: `
+            <div style="
+              width: 18px;
+              height: 18px;
+              background: ${color};
+              border: 2px solid rgba(255,255,255,0.95);
+              border-radius: 3px;
+              transform: rotate(45deg);
+              box-shadow: 0 0 12px ${color}80;
+            "></div>
+          `,
+          iconSize: [18, 18],
+          iconAnchor: [9, 9],
+        }),
+      }).addTo(map)
+
+      marker.bindPopup(
+        `<div style="font-family:system-ui;padding:8px;min-width:160px;">
+          <strong style="color:${color};font-size:12px;">${escapeHtml(signal.title)}</strong>
+          <br/><span style="font-size:11px;color:#bbb;">${escapeHtml(signal.summary)}</span>
+        </div>`,
+        { className: 'custom-popup' }
+      )
+      signalMarkerInstancesRef.current.push(marker)
+    }
+  }, [intelligenceSignals, layerVisibility?.showIntelligenceSignals, mapReady])
 
   useEffect(() => {
     if (!mapReady || !mapInstanceRef.current || !leafletRef.current) return
@@ -1730,6 +1865,7 @@ export function SatelliteMap({
     harvestFieldLayerInstancesRef.current = []
 
     if (harvestFields.length === 0) return
+    if (layerVisibility && !layerVisibility.showFields) return
 
     const hasRasterOverlay = Boolean(harvestRasterOverlay?.imageUrl)
 
@@ -1785,6 +1921,7 @@ export function SatelliteMap({
     harvestFieldDrawActive,
     harvestFields,
     harvestRasterOverlay,
+    layerVisibility?.showFields,
     mapReady,
     onHarvestFieldClick,
     selectedHarvestParcelId,
@@ -1883,6 +2020,8 @@ export function SatelliteMap({
     weatherGridMarkerInstancesRef.current.forEach((layer) => layer.remove?.())
     weatherGridMarkerInstancesRef.current = []
 
+    if (layerVisibility && !layerVisibility.showWeatherClimate) return
+
     if (weatherGridPoints.length === 0 && weatherGridLines.length === 0 && weatherBoundary.length <= 2) {
       return
     }
@@ -1975,7 +2114,15 @@ export function SatelliteMap({
       weatherGridMarkerInstancesRef.current.forEach((layer) => layer.remove?.())
       weatherGridMarkerInstancesRef.current = []
     }
-  }, [mapReady, onWeatherGridPointClick, selectedWeatherGridPointId, weatherBoundary, weatherGridLines, weatherGridPoints])
+  }, [
+    layerVisibility?.showWeatherClimate,
+    mapReady,
+    onWeatherGridPointClick,
+    selectedWeatherGridPointId,
+    weatherBoundary,
+    weatherGridLines,
+    weatherGridPoints,
+  ])
 
   useEffect(() => {
     if (!mapReady || !mapInstanceRef.current || !leafletRef.current) return
@@ -1989,6 +2136,7 @@ export function SatelliteMap({
     draftVertexInstancesRef.current.forEach((marker) => marker.remove?.())
     draftVertexInstancesRef.current = []
 
+    if (layerVisibility && !layerVisibility.showPolygons) return
     if (weatherGridPoints.length > 0 || harvestFields.length > 0) return
 
     const polygonsToRender = normalizedCropFilter
@@ -2001,13 +2149,17 @@ export function SatelliteMap({
           })
       : activePointId
         ? pointPolygons[activePointId] || []
-        : []
+        : layerVisibility?.showPolygons
+          ? Object.values(pointPolygons).flat()
+          : []
 
     for (const polygon of polygonsToRender) {
         if (polygon.vertices.length < 3) continue
         const crop = polygon.crop
         const polygonScore = normalizePolygonScore(polygon.score, 50)
-        const polygonColor = scoreToPolygonColor(polygonScore)
+        const polygonColor = layerVisibility
+          ? resolvePolygonColor(layerVisibility.polygonColorMode, polygonScore, polygon.metrics)
+          : scoreToPolygonColor(polygonScore)
         const areaHectares = calculatePolygonAreaHectares(polygon.vertices)
         const metrics = polygon.metrics
         const popupLines = [
@@ -2137,6 +2289,7 @@ export function SatelliteMap({
     draftPolygon,
     handleDeletePolygon,
     handleEditPolygonData,
+    layerVisibility,
     mapReady,
     normalizedCropFilter,
     pointPolygons,

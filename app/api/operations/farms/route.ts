@@ -74,6 +74,7 @@ export async function GET(request: Request) {
 
   const escapedSearch = searchQuery.replace(/[%_]/g, '\\$&')
   const selectAttempts = [
+    'id, name, name_en, name_ar, location, gps_latitude, gps_longitude',
     'id, name, name_en, name_ar, location',
     'id, name_en, name_ar, location',
     'id, name, location',
