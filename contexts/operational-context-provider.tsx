@@ -47,7 +47,13 @@ const OperationalContextReact = createContext<OperationalContextValue | null>(nu
 
 function parseMapLayers(params: URLSearchParams): string[] {
   const raw = params.get('mapLayer') || params.get('mapLayers')
-  if (!raw) return ['farms', 'intelligence-signals']
+  if (!raw) {
+    const module = params.get('module')
+    if (module === 'watchtower' || module === 'national-overview' || !module) {
+      return ['fields', 'production', 'harvest-forecast', 'crop-health', 'intelligence-signals']
+    }
+    return ['farms', 'intelligence-signals']
+  }
   return raw.split(',').map((s) => s.trim()).filter(Boolean)
 }
 
