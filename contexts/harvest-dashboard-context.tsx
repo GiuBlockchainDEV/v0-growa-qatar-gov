@@ -328,7 +328,7 @@ export function HarvestDashboardProvider({ children }: { children: ReactNode }) 
       setFields((current) =>
         current.map((field) =>
           field.parcel_id === parcelIdForStats
-            ? { ...field, metrics: mergeSeasonMetrics(field.metrics, metrics) }
+            ? { ...field, metrics: fillMissingHarvestMetrics(field.metrics, metrics) }
             : field
         )
       )
@@ -336,7 +336,7 @@ export function HarvestDashboardProvider({ children }: { children: ReactNode }) 
       if (!parcelId || parcelIdForStats !== parcelId) return
 
       setMetricOverlay((current) => {
-        const merged = mergeSeasonMetrics(current, metrics)
+        const merged = fillMissingHarvestMetrics(current, metrics)
         const hasChanges = FIELD_KPI_METRICS.some((key) => merged[key] !== current[key])
         if (!hasChanges) return current
         return merged
