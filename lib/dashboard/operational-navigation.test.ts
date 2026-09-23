@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   buildModuleUrl,
   navigateToFarm,
+  navigateToHarvestField,
   navigateToSignal,
   navigateToSignalEstimation,
   signalRecommendedModule,
@@ -45,6 +46,21 @@ describe('operational-navigation', () => {
     const url = navigateToSignalEstimation(new URLSearchParams(), signal)
     expect(url).toContain('module=harvest')
     expect(url).toContain('signalId=prod-test')
+  })
+
+  it('navigateToHarvestField sets harvest navigation params', () => {
+    const url = navigateToHarvestField(
+      new URLSearchParams('module=watchtower'),
+      { parcel_id: 'parcel-1', season_id: 42 },
+      { mode: 'predict', signalId: 'sig-1', timeframe: '7d' }
+    )
+    expect(url).toContain('module=harvest')
+    expect(url).toContain('parcelId=parcel-1')
+    expect(url).toContain('harvestSeasonId=42')
+    expect(url).toContain('focus=harvest-parcel-1')
+    expect(url).toContain('harvestMetric=npp')
+    expect(url).toContain('signalId=sig-1')
+    expect(url).toContain('timeframe=7d')
   })
 
   it('navigateToSignal routes water signals to water intelligence', () => {

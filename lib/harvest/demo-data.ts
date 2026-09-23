@@ -336,7 +336,7 @@ function buildDemoFieldStatsCsv(field: HarvestAnalyticsField, mode: HarvestMode)
 }
 
 export function getDemoFieldStats(parcelId: string, mode: HarvestMode): HarvestFieldStatsResponse | null {
-  const field = DEMO_FIELDS.find((entry) => entry.parcel_id === parcelId)
+  const field = getActiveDemoFields().find((entry) => entry.parcel_id === parcelId)
   if (!field || !field.season_id) return null
   return parseHarvestFieldStatsCsv(buildDemoFieldStatsCsv(field, mode), {
     parcel_id: field.parcel_id,
@@ -351,7 +351,7 @@ export function getDemoFieldRaster(
   granularity: HarvestTrendGranularity,
   period: string | null
 ): HarvestRasterResponse | null {
-  const field = DEMO_FIELDS.find((entry) => entry.parcel_id === parcelId)
+  const field = getActiveDemoFields().find((entry) => entry.parcel_id === parcelId)
   if (!field) return null
   const rings = DEMO_PARCEL_RINGS[field.parcel_id] || []
   const meta = buildDemoRasterMeta(metric, rings)

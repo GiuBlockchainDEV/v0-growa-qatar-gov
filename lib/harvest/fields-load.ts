@@ -1,5 +1,7 @@
 import { harvestGetAnalyticsFields, harvestGetAllFields } from '@/lib/harvest/client'
+import { enrichHarvestFieldsWithStats } from '@/lib/harvest/field-metrics'
 import { harvestAnalyticsModesToTry } from '@/lib/harvest/mode-resolve'
+import { mergeHarvestFieldsWithAnalytics } from '@/lib/harvest/merge-fields'
 import { normalizePaginatedFieldsResponse } from '@/lib/harvest/normalize'
 import type { HarvestAnalyticsField, HarvestMode, HarvestPaginatedFieldsResponse } from '@/lib/harvest/types'
 
@@ -74,4 +76,21 @@ export async function loadHarvestAnalyticsFields(
   }
 
   return { total: 0, results: [] }
+}
+
+export async function loadEnrichedHarvestCatalog(mode: HarvestMode) {
+  const searchParams = new URLSearchParams({
+    sort_by: 'harvest_date',
+    sort_dir: 'desc',
+  })
+  const allFields = await loadHarvestAllFields(searchParams)
+  const analyticsFields = await loadHarvestAnalyticsFields(mode)
+  const merged = mergeHarvestFieldsWithAnalytics(allFields.results, analyticsFields.results)
+
+  try {
+    const results = await enrichHarvestFieldsWithStats(merged, mode)
+    return { total: allFields.total, results }
+  } catch {
+    return { total: allFields.total, results: merged }
+  }
 }

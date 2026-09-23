@@ -1,7 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
-import { harvestGetAnalytics } from '@/lib/harvest/client'
-import { getDemoAnalytics } from '@/lib/harvest/demo-data'
-import { normalizeAnalyticsResponse } from '@/lib/harvest/normalize'
+import { getDemoAnalyticsFields } from '@/lib/harvest/demo-data'
+import { loadEnrichedHarvestCatalog } from '@/lib/harvest/fields-load'
 import { resolveHarvestDemoMode } from '@/lib/harvest/resolve'
 import { fetchWeatherByCoordinates, getWeatherApiKey } from '@/app/api/weather/_shared'
 import {
@@ -121,45 +120,46 @@ async function fetchInsightsAndPolygons(supabase: Awaited<ReturnType<typeof crea
   }
 }
 
+function toHarvestFieldRecords(
+  fields: Array<{
+    parcel_id: string
+    name: string
+    crop: string
+    metrics?: HarvestFieldRecord['metrics']
+  }>
+): HarvestFieldRecord[] {
+  return fields.map((field) => ({
+    parcel_id: field.parcel_id,
+    name: field.name,
+    crop: field.crop,
+    metrics: field.metrics,
+  }))
+}
+
 async function fetchHarvestFields(): Promise<{ fields: HarvestFieldRecord[]; demo: boolean; available: boolean }> {
   const demoMode = resolveHarvestDemoMode()
   try {
     if (demoMode) {
-      const demo = getDemoAnalytics('predict')
+      const demo = getDemoAnalyticsFields('predict')
       return {
-        fields: (demo.fields || []).map((field) => ({
-          parcel_id: field.parcel_id,
-          name: field.name,
-          crop: field.crop,
-          metrics: field.metrics,
-        })),
+        fields: toHarvestFieldRecords(demo.results || []),
         demo: true,
         available: true,
       }
     }
 
-    const live = normalizeAnalyticsResponse(await harvestGetAnalytics({ mode: 'predict' }))
+    const live = await loadEnrichedHarvestCatalog('predict')
     return {
-      fields: (live.fields || []).map((field) => ({
-        parcel_id: field.parcel_id,
-        name: field.name,
-        crop: field.crop,
-        metrics: field.metrics,
-      })),
+      fields: toHarvestFieldRecords(live.results || []),
       demo: false,
       available: true,
     }
   } catch {
     if (!demoMode) {
       try {
-        const demo = getDemoAnalytics('predict')
+        const demo = getDemoAnalyticsFields('predict')
         return {
-          fields: (demo.fields || []).map((field) => ({
-            parcel_id: field.parcel_id,
-            name: field.name,
-            crop: field.crop,
-            metrics: field.metrics,
-          })),
+          fields: toHarvestFieldRecords(demo.results || []),
           demo: true,
           available: true,
         }

@@ -5,11 +5,15 @@ import type { HarvestAnalyticsField, HarvestFieldMetrics, HarvestFieldStatsRespo
 
 const TABLE_METRICS: HarvestMetricKey[] = ['aeti', 'tbp', 'bwp']
 
-export function hasHarvestTableMetrics(metrics?: HarvestFieldMetrics) {
-  return TABLE_METRICS.some((key) => {
+export function missingHarvestTableMetrics(metrics?: HarvestFieldMetrics): HarvestMetricKey[] {
+  return TABLE_METRICS.filter((key) => {
     const value = metrics?.[key]
-    return value !== undefined && Number.isFinite(value)
+    return value === undefined || !Number.isFinite(value)
   })
+}
+
+export function hasHarvestTableMetrics(metrics?: HarvestFieldMetrics) {
+  return missingHarvestTableMetrics(metrics).length === 0
 }
 
 export function metricsFromFieldStats(stats: HarvestFieldStatsResponse): HarvestFieldMetrics {
@@ -43,7 +47,7 @@ async function loadFieldStatsMetrics(
       })
       if (!hasHarvestFieldStatsPoints(stats)) continue
       const metrics = metricsFromFieldStats(stats)
-      if (hasHarvestTableMetrics(metrics)) return metrics
+      if (Object.keys(metrics).length > 0) return metrics
     } catch {
       // try next mode
     }
@@ -80,7 +84,7 @@ export async function enrichHarvestFieldsWithStats(
 ): Promise<HarvestAnalyticsField[]> {
   const targets = fields
     .map((field, index) => ({ field, index }))
-    .filter(({ field }) => !hasHarvestTableMetrics(field.metrics))
+    .filter(({ field }) => missingHarvestTableMetrics(field.metrics).length > 0)
 
   if (targets.length === 0) return fields
 
@@ -91,7 +95,7 @@ export async function enrichHarvestFieldsWithStats(
 
   const metricsByParcel = new Map(
     enrichedMetrics
-      .filter((entry) => hasHarvestTableMetrics(entry.metrics))
+      .filter((entry) => Object.keys(entry.metrics).length > 0)
       .map((entry) => [entry.parcel_id, entry.metrics])
   )
 

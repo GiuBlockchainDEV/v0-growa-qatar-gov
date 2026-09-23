@@ -1,4 +1,9 @@
 import { buildDashboardMapFocusParams, clearIncompatibleDashboardParams } from '@/lib/dashboard/map-navigation'
+import {
+  applyHarvestFieldSelectionToParams,
+  type HarvestFieldNavTarget,
+} from '@/lib/harvest/field-navigation'
+import type { HarvestMode } from '@/lib/harvest/types'
 import type { IntelligenceSignal } from '@/lib/domain/types'
 import type { WatchtowerTimeframe } from '@/lib/domain/types'
 
@@ -74,13 +79,54 @@ export function navigateToFarm(current: URLSearchParams, farmId: string, module 
 export function navigateToParcel(
   current: URLSearchParams,
   parcelId: string,
-  options?: { module?: string; zoom?: number }
+  options?: { module?: string; zoom?: number; seasonId?: number; harvestMode?: HarvestMode }
+) {
+  const module = options?.module || 'harvest'
+  const params = new URLSearchParams(current.toString())
+  params.set('module', module)
+
+  if (module === 'harvest' || module === 'production-harvest') {
+    applyHarvestFieldSelectionToParams(
+      params,
+      { parcel_id: parcelId, season_id: options?.seasonId },
+      {
+        mode: options?.harvestMode || 'predict',
+        harvestMetric: 'npp',
+        harvestGranularity: 'season',
+      }
+    )
+    if (options?.zoom) params.set('zoom', String(options.zoom))
+  } else {
+    params.set('parcelId', parcelId)
+    if (options?.zoom) params.set('zoom', String(options.zoom))
+  }
+
+  clearIncompatibleDashboardParams(params, module)
+  return `/dashboard?${params.toString()}`
+}
+
+export function navigateToHarvestField(
+  current: URLSearchParams,
+  field: HarvestFieldNavTarget,
+  options?: {
+    mode?: HarvestMode
+    signalId?: string
+    timeframe?: WatchtowerTimeframe
+  }
 ) {
   const params = new URLSearchParams(current.toString())
-  params.set('module', options?.module || 'harvest')
-  params.set('parcelId', parcelId)
-  if (options?.zoom) params.set('zoom', String(options.zoom))
-  clearIncompatibleDashboardParams(params, params.get('module') || 'harvest')
+  params.set('module', 'harvest')
+  applyHarvestFieldSelectionToParams(params, field, {
+    mode: options?.mode || 'predict',
+    harvestMetric: 'npp',
+    harvestGranularity: 'season',
+  })
+  if (options?.signalId) params.set('signalId', options.signalId)
+  if (options?.timeframe) {
+    params.set('timeframe', options.timeframe)
+    params.set('timeRange', options.timeframe)
+  }
+  clearIncompatibleDashboardParams(params, 'harvest')
   return `/dashboard?${params.toString()}`
 }
 

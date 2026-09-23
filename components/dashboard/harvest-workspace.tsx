@@ -1,7 +1,6 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import {
   Activity,
@@ -204,7 +203,6 @@ export function HarvestWorkspace() {
     activeField,
     isFieldDetailView,
     selectField,
-    getFieldDetailHref,
     clearFieldSelection,
     startFieldCreate,
     mergeFieldMetrics,
@@ -1018,6 +1016,7 @@ export function HarvestWorkspace() {
           {isFieldDetailView && activeField ? (
             <IntelligenceCommandLayout
               key={activeField.parcel_id}
+              mainScrollable
               main={
             <div className="space-y-4">
               <IntelligencePanel
@@ -1297,6 +1296,7 @@ export function HarvestWorkspace() {
 
           {!isFieldDetailView ? (
           <IntelligenceCommandLayout
+            mainScrollable={false}
             main={
             <IntelligencePanel
               title="Open-field registry"
@@ -1329,12 +1329,19 @@ export function HarvestWorkspace() {
                       </td>
                     </tr>
                   ) : (
-                    fields.map((field, index) => {
-                      const fieldHref = getFieldDetailHref(field)
-                      return (
+                    fields.map((field, index) => (
                       <tr
                         key={`${field.parcel_id}-${field.season_id || index}`}
-                        className={`text-sm transition-colors hover:bg-primary/10 ${
+                        role="button"
+                        tabIndex={0}
+                        onClick={() => selectField(field)}
+                        onKeyDown={(event) => {
+                          if (event.key === 'Enter' || event.key === ' ') {
+                            event.preventDefault()
+                            selectField(field)
+                          }
+                        }}
+                        className={`cursor-pointer text-sm transition-colors hover:bg-primary/10 ${
                           parcelId === field.parcel_id
                             ? 'bg-primary/10'
                             : index % 2 === 0
@@ -1343,13 +1350,7 @@ export function HarvestWorkspace() {
                         }`}
                       >
                         <td className="px-3 py-2 font-medium text-foreground">
-                          <Link
-                            href={fieldHref}
-                            scroll={false}
-                            className="hover:text-primary hover:underline"
-                          >
-                            {field.name}
-                          </Link>
+                          <span className="hover:text-primary hover:underline">{field.name}</span>
                           {collectingTasks.some((entry) => entry.parcel_id === field.parcel_id) ? (
                             <span className="ml-2 rounded-full bg-amber-500/15 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-amber-300">
                               Collecting
@@ -1369,7 +1370,7 @@ export function HarvestWorkspace() {
                         </td>
                         <td className="px-3 py-2 text-muted-foreground">{field.harvest_date}</td>
                       </tr>
-                    )})
+                    ))
                   )}
                 </IntelligenceTableBody>
               </IntelligenceDataTable>

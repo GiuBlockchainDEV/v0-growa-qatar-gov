@@ -215,12 +215,26 @@ interface IntelligenceCommandLayoutProps {
   main: ReactNode
   insights: ReactNode
   assistant: ReactNode
+  mainScrollable?: boolean
 }
 
-export function IntelligenceCommandLayout({ main, insights, assistant }: IntelligenceCommandLayoutProps) {
+export function IntelligenceCommandLayout({
+  main,
+  insights,
+  assistant,
+  mainScrollable = true,
+}: IntelligenceCommandLayoutProps) {
   return (
     <div className="grid h-full min-h-0 flex-1 grid-cols-1 gap-3 xl:grid-cols-[minmax(0,1.35fr)_minmax(240px,0.75fr)_minmax(260px,0.9fr)] xl:items-stretch">
-      <div className="flex min-h-0 min-w-0 flex-col overflow-hidden pr-1">{main}</div>
+      <div
+        className={`min-h-0 min-w-0 pr-1 ${
+          mainScrollable
+            ? 'overflow-y-auto overscroll-contain [-webkit-overflow-scrolling:touch]'
+            : 'flex flex-col overflow-hidden'
+        }`}
+      >
+        {main}
+      </div>
       <div className="min-h-0 min-w-0 space-y-4 overflow-y-auto overscroll-contain pr-1">{insights}</div>
       <div className="flex min-h-[min(520px,62vh)] min-w-0 flex-col overflow-hidden xl:min-h-0 xl:h-full">
         {assistant}

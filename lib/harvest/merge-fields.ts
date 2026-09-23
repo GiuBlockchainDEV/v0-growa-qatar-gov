@@ -4,12 +4,6 @@ function metricsKey(field: HarvestAnalyticsField) {
   return `${field.parcel_id}:${field.season_id ?? 'none'}`
 }
 
-function hasMetrics(metrics?: HarvestFieldMetrics) {
-  return Boolean(
-    metrics && Object.values(metrics).some((value) => value !== undefined && Number.isFinite(value))
-  )
-}
-
 export function mergeHarvestFieldsWithAnalytics(
   baseFields: HarvestAnalyticsField[],
   analyticsFields: HarvestAnalyticsField[]
@@ -34,12 +28,10 @@ export function mergeHarvestFieldsWithAnalytics(
     }
 
     let season_id = field.season_id
-    if (analyticsMatch.season_id) {
-      if (keyedMatch || (parcelMatch && hasMetrics(analyticsMatch.metrics))) {
-        season_id = analyticsMatch.season_id
-      } else if (!season_id) {
-        season_id = analyticsMatch.season_id
-      }
+    if (keyedMatch && analyticsMatch.season_id) {
+      season_id = analyticsMatch.season_id
+    } else if (!season_id && analyticsMatch.season_id) {
+      season_id = analyticsMatch.season_id
     }
 
     return {

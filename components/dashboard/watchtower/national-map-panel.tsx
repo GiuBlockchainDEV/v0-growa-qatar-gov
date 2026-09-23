@@ -262,10 +262,9 @@ export function NationalMapPanel({
             mapTileUrl={mapTileUrl}
             weatherBoundary={weatherBoundary}
             onHarvestFieldClick={(field) =>
-              opCtx?.goToModule('harvest', {
-                parcelId: field.parcel_id,
-                signalId: summary.signals[0]?.id,
-                timeframe: summary.timeframe,
+              opCtx?.goToHarvestField(field, {
+                mode: 'predict',
+                signalId: productionSignal?.id,
               })
             }
             isLateralMode

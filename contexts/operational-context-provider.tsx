@@ -17,12 +17,15 @@ import {
 } from '@/lib/domain/operational-context'
 import {
   navigateToFarm,
+  navigateToHarvestField,
   navigateToParcel,
   navigateToSignal,
   navigateToSignalOnMap,
   navigateToModuleWithContext,
   type NavigationTarget,
 } from '@/lib/dashboard/operational-navigation'
+import type { HarvestFieldNavTarget } from '@/lib/harvest/field-navigation'
+import type { HarvestMode } from '@/lib/harvest/types'
 import type { IntelligenceSignal } from '@/lib/domain/types'
 import type { WatchtowerTimeframe } from '@/lib/domain/types'
 import { parseWatchtowerTimeframe } from '@/lib/domain/timeframes'
@@ -38,6 +41,10 @@ interface OperationalContextValue {
   clearContext: () => void
   goToFarm: (farmId: string, module?: string) => void
   goToParcel: (parcelId: string, module?: string) => void
+  goToHarvestField: (
+    field: HarvestFieldNavTarget,
+    options?: { mode?: HarvestMode; signalId?: string }
+  ) => void
   goToSignal: (signal: IntelligenceSignal, options?: { onMap?: boolean }) => void
   goToModule: (module: string, ctx?: Partial<NavigationTarget>) => void
   toggleMapLayer: (layerId: string) => void
@@ -128,6 +135,19 @@ export function OperationalContextProvider({ children }: { children: ReactNode }
     [navigateToUrl, searchParams]
   )
 
+  const goToHarvestField = useCallback(
+    (field: HarvestFieldNavTarget, options?: { mode?: HarvestMode; signalId?: string }) => {
+      navigateToUrl(
+        navigateToHarvestField(searchParams, field, {
+          mode: options?.mode,
+          signalId: options?.signalId,
+          timeframe,
+        })
+      )
+    },
+    [navigateToUrl, searchParams, timeframe]
+  )
+
   const goToSignal = useCallback(
     (signal: IntelligenceSignal, options?: { onMap?: boolean }) => {
       const url = options?.onMap
@@ -191,6 +211,7 @@ export function OperationalContextProvider({ children }: { children: ReactNode }
       clearContext,
       goToFarm,
       goToParcel,
+      goToHarvestField,
       goToSignal,
       goToModule,
       toggleMapLayer,
@@ -206,6 +227,7 @@ export function OperationalContextProvider({ children }: { children: ReactNode }
       clearContext,
       goToFarm,
       goToParcel,
+      goToHarvestField,
       goToSignal,
       goToModule,
       toggleMapLayer,
