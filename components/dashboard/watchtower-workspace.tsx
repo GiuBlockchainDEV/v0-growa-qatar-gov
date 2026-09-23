@@ -12,6 +12,7 @@ import { WatchtowerChangesPanel } from '@/components/dashboard/watchtower/change
 import { WatchtowerProductionSnapshot } from '@/components/dashboard/watchtower/production-snapshot'
 import { NationalMapPanel } from '@/components/dashboard/watchtower/national-map-panel'
 import { GrowaIntelligencePanel } from '@/components/dashboard/growa-intelligence-panel'
+import { WatchtowerContextDeck } from '@/components/dashboard/watchtower/context-deck'
 import { buildWatchtowerGrowaContext } from '@/lib/ai/build-watchtower-growa-context'
 import { buildDashboardMapProps } from '@/lib/dashboard/map-navigation'
 import { partitionSignalsByPriority } from '@/lib/watchtower/signal-priority'
@@ -224,22 +225,24 @@ export function WatchtowerWorkspace() {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 gap-0 border-t border-white/10 lg:grid-cols-2">
+        <div className="grid min-h-[280px] grid-cols-1 border-t border-white/10 lg:grid-cols-2">
           <div className="border-b border-white/10 p-3 sm:p-4 lg:border-b-0 lg:border-r">
             <h2 className="mb-2 text-[10px] font-bold uppercase tracking-widest text-white/45">
               {t('watchtower.what_changed')}
             </h2>
             <WatchtowerChangesPanel changes={actionableChanges} />
           </div>
-          <div className="min-h-[220px] p-3 sm:p-4">
+          <div className="flex min-h-[280px] flex-col p-3 sm:p-4">
             <h2 className="mb-2 text-[10px] font-bold uppercase tracking-widest text-white/45">
               {t('watchtower.ai_briefing')}
             </h2>
-            <div className="h-[220px] overflow-hidden rounded-lg border border-white/10 bg-[#0a0d12]">
+            <div className="min-h-[240px] flex-1 overflow-hidden rounded-lg border border-white/10 bg-[#0a0d12]">
               <GrowaIntelligencePanel module="watchtower" context={growaContext} />
             </div>
           </div>
         </div>
+
+        <WatchtowerContextDeck summary={summary} />
       </div>
     </div>
   )
