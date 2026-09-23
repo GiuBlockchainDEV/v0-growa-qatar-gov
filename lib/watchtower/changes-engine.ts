@@ -8,7 +8,9 @@ export function generateSituationChanges(
 ): SituationChange[] {
   const changes: SituationChange[] = []
 
-  const totalProduction = data.insights.reduce((sum, row) => sum + row.estimatedProductionTons, 0)
+  const insightProduction = data.insights.reduce((sum, row) => sum + row.estimatedProductionTons, 0)
+  const harvestProduction = data.harvestFields.reduce((sum, field) => sum + (field.metrics?.tbp ?? 0), 0)
+  const totalProduction = insightProduction > 0 ? insightProduction : harvestProduction
   const avgPolygonScore =
     data.polygons.length > 0
       ? data.polygons.reduce((sum, polygon) => sum + polygon.score, 0) / data.polygons.length
@@ -20,10 +22,14 @@ export function generateSituationChanges(
       domain: 'production',
       direction: 'stable',
       significance: 'medium',
-      description: `National production estimate at ${totalProduction.toLocaleString('en-US', { maximumFractionDigits: 1 })} tons across ${data.insights.length} crop insight record(s).`,
+      description: insightProduction > 0
+        ? `Observed production at ${totalProduction.toLocaleString('en-US', { maximumFractionDigits: 1 })} t across ${data.insights.length} monitored parcel(s).`
+        : `Forecast biomass at ${totalProduction.toLocaleString('en-US', { maximumFractionDigits: 1 })} t across ${data.harvestFields.length} harvest field(s).`,
       currentValue: totalProduction,
-      entityCount: new Set(data.insights.map((row) => row.pointId)).size,
-      deepLink: '/dashboard?module=data-analytics',
+      entityCount: insightProduction > 0
+        ? new Set(data.insights.map((row) => row.pointId)).size
+        : data.harvestFields.length,
+      deepLink: insightProduction > 0 ? '/dashboard?module=data-analytics' : '/dashboard?module=harvest',
     })
   }
 

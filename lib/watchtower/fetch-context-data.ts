@@ -125,7 +125,7 @@ async function fetchHarvestFields(): Promise<{ fields: HarvestFieldRecord[]; dem
   const demoMode = resolveHarvestDemoMode()
   try {
     if (demoMode) {
-      const demo = getDemoAnalytics('current')
+      const demo = getDemoAnalytics('predict')
       return {
         fields: (demo.fields || []).map((field) => ({
           parcel_id: field.parcel_id,
@@ -138,7 +138,7 @@ async function fetchHarvestFields(): Promise<{ fields: HarvestFieldRecord[]; dem
       }
     }
 
-    const live = normalizeAnalyticsResponse(await harvestGetAnalytics({ mode: 'current' }))
+    const live = normalizeAnalyticsResponse(await harvestGetAnalytics({ mode: 'predict' }))
     return {
       fields: (live.fields || []).map((field) => ({
         parcel_id: field.parcel_id,
@@ -152,7 +152,7 @@ async function fetchHarvestFields(): Promise<{ fields: HarvestFieldRecord[]; dem
   } catch {
     if (!demoMode) {
       try {
-        const demo = getDemoAnalytics('current')
+        const demo = getDemoAnalytics('predict')
         return {
           fields: (demo.fields || []).map((field) => ({
             parcel_id: field.parcel_id,

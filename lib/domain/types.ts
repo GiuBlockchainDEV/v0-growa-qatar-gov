@@ -110,6 +110,9 @@ export interface ProductionSummary {
   productionEstimate: MetricSummary
   forecast?: MetricSummary
   atRiskProduction?: MetricSummary
+  fieldsMonitored?: MetricSummary
+  cropTypes?: MetricSummary
+  avgHealthScore?: MetricSummary
 }
 
 export interface WaterSummary {

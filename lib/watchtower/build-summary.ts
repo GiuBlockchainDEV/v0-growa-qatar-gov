@@ -15,6 +15,7 @@ import { generateSituationChanges } from '@/lib/watchtower/changes-engine'
 import { fetchWatchtowerRawData } from '@/lib/watchtower/fetch-context-data'
 import { generateIntelligenceSignals } from '@/lib/watchtower/signals-engine'
 import { buildDataQualityStatus, buildSourceStatus } from '@/lib/watchtower/source-health'
+import { buildHarvestProductionSnapshot } from '@/lib/watchtower/production-metrics'
 
 function metric(
   value: number | null,
@@ -45,7 +46,7 @@ function classifyFromSignals(
     if (domain === 'crop_health') return signal.type === 'crop_health'
     if (domain === 'supply') return signal.type === 'supply'
     return false
-  })
+  }).filter((signal) => signal.type !== 'data_quality')
 
   if (!hasData) {
     return {
@@ -98,7 +99,10 @@ function classifyFromSignals(
   }
 }
 
-function buildOutlook(data: Awaited<ReturnType<typeof fetchWatchtowerRawData>>): OutlookSummary {
+function buildOutlook(
+  data: Awaited<ReturnType<typeof fetchWatchtowerRawData>>,
+  harvestSnapshot: ReturnType<typeof buildHarvestProductionSnapshot>
+): OutlookSummary {
   const availableWeather = data.weatherSamples.filter((s) => s.available)
   const maxTemp = availableWeather.length > 0 ? Math.max(...availableWeather.map((s) => s.temperature ?? 0)) : null
   const maxVpd = availableWeather.length > 0 ? Math.max(...availableWeather.map((s) => s.vpd ?? 0)) : null
@@ -131,36 +135,37 @@ function buildOutlook(data: Awaited<ReturnType<typeof fetchWatchtowerRawData>>):
   }
 
   const thirtyDay: OutlookSummary['thirtyDay'] = {}
-  if (data.harvestAvailable && data.harvestFields.length > 0) {
-    const crops = [...new Set(data.harvestFields.map((f) => f.crop))]
-    thirtyDay.harvest = `Monitoring ${data.harvestFields.length} field(s) across ${crops.length} crop type(s).`
-    thirtyDay.production = data.harvestDemo
-      ? 'Production forecast based on demo satellite data.'
-      : 'Production forecast derived from live harvest analytics.'
-  } else {
-    thirtyDay.harvest = 'Insufficient harvest data'
-    thirtyDay.production = 'Insufficient harvest data'
+  if (harvestSnapshot.fieldCount > 0) {
+    const biomass =
+      harvestSnapshot.forecastBiomassTons !== null
+        ? `${harvestSnapshot.forecastBiomassTons.toLocaleString('en-US', { maximumFractionDigits: 1 })} t biomass`
+        : 'biomass forecast pending'
+    thirtyDay.harvest = `${harvestSnapshot.fieldCount} fields · ${harvestSnapshot.cropCount} crop types`
+    thirtyDay.production = `Forecast ${biomass}${data.harvestDemo ? ' (demo model)' : ''}.`
   }
 
-  thirtyDay.waterRequirement = data.insights.length > 0
-    ? 'Water requirement tracking active from operational insights.'
-    : 'Insufficient production data for water outlook'
+  if (data.insights.length > 0) {
+    const totalWater = data.insights.reduce((sum, row) => sum + row.waterConsumptionM3, 0)
+    thirtyDay.waterRequirement = `${totalWater.toLocaleString('en-US', { maximumFractionDigits: 0 })} m³ tracked across monitored parcels.`
+  }
 
-  thirtyDay.supplyImplications = data.supplyAvailable
-    ? data.supply?.at_risk_deliveries_count
-      ? `${data.supply.at_risk_deliveries_count} delivery lot(s) may affect near-term supply coverage.`
-      : 'Supply flows within expected parameters.'
-    : 'Insufficient supply data'
+  if (data.supplyAvailable) {
+    thirtyDay.supplyImplications = data.supply?.at_risk_deliveries_count
+      ? `${data.supply.at_risk_deliveries_count} delivery lot(s) may affect near-term coverage.`
+      : `${(data.supply?.available_contract_volume_tons ?? 0).toLocaleString('en-US')} t contract volume available.`
+  }
 
   return { sevenDay, thirtyDay }
 }
 
 export async function buildWatchtowerSummary(timeframe: WatchtowerTimeframe): Promise<WatchtowerSummary> {
   const data = await fetchWatchtowerRawData()
-  const signals = generateIntelligenceSignals(data)
+  const harvestSnapshot = buildHarvestProductionSnapshot(data)
+  const signals = generateIntelligenceSignals(data).filter((signal) => signal.type !== 'data_quality')
   const changes = generateSituationChanges(data, signals)
 
-  const totalProduction = data.insights.reduce((sum, row) => sum + row.estimatedProductionTons, 0)
+  const insightProduction = data.insights.reduce((sum, row) => sum + row.estimatedProductionTons, 0)
+  const totalProduction = insightProduction > 0 ? insightProduction : harvestSnapshot.forecastBiomassTons ?? 0
   const totalWater = data.insights.reduce((sum, row) => sum + row.waterConsumptionM3, 0)
   const totalEnergy = data.insights.reduce((sum, row) => sum + row.energyConsumptionKwh, 0)
   const waterIntensity = totalProduction > 0 ? totalWater / totalProduction : null
@@ -173,24 +178,54 @@ export async function buildWatchtowerSummary(timeframe: WatchtowerTimeframe): Pr
   const highWaterPoints = waterSignal?.pointIds?.length ?? 0
   const highEnergyPoints = energySignal?.pointIds?.length ?? 0
 
+  const atRiskCount =
+    harvestSnapshot.lowHealthPolygonCount > 0
+      ? harvestSnapshot.lowHealthPolygonCount
+      : signals
+          .filter((s) => s.type === 'crop_health' || s.type === 'production')
+          .reduce((sum, s) => sum + (s.pointIds?.length || s.parcelIds?.length || 0), 0) || null
+
   const production: ProductionSummary = {
     productionEstimate: metric(
       totalProduction > 0 ? totalProduction : null,
       't',
-      'Production estimate',
-      'operations.farm_crop_insights',
-      { sourceMode: totalProduction > 0 ? 'live' : 'unavailable' }
+      insightProduction > 0 ? 'Observed production' : 'Forecast biomass',
+      insightProduction > 0 ? 'operations.farm_crop_insights' : 'harvest.analytics.predict',
+      { sourceMode: totalProduction > 0 ? (data.harvestDemo ? 'demo' : 'live') : 'unavailable' }
+    ),
+    forecast: metric(
+      harvestSnapshot.forecastBiomassTons,
+      't',
+      'Forecast biomass (TBP)',
+      'harvest.analytics.predict',
+      { sourceMode: harvestSnapshot.forecastBiomassTons ? (data.harvestDemo ? 'demo' : 'live') : 'unavailable' }
     ),
     atRiskProduction: metric(
-      signals.filter((s) => s.type === 'crop_health' || s.type === 'production').length > 0
-        ? signals
-            .filter((s) => s.type === 'crop_health' || s.type === 'production')
-            .reduce((sum, s) => sum + (s.pointIds?.length || s.parcelIds?.length || 0), 0)
-        : null,
-      'entities',
-      'At-risk production entities',
+      atRiskCount,
+      atRiskCount === 1 ? 'field' : 'fields',
+      'Below health threshold',
       'watchtower.signals',
-      { sourceMode: 'live' }
+      { sourceMode: atRiskCount ? 'live' : 'unavailable' }
+    ),
+    fieldsMonitored: metric(
+      harvestSnapshot.fieldCount > 0 ? harvestSnapshot.fieldCount : null,
+      harvestSnapshot.fieldCount === 1 ? 'field' : 'fields',
+      'Fields monitored',
+      'harvest.analytics.predict',
+      { sourceMode: harvestSnapshot.fieldCount > 0 ? (data.harvestDemo ? 'demo' : 'live') : 'unavailable' }
+    ),
+    cropTypes: metric(
+      harvestSnapshot.cropCount > 0 ? harvestSnapshot.cropCount : null,
+      harvestSnapshot.cropCount === 1 ? 'crop' : 'crops',
+      'Crop types',
+      'harvest.analytics.predict'
+    ),
+    avgHealthScore: metric(
+      harvestSnapshot.avgPolygonScore,
+      '/100',
+      'Avg vegetation score',
+      'operations.polygons',
+      { sourceMode: harvestSnapshot.avgPolygonScore ? 'live' : 'unavailable' }
     ),
   }
 
@@ -258,7 +293,6 @@ export async function buildWatchtowerSummary(timeframe: WatchtowerTimeframe): Pr
     classifyFromSignals('production', signals, data.insights.length > 0 || data.harvestFields.length > 0),
     classifyFromSignals('water', signals, data.insights.length > 0),
     classifyFromSignals('climate', signals, data.weatherAvailable),
-    classifyFromSignals('crop_health', signals, data.polygons.length > 0 || data.harvestFields.length > 0),
     classifyFromSignals('supply', signals, data.supplyAvailable),
   ].map((status) => ({
     ...status,
@@ -278,7 +312,7 @@ export async function buildWatchtowerSummary(timeframe: WatchtowerTimeframe): Pr
     energy,
     climate,
     supply,
-    outlook: buildOutlook(data),
+    outlook: buildOutlook(data, harvestSnapshot),
     dataQuality: buildDataQualityStatus(data),
     sourceStatus: buildSourceStatus(data),
     isDemo: data.harvestDemo,
