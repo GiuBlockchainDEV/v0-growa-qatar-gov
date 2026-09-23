@@ -12,7 +12,6 @@ import {
   getLatestAllowedStartDate,
   validateHarvestFieldCreateInput,
 } from '@/lib/harvest/field-create'
-import { computeRingsCentroid, suggestHarvestSeasonDates } from '@/lib/harvest/season-dates'
 import { buildHarvestNationalDashboardUrl } from '@/lib/harvest/field-navigation'
 import type { LatLngVertex } from '@/lib/harvest/geojson'
 import type { HarvestCropGroup } from '@/lib/harvest/types'
@@ -103,12 +102,32 @@ export function HarvestFieldCreatePanel({
 
   useEffect(() => {
     if (!cropId || !cropName) return
-    const suggested = suggestHarvestSeasonDates({
-      cropName,
-      location: computeRingsCentroid(seasonGeometry),
-    })
-    setStartDate(suggested.start_date)
-    setHarvestDate(suggested.harvest_date)
+
+    let cancelled = false
+    const loadSuggestedDates = async () => {
+      try {
+        const response = await fetch('/api/harvest/season-dates', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            crop_name: cropName,
+            rings: seasonGeometry,
+          }),
+        })
+        const payload = await response.json()
+        if (!response.ok) return
+        if (cancelled) return
+        if (typeof payload?.start_date === 'string') setStartDate(payload.start_date)
+        if (typeof payload?.harvest_date === 'string') setHarvestDate(payload.harvest_date)
+      } catch {
+        // keep previous values when suggestion is unavailable
+      }
+    }
+
+    void loadSuggestedDates()
+    return () => {
+      cancelled = true
+    }
   }, [cropId, cropName, seasonGeometry])
 
   const validationError = useMemo(

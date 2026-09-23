@@ -1,51 +1,14 @@
 import type { LatLngVertex } from '@/lib/harvest/geojson'
 import { computeCentroid } from '@/lib/harvest/geojson'
+import {
+  geographicStartShiftDays,
+  loadCropCalendar,
+  resolveCropCalendarEntry,
+  type CropCalendarEntry,
+} from '@/lib/harvest/crop-calendar'
 import { formatIsoDate } from '@/lib/harvest/field-create'
 
 export const SEASON_START_LOOKBACK_DAYS = 30
-
-interface CropSeasonTemplate {
-  startMonth: number
-  startDay: number
-  harvestMonth: number
-  harvestDay: number
-  harvestYearOffset: number
-}
-
-const CROP_SEASON_TEMPLATES: Array<{ pattern: RegExp; template: CropSeasonTemplate }> = [
-  {
-    pattern: /tomato/i,
-    template: { startMonth: 10, startDay: 15, harvestMonth: 3, harvestDay: 20, harvestYearOffset: 1 },
-  },
-  {
-    pattern: /cucumber/i,
-    template: { startMonth: 11, startDay: 1, harvestMonth: 2, harvestDay: 28, harvestYearOffset: 1 },
-  },
-  {
-    pattern: /pepper|capsicum/i,
-    template: { startMonth: 9, startDay: 20, harvestMonth: 1, harvestDay: 15, harvestYearOffset: 1 },
-  },
-  {
-    pattern: /lettuce|leafy|spinach|rocket|kale/i,
-    template: { startMonth: 9, startDay: 1, harvestMonth: 11, harvestDay: 30, harvestYearOffset: 0 },
-  },
-  {
-    pattern: /melon|watermelon/i,
-    template: { startMonth: 2, startDay: 15, harvestMonth: 6, harvestDay: 15, harvestYearOffset: 0 },
-  },
-  {
-    pattern: /zucchini|squash|courgette/i,
-    template: { startMonth: 10, startDay: 1, harvestMonth: 2, harvestDay: 10, harvestYearOffset: 1 },
-  },
-]
-
-const DEFAULT_TEMPLATE: CropSeasonTemplate = {
-  startMonth: 10,
-  startDay: 1,
-  harvestMonth: 1,
-  harvestDay: 31,
-  harvestYearOffset: 1,
-}
 
 function startOfDay(date: Date) {
   const next = new Date(date)
@@ -59,30 +22,16 @@ function addDays(date: Date, days: number) {
   return startOfDay(next)
 }
 
-function resolveCropTemplate(cropName: string): CropSeasonTemplate {
-  const normalized = cropName.trim()
-  if (!normalized) return DEFAULT_TEMPLATE
-  const match = CROP_SEASON_TEMPLATES.find((entry) => entry.pattern.test(normalized))
-  return match?.template ?? DEFAULT_TEMPLATE
-}
-
-function geographicStartShiftDays(location?: LatLngVertex) {
-  if (!location) return 0
-  if (location.lat >= 25.8) return -5
-  if (location.lat <= 25.2) return 5
-  return 0
-}
-
 function buildSeasonDatesForYear(
-  template: CropSeasonTemplate,
+  entry: CropCalendarEntry,
   year: number,
   location?: LatLngVertex
 ): { start: Date; harvest: Date } {
-  const start = new Date(year, template.startMonth - 1, template.startDay)
-  start.setDate(start.getDate() + geographicStartShiftDays(location))
+  const start = new Date(year, entry.start_month - 1, entry.start_day)
+  start.setDate(start.getDate() + geographicStartShiftDays(location, entry))
 
-  const harvestYear = year + template.harvestYearOffset
-  const harvest = new Date(harvestYear, template.harvestMonth - 1, template.harvestDay)
+  const harvestYear = year + entry.harvest_year_offset
+  const harvest = new Date(harvestYear, entry.harvest_month - 1, entry.harvest_day)
 
   return {
     start: startOfDay(start),
@@ -102,19 +51,21 @@ export function suggestHarvestSeasonDates({
   cropName,
   location,
   reference = new Date(),
+  calendar = loadCropCalendar(),
 }: {
   cropName: string
   location?: LatLngVertex
   reference?: Date
-}): { start_date: string; harvest_date: string } {
-  const template = resolveCropTemplate(cropName)
+  calendar?: ReturnType<typeof loadCropCalendar>
+}): { start_date: string; harvest_date: string; crop_key: string; region: string; season_name: string } {
+  const entry = resolveCropCalendarEntry(cropName, location, calendar)
   const today = startOfDay(reference)
   const latestAllowedStart = addDays(today, -SEASON_START_LOOKBACK_DAYS)
 
   let year = today.getFullYear()
 
   for (let attempt = 0; attempt < 6; attempt += 1) {
-    const { start, harvest } = buildSeasonDatesForYear(template, year, location)
+    const { start, harvest } = buildSeasonDatesForYear(entry, year, location)
     const startInFuture = start > today
     const startTooRecent = start > latestAllowedStart
 
@@ -122,15 +73,21 @@ export function suggestHarvestSeasonDates({
       return {
         start_date: formatIsoDate(start),
         harvest_date: formatIsoDate(harvest),
+        crop_key: entry.crop_key,
+        region: entry.region,
+        season_name: entry.season_name,
       }
     }
 
     year -= 1
   }
 
-  const fallback = buildSeasonDatesForYear(template, today.getFullYear() - 1, location)
+  const fallback = buildSeasonDatesForYear(entry, today.getFullYear() - 1, location)
   return {
     start_date: formatIsoDate(fallback.start),
     harvest_date: formatIsoDate(fallback.harvest),
+    crop_key: entry.crop_key,
+    region: entry.region,
+    season_name: entry.season_name,
   }
 }
