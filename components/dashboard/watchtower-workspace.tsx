@@ -200,7 +200,7 @@ export function WatchtowerWorkspace() {
             />
           </div>
 
-          <div className="flex min-h-[320px] flex-col border-t border-white/10 xl:border-l xl:border-t-0">
+          <div className="relative z-20 flex min-h-[320px] flex-col border-t border-white/10 bg-[#050608] xl:border-l xl:border-t-0">
             <div className="shrink-0 border-b border-white/10 px-3 py-2">
               <h2 className="text-[10px] font-bold uppercase tracking-widest text-white/45">
                 {t('watchtower.priority_signals')} ({visibleSignals.length})

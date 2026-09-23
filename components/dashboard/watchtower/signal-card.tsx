@@ -1,8 +1,14 @@
 'use client'
 
-import { ArrowRight, MapPin, Bell, AlertCircle } from 'lucide-react'
+import { ArrowRight, MapPin, Bell } from 'lucide-react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import type { IntelligenceSignal } from '@/lib/domain/types'
 import { useOperationalContextOptional } from '@/contexts/operational-context-provider'
+import { resolveDashboardHref } from '@/lib/dashboard/dashboard-navigation'
+import {
+  navigateToModuleWithContext,
+  navigateToSignal,
+} from '@/lib/dashboard/operational-navigation'
 import { cn } from '@/lib/utils'
 
 const SEVERITY_STYLES: Record<IntelligenceSignal['severity'], { border: string; badge: string; label: string }> = {
@@ -22,14 +28,52 @@ interface SignalCardProps {
 
 export function SignalCard({ signal, selected, onCreateAlert, emphasized, compact }: SignalCardProps) {
   const opCtx = useOperationalContextOptional()
+  const router = useRouter()
+  const searchParams = useSearchParams()
   const styles = SEVERITY_STYLES[signal.severity]
   const entityCount =
     signal.farmIds?.length || signal.pointIds?.length || signal.parcelIds?.length || 0
 
+  const navigate = (target: string) => {
+    if (opCtx) {
+      return
+    }
+    router.push(resolveDashboardHref(searchParams, target), { scroll: false })
+  }
+
+  const openEstimation = () => {
+    const target = navigateToSignal(searchParams, signal)
+    if (opCtx) {
+      opCtx.goToSignal(signal)
+      return
+    }
+    navigate(target)
+  }
+
+  const openInvestigation = () => {
+    const target = navigateToModuleWithContext(searchParams, 'investigations', {
+      signalId: signal.id,
+      farmId: signal.farmIds?.[0],
+      parcelId: signal.parcelIds?.[0],
+      pointId: signal.pointIds?.[0],
+      timeframe: opCtx?.timeframe,
+    })
+    if (opCtx) {
+      opCtx.goToModule('investigations', {
+        signalId: signal.id,
+        farmId: signal.farmIds?.[0],
+        parcelId: signal.parcelIds?.[0],
+        pointId: signal.pointIds?.[0],
+      })
+      return
+    }
+    navigate(target)
+  }
+
   return (
     <div
       className={cn(
-        'rounded-lg border bg-[#0a0d12] transition-all',
+        'relative z-10 rounded-lg border bg-[#0a0d12] transition-all',
         compact ? 'p-2.5' : emphasized ? 'p-3.5' : 'p-3',
         styles.border,
         emphasized && 'shadow-[0_0_24px_rgba(251,146,60,0.08)]',
@@ -71,10 +115,13 @@ export function SignalCard({ signal, selected, onCreateAlert, emphasized, compac
         )}
       </div>
 
-      <div className="mt-3 flex flex-wrap gap-1.5">
+      <div className="relative z-10 mt-3 flex flex-wrap gap-1.5">
         <button
           type="button"
-          onClick={() => opCtx?.goToSignal(signal)}
+          onClick={(event) => {
+            event.stopPropagation()
+            openEstimation()
+          }}
           className="inline-flex items-center gap-1 rounded bg-[#07f880]/12 px-2 py-1 text-[10px] font-medium text-[#07f880] hover:bg-[#07f880]/20"
         >
           <MapPin className="h-3 w-3" />
@@ -82,7 +129,10 @@ export function SignalCard({ signal, selected, onCreateAlert, emphasized, compac
         </button>
         <button
           type="button"
-          onClick={() => opCtx?.goToModule('investigations', { signalId: signal.id, farmId: signal.farmIds?.[0] })}
+          onClick={(event) => {
+            event.stopPropagation()
+            openInvestigation()
+          }}
           className="inline-flex items-center gap-1 rounded border border-white/10 px-2 py-1 text-[10px] text-white/70 hover:text-white"
         >
           Investigate
@@ -91,7 +141,10 @@ export function SignalCard({ signal, selected, onCreateAlert, emphasized, compac
         {onCreateAlert && (
           <button
             type="button"
-            onClick={() => onCreateAlert(signal)}
+            onClick={(event) => {
+              event.stopPropagation()
+              onCreateAlert(signal)
+            }}
             className="inline-flex items-center gap-1 rounded border border-white/10 px-2 py-1 text-[10px] text-white/50 hover:text-amber-300"
           >
             <Bell className="h-3 w-3" />

@@ -26,6 +26,7 @@ import {
 import type { IntelligenceSignal } from '@/lib/domain/types'
 import type { WatchtowerTimeframe } from '@/lib/domain/types'
 import { parseWatchtowerTimeframe } from '@/lib/domain/timeframes'
+import { resolveDashboardHref } from '@/lib/dashboard/dashboard-navigation'
 
 interface OperationalContextValue {
   context: OperationalContext
@@ -72,11 +73,21 @@ export function OperationalContextProvider({ children }: { children: ReactNode }
     setActiveMapLayers(parseMapLayers(searchParams))
   }, [searchParams])
 
+  const navigateToUrl = useCallback(
+    (target: string) => {
+      router.push(resolveDashboardHref(searchParams, target), { scroll: false })
+    },
+    [router, searchParams]
+  )
+
   const pushParams = useCallback(
     (params: URLSearchParams) => {
-      router.replace(`/dashboard?${params.toString()}`, { scroll: false })
+      if (!params.get('module')) {
+        params.set('module', searchParams.get('module') || 'watchtower')
+      }
+      navigateToUrl(`/dashboard?${params.toString()}`)
     },
-    [router]
+    [navigateToUrl, searchParams]
   )
 
   const setContext = useCallback(
@@ -105,17 +116,16 @@ export function OperationalContextProvider({ children }: { children: ReactNode }
 
   const goToFarm = useCallback(
     (farmId: string, module = 'harvest') => {
-      pushParams(new URLSearchParams(navigateToFarm(searchParams, farmId, module).split('?')[1] || ''))
+      navigateToUrl(navigateToFarm(searchParams, farmId, module))
     },
-    [pushParams, searchParams]
+    [navigateToUrl, searchParams]
   )
 
   const goToParcel = useCallback(
     (parcelId: string, module = 'harvest') => {
-      const url = navigateToParcel(searchParams, parcelId, { module })
-      pushParams(new URLSearchParams(url.split('?')[1] || ''))
+      navigateToUrl(navigateToParcel(searchParams, parcelId, { module }))
     },
-    [pushParams, searchParams]
+    [navigateToUrl, searchParams]
   )
 
   const goToSignal = useCallback(
@@ -123,21 +133,24 @@ export function OperationalContextProvider({ children }: { children: ReactNode }
       const url = options?.onMap
         ? navigateToSignalOnMap(searchParams, signal)
         : navigateToSignal(searchParams, signal)
-      const query = url.includes('?') ? url.split('?')[1] : ''
-      pushParams(new URLSearchParams(query))
+      navigateToUrl(url)
     },
-    [pushParams, searchParams]
+    [navigateToUrl, searchParams]
   )
 
   const goToModule = useCallback(
     (module: string, ctx?: Partial<NavigationTarget>) => {
-      const url = navigateToModuleWithContext(searchParams, module, {
-        ...ctx,
-        timeframe,
-      })
-      pushParams(new URLSearchParams(url.split('?')[1] || ''))
+      navigateToUrl(
+        navigateToModuleWithContext(searchParams, module, {
+          ...ctx,
+          timeframe,
+          harvestMode:
+            ctx?.harvestMode ||
+            (module === 'harvest' || module === 'production-harvest' ? 'predict' : undefined),
+        })
+      )
     },
-    [pushParams, searchParams, timeframe]
+    [navigateToUrl, searchParams, timeframe]
   )
 
   const toggleMapLayer = useCallback(

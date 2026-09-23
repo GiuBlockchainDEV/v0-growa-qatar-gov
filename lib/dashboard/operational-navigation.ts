@@ -18,6 +18,7 @@ export interface NavigationTarget {
   signalId?: string
   timeframe?: WatchtowerTimeframe
   mapLayer?: string
+  harvestMode?: string
 }
 
 export function buildModuleUrl(current: URLSearchParams, target: NavigationTarget): string {
@@ -52,6 +53,14 @@ export function buildModuleUrl(current: URLSearchParams, target: NavigationTarge
   if (target.lat !== undefined) params.set('lat', String(target.lat))
   if (target.lng !== undefined) params.set('lng', String(target.lng))
   if (target.zoom !== undefined) params.set('zoom', String(target.zoom))
+
+  if (target.harvestMode) params.set('harvestMode', target.harvestMode)
+  if (
+    (target.module === 'harvest' || target.module === 'production-harvest') &&
+    !params.get('harvestMode')
+  ) {
+    params.set('harvestMode', 'predict')
+  }
 
   clearIncompatibleDashboardParams(params, target.module)
   return `/dashboard?${params.toString()}`

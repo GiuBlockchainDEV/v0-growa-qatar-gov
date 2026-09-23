@@ -73,6 +73,10 @@ export function NationalMapPanel({
 
   const weatherBoundary = useMemo(() => getQatarBoundaryCoordinates(), [])
 
+  const productionSignal = summary.signals.find(
+    (signal) => signal.type === 'production' || signal.type === 'crop_health'
+  )
+
   const headlineMetrics = [
     {
       label: summary.production.productionEstimate.label,
@@ -81,6 +85,12 @@ export function NationalMapPanel({
         summary.production.productionEstimate.unit
       ),
       detail: humanizeMetricSource(summary.production.productionEstimate.source),
+      onClick: () =>
+        opCtx?.goToModule('harvest', {
+          harvestMode: 'predict',
+          signalId: productionSignal?.id,
+          timeframe: summary.timeframe,
+        }),
     },
     {
       label: summary.production.fieldsMonitored?.label || 'Fields monitored',
@@ -91,6 +101,11 @@ export function NationalMapPanel({
       detail: summary.production.cropTypes?.value
         ? `${summary.production.cropTypes.value} crop types`
         : 'Harvest forecast coverage',
+      onClick: () =>
+        opCtx?.goToModule('harvest', {
+          harvestMode: 'predict',
+          timeframe: summary.timeframe,
+        }),
     },
     {
       label: summary.production.atRiskProduction?.label || 'Below health threshold',
@@ -102,6 +117,14 @@ export function NationalMapPanel({
         ? `Avg vegetation ${summary.production.avgHealthScore.value.toFixed(0)}/100`
         : 'From satellite indicators',
       warning: Boolean(summary.production.atRiskProduction?.value),
+      onClick: () =>
+        opCtx?.goToModule('harvest', {
+          harvestMode: 'predict',
+          mapLayer: 'crop-health',
+          signalId: productionSignal?.id,
+          parcelId: productionSignal?.parcelIds?.[0],
+          timeframe: summary.timeframe,
+        }),
     },
   ].filter((metric) => metric.value)
 
@@ -166,7 +189,7 @@ export function NationalMapPanel({
       </div>
 
       <div className="flex flex-1 min-h-0">
-        <div className="hidden sm:flex w-40 shrink-0 flex-col border-r border-white/10 overflow-y-auto">
+        <div className="relative z-20 hidden sm:flex w-40 shrink-0 flex-col border-r border-white/10 overflow-y-auto bg-[#06080c]">
           {headlineMetrics.length > 0 && (
             <div className="space-y-2 border-b border-white/10 p-2">
               {headlineMetrics.map((metric) => (
@@ -204,7 +227,8 @@ export function NationalMapPanel({
               type="button"
               onClick={() =>
                 opCtx?.goToModule('harvest', {
-                  signalId: summary.signals[0]?.id,
+                  harvestMode: 'predict',
+                  signalId: productionSignal?.id,
                   timeframe: summary.timeframe,
                 })
               }
@@ -224,7 +248,7 @@ export function NationalMapPanel({
           </div>
         </div>
 
-        <div className="relative min-h-[320px] flex-1">
+        <div className="relative z-0 min-h-[320px] flex-1 overflow-hidden">
           <SatelliteMap
             locale={locale}
             targetFarmId={targetFarmId}
@@ -258,22 +282,26 @@ function MetricCard({
   value,
   detail,
   warning,
+  onClick,
 }: {
   label: string
   value: string
   detail: string
   warning?: boolean
+  onClick?: () => void
 }) {
   return (
-    <div
+    <button
+      type="button"
+      onClick={onClick}
       className={cn(
-        'rounded-lg border px-2.5 py-2',
+        'w-full rounded-lg border px-2.5 py-2 text-left transition-colors hover:brightness-110',
         warning ? 'border-amber-500/30 bg-amber-500/10' : 'border-[#07f880]/25 bg-[#07f880]/10'
       )}
     >
       <p className="text-[9px] uppercase tracking-wider text-white/40">{label}</p>
       <p className="mt-0.5 text-sm font-semibold text-white">{value}</p>
       <p className="mt-0.5 text-[9px] text-white/45 line-clamp-2">{detail}</p>
-    </div>
+    </button>
   )
 }
