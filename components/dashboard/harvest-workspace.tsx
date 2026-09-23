@@ -46,6 +46,7 @@ import {
   IntelligenceWorkspaceRoot,
 } from '@/components/dashboard/intelligence-workspace-ui'
 import { useHarvestDashboard } from '@/contexts/harvest-dashboard-context'
+import { metricsFromFieldStats } from '@/lib/harvest/field-metrics'
 import {
   HARVEST_METRIC_META,
   formatHarvestMetricWithUnit,
@@ -638,16 +639,7 @@ export function HarvestWorkspace() {
   useEffect(() => {
     if (!fieldStats) return
 
-    const metrics: HarvestFieldMetrics = {}
-    for (const key of FIELD_KPI_METRICS) {
-      const seasonValue = fieldStats.timeseries.season[key]?.at(-1)?.value
-      const dekadValue = fieldStats.timeseries.dekad[key]?.at(-1)?.value
-      const value = seasonValue ?? dekadValue
-      if (value !== undefined && Number.isFinite(value)) {
-        metrics[key] = value
-      }
-    }
-
+    const metrics = metricsFromFieldStats(fieldStats)
     if (Object.keys(metrics).length === 0) return
 
     mergeFieldMetrics(fieldStats.parcel_id, metrics)

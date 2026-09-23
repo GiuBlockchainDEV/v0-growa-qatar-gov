@@ -22,6 +22,7 @@ import {
   type HarvestFieldNavTarget,
 } from '@/lib/harvest/field-navigation'
 import { findHarvestMapFieldAtLatLng } from '@/lib/harvest/field-hit-test'
+import { FIELD_KPI_METRICS, mergeSeasonMetrics } from '@/lib/harvest/field-metrics'
 import { normalizeEntityToField } from '@/lib/harvest/normalize'
 import type {
   HarvestAnalyticsField,
@@ -29,8 +30,6 @@ import type {
   HarvestMapField,
   HarvestMode,
 } from '@/lib/harvest/types'
-
-const FIELD_KPI_METRICS = ['aeti', 'npp', 'tbp', 'bwp', 'rwd', 'wcu', 'cost'] as const
 
 interface HarvestDashboardContextValue {
   mode: HarvestMode
@@ -328,7 +327,7 @@ export function HarvestDashboardProvider({ children }: { children: ReactNode }) 
       setFields((current) =>
         current.map((field) =>
           field.parcel_id === parcelIdForStats
-            ? { ...field, metrics: { ...field.metrics, ...metrics } }
+            ? { ...field, metrics: mergeSeasonMetrics(field.metrics, metrics) }
             : field
         )
       )
@@ -336,11 +335,10 @@ export function HarvestDashboardProvider({ children }: { children: ReactNode }) 
       if (!parcelId || parcelIdForStats !== parcelId) return
 
       setMetricOverlay((current) => {
-        const hasChanges = FIELD_KPI_METRICS.some(
-          (key) => metrics[key] !== undefined && metrics[key] !== current[key]
-        )
+        const merged = mergeSeasonMetrics(current, metrics)
+        const hasChanges = FIELD_KPI_METRICS.some((key) => merged[key] !== current[key])
         if (!hasChanges) return current
-        return { ...current, ...metrics }
+        return merged
       })
     },
     [parcelId]

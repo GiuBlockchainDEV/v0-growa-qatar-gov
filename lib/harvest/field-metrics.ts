@@ -1,7 +1,9 @@
 import { harvestGetFieldStatsCsv } from '@/lib/harvest/client'
-import { parseHarvestFieldStatsCsv, hasHarvestFieldStatsPoints } from '@/lib/harvest/csv-stats'
+import { parseHarvestFieldStatsCsv } from '@/lib/harvest/csv-stats'
 import { harvestStatsModesToTry } from '@/lib/harvest/mode-resolve'
 import type { HarvestAnalyticsField, HarvestFieldMetrics, HarvestFieldStatsResponse, HarvestMetricKey, HarvestMode } from '@/lib/harvest/types'
+
+export const FIELD_KPI_METRICS: HarvestMetricKey[] = ['aeti', 'npp', 'tbp', 'bwp', 'rwd', 'wcu', 'cost']
 
 const TABLE_METRICS: HarvestMetricKey[] = ['aeti', 'tbp', 'bwp']
 
@@ -16,19 +18,47 @@ export function hasHarvestTableMetrics(metrics?: HarvestFieldMetrics) {
   return missingHarvestTableMetrics(metrics).length === 0
 }
 
+export function hasSeasonFieldStats(stats: HarvestFieldStatsResponse) {
+  return Object.values(stats.timeseries.season).some((points) => (points?.length || 0) > 0)
+}
+
 export function metricsFromFieldStats(stats: HarvestFieldStatsResponse): HarvestFieldMetrics {
   const metrics: HarvestFieldMetrics = {}
 
-  for (const key of TABLE_METRICS) {
+  for (const key of FIELD_KPI_METRICS) {
     const seasonValue = stats.timeseries.season[key]?.at(-1)?.value
-    const dekadValue = stats.timeseries.dekad[key]?.at(-1)?.value
-    const value = seasonValue ?? dekadValue
-    if (value !== undefined && Number.isFinite(value)) {
-      metrics[key] = value
+    if (seasonValue !== undefined && Number.isFinite(seasonValue)) {
+      metrics[key] = seasonValue
     }
   }
 
   return metrics
+}
+
+export function mergeSeasonMetrics(
+  existing: HarvestFieldMetrics | undefined,
+  seasonMetrics: HarvestFieldMetrics
+): HarvestFieldMetrics {
+  if (Object.keys(seasonMetrics).length === 0) return existing || {}
+
+  const metrics: HarvestFieldMetrics = { ...(existing || {}) }
+  for (const key of FIELD_KPI_METRICS) {
+    if (seasonMetrics[key] !== undefined) {
+      metrics[key] = seasonMetrics[key]
+    } else {
+      delete metrics[key]
+    }
+  }
+
+  return metrics
+}
+
+function applySeasonMetricsToField(
+  field: HarvestAnalyticsField,
+  seasonMetrics: HarvestFieldMetrics
+): HarvestAnalyticsField {
+  if (Object.keys(seasonMetrics).length === 0) return field
+  return { ...field, metrics: mergeSeasonMetrics(field.metrics, seasonMetrics) }
 }
 
 async function loadFieldStatsMetrics(
@@ -45,7 +75,7 @@ async function loadFieldStatsMetrics(
         parcel_id: field.parcel_id,
         season_id: seasonId,
       })
-      if (!hasHarvestFieldStatsPoints(stats)) continue
+      if (!hasSeasonFieldStats(stats)) continue
       const metrics = metricsFromFieldStats(stats)
       if (Object.keys(metrics).length > 0) return metrics
     } catch {
@@ -84,7 +114,7 @@ export async function enrichHarvestFieldsWithStats(
 ): Promise<HarvestAnalyticsField[]> {
   const targets = fields
     .map((field, index) => ({ field, index }))
-    .filter(({ field }) => missingHarvestTableMetrics(field.metrics).length > 0)
+    .filter(({ field }) => field.season_id !== undefined && Number.isFinite(field.season_id))
 
   if (targets.length === 0) return fields
 
@@ -104,12 +134,6 @@ export async function enrichHarvestFieldsWithStats(
   return fields.map((field) => {
     const statsMetrics = metricsByParcel.get(field.parcel_id)
     if (!statsMetrics) return field
-    return {
-      ...field,
-      metrics: {
-        ...(field.metrics || {}),
-        ...statsMetrics,
-      },
-    }
+    return applySeasonMetricsToField(field, statsMetrics)
   })
 }
