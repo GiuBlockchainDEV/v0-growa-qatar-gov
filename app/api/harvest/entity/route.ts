@@ -27,16 +27,16 @@ export async function POST(request: Request) {
 
     const cropId = typeof body?.crop_id === 'number' ? body.crop_id : Number(body?.crop_id)
     const cropName = await resolveCropName(cropId, access.demoMode)
-    const suggestedDates = suggestHarvestSeasonDates({
+    const suggestedStartDate = suggestHarvestSeasonDates({
       cropName,
       location: computeRingsCentroid(rings),
-    })
+    }).start_date
 
     const payload = buildHarvestCreateFieldPayload({
       name: typeof body?.name === 'string' ? body.name : '',
       crop_id: cropId,
-      start_date: suggestedDates.start_date,
-      harvest_date: suggestedDates.harvest_date,
+      start_date: suggestedStartDate,
+      harvest_date: typeof body?.harvest_date === 'string' ? body.harvest_date : '',
       rings,
     })
 

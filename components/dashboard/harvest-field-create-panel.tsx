@@ -118,7 +118,6 @@ export function HarvestFieldCreatePanel({
         if (!response.ok) return
         if (cancelled) return
         if (typeof payload?.start_date === 'string') setStartDate(payload.start_date)
-        if (typeof payload?.harvest_date === 'string') setHarvestDate(payload.harvest_date)
       } catch {
         // keep previous values when suggestion is unavailable
       }
@@ -279,7 +278,8 @@ export function HarvestFieldCreatePanel({
         ) : null}
 
         <p className="text-[11px] text-muted-foreground">
-          Season dates are suggested from crop type and field location. Start must be at least{' '}
+          Season start is suggested from crop type and field location. Harvest date must be set
+          manually. Start must be at least{' '}
           {START_DATE_LOOKBACK_DAYS} days before today (latest {latestStartDate}). Area must be between{' '}
           {MIN_FIELD_AREA_HECTARES} and {MAX_FIELD_AREA_HECTARES} ha.
         </p>
@@ -323,13 +323,13 @@ export function HarvestFieldCreatePanel({
               />
             </label>
             <label className="space-y-1 text-xs text-muted-foreground">
-              <span>Harvest date (auto)</span>
+              <span>Harvest date</span>
               <input
                 type="date"
                 value={harvestDate}
                 min={startDate || '2018-01-01'}
-                readOnly
-                className="h-9 w-full rounded-lg border border-border bg-secondary/30 px-3 text-sm text-foreground"
+                onChange={(event) => setHarvestDate(event.target.value)}
+                className="h-9 w-full rounded-lg border border-border bg-card px-3 text-sm text-foreground"
               />
             </label>
           </div>
