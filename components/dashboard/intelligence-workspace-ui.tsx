@@ -1,31 +1,36 @@
 'use client'
 
 import type { LucideIcon } from 'lucide-react'
-import type { ReactNode } from 'react'
+import { forwardRef, type ReactNode } from 'react'
 
 interface IntelligenceWorkspaceRootProps {
   children: ReactNode
   layout?: 'scroll' | 'viewport'
 }
 
-export function IntelligenceWorkspaceRoot({
-  children,
-  layout = 'scroll',
-}: IntelligenceWorkspaceRootProps) {
-  if (layout === 'viewport') {
+export const IntelligenceWorkspaceRoot = forwardRef<HTMLDivElement, IntelligenceWorkspaceRootProps>(
+  function IntelligenceWorkspaceRoot({ children, layout = 'scroll' }, ref) {
+    if (layout === 'viewport') {
+      return (
+        <div
+          ref={ref}
+          className="flex h-full min-h-0 flex-col gap-3 overflow-hidden px-4 py-4 text-foreground sm:px-6"
+        >
+          {children}
+        </div>
+      )
+    }
+
     return (
-      <div className="flex h-full min-h-0 flex-col gap-3 overflow-hidden px-4 py-4 text-foreground sm:px-6">
+      <div
+        ref={ref}
+        className="h-full overflow-y-auto overscroll-contain space-y-5 p-6 pt-20 text-foreground"
+      >
         {children}
       </div>
     )
   }
-
-  return (
-    <div className="h-full overflow-y-auto overscroll-contain space-y-5 p-6 pt-20 text-foreground">
-      {children}
-    </div>
-  )
-}
+)
 
 export function IntelligenceWorkspaceHeader({ children }: { children: ReactNode }) {
   return (

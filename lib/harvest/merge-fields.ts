@@ -27,12 +27,7 @@ export function mergeHarvestFieldsWithAnalytics(
       ...(field.metrics || {}),
     }
 
-    let season_id = field.season_id
-    if (keyedMatch && analyticsMatch.season_id) {
-      season_id = analyticsMatch.season_id
-    } else if (!season_id && analyticsMatch.season_id) {
-      season_id = analyticsMatch.season_id
-    }
+    const season_id = analyticsMatch.season_id ?? field.season_id
 
     return {
       ...field,

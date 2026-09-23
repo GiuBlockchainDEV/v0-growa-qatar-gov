@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import {
   Activity,
@@ -188,6 +189,7 @@ export function HarvestWorkspace() {
   const rasterBlobUrlRef = useRef<string | null>(null)
   const rasterLoadSeqRef = useRef(0)
   const fieldDetailSeqRef = useRef(0)
+  const workspaceScrollRef = useRef<HTMLDivElement>(null)
 
   const {
     mode,
@@ -201,12 +203,35 @@ export function HarvestWorkspace() {
     activeSeasonId,
     activeField,
     isFieldDetailView,
-    selectField,
+    selectField: selectFieldFromContext,
+    getFieldDetailHref,
     clearFieldSelection,
     startFieldCreate,
     mergeFieldMetrics,
     patchActiveSeasonId,
   } = useHarvestDashboard()
+
+  const scrollWorkspaceToTop = useCallback(() => {
+    workspaceScrollRef.current?.scrollTo({ top: 0, behavior: 'auto' })
+  }, [])
+
+  const selectField = useCallback(
+    (field: HarvestAnalyticsField) => {
+      selectFieldFromContext(field)
+    },
+    [selectFieldFromContext]
+  )
+
+  useEffect(() => {
+    const handleFieldSelected = () => scrollWorkspaceToTop()
+    window.addEventListener('harvest:field-selected', handleFieldSelected)
+    return () => window.removeEventListener('harvest:field-selected', handleFieldSelected)
+  }, [scrollWorkspaceToTop])
+
+  useEffect(() => {
+    if (!parcelId) return
+    scrollWorkspaceToTop()
+  }, [parcelId, scrollWorkspaceToTop])
 
   const activeParcelId = parcelId
 
@@ -825,7 +850,7 @@ export function HarvestWorkspace() {
   }
 
   return (
-    <IntelligenceWorkspaceRoot layout="scroll">
+    <IntelligenceWorkspaceRoot ref={workspaceScrollRef} layout="scroll">
       <InvestigationContextHeader
         eyebrow="Intelligence • Satellite & Harvest"
         title={
@@ -1343,7 +1368,13 @@ export function HarvestWorkspace() {
                         }`}
                       >
                         <td className="px-3 py-2 font-medium text-foreground">
-                          <span className="hover:text-primary hover:underline">{field.name}</span>
+                          <Link
+                            href={getFieldDetailHref(field)}
+                            scroll={false}
+                            className="hover:text-primary hover:underline"
+                          >
+                            {field.name}
+                          </Link>
                           {collectingTasks.some((entry) => entry.parcel_id === field.parcel_id) ? (
                             <span className="ml-2 rounded-full bg-amber-500/15 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-amber-300">
                               Collecting
