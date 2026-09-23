@@ -9,11 +9,10 @@ import {
   MAX_FIELD_AREA_HECTARES,
   MIN_FIELD_AREA_HECTARES,
   START_DATE_LOOKBACK_DAYS,
-  getDefaultHarvestEndDate,
-  getDefaultHarvestStartDate,
   getLatestAllowedStartDate,
   validateHarvestFieldCreateInput,
 } from '@/lib/harvest/field-create'
+import { computeRingsCentroid, suggestHarvestSeasonDates } from '@/lib/harvest/season-dates'
 import { buildHarvestNationalDashboardUrl } from '@/lib/harvest/field-navigation'
 import type { LatLngVertex } from '@/lib/harvest/geojson'
 import type { HarvestCropGroup } from '@/lib/harvest/types'
@@ -53,8 +52,8 @@ export function HarvestFieldCreatePanel({
   const harvestMode = searchParams.get('harvestMode') === 'predict' ? 'predict' : 'current'
   const [name, setName] = useState('')
   const [cropId, setCropId] = useState<string>('')
-  const [startDate, setStartDate] = useState(getDefaultHarvestStartDate())
-  const [harvestDate, setHarvestDate] = useState(getDefaultHarvestEndDate())
+  const [startDate, setStartDate] = useState('')
+  const [harvestDate, setHarvestDate] = useState('')
   const [cropGroups, setCropGroups] = useState<HarvestCropGroup[]>([])
   const [loadingCrops, setLoadingCrops] = useState(true)
   const [submitting, setSubmitting] = useState(false)
@@ -86,6 +85,31 @@ export function HarvestFieldCreatePanel({
       cancelled = true
     }
   }, [])
+
+  const cropName = useMemo(() => {
+    if (!cropId) return ''
+    for (const group of cropGroups) {
+      const option = group.options.find((entry) => String(entry.value) === cropId)
+      if (option) return option.label
+    }
+    return ''
+  }, [cropGroups, cropId])
+
+  const seasonGeometry = useMemo(() => {
+    const geometry = [...rings]
+    if (draftVertices.length >= 3) geometry.push(draftVertices)
+    return geometry
+  }, [draftVertices, rings])
+
+  useEffect(() => {
+    if (!cropId || !cropName) return
+    const suggested = suggestHarvestSeasonDates({
+      cropName,
+      location: computeRingsCentroid(seasonGeometry),
+    })
+    setStartDate(suggested.start_date)
+    setHarvestDate(suggested.harvest_date)
+  }, [cropId, cropName, seasonGeometry])
 
   const validationError = useMemo(
     () =>
@@ -163,7 +187,7 @@ export function HarvestFieldCreatePanel({
   return (
     <IntelligencePanel
       title="Create new field"
-      subtitle="Draw the boundary on the map, then set crop and season dates"
+      subtitle="Draw the boundary on the map, then select the crop to auto-fill season dates"
       icon={Plus}
     >
       <div className="space-y-4">
@@ -236,8 +260,9 @@ export function HarvestFieldCreatePanel({
         ) : null}
 
         <p className="text-[11px] text-muted-foreground">
-          Constraints: start date at least {START_DATE_LOOKBACK_DAYS} days before today (latest{' '}
-          {latestStartDate}), total area between {MIN_FIELD_AREA_HECTARES} and {MAX_FIELD_AREA_HECTARES} ha.
+          Season dates are suggested from crop type and field location. Start must be at least{' '}
+          {START_DATE_LOOKBACK_DAYS} days before today (latest {latestStartDate}). Area must be between{' '}
+          {MIN_FIELD_AREA_HECTARES} and {MAX_FIELD_AREA_HECTARES} ha.
         </p>
 
         <div className="space-y-3">
@@ -268,24 +293,24 @@ export function HarvestFieldCreatePanel({
 
           <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
             <label className="space-y-1 text-xs text-muted-foreground">
-              <span>Season start</span>
+              <span>Season start (auto)</span>
               <input
                 type="date"
                 value={startDate}
                 max={latestStartDate}
                 min="2018-01-01"
-                onChange={(event) => setStartDate(event.target.value)}
-                className="h-9 w-full rounded-lg border border-border bg-card px-3 text-sm text-foreground"
+                readOnly
+                className="h-9 w-full rounded-lg border border-border bg-secondary/30 px-3 text-sm text-foreground"
               />
             </label>
             <label className="space-y-1 text-xs text-muted-foreground">
-              <span>Harvest date</span>
+              <span>Harvest date (auto)</span>
               <input
                 type="date"
                 value={harvestDate}
                 min={startDate || '2018-01-01'}
-                onChange={(event) => setHarvestDate(event.target.value)}
-                className="h-9 w-full rounded-lg border border-border bg-card px-3 text-sm text-foreground"
+                readOnly
+                className="h-9 w-full rounded-lg border border-border bg-secondary/30 px-3 text-sm text-foreground"
               />
             </label>
           </div>

@@ -1,10 +1,17 @@
 import { NextResponse } from 'next/server'
 import { requireHarvestAccess, harvestErrorResponse } from '@/lib/harvest/auth'
-import { harvestCreateEntity } from '@/lib/harvest/client'
-import { createDemoField } from '@/lib/harvest/demo-data'
+import { harvestCreateEntity, harvestGetCrops } from '@/lib/harvest/client'
+import { createDemoField, getDemoHarvestCrops } from '@/lib/harvest/demo-data'
 import { buildHarvestCreateFieldPayload } from '@/lib/harvest/field-create'
+import { computeRingsCentroid, suggestHarvestSeasonDates } from '@/lib/harvest/season-dates'
 import { harvestJsonResponse } from '@/lib/harvest/resolve'
 import type { LatLngVertex } from '@/lib/harvest/geojson'
+
+async function resolveCropName(cropId: number, demoMode: boolean) {
+  const crops = demoMode ? getDemoHarvestCrops() : await harvestGetCrops()
+  const crop = crops.find((entry) => entry.id === cropId)
+  return crop?.name || 'crop'
+}
 
 export async function POST(request: Request) {
   const access = await requireHarvestAccess()
@@ -18,11 +25,18 @@ export async function POST(request: Request) {
         ? [body.vertices as LatLngVertex[]]
         : []
 
+    const cropId = typeof body?.crop_id === 'number' ? body.crop_id : Number(body?.crop_id)
+    const cropName = await resolveCropName(cropId, access.demoMode)
+    const suggestedDates = suggestHarvestSeasonDates({
+      cropName,
+      location: computeRingsCentroid(rings),
+    })
+
     const payload = buildHarvestCreateFieldPayload({
       name: typeof body?.name === 'string' ? body.name : '',
-      crop_id: typeof body?.crop_id === 'number' ? body.crop_id : Number(body?.crop_id),
-      start_date: typeof body?.start_date === 'string' ? body.start_date : '',
-      harvest_date: typeof body?.harvest_date === 'string' ? body.harvest_date : '',
+      crop_id: cropId,
+      start_date: suggestedDates.start_date,
+      harvest_date: suggestedDates.harvest_date,
       rings,
     })
 

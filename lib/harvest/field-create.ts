@@ -4,7 +4,7 @@ import { calculateRingsAreaHectares, ringsToCreateGeoJson } from '@/lib/harvest/
 export const MIN_FIELD_AREA_HECTARES = 1
 export const MAX_FIELD_AREA_HECTARES = 5000
 export const MIN_START_DATE = '2018-01-01'
-export const START_DATE_LOOKBACK_DAYS = 15
+export const START_DATE_LOOKBACK_DAYS = 30
 
 export function formatIsoDate(date: Date) {
   const year = date.getFullYear()
