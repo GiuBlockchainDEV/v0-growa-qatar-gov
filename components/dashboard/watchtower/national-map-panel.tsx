@@ -89,7 +89,11 @@ export function NationalMapPanel({
         opCtx?.goToModule('harvest', {
           harvestMode: 'predict',
           signalId: productionSignal?.id,
+          parcelId: productionSignal?.parcelIds?.[0],
+          farmId: productionSignal?.farmIds?.[0],
+          pointId: productionSignal?.pointIds?.[0],
           timeframe: summary.timeframe,
+          zoom: 13,
         }),
     },
     {
@@ -104,7 +108,11 @@ export function NationalMapPanel({
       onClick: () =>
         opCtx?.goToModule('harvest', {
           harvestMode: 'predict',
+          parcelId: productionSignal?.parcelIds?.[0],
+          farmId: productionSignal?.farmIds?.[0],
+          pointId: productionSignal?.pointIds?.[0],
           timeframe: summary.timeframe,
+          zoom: 12,
         }),
     },
     {

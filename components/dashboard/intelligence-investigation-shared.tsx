@@ -25,12 +25,6 @@ export function IntelligenceMapHint({ moduleLabel }: { moduleLabel: string }) {
   )
 }
 
-function resolveInvestigationModule(module: string, currentModule: string | null) {
-  if (module === 'harvest' || module === 'production-harvest') return 'harvest'
-  if (currentModule === 'harvest' || currentModule === 'production-harvest') return 'harvest'
-  return currentModule || 'watchtower'
-}
-
 export function IntelligenceWatchtowerSignals({
   signals,
   loading,
@@ -41,10 +35,6 @@ export function IntelligenceWatchtowerSignals({
   module?: string
 }) {
   const opCtx = useOperationalContextOptional()
-  const searchParams = useSearchParams()
-  const currentModule = searchParams.get('module')
-  const targetModule = resolveInvestigationModule(module, currentModule)
-  const parcelId = searchParams.get('parcelId')
 
   if (loading) {
     return <p className="text-sm text-white/45">Loading platform signals…</p>
@@ -60,12 +50,7 @@ export function IntelligenceWatchtowerSignals({
         <button
           key={signal.id}
           type="button"
-          onClick={() =>
-            opCtx?.goToModule(targetModule, {
-              signalId: signal.id,
-              parcelId: targetModule === 'harvest' ? parcelId || undefined : undefined,
-            })
-          }
+          onClick={() => opCtx?.goToSignal(signal, { onMap: true })}
           className="flex w-full items-start gap-2 rounded-lg border border-white/10 px-3 py-2 text-left hover:border-white/20"
         >
           <AlertTriangle

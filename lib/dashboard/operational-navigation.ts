@@ -1,4 +1,5 @@
 import { buildDashboardMapFocusParams, clearIncompatibleDashboardParams } from '@/lib/dashboard/map-navigation'
+import { buildWeatherDashboardParams } from '@/lib/dashboard/weather-url'
 import {
   applyHarvestFieldSelectionToParams,
   type HarvestFieldNavTarget,
@@ -26,25 +27,25 @@ export interface NavigationTarget {
   harvestMode?: string
 }
 
-export function buildModuleUrl(current: URLSearchParams, target: NavigationTarget): string {
-  const params = new URLSearchParams(current.toString())
-  params.set('module', target.module)
+function defaultNavigationZoom(target: NavigationTarget): number | undefined {
+  if (target.zoom !== undefined) return target.zoom
+  if (target.farmId) return 14
+  if (target.pointId) return 16
+  if (target.crop) return 10
+  if (target.parcelId) return 13
+  return undefined
+}
 
-  if (target.farmId) {
-    params.set('farmId', target.farmId)
-    params.delete('pointId')
-    params.delete('crop')
-  } else if (target.pointId) {
-    params.set('pointId', target.pointId)
-    params.delete('farmId')
-    params.delete('crop')
-  } else if (target.crop) {
-    params.set('crop', target.crop)
-    params.delete('farmId')
-    params.delete('pointId')
-  }
+function signalNavigationZoom(
+  signal: Pick<IntelligenceSignal, 'farmIds' | 'pointIds' | 'parcelIds'>
+): number | undefined {
+  if (signal.farmIds?.[0]) return 14
+  if (signal.pointIds?.[0]) return 16
+  if (signal.parcelIds?.[0]) return 13
+  return undefined
+}
 
-  if (target.parcelId) params.set('parcelId', target.parcelId)
+function mergeNavigationMetadata(params: URLSearchParams, target: NavigationTarget) {
   if (target.commodityId) params.set('commodityId', target.commodityId)
   if (target.investigationId) params.set('investigationId', target.investigationId)
   if (target.inspectionId) params.set('inspectionId', target.inspectionId)
@@ -55,10 +56,6 @@ export function buildModuleUrl(current: URLSearchParams, target: NavigationTarge
     params.set('timeRange', target.timeframe)
   }
   if (target.mapLayer) params.set('mapLayer', target.mapLayer)
-  if (target.lat !== undefined) params.set('lat', String(target.lat))
-  if (target.lng !== undefined) params.set('lng', String(target.lng))
-  if (target.zoom !== undefined) params.set('zoom', String(target.zoom))
-
   if (target.harvestMode) params.set('harvestMode', target.harvestMode)
   if (
     (target.module === 'harvest' || target.module === 'production-harvest') &&
@@ -66,7 +63,94 @@ export function buildModuleUrl(current: URLSearchParams, target: NavigationTarge
   ) {
     params.set('harvestMode', 'predict')
   }
+}
 
+function buildSignalNavigationTarget(
+  signal: IntelligenceSignal,
+  module: string,
+  timeframe?: WatchtowerTimeframe
+): NavigationTarget {
+  return {
+    module,
+    signalId: signal.id,
+    farmId: signal.farmIds?.[0],
+    pointId: signal.pointIds?.[0],
+    parcelId: signal.parcelIds?.[0],
+    lat: signal.lat,
+    lng: signal.lng,
+    zoom: signalNavigationZoom(signal),
+    timeframe,
+  }
+}
+
+export function buildModuleUrl(current: URLSearchParams, target: NavigationTarget): string {
+  if (
+    target.module === 'weather' &&
+    target.lat !== undefined &&
+    target.lng !== undefined &&
+    Number.isFinite(target.lat) &&
+    Number.isFinite(target.lng)
+  ) {
+    const params = buildWeatherDashboardParams(current, {
+      lat: target.lat,
+      lng: target.lng,
+      zoom: target.zoom ?? 12,
+    })
+    mergeNavigationMetadata(params, target)
+    return `/dashboard?${params.toString()}`
+  }
+
+  if (
+    (target.module === 'harvest' || target.module === 'production-harvest') &&
+    target.parcelId
+  ) {
+    const params = new URLSearchParams(current.toString())
+    params.set('module', target.module)
+    applyHarvestFieldSelectionToParams(
+      params,
+      { parcel_id: target.parcelId },
+      {
+        mode: (target.harvestMode as HarvestMode | undefined) || 'predict',
+        harvestMetric: 'npp',
+        harvestGranularity: 'season',
+      }
+    )
+    const zoom = defaultNavigationZoom(target)
+    if (zoom !== undefined) params.set('zoom', String(zoom))
+    mergeNavigationMetadata(params, target)
+    clearIncompatibleDashboardParams(params, target.module)
+    return `/dashboard?${params.toString()}`
+  }
+
+  const hasGeoFocus = Boolean(target.farmId || target.pointId || target.crop)
+  const params = hasGeoFocus
+    ? buildDashboardMapFocusParams(current, {
+        module: target.module,
+        farmId: target.farmId,
+        pointId: target.pointId,
+        crop: target.crop,
+        zoom: defaultNavigationZoom(target),
+      })
+    : (() => {
+        const base = new URLSearchParams(current.toString())
+        base.set('module', target.module)
+        if (!target.farmId) base.delete('farmId')
+        if (!target.pointId) base.delete('pointId')
+        if (!target.crop) base.delete('crop')
+        if (target.zoom !== undefined) base.set('zoom', String(target.zoom))
+        return base
+      })()
+
+  if (target.parcelId && target.module !== 'harvest' && target.module !== 'production-harvest') {
+    params.set('parcelId', target.parcelId)
+  }
+
+  if (target.lat !== undefined && target.lng !== undefined) {
+    params.set('lat', String(target.lat))
+    params.set('lng', String(target.lng))
+  }
+
+  mergeNavigationMetadata(params, target)
   clearIncompatibleDashboardParams(params, target.module)
   return `/dashboard?${params.toString()}`
 }
@@ -135,26 +219,25 @@ export function navigateToSignal(
   signal: IntelligenceSignal,
   options?: { stayOnWatchtower?: boolean }
 ) {
-  if (!options?.stayOnWatchtower && signal.deepLink) return signal.deepLink
-
   const targetModule = options?.stayOnWatchtower
     ? 'watchtower'
     : signal.recommendedModule || signalRecommendedModule(signal.type)
 
-  const target: NavigationTarget = {
-    module: targetModule,
-    signalId: signal.id,
-    farmId: signal.farmIds?.[0],
-    pointId: signal.pointIds?.[0],
-    parcelId: signal.parcelIds?.[0],
+  if (!options?.stayOnWatchtower && signal.type === 'supply') {
+    return '/dashboard/supply-overview'
   }
+
+  const target = buildSignalNavigationTarget(
+    signal,
+    targetModule,
+    current.get('timeframe') as WatchtowerTimeframe | undefined
+  )
 
   if (!options?.stayOnWatchtower) {
     if (signal.type === 'water') target.module = 'water-intelligence'
     if (signal.type === 'energy') target.module = 'energy-intelligence'
     if (signal.type === 'crop_health' || signal.type === 'production') target.module = 'harvest'
     if (signal.type === 'weather') target.module = 'weather'
-    if (signal.type === 'supply') return '/dashboard/supply-overview'
   }
 
   return buildModuleUrl(current, target)
@@ -168,14 +251,14 @@ export function navigateToSignalEstimation(current: URLSearchParams, signal: Int
   const module = signal.recommendedModule || signalRecommendedModule(signal.type)
   if (module === 'supply-overview') return '/dashboard/supply-overview'
 
-  return buildModuleUrl(current, {
-    module,
-    signalId: signal.id,
-    farmId: signal.farmIds?.[0],
-    pointId: signal.pointIds?.[0],
-    parcelId: signal.parcelIds?.[0],
-    timeframe: current.get('timeframe') as WatchtowerTimeframe | undefined,
-  })
+  return buildModuleUrl(
+    current,
+    buildSignalNavigationTarget(
+      signal,
+      module,
+      current.get('timeframe') as WatchtowerTimeframe | undefined
+    )
+  )
 }
 
 export function navigateToModuleWithContext(

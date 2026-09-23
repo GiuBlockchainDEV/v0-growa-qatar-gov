@@ -4,6 +4,7 @@ import { use, useState } from 'react'
 import Link from 'next/link'
 import { MapPin, ArrowLeft } from 'lucide-react'
 import { FarmIntelligencePanel } from '@/components/dashboard/farm-intelligence-panel'
+import { navigateToFarm } from '@/lib/dashboard/operational-navigation'
 import { useI18n } from '@/lib/i18n'
 import { cn } from '@/lib/utils'
 
@@ -28,7 +29,7 @@ export default function FarmWorkspacePage({ params }: { params: Promise<{ id: st
   const { locale } = useI18n()
   const [tab, setTab] = useState<FarmTab>('overview')
 
-  const moduleLink = (module: string) => `/dashboard?module=${module}&farmId=${farmId}`
+  const moduleLink = (module: string) => navigateToFarm(new URLSearchParams(), farmId, module, 14)
 
   return (
     <div className="flex h-full flex-col overflow-hidden bg-[#050608] text-white">

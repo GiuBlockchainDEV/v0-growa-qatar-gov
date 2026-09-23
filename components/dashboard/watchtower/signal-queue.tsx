@@ -95,7 +95,7 @@ export function WatchtowerSignalQueue({ signals }: SignalQueueProps) {
               </Link>
               {signal.recommendedModule && signal.recommendedModule !== 'live-map' && (
                 <Link
-                  href={`/dashboard?module=${signal.recommendedModule}&signalId=${signal.id}`}
+                  href={estimationHref}
                   className="inline-flex items-center gap-1 rounded-md border border-white/10 px-2.5 py-1 text-[11px] text-white/70 hover:text-white hover:border-white/20 transition-colors"
                 >
                   Open {signal.recommendedModule.replace(/-/g, ' ')}

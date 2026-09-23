@@ -13,6 +13,7 @@ import {
   Search,
 } from 'lucide-react'
 import { OperationalContextBanner } from '@/components/dashboard/operational-context-banner'
+import { buildFarmSearchMapUrl } from '@/lib/dashboard/map-navigation'
 import { useI18n } from '@/lib/i18n'
 import { cn } from '@/lib/utils'
 
@@ -227,7 +228,7 @@ export function AlertsCenterWorkspace() {
                   <div className="mt-3 flex flex-wrap gap-2">
                     {farmId && (
                       <Link
-                        href={`/dashboard?module=live-map&farmId=${farmId}`}
+                        href={buildFarmSearchMapUrl({ source: 'farm', id: farmId })}
                         className="inline-flex items-center gap-1 rounded border border-white/10 px-2 py-1 text-[10px] text-white/60 hover:text-[#07f880]"
                       >
                         <MapPin className="h-3 w-3" />

@@ -7,7 +7,7 @@ import { useOperationalContextOptional } from '@/contexts/operational-context-pr
 import { resolveDashboardHref } from '@/lib/dashboard/dashboard-navigation'
 import {
   navigateToModuleWithContext,
-  navigateToSignal,
+  navigateToSignalEstimation,
 } from '@/lib/dashboard/operational-navigation'
 import { cn } from '@/lib/utils'
 
@@ -42,9 +42,9 @@ export function SignalCard({ signal, selected, onCreateAlert, emphasized, compac
   }
 
   const openEstimation = () => {
-    const target = navigateToSignal(searchParams, signal)
+    const target = navigateToSignalEstimation(searchParams, signal)
     if (opCtx) {
-      opCtx.goToSignal(signal)
+      opCtx.goToSignal(signal, { onMap: true })
       return
     }
     navigate(target)

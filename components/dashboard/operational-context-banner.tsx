@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
 import { MapPin, Radio, X } from 'lucide-react'
 import { hasOperationalOverlayContext, isHarvestDashboardModule } from '@/lib/dashboard/context-navigation'
+import { navigateToFarm } from '@/lib/dashboard/operational-navigation'
 import { useOperationalContextOptional } from '@/contexts/operational-context-provider'
 import { useI18n } from '@/lib/i18n'
 import { timeframeLabel } from '@/lib/domain/timeframes'
@@ -58,7 +59,7 @@ export function OperationalContextBanner({ className }: OperationalContextBanner
       <div className="flex items-center gap-2">
         {context.farmId ? (
           <Link
-            href={`/dashboard?module=watchtower&farmId=${context.farmId}`}
+            href={navigateToFarm(searchParams, context.farmId, 'watchtower', 14)}
             scroll={false}
             className="text-[10px] text-[#07f880] hover:underline"
           >

@@ -332,6 +332,10 @@ export function HarvestWorkspace() {
           params.set(key, value)
         }
       }
+      const parcelIdForFocus = params.get('parcelId')
+      if (parcelIdForFocus) {
+        params.set('focus', `harvest-${parcelIdForFocus}`)
+      }
       router.replace(`/dashboard?${params.toString()}`, { scroll: false })
     },
     [router, searchParams]

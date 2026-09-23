@@ -290,7 +290,9 @@ export function InspectionsWorkspace() {
               onOpenFarm={() => {
                 if (selected.farm_id) goToFarm(selected.farm_id, 'live-map')
               }}
-              onOpenMap={() => goToModule('live-map', { farmId: selected.farm_id || undefined })}
+              onOpenMap={() => {
+                if (selected.farm_id) goToFarm(selected.farm_id, 'live-map')
+              }}
             />
           )}
         </main>
