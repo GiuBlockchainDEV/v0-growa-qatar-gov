@@ -316,19 +316,23 @@ function buildDemoFieldStatsCsv(field: HarvestAnalyticsField, mode: HarvestMode)
     ...TREND_METRICS,
   ].join(',')
 
+  const weights = periods.map((_, index) => 0.55 + index * 0.09)
+  const weightSum = weights.reduce((total, weight) => total + weight, 0)
   const dekadRows = periods.map(([start, end], index) => {
-    const growth = 1 + index * 0.035
     const values = TREND_METRICS.map((metric) => {
-      const base = field.metrics[metric] ?? 0
-      const scale = metric === 'wcu' || metric === 'rwd' || metric === 'bwp' ? 1 : growth
-      return Math.round(base * factor * scale * 10) / 10
+      const base = (field.metrics[metric] ?? 0) * factor
+      if (metric === 'wcu' || metric === 'rwd' || metric === 'bwp') {
+        const wobble = 1 + ((index % 3) - 1) * 0.05
+        return Math.round(base * wobble * 100) / 100
+      }
+      return Math.round(base * (weights[index] / weightSum) * 100) / 100
     })
     return ['dekad', start, end, ...values].join(',')
   })
 
   const seasonValues = TREND_METRICS.map((metric) => {
-    const base = field.metrics[metric] ?? 0
-    return Math.round(base * factor * 12 * 10) / 10
+    const base = (field.metrics[metric] ?? 0) * factor
+    return Math.round(base * 100) / 100
   })
   const seasonRow = ['season', field.start_date, field.harvest_date, ...seasonValues].join(',')
 

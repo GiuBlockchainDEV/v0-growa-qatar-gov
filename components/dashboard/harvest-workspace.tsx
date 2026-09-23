@@ -33,6 +33,7 @@ import {
 import { OperationalContextBanner } from '@/components/dashboard/operational-context-banner'
 import { useModuleWatchtowerContext } from '@/lib/intelligence/use-module-watchtower-context'
 import { buildHarvestGrowaContext } from '@/lib/ai/build-harvest-growa-context'
+import { buildFieldTrendSeries } from '@/lib/harvest/csv-stats'
 import type { LatLngVertex } from '@/lib/harvest/geojson'
 import {
   IntelligenceCommandLayout,
@@ -131,8 +132,8 @@ function HarvestTrendBars({
           {HARVEST_METRIC_META[metric].unit}
         </span>
       </div>
-      <div className="space-y-1.5">
-        {validPoints.slice(-12).map((point) => {
+      <div className="max-h-56 space-y-1.5 overflow-y-auto overscroll-contain pr-1">
+        {validPoints.map((point) => {
           const width = maxValue > 0 ? Math.max(4, (point.value / maxValue) * 100) : 4
           return (
             <div key={`${metric}-${point.period}`} className="space-y-1">
@@ -716,14 +717,7 @@ export function HarvestWorkspace() {
 
   const fieldTrendSeries = useMemo(() => {
     if (!fieldStats) return {}
-    const bucket = trendGranularity === 'season' ? fieldStats.timeseries.season : fieldStats.timeseries.dekad
-    return TREND_METRICS.reduce(
-      (acc, metric) => {
-        acc[metric] = (bucket[metric] || []).filter((point) => Number.isFinite(point.value))
-        return acc
-      },
-      {} as Partial<Record<HarvestMetricKey, HarvestTimeseriesPoint[]>>
-    )
+    return buildFieldTrendSeries(fieldStats, trendGranularity)
   }, [fieldStats, trendGranularity])
 
   const growaContext = useMemo(() => {
@@ -1200,7 +1194,11 @@ export function HarvestWorkspace() {
 
               <IntelligencePanel
                 title="Field trends"
-                subtitle="Metric trends for this field only"
+                subtitle={
+                  trendGranularity === 'dekad'
+                    ? 'Amount added in each dekad for this field'
+                    : 'Running total of those dekads across the season'
+                }
                 icon={TrendingUp}
               >
                 <div className="space-y-4">
