@@ -110,6 +110,19 @@ export function clearIncompatibleDashboardParams(params: URLSearchParams, module
   }
 }
 
+export function buildFarmSearchMapUrl(
+  selection: { source: 'farm' | 'point'; id: string },
+  zoom = 17
+) {
+  const params = buildDashboardMapFocusParams(new URLSearchParams(), {
+    module: 'live-map',
+    zoom,
+    pointId: selection.source === 'point' ? selection.id : undefined,
+    farmId: selection.source === 'farm' ? selection.id : undefined,
+  })
+  return `/dashboard?${params.toString()}`
+}
+
 export function buildDashboardMapFocusParams(
   current: URLSearchParams,
   selection: {

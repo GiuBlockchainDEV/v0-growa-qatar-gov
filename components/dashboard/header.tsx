@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
-import { buildDashboardMapFocusParams, resolveDashboardModule } from '@/lib/dashboard/map-navigation'
+import { buildFarmSearchMapUrl } from '@/lib/dashboard/map-navigation'
 import { useI18n } from '@/lib/i18n'
 import { UserMenu } from './user-menu'
 import { LanguageToggle } from '@/components/language-toggle'
@@ -241,16 +241,9 @@ export function DashboardHeader({
   }, [])
 
   const handleSelectFarm = (farm: FarmSearchOption) => {
-    const dashboardModule = resolveDashboardModule(searchParams.get('module'))
-    const params = buildDashboardMapFocusParams(searchParams, {
-      module: dashboardModule,
-      zoom: 17,
-      pointId: farm.source === 'point' ? farm.id : undefined,
-      farmId: farm.source === 'farm' ? farm.id : undefined,
-    })
     setSearchQuery(farm.name)
     setIsSearchOpen(false)
-    router.replace(`/dashboard?${params.toString()}`, { scroll: false })
+    router.replace(buildFarmSearchMapUrl(farm), { scroll: false })
   }
 
   const shouldShowSearchDropdown =
