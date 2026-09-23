@@ -17,8 +17,8 @@ describe('suggestHarvestSeasonDates', () => {
       calendar,
     })
 
-    expect(result.start_date).toBe('2025-10-15')
-    expect(result.harvest_date).toBe('2026-03-20')
+    expect(result.start_date).toBe('2025-09-15')
+    expect(result.harvest_date).toBe('2026-05-31')
   })
 
   it('shifts start earlier for northern Qatar locations', () => {
@@ -29,19 +29,19 @@ describe('suggestHarvestSeasonDates', () => {
       calendar,
     })
 
-    expect(result.start_date).toBe('2026-10-10')
-    expect(result.harvest_date).toBe('2027-03-20')
+    expect(result.start_date).toBe('2026-09-10')
+    expect(result.harvest_date).toBe('2027-05-31')
   })
 
   it('falls back to the prior season when the latest start would be too recent', () => {
     const result = suggestHarvestSeasonDates({
       cropName: 'cucumber',
       location: { lat: 25.17, lng: 51.6 },
-      reference: new Date('2026-11-10T12:00:00.000Z'),
+      reference: new Date('2026-10-05T12:00:00.000Z'),
       calendar,
     })
 
-    expect(result.start_date).toBe('2025-11-06')
-    expect(result.harvest_date).toBe('2026-02-28')
+    expect(result.start_date).toBe('2025-09-06')
+    expect(result.harvest_date).toBe('2026-05-31')
   })
 })

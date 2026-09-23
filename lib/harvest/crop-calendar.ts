@@ -7,6 +7,8 @@ export interface CropCalendarEntry {
   region: string
   crop_key: string
   crop_aliases: string
+  production_system: string
+  calendar_type: string
   season_name: string
   start_month: number
   start_day: number
@@ -23,6 +25,13 @@ export interface CropCalendarEntry {
   start_shift_south_days: number
   priority: number
   notes: string
+  confidence: string
+  source_url: string
+}
+
+export interface CropCalendarResolveOptions {
+  productionSystem?: string
+  calendarType?: string
 }
 
 const CALENDAR_PATH = join(process.cwd(), 'lib/harvest/data/qatar-gcc-crop-calendar.csv')
@@ -83,6 +92,8 @@ export function parseCropCalendarCsv(csv: string): CropCalendarEntry[] {
       region: record.region?.trim() || 'gcc',
       crop_key: record.crop_key?.trim() || 'default',
       crop_aliases: record.crop_aliases?.trim() || '*',
+      production_system: record.production_system?.trim() || 'open_field_or_passive_protected',
+      calendar_type: record.calendar_type?.trim() || 'active_or_commercial_window',
       season_name: record.season_name?.trim() || 'cool_season',
       start_month: parseNumber(record.start_month) ?? 10,
       start_day: parseNumber(record.start_day) ?? 1,
@@ -99,6 +110,8 @@ export function parseCropCalendarCsv(csv: string): CropCalendarEntry[] {
       start_shift_south_days: parseNumber(record.start_shift_south_days) ?? 0,
       priority: parseNumber(record.priority) ?? 0,
       notes: record.notes?.trim() || '',
+      confidence: record.confidence?.trim() || '',
+      source_url: record.source_url?.trim() || '',
     })
   }
 
@@ -136,10 +149,29 @@ function cropMatchesAliases(cropName: string, aliases: string) {
     .some((alias) => normalized.includes(alias) || alias.includes(normalized))
 }
 
+function productionSystemScore(entry: CropCalendarEntry, preferred?: string) {
+  if (!preferred) {
+    if (entry.production_system === 'open_field_or_passive_protected') return 2
+    if (entry.production_system === 'irrigated_field') return 1
+    return 0
+  }
+  return entry.production_system === preferred ? 2 : 0
+}
+
+function calendarTypeScore(entry: CropCalendarEntry, preferred?: string) {
+  if (!preferred) {
+    if (entry.calendar_type === 'active_or_commercial_window') return 2
+    if (entry.calendar_type === 'production_possible') return 0
+    return 1
+  }
+  return entry.calendar_type === preferred ? 2 : 0
+}
+
 export function resolveCropCalendarEntry(
   cropName: string,
   location?: LatLngVertex,
-  entries = loadCropCalendar()
+  entries = loadCropCalendar(),
+  options?: CropCalendarResolveOptions
 ): CropCalendarEntry {
   const point = location ?? { lat: 25.3548, lng: 51.1839 }
   const preferredRegion = isInQatar(point.lat, point.lng) ? 'qatar' : 'gcc'
@@ -151,6 +183,15 @@ export function resolveCropCalendarEntry(
       const leftRegionBoost = left.region === preferredRegion ? 1 : 0
       const rightRegionBoost = right.region === preferredRegion ? 1 : 0
       if (leftRegionBoost !== rightRegionBoost) return rightRegionBoost - leftRegionBoost
+
+      const leftProduction = productionSystemScore(left, options?.productionSystem)
+      const rightProduction = productionSystemScore(right, options?.productionSystem)
+      if (leftProduction !== rightProduction) return rightProduction - leftProduction
+
+      const leftCalendar = calendarTypeScore(left, options?.calendarType)
+      const rightCalendar = calendarTypeScore(right, options?.calendarType)
+      if (leftCalendar !== rightCalendar) return rightCalendar - leftCalendar
+
       return right.priority - left.priority
     })
 
