@@ -573,7 +573,7 @@ const ROLE_MENU_BLUEPRINTS: Record<MinistryRoleProfile, RoleMenuBlueprint> = {
     ],
   },
   ministry_inspector: {
-    defaultLandingModule: 'inspection-dashboard',
+    defaultLandingModule: 'watchtower',
     primary: [
       'inspection-dashboard',
       'live-map',

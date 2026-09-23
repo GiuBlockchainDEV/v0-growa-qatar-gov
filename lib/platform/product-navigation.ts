@@ -336,11 +336,11 @@ const ROLE_NAV_KEYS: Record<PlatformRoleProfile, string[]> = {
 
 const ROLE_LANDINGS: Record<PlatformRoleProfile, string> = {
   ministry_admin: '/dashboard?module=watchtower',
-  ministry_inspector: '/dashboard?module=inspection-dashboard',
-  hassad_supply: '/dashboard/supply-overview',
-  farm_operations: '/dashboard/farms',
-  finance: '/dashboard?module=data-analytics',
-  default: '/dashboard?module=live-map',
+  ministry_inspector: '/dashboard?module=watchtower',
+  hassad_supply: '/dashboard?module=watchtower',
+  farm_operations: '/dashboard?module=watchtower',
+  finance: '/dashboard?module=watchtower',
+  default: '/dashboard?module=watchtower',
 }
 
 export function buildProductNavigation(

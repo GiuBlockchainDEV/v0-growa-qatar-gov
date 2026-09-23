@@ -63,6 +63,7 @@ const en: Record<string, string> = {
   'watchtower.ai_ready': 'AI briefing ready',
   'watchtower.ai_available': 'AI available',
   'watchtower.national_map': 'National situation map',
+  'watchtower.national_estimations': 'National production estimations',
   'watchtower.layers_active': 'layers active',
   'watchtower.alert_created': 'Alert created successfully',
   'watchtower.upcoming_module': 'Module upcoming',

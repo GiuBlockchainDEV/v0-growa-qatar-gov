@@ -74,11 +74,11 @@ export function SignalCard({ signal, selected, onCreateAlert, emphasized, compac
       <div className="mt-3 flex flex-wrap gap-1.5">
         <button
           type="button"
-          onClick={() => opCtx?.goToSignal(signal, { onMap: true })}
+          onClick={() => opCtx?.goToSignal(signal)}
           className="inline-flex items-center gap-1 rounded bg-[#07f880]/12 px-2 py-1 text-[10px] font-medium text-[#07f880] hover:bg-[#07f880]/20"
         >
           <MapPin className="h-3 w-3" />
-          Map
+          Estimation
         </button>
         <button
           type="button"

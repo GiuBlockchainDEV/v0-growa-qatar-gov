@@ -62,7 +62,7 @@ export function resolveDashboardPageModule(searchParams: URLSearchParams) {
   if (explicitModule === 'national-overview') return 'watchtower'
   if (explicitModule) return explicitModule
   if (hasWeatherDashboardContext(searchParams)) return 'weather'
-  return null
+  return 'watchtower'
 }
 
 export function isDashboardWorkspaceModule(moduleKey: string | null | undefined) {
@@ -77,7 +77,7 @@ export function isDashboardMapSurfaceModule(moduleKey: string | null | undefined
 
 export function resolveDashboardModule(
   currentModule: string | null | undefined,
-  fallbackModule = 'live-map'
+  fallbackModule = 'watchtower'
 ) {
   const normalized = currentModule?.trim()
   if (!normalized) return fallbackModule

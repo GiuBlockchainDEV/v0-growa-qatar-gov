@@ -1,7 +1,6 @@
 import { buildDashboardMapFocusParams, clearIncompatibleDashboardParams } from '@/lib/dashboard/map-navigation'
 import type { IntelligenceSignal } from '@/lib/domain/types'
 import type { WatchtowerTimeframe } from '@/lib/domain/types'
-import { getLayersForSignalType } from '@/lib/watchtower/map-layers'
 
 export interface NavigationTarget {
   module: string
@@ -58,7 +57,7 @@ export function buildModuleUrl(current: URLSearchParams, target: NavigationTarge
   return `/dashboard?${params.toString()}`
 }
 
-export function navigateToFarm(current: URLSearchParams, farmId: string, module = 'live-map', zoom = 14) {
+export function navigateToFarm(current: URLSearchParams, farmId: string, module = 'harvest', zoom = 14) {
   const params = buildDashboardMapFocusParams(current, { module, farmId, zoom })
   return `/dashboard?${params.toString()}`
 }
@@ -83,10 +82,9 @@ export function navigateToSignal(
 ) {
   if (!options?.stayOnWatchtower && signal.deepLink) return signal.deepLink
 
-  const layers = getLayersForSignalType(signal.type)
   const targetModule = options?.stayOnWatchtower
     ? 'watchtower'
-    : signal.recommendedModule || 'live-map'
+    : signal.recommendedModule || signalRecommendedModule(signal.type)
 
   const target: NavigationTarget = {
     module: targetModule,
@@ -94,10 +92,6 @@ export function navigateToSignal(
     farmId: signal.farmIds?.[0],
     pointId: signal.pointIds?.[0],
     parcelId: signal.parcelIds?.[0],
-    lat: signal.lat,
-    lng: signal.lng,
-    zoom: signal.farmIds?.length || signal.pointIds?.length ? 13 : 10,
-    mapLayer: layers[0],
   }
 
   if (!options?.stayOnWatchtower) {
@@ -112,7 +106,21 @@ export function navigateToSignal(
 }
 
 export function navigateToSignalOnMap(current: URLSearchParams, signal: IntelligenceSignal) {
-  return navigateToSignal(current, signal, { stayOnWatchtower: true })
+  return navigateToSignalEstimation(current, signal)
+}
+
+export function navigateToSignalEstimation(current: URLSearchParams, signal: IntelligenceSignal) {
+  const module = signal.recommendedModule || signalRecommendedModule(signal.type)
+  if (module === 'supply-overview') return '/dashboard/supply-overview'
+
+  return buildModuleUrl(current, {
+    module,
+    signalId: signal.id,
+    farmId: signal.farmIds?.[0],
+    pointId: signal.pointIds?.[0],
+    parcelId: signal.parcelIds?.[0],
+    timeframe: current.get('timeframe') as WatchtowerTimeframe | undefined,
+  })
 }
 
 export function navigateToModuleWithContext(
@@ -141,6 +149,6 @@ export function signalRecommendedModule(type: IntelligenceSignal['type']): strin
     case 'data_quality':
       return 'watchtower'
     default:
-      return 'live-map'
+      return 'watchtower'
   }
 }

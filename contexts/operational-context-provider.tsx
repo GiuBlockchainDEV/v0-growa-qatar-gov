@@ -98,7 +98,7 @@ export function OperationalContextProvider({ children }: { children: ReactNode }
   )
 
   const goToFarm = useCallback(
-    (farmId: string, module = 'live-map') => {
+    (farmId: string, module = 'harvest') => {
       pushParams(new URLSearchParams(navigateToFarm(searchParams, farmId, module).split('?')[1] || ''))
     },
     [pushParams, searchParams]

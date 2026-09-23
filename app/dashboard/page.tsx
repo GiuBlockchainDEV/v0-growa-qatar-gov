@@ -376,7 +376,7 @@ export default function DashboardPage() {
   const { targetPointId, targetFarmId, targetFocusToken, targetCropFilter, targetZoom } =
     buildDashboardMapProps(searchParams)
 
-  if (!moduleKey || DASHBOARD_MAP_SURFACE_MODULES.has(moduleKey)) {
+  if (DASHBOARD_MAP_SURFACE_MODULES.has(moduleKey)) {
     return (
       <SatelliteMap
         locale={locale}
@@ -390,7 +390,7 @@ export default function DashboardPage() {
     )
   }
 
-  if (moduleKey === 'watchtower' || moduleKey === 'national-overview') {
+  if (moduleKey === 'watchtower' || moduleKey === 'national-overview' || !moduleKey) {
     return (
       <div className="h-full w-full overflow-hidden">
         <WatchtowerWorkspace />

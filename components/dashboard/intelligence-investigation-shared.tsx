@@ -134,9 +134,16 @@ export function IntelligenceWatchtowerForecast({
   )
 }
 
+function estimationModuleFor(module: string): string {
+  if (module === 'harvest' || module === 'production-harvest') return 'harvest'
+  if (module === 'weather') return 'weather'
+  if (module === 'water-intelligence') return 'water-intelligence'
+  if (module === 'energy-intelligence') return 'energy-intelligence'
+  return 'data-analytics'
+}
+
 export function IntelligenceModuleActions({
   module,
-  mapLayers,
 }: {
   module: string
   mapLayers?: string[]
@@ -154,19 +161,17 @@ export function IntelligenceModuleActions({
       </InvestigationActionButton>
       <InvestigationActionButton
         variant="ghost"
-        onClick={() =>
-          opCtx?.goToModule('watchtower', mapLayers?.length ? { mapLayer: mapLayers[0] } : undefined)
-        }
+        onClick={() => opCtx?.goToModule('watchtower')}
       >
         <Radio className="h-3.5 w-3.5" />
         National Watchtower
       </InvestigationActionButton>
       <InvestigationActionButton
         variant="ghost"
-        onClick={() => opCtx?.setMapLayers?.(mapLayers || ['farms'])}
+        onClick={() => opCtx?.goToModule(estimationModuleFor(module))}
       >
         <MapPin className="h-3.5 w-3.5" />
-        Focus map layers
+        Open estimation view
       </InvestigationActionButton>
     </InvestigationActionBar>
   )

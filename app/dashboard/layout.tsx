@@ -81,12 +81,11 @@ function DashboardShellContent({
 
     if (hasDashboardDeepLinkContext(currentParams)) return
 
-    const currentCanonical =
-      currentModule === 'live-map' && currentParams.get('zoom') === '10'
+    const currentCanonical = currentModule === 'watchtower'
     if (currentCanonical) return
 
     handledReloadRedirectRef.current = true
-    router.replace('/dashboard?module=live-map&zoom=10')
+    router.replace('/dashboard?module=watchtower')
   }, [loading, navLoading, user, pathname, router])
 
   if (loading) {

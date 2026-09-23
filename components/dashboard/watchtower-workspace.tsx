@@ -13,7 +13,7 @@ import { WatchtowerChangesPanel } from '@/components/dashboard/watchtower/change
 import { WatchtowerKpiSummary } from '@/components/dashboard/watchtower/kpi-summary'
 import { WatchtowerOutlookPanel } from '@/components/dashboard/watchtower/outlook-panel'
 import { WatchtowerDataHealth } from '@/components/dashboard/watchtower/data-health'
-import { NationalMapPanel } from '@/components/dashboard/watchtower/national-map-panel'
+import { NationalEstimationPanel } from '@/components/dashboard/watchtower/national-estimation-panel'
 import { SupplyChainPanel } from '@/components/dashboard/watchtower/supply-chain-panel'
 import { ExternalIntelligencePanel } from '@/components/dashboard/watchtower/external-intelligence'
 import { FarmIntelligencePanel } from '@/components/dashboard/farm-intelligence-panel'
@@ -190,14 +190,7 @@ export function WatchtowerWorkspace() {
       <div className="flex-1 min-h-0 overflow-y-auto">
         <div className="grid grid-cols-1 xl:grid-cols-[1fr_320px] gap-0 xl:gap-0 min-h-[420px]">
           <div className="p-3 sm:p-4 min-h-[380px]">
-            <NationalMapPanel
-              locale={locale}
-              targetFarmId={mapProps.targetFarmId}
-              targetPointId={mapProps.targetPointId}
-              targetFocusToken={mapProps.targetFocusToken}
-              targetZoom={mapProps.targetZoom}
-              targetCropFilter={mapProps.targetCropFilter}
-            />
+            <NationalEstimationPanel summary={summary} />
           </div>
 
           <div className="border-t xl:border-t-0 xl:border-l border-white/10 flex flex-col min-h-[320px]">

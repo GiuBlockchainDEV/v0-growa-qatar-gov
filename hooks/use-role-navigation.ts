@@ -520,7 +520,7 @@ export function useRoleNavigation() {
             id: 'normal-user',
             role_name: 'normal_user',
             display_name: 'Normal User',
-            landing_page: '/dashboard?module=live-map',
+            landing_page: '/dashboard?module=watchtower',
             menu_items: merged,
             primary_items: primary,
             secondary_items: secondary,
@@ -531,7 +531,7 @@ export function useRoleNavigation() {
           setPrimaryItems(primary)
           setSecondaryItems(secondary)
           setMenuItems(merged)
-          setLandingPage('/dashboard?module=live-map')
+          setLandingPage('/dashboard?module=watchtower')
           setEffectiveRole('normal_user')
           setRoleProfile(null)
           setSource('fallback')
@@ -550,7 +550,7 @@ export function useRoleNavigation() {
             id: 'unassigned',
             role_name: 'unassigned',
             display_name: 'Unassigned User',
-            landing_page: '/dashboard?module=live-map',
+            landing_page: '/dashboard?module=watchtower',
             menu_items: [...primary, ...secondary],
             primary_items: primary,
             secondary_items: secondary,
@@ -561,7 +561,7 @@ export function useRoleNavigation() {
           setPrimaryItems(primary)
           setSecondaryItems(secondary)
           setMenuItems([...primary, ...secondary])
-          setLandingPage('/dashboard?module=live-map')
+          setLandingPage('/dashboard?module=watchtower')
           setEffectiveRole(null)
           setRoleProfile(null)
           setSource('fallback')
@@ -676,7 +676,7 @@ export function useRoleNavigation() {
             setPrimaryItems(primary)
             setSecondaryItems(secondary)
             setMenuItems([...primary, ...secondary])
-            setLandingPage(mappedRole === HASSAD_SUPPLY_ROLE ? '/dashboard/supply-overview' : '/dashboard')
+            setLandingPage('/dashboard?module=watchtower')
             setRoleProfile(null)
             setSource('fallback')
           } else {
@@ -721,8 +721,8 @@ export function useRoleNavigation() {
                 ? dbLandingPage
                 : merged[0]?.path || '/dashboard')
           setLandingPage(
-            mappedRole === HASSAD_SUPPLY_ROLE && normalizedLandingPage === '/dashboard'
-              ? '/dashboard/supply-overview'
+            normalizedLandingPage === '/dashboard' || normalizedLandingPage === '/dashboard?module=live-map'
+              ? '/dashboard?module=watchtower'
               : normalizedLandingPage
           )
           setRoleProfile(null)

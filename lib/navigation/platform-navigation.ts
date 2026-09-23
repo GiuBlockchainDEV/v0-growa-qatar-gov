@@ -82,7 +82,7 @@ const PLATFORM_MENUS: Record<PlatformRoleProfile, { landing: string; items: Menu
     ],
   },
   ministry_inspector: {
-    landing: '/dashboard?module=inspection-dashboard',
+    landing: '/dashboard?module=watchtower',
     items: [
       { key: 'inspection-dashboard', label: 'Inspection Dashboard', path: '/dashboard?module=inspection-dashboard', icon: 'CheckCircle' },
       WATCHTOWER_ITEM,
@@ -95,7 +95,7 @@ const PLATFORM_MENUS: Record<PlatformRoleProfile, { landing: string; items: Menu
     ],
   },
   hassad_supply: {
-    landing: '/dashboard/supply-overview',
+    landing: '/dashboard?module=watchtower',
     items: [
       SUPPLY,
       WATCHTOWER_ITEM,
@@ -107,7 +107,7 @@ const PLATFORM_MENUS: Record<PlatformRoleProfile, { landing: string; items: Menu
     ],
   },
   farm_operations: {
-    landing: '/dashboard/farms',
+    landing: '/dashboard?module=watchtower',
     items: [
       FARMS_SITES,
       LIVE_MAP,
@@ -118,7 +118,7 @@ const PLATFORM_MENUS: Record<PlatformRoleProfile, { landing: string; items: Menu
     ],
   },
   finance: {
-    landing: '/dashboard?module=data-analytics',
+    landing: '/dashboard?module=watchtower',
     items: [
       { key: 'data-analytics', label: 'Data Analytics', path: '/dashboard?module=data-analytics', icon: 'BarChart3' },
       SUPPLY,
@@ -127,7 +127,7 @@ const PLATFORM_MENUS: Record<PlatformRoleProfile, { landing: string; items: Menu
     ],
   },
   default: {
-    landing: '/dashboard?module=live-map',
+    landing: '/dashboard?module=watchtower',
     items: [LIVE_MAP, HARVEST_MENU_ITEM, ...INTELLIGENCE_ITEMS, FEEDS_ITEM, ...PLATFORM_ITEMS],
   },
 }

@@ -63,6 +63,7 @@ const ar: Record<string, string> = {
   'watchtower.ai_ready': 'ملخص AI جاهز',
   'watchtower.ai_available': 'AI متاح',
   'watchtower.national_map': 'خريطة الوضع الوطني',
+  'watchtower.national_estimations': 'تقديرات الإنتاج الوطنية',
   'watchtower.layers_active': 'طبقات نشطة',
   'watchtower.alert_created': 'تم إنشاء التنبيه',
   'watchtower.upcoming_module': 'وحدة قادمة',
