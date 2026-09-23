@@ -4,16 +4,15 @@ import { useEffect, useMemo, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { buildDashboardMapFocusParams, resolveDashboardModule } from '@/lib/dashboard/map-navigation'
 
-export type {
-  InsightRow,
-  PolygonRow,
-} from '@/lib/operations/intelligence-normalize'
-export {
+import {
   normalizeInsightRows,
   normalizePolygonRows,
+  type InsightRow,
+  type PolygonRow,
 } from '@/lib/operations/intelligence-normalize'
 
-import type { InsightRow, PolygonRow } from '@/lib/operations/intelligence-normalize'
+export type { InsightRow, PolygonRow }
+export { normalizeInsightRows, normalizePolygonRows }
 
 interface MapPointLabelRow {
   id: string
