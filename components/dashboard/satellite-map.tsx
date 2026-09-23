@@ -8,6 +8,7 @@ import { useAuth } from '@/hooks/use-auth'
 import { useOrganization } from '@/hooks/use-organization'
 import type { IntelligenceSignal } from '@/lib/domain/types'
 import { resolvePolygonColor, SIGNAL_SEVERITY_COLORS } from '@/lib/watchtower/map-layer-colors'
+import { COORDINATE_SEARCH_ZOOM, parseCoordinateQuery } from '@/lib/dashboard/coordinate-search'
 import { resolveMapLayerVisibility } from '@/lib/watchtower/map-layer-visibility'
 
 const QATAR_CENTER = { lat: 25.3548, lng: 51.1839 }
@@ -638,6 +639,7 @@ export function SatelliteMap({
   const harvestDraftVertexInstancesRef = useRef<any[]>([])
   const tileLayerRef = useRef<any>(null)
   const polygonInstancesRef = useRef<any[]>([])
+  const coordinateMarkerRef = useRef<any | null>(null)
   const signalMarkerInstancesRef = useRef<any[]>([])
   const draftPolylineRef = useRef<any | null>(null)
   const draftVertexInstancesRef = useRef<any[]>([])
@@ -657,6 +659,8 @@ export function SatelliteMap({
   const [newPointType, setNewPointType] = useState<MapPointType>('custom')
   const [activePointId, setActivePointId] = useState<string | null>(null)
   const [polygonCropFilterQuery, setPolygonCropFilterQuery] = useState('')
+  const [coordinateQuery, setCoordinateQuery] = useState('')
+  const [coordinateSearchError, setCoordinateSearchError] = useState<string | null>(null)
   const [farmCropInsightsByPoint, setFarmCropInsightsByPoint] = useState<Record<string, FarmCropInsight[]>>({})
   const [cropTypeOptions, setCropTypeOptions] = useState<CropTypeOption[]>([])
   const [insightsModalPointId, setInsightsModalPointId] = useState<string | null>(null)
@@ -1449,34 +1453,6 @@ export function SatelliteMap({
     setPolygonCropFilterQuery('')
   }, [targetPointId])
 
-  const cropFilterOptions = useMemo(() => {
-    const uniqueCrops = new Set<string>()
-    for (const cropType of cropTypeOptions) {
-      const cropName = cropType.nameEn.trim()
-      if (cropName) uniqueCrops.add(cropName)
-    }
-    for (const polygonList of Object.values(pointPolygons)) {
-      for (const polygon of polygonList) {
-        const cropName = polygon.crop.cropName.trim()
-        if (cropName) uniqueCrops.add(cropName)
-      }
-    }
-    return Array.from(uniqueCrops).sort((a, b) => a.localeCompare(b))
-  }, [cropTypeOptions, pointPolygons])
-  const cropFilteredPolygonCount = useMemo(() => {
-    if (!normalizedCropFilter) return 0
-    let count = 0
-    for (const polygonList of Object.values(pointPolygons)) {
-      for (const polygon of polygonList) {
-        const cropName = polygon.crop.cropName.trim().toLowerCase()
-        const variety = polygon.crop.variety.trim().toLowerCase()
-        if (cropName.includes(normalizedCropFilter) || variety.includes(normalizedCropFilter)) {
-          count += 1
-        }
-      }
-    }
-    return count
-  }, [normalizedCropFilter, pointPolygons])
   const activePointInsights = insightsModalPointId ? farmCropInsightsByPoint[insightsModalPointId] || [] : []
   const activeInsightsPointPolygons = insightsModalPointId
     ? pointPolygons[insightsModalPointId] || []
@@ -1615,6 +1591,38 @@ export function SatelliteMap({
     mapInstanceRef.current.flyTo([recenterLat, recenterLng], recenterZoom, { duration: 1.5 })
   }, [explicitTargetPoint, resolvedTargetFarm, resolvedTargetZoom])
 
+  const clearCoordinatePin = useCallback(() => {
+    coordinateMarkerRef.current?.remove?.()
+    coordinateMarkerRef.current = null
+  }, [])
+
+  const goToCoordinates = useCallback(() => {
+    const parsed = parseCoordinateQuery(coordinateQuery)
+    if (!parsed) {
+      setCoordinateSearchError(
+        locale === 'ar'
+          ? 'أدخل خط العرض وخط الطول، مثال 25.2854, 51.5310'
+          : 'Enter latitude and longitude, for example 25.2854, 51.5310'
+      )
+      return
+    }
+    const map = mapInstanceRef.current
+    if (!map) return
+    setCoordinateSearchError(null)
+    map.flyTo([parsed.lat, parsed.lng], COORDINATE_SEARCH_ZOOM, { duration: 1.2 })
+    clearCoordinatePin()
+    const L = leafletRef.current
+    if (!L) return
+    coordinateMarkerRef.current = L.circleMarker([parsed.lat, parsed.lng], {
+      radius: 8,
+      color: '#ffffff',
+      weight: 2,
+      fillColor: '#07f880',
+      fillOpacity: 1,
+      interactive: false,
+    }).addTo(map)
+  }, [clearCoordinatePin, coordinateQuery, locale])
+
   const clearFocusParamFromUrl = useCallback(() => {
     if (typeof window === 'undefined') return
     const currentUrl = new URL(window.location.href)
@@ -1666,6 +1674,8 @@ export function SatelliteMap({
       draftPolylineRef.current = null
       draftVertexInstancesRef.current.forEach((marker) => marker.remove?.())
       draftVertexInstancesRef.current = []
+      coordinateMarkerRef.current?.remove?.()
+      coordinateMarkerRef.current = null
       if (map) {
         map.remove()
         mapInstanceRef.current = null
@@ -3160,40 +3170,53 @@ export function SatelliteMap({
         </div>
       )}
 
-      {isGrowaAdmin && (
-        <div className="absolute right-6 top-24 z-[1000] w-80 rounded-lg border border-white/10 bg-[#0c0c0e]/90 p-3 shadow-lg">
-          <p className="text-xs font-semibold uppercase tracking-wide text-white/70">
-            Polygon Crop Filter
-          </p>
-          <div className="mt-2 flex items-center gap-2">
-            <input
-              type="text"
-              value={polygonCropFilterQuery}
-              onChange={(event) => setPolygonCropFilterQuery(event.target.value)}
-              list="polygon-crop-options"
-              placeholder="Search crop (e.g. Tomato)"
-              className="h-8 flex-1 rounded border border-white/10 bg-[#0b0b0c] px-2 text-[11px] text-white placeholder:text-white/35 focus:border-[#07f880]/60 focus:outline-none"
-            />
-            <button
-              type="button"
-              onClick={() => setPolygonCropFilterQuery('')}
-              className="h-8 rounded border border-white/15 bg-white/5 px-2 text-[11px] text-white/80 hover:border-[#07f880]/40 hover:text-[#07f880]"
-            >
-              Clear
-            </button>
-          </div>
-          <datalist id="polygon-crop-options">
-            {cropFilterOptions.map((cropName) => (
-              <option key={cropName} value={cropName} />
-            ))}
-          </datalist>
-          <p className="mt-2 text-[11px] text-white/60">
-            {normalizedCropFilter
-              ? `Showing ${cropFilteredPolygonCount} polygon${cropFilteredPolygonCount === 1 ? '' : 's'} for "${polygonCropFilterQuery.trim()}".`
-              : 'Type a crop name to only show matching polygons on the map.'}
-          </p>
+      <form
+        className="absolute right-6 top-24 z-[1000] w-80 rounded-lg border border-white/10 bg-[#0c0c0e]/90 p-3 shadow-lg"
+        onSubmit={(event) => {
+          event.preventDefault()
+          goToCoordinates()
+        }}
+      >
+        <p className="text-xs font-semibold uppercase tracking-wide text-white/70">
+          {locale === 'ar' ? 'بحث بالإحداثيات' : 'Coordinate Search'}
+        </p>
+        <div className="mt-2 flex items-center gap-2">
+          <input
+            type="text"
+            value={coordinateQuery}
+            onChange={(event) => {
+              setCoordinateQuery(event.target.value)
+              if (coordinateSearchError) setCoordinateSearchError(null)
+            }}
+            placeholder={locale === 'ar' ? '25.2854, 51.5310' : '25.2854, 51.5310'}
+            aria-label={locale === 'ar' ? 'خط العرض وخط الطول' : 'Latitude and longitude'}
+            className="h-8 flex-1 rounded border border-white/10 bg-[#0b0b0c] px-2 text-[11px] text-white placeholder:text-white/35 focus:border-[#07f880]/60 focus:outline-none"
+          />
+          <button
+            type="submit"
+            className="h-8 rounded border border-[#07f880]/35 bg-[#07f880]/15 px-2 text-[11px] text-[#07f880] hover:bg-[#07f880]/25"
+          >
+            {locale === 'ar' ? 'اذهب' : 'Go'}
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setCoordinateQuery('')
+              setCoordinateSearchError(null)
+              clearCoordinatePin()
+            }}
+            className="h-8 rounded border border-white/15 bg-white/5 px-2 text-[11px] text-white/80 hover:border-[#07f880]/40 hover:text-[#07f880]"
+          >
+            {locale === 'ar' ? 'مسح' : 'Clear'}
+          </button>
         </div>
-      )}
+        <p className={`mt-2 text-[11px] ${coordinateSearchError ? 'text-red-300' : 'text-white/60'}`}>
+          {coordinateSearchError ||
+            (locale === 'ar'
+              ? 'خط العرض ثم خط الطول. مثال: 25.2854, 51.5310'
+              : 'Latitude, then longitude. Example: 25.2854, 51.5310')}
+        </p>
+      </form>
 
       {isLoading && (
         <div className="absolute inset-0 z-50 flex items-center justify-center bg-background">
