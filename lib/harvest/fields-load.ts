@@ -1,9 +1,11 @@
-import { harvestGetAnalyticsFields, harvestGetAllFields } from '@/lib/harvest/client'
+import { harvestGetAnalytics, harvestGetAnalyticsFields, harvestGetAllFields } from '@/lib/harvest/client'
 import { enrichHarvestFieldsWithStats } from '@/lib/harvest/field-metrics'
 import { harvestAnalyticsModesToTry } from '@/lib/harvest/mode-resolve'
 import { mergeHarvestFieldsWithAnalytics } from '@/lib/harvest/merge-fields'
-import { normalizePaginatedFieldsResponse } from '@/lib/harvest/normalize'
+import { normalizeAnalyticsResponse, normalizePaginatedFieldsResponse } from '@/lib/harvest/normalize'
 import type { HarvestAnalyticsField, HarvestMode, HarvestPaginatedFieldsResponse } from '@/lib/harvest/types'
+
+const ANALYTICS_PAGE_SIZE = 100
 
 function isHarvest422(error: unknown) {
   return error instanceof Error && error.message.includes('HARVEST_REQUEST_FAILED:422')
@@ -16,6 +18,21 @@ export function sortCatalogFieldsByHarvestDate(fields: HarvestAnalyticsField[]) 
     if (leftDate === rightDate) return left.name.localeCompare(right.name)
     return rightDate.localeCompare(leftDate)
   })
+}
+
+function metricCount(field: HarvestAnalyticsField) {
+  return Object.values(field.metrics || {}).filter((value) => Number.isFinite(value)).length
+}
+
+function dedupeAnalyticsFields(fields: HarvestAnalyticsField[]) {
+  const byParcel = new Map<string, HarvestAnalyticsField>()
+  for (const field of fields) {
+    const current = byParcel.get(field.parcel_id)
+    if (!current || metricCount(field) >= metricCount(current)) {
+      byParcel.set(field.parcel_id, field)
+    }
+  }
+  return Array.from(byParcel.values())
 }
 
 export async function loadHarvestAllFields(
@@ -50,28 +67,54 @@ export async function loadHarvestAllFields(
   }
 }
 
+async function loadAnalyticsFieldPages(mode: HarvestMode): Promise<HarvestAnalyticsField[]> {
+  const firstRaw = await harvestGetAnalyticsFields({
+    mode,
+    page: '1',
+    perpage: String(ANALYTICS_PAGE_SIZE),
+    sort: 'name',
+    order: 'asc',
+  })
+  const first = normalizePaginatedFieldsResponse(firstRaw)
+  const results = [...first.results]
+  const pageCount = Math.max(1, Math.ceil(first.total / ANALYTICS_PAGE_SIZE))
+
+  for (let page = 2; page <= pageCount; page += 1) {
+    const nextRaw = await harvestGetAnalyticsFields({
+      mode,
+      page: String(page),
+      perpage: String(ANALYTICS_PAGE_SIZE),
+      sort: 'name',
+      order: 'asc',
+    })
+    results.push(...normalizePaginatedFieldsResponse(nextRaw).results)
+  }
+
+  return results
+}
+
 export async function loadHarvestAnalyticsFields(
   mode: HarvestMode
 ): Promise<HarvestPaginatedFieldsResponse> {
-  const perPageOptions = ['100', '50', '20']
-
   for (const analyticsMode of harvestAnalyticsModesToTry(mode)) {
-    for (const perpage of perPageOptions) {
-      try {
-        const analyticsFieldsRaw = await harvestGetAnalyticsFields({
-          mode: analyticsMode,
-          page: '1',
-          perpage,
-          sort: 'name',
-          order: 'asc',
-        })
-        const analyticsFields = normalizePaginatedFieldsResponse(analyticsFieldsRaw)
-        if (analyticsFields.results.length > 0) {
-          return analyticsFields
-        }
-      } catch {
-        // try next mode/page size
-      }
+    const collected: HarvestAnalyticsField[] = []
+
+    try {
+      const summary = normalizeAnalyticsResponse(await harvestGetAnalytics({ mode: analyticsMode }))
+      collected.push(...summary.fields)
+    } catch {
+      // summary is optional when the paginated table is available
+    }
+
+    try {
+      collected.push(...(await loadAnalyticsFieldPages(analyticsMode)))
+    } catch {
+      // try the next mode when this analytics table cannot be read
+    }
+
+    const results = dedupeAnalyticsFields(collected)
+    if (results.length > 0) {
+      return { total: results.length, results }
     }
   }
 
@@ -89,8 +132,8 @@ export async function loadEnrichedHarvestCatalog(mode: HarvestMode) {
 
   try {
     const results = await enrichHarvestFieldsWithStats(merged, mode)
-    return { total: allFields.total, results }
+    return { total: Math.max(allFields.total, results.length), results }
   } catch {
-    return { total: allFields.total, results: merged }
+    return { total: Math.max(allFields.total, merged.length), results: merged }
   }
 }

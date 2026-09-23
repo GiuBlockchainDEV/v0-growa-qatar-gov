@@ -47,7 +47,6 @@ import {
   IntelligenceWorkspaceRoot,
 } from '@/components/dashboard/intelligence-workspace-ui'
 import { useHarvestDashboard } from '@/contexts/harvest-dashboard-context'
-import { metricsFromFieldStats } from '@/lib/harvest/field-metrics'
 import {
   HARVEST_METRIC_META,
   formatHarvestMetricWithUnit,
@@ -207,7 +206,6 @@ export function HarvestWorkspace() {
     getFieldDetailHref,
     clearFieldSelection,
     startFieldCreate,
-    mergeFieldMetrics,
     patchActiveSeasonId,
   } = useHarvestDashboard()
 
@@ -664,15 +662,6 @@ export function HarvestWorkspace() {
 
     return () => window.clearInterval(intervalId)
   }, [collectingTasks.length])
-
-  useEffect(() => {
-    if (!fieldStats) return
-
-    const metrics = metricsFromFieldStats(fieldStats)
-    if (Object.keys(metrics).length === 0) return
-
-    mergeFieldMetrics(fieldStats.parcel_id, metrics)
-  }, [fieldStats, mergeFieldMetrics])
 
   useEffect(() => {
     return () => {

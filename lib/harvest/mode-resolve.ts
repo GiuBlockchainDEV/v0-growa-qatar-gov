@@ -9,7 +9,7 @@ export function resolveHarvestDataMode(
 }
 
 export function harvestStatsModesToTry(mode: HarvestMode): HarvestMode[] {
-  if (mode === 'predict') return ['current', 'predict']
+  if (mode === 'predict') return ['predict', 'current']
   return ['current']
 }
 

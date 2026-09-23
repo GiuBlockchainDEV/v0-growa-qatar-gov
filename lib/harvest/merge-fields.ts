@@ -16,18 +16,18 @@ export function mergeHarvestFieldsWithAnalytics(
     analyticsByKey.set(metricsKey(field), field)
   }
 
-  return baseFields.map((field) => {
+  const merged = baseFields.map((field) => {
     const keyedMatch = analyticsByKey.get(metricsKey(field))
     const parcelMatch = keyedMatch ? null : analyticsByParcel.get(field.parcel_id)
     const analyticsMatch = keyedMatch || parcelMatch
     if (!analyticsMatch) return field
 
     const metrics: HarvestFieldMetrics = {
-      ...(analyticsMatch.metrics || {}),
       ...(field.metrics || {}),
+      ...(analyticsMatch.metrics || {}),
     }
 
-    const season_id = analyticsMatch.season_id ?? field.season_id
+    const season_id = field.season_id ?? analyticsMatch.season_id
 
     return {
       ...field,
@@ -40,4 +40,13 @@ export function mergeHarvestFieldsWithAnalytics(
       metrics,
     }
   })
+
+  const seen = new Set(merged.map((field) => field.parcel_id))
+  for (const field of analyticsFields) {
+    if (seen.has(field.parcel_id)) continue
+    seen.add(field.parcel_id)
+    merged.push(field)
+  }
+
+  return merged
 }

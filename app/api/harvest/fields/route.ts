@@ -42,12 +42,12 @@ export async function GET(request: Request) {
         try {
           const enriched = await enrichHarvestFieldsWithStats(merged, mode)
           return {
-            total: allFields.total,
+            total: Math.max(allFields.total, enriched.length),
             results: enriched,
           }
         } catch {
           return {
-            total: allFields.total,
+            total: Math.max(allFields.total, merged.length),
             results: merged,
           }
         }

@@ -1,13 +1,13 @@
 import { describe, expect, it } from 'vitest'
 import {
   FIELD_KPI_METRICS,
+  fillMissingHarvestMetrics,
   hasHarvestTableMetrics,
   hasSeasonFieldStats,
-  mergeSeasonMetrics,
   metricsFromFieldStats,
   missingHarvestTableMetrics,
 } from '@/lib/harvest/field-metrics'
-import type { HarvestFieldStatsResponse, HarvestTimeseriesPoint } from '@/lib/harvest/types'
+import type { HarvestFieldStatsResponse } from '@/lib/harvest/types'
 
 function buildStats(
   season: Partial<Record<string, number>>,
@@ -64,34 +64,10 @@ describe('field-metrics', () => {
     })
   })
 
-  it('derives season totals from incremental dekad series when season rows are missing', () => {
+  it('does not invent season totals from dekad rows', () => {
     const stats = buildStats({}, { aeti: [100, 50, 80], tbp: [10, 5, 8], bwp: [0.8, 0.9, 1.0] })
 
-    expect(metricsFromFieldStats(stats)).toEqual({
-      aeti: 230,
-      tbp: 23,
-      bwp: 0.9,
-    })
-  })
-
-  it('uses the last dekad value for monotonic cumulative sum metrics', () => {
-    const stats: HarvestFieldStatsResponse = {
-      parcel_id: 'field-1',
-      season_id: 42,
-      periods: [],
-      timeseries: {
-        season: {},
-        dekad: {
-          aeti: [
-            { period: '2025-09-01', value: 100 },
-            { period: '2025-09-11', value: 250 },
-            { period: '2025-09-21', value: 420 },
-          ],
-        },
-      },
-    }
-
-    expect(metricsFromFieldStats(stats).aeti).toBe(420)
+    expect(metricsFromFieldStats(stats)).toEqual({})
   })
 
   it('extracts all KPI metrics from season totals', () => {
@@ -113,18 +89,17 @@ describe('field-metrics', () => {
     expect(hasSeasonFieldStats(buildStats({}, { aeti: [300] }))).toBe(false)
   })
 
-  it('overlays season metrics without deleting existing KPI values', () => {
+  it('fills only missing KPI values and keeps analytics numbers', () => {
     expect(
-      mergeSeasonMetrics(
-        { aeti: 300, npp: 100, tbp: 20, bwp: 0.4, rwd: 0.2 },
-        { aeti: 1200, tbp: 80, bwp: 1.1 }
+      fillMissingHarvestMetrics(
+        { aeti: 1200, npp: 450, bwp: 1.1 },
+        { aeti: 300, tbp: 80, bwp: 0.4 }
       )
     ).toEqual({
       aeti: 1200,
-      npp: 100,
+      npp: 450,
       tbp: 80,
       bwp: 1.1,
-      rwd: 0.2,
     })
   })
 })

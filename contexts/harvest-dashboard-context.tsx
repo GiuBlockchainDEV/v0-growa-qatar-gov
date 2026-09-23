@@ -22,7 +22,7 @@ import {
   type HarvestFieldNavTarget,
 } from '@/lib/harvest/field-navigation'
 import { findHarvestMapFieldAtLatLng } from '@/lib/harvest/field-hit-test'
-import { FIELD_KPI_METRICS, mergeSeasonMetrics } from '@/lib/harvest/field-metrics'
+import { FIELD_KPI_METRICS, fillMissingHarvestMetrics } from '@/lib/harvest/field-metrics'
 import { normalizeEntityToField } from '@/lib/harvest/normalize'
 import type {
   HarvestAnalyticsField,
@@ -90,11 +90,11 @@ export function HarvestDashboardProvider({ children }: { children: ReactNode }) 
   const harvestCreateActive = searchParams.get('harvestCreate') === '1'
 
   const [mode, setModeState] = useState<HarvestMode>(
-    searchParams.get('harvestMode') === 'predict' ? 'predict' : 'current'
+    searchParams.get('harvestMode') === 'current' ? 'current' : 'predict'
   )
 
   useEffect(() => {
-    const urlMode = searchParams.get('harvestMode') === 'predict' ? 'predict' : 'current'
+    const urlMode = searchParams.get('harvestMode') === 'current' ? 'current' : 'predict'
     setModeState(urlMode)
   }, [searchParams])
   const [fields, setFields] = useState<HarvestAnalyticsField[]>([])
