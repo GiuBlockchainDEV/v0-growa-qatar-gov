@@ -19,6 +19,19 @@ import {
   Wind,
 } from 'lucide-react'
 import { qatarConfig } from '@/lib/config/country-qatar'
+import {
+  IntelligenceInvestigationLayout,
+  InvestigationContextHeader,
+} from '@/components/dashboard/intelligence-investigation-layout'
+import {
+  IntelligenceMapHint,
+  IntelligenceModuleActions,
+  IntelligenceWatchtowerChanges,
+  IntelligenceWatchtowerForecast,
+  IntelligenceWatchtowerSignals,
+} from '@/components/dashboard/intelligence-investigation-shared'
+import { OperationalContextBanner } from '@/components/dashboard/operational-context-banner'
+import { useModuleWatchtowerContext } from '@/lib/intelligence/use-module-watchtower-context'
 
 type WeatherRecord = Record<string, unknown>
 
@@ -384,6 +397,7 @@ function TrendChart({
 export function WeatherWorkspace() {
   const router = useRouter()
   const searchParams = useSearchParams()
+  const watchtower = useModuleWatchtowerContext(['weather', 'crop_health'])
   const [latitude, setLatitude] = useState('')
   const [longitude, setLongitude] = useState('')
   const [requestedAt, setRequestedAt] = useState(DEFAULT_REQUESTED_AT)
@@ -633,32 +647,50 @@ export function WeatherWorkspace() {
 
   return (
     <div className="h-full overflow-y-auto overscroll-contain space-y-6 p-6 pt-20 text-foreground">
-      <div className="relative overflow-hidden rounded-2xl border border-border bg-card p-6 shadow-[0_0_0_1px_rgba(7,248,128,0.08),0_24px_60px_rgba(0,0,0,0.36)]">
-        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(7,248,128,0.14),transparent_44%),radial-gradient(circle_at_bottom_left,rgba(56,189,248,0.10),transparent_40%)]" />
-        <div className="pointer-events-none absolute inset-0 opacity-20 [background-image:linear-gradient(rgba(148,163,184,0.12)_1px,transparent_1px),linear-gradient(90deg,rgba(148,163,184,0.12)_1px,transparent_1px)] [background-size:30px_30px]" />
-        <div className="relative">
-          <p className="text-xs uppercase tracking-[0.22em] text-primary">Qatar Weather Grid</p>
-          <div className="mt-2 flex flex-wrap items-start justify-between gap-4">
-            <div>
-              <h1 className="flex items-center gap-2 text-4xl font-semibold text-foreground">
-                <CloudSun className="h-8 w-8 text-primary" />
-                Weather Command
-              </h1>
-              <p className="mt-3 max-w-3xl text-sm text-muted-foreground">
-                Select one of the 510 Growa-green grid cells on the lateral map. The panel stays empty until a point is selected;
-                after selection, click any metric card to plot its historical trend.
-              </p>
-            </div>
-            <div className="grid grid-cols-2 gap-2 text-xs">
-              <div className="rounded-md border border-primary/30 bg-primary/10 px-3 py-2 text-primary">WEATHER: 5 KM</div>
-              <div className="rounded-md border border-amber-400/30 bg-amber-500/10 px-3 py-2 text-amber-200">LIGHT: 10 KM</div>
-              <div className="rounded-md border border-border bg-secondary/50 px-3 py-2 text-foreground">POINTS: 510</div>
-              <div className="rounded-md border border-border bg-secondary/50 px-3 py-2 text-foreground">SELECT: MAP</div>
-            </div>
-          </div>
-        </div>
-      </div>
+      <InvestigationContextHeader
+        eyebrow="Intelligence • Climate"
+        title="Weather Intelligence"
+        description="Qatar 5 km weather grid with ET0, VPD, heat stress and irrigation indicators. Select a grid cell on the map to investigate local conditions."
+        icon={CloudSun}
+        meta={[
+          { label: 'Grid', value: '5 km', accent: true },
+          { label: 'Cells', value: '510' },
+          { label: 'Selection', value: hasSelection ? summary.cellId : 'None' },
+          { label: 'Signals', value: String(watchtower.signals.length), accent: watchtower.signals.length > 0 },
+        ]}
+      />
 
+      <OperationalContextBanner />
+
+      <IntelligenceInvestigationLayout
+        currentCondition={
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-6">
+            <SummaryCard icon={MapPin} label="Cell" value={summary.cellId} detail={summary.country} primary={hasSelection} />
+            <SummaryCard label="Coordinate" value={summary.coordinate} detail="Selected grid point" />
+            <SummaryCard icon={Compass} label="Grid" value={summary.gridSize} detail="Weather/agro resolution" />
+            <SummaryCard icon={SunMedium} label="Solar grid" value="10 km" detail="Light radiation layer" valueClassName="text-amber-300" />
+            <SummaryCard label="Snapshot" value={summary.matchedTimestamp} detail="Nearest requested time" smallValue />
+            <SummaryCard icon={Sprout} label="Source" value={hasSelection ? summary.dataSource : 'Waiting'} detail="OpenWeather + Open-Meteo grid" smallValue />
+          </div>
+        }
+        whatChanged={<IntelligenceWatchtowerChanges changes={watchtower.changes} loading={watchtower.loading} />}
+        mapOrTimeseries={<IntelligenceMapHint moduleLabel="weather grid cells and climate layers" />}
+        signals={<IntelligenceWatchtowerSignals signals={watchtower.signals} loading={watchtower.loading} />}
+        forecast={
+          <IntelligenceWatchtowerForecast
+            outlook={watchtower.outlook}
+            loading={watchtower.loading}
+            domain="climate"
+          />
+        }
+        actions={
+          <IntelligenceModuleActions
+            module="weather"
+            mapLayers={['temperature', 'vpd', 'et0', 'heat-stress']}
+          />
+        }
+        primaryAnalysis={
+          <div className="space-y-4">
       {!hasSelection && (
         <div className="rounded-xl border border-amber-400/30 bg-amber-500/10 p-4 text-sm text-amber-100">
           <p className="flex items-center gap-2 font-semibold"><MousePointer2 className="h-4 w-4" />No weather cell selected.</p>
@@ -685,15 +717,6 @@ export function WeatherWorkspace() {
           </button>
         </div>
         {error && <div className="mt-4 rounded-lg border border-red-400/30 bg-red-500/10 p-3 text-sm text-red-200">{error}</div>}
-      </div>
-
-      <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-6">
-        <SummaryCard icon={MapPin} label="Cell" value={summary.cellId} detail={summary.country} primary={hasSelection} />
-        <SummaryCard label="Coordinate" value={summary.coordinate} detail="Selected grid point" />
-        <SummaryCard icon={Compass} label="Grid" value={summary.gridSize} detail="Weather/agro resolution" />
-        <SummaryCard icon={SunMedium} label="Solar grid" value="10 km" detail="Light radiation layer" valueClassName="text-amber-300" />
-        <SummaryCard label="Snapshot" value={summary.matchedTimestamp} detail="Nearest requested time" smallValue />
-        <SummaryCard icon={Sprout} label="Source" value={hasSelection ? summary.dataSource : 'Waiting'} detail="OpenWeather + Open-Meteo grid" smallValue />
       </div>
 
       <div className="space-y-4">
@@ -750,7 +773,9 @@ export function WeatherWorkspace() {
             ))}
         </div>
       </div>
-
+          </div>
+        }
+      />
 
       {chartModalOpen && (
         <div className="fixed inset-0 z-[2600] flex items-center justify-center bg-black/70 p-6 backdrop-blur-sm">

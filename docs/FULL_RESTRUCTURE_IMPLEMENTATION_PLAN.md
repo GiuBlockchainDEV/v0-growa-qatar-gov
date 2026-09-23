@@ -34,12 +34,16 @@
 
 ---
 
+| 8 | `IntelligenceInvestigationLayout` applied to water, energy, weather, harvest |
+
+---
+
 ## IN PROGRESS
 
 | Phase | Task |
 |-------|------|
-| 8 | Apply `IntelligenceInvestigationLayout` to water/weather/harvest workspaces |
 | 12 | Non-conformity + corrective action linkage |
+| 8 | Apply layout to data-analytics workspace |
 
 ---
 

@@ -19,13 +19,25 @@ import {
 } from 'lucide-react'
 import { GrowaIntelligencePanel } from '@/components/dashboard/growa-intelligence-panel'
 import { HarvestFieldCreatePanel } from '@/components/dashboard/harvest-field-create-panel'
+import {
+  IntelligenceInvestigationLayout,
+  InvestigationContextHeader,
+} from '@/components/dashboard/intelligence-investigation-layout'
+import {
+  IntelligenceMapHint,
+  IntelligenceModuleActions,
+  IntelligenceWatchtowerChanges,
+  IntelligenceWatchtowerForecast,
+  IntelligenceWatchtowerSignals,
+} from '@/components/dashboard/intelligence-investigation-shared'
+import { OperationalContextBanner } from '@/components/dashboard/operational-context-banner'
+import { useModuleWatchtowerContext } from '@/lib/intelligence/use-module-watchtower-context'
 import { buildHarvestGrowaContext } from '@/lib/ai/build-harvest-growa-context'
 import type { LatLngVertex } from '@/lib/harvest/geojson'
 import {
   IntelligenceCommandLayout,
   IntelligenceDataTable,
   IntelligenceErrorState,
-  IntelligenceHero,
   IntelligenceKpiCard,
   IntelligenceLoadingState,
   IntelligencePanel,
@@ -147,6 +159,7 @@ function HarvestTrendBars({
 export function HarvestWorkspace() {
   const router = useRouter()
   const searchParams = useSearchParams()
+  const watchtower = useModuleWatchtowerContext(['crop_health', 'production', 'weather'])
   const harvestCreateActive = searchParams.get('harvestCreate') === '1'
   const harvestDrawMethod = searchParams.get('harvestDraw') === 'circle' ? 'circle' : 'vertex'
   const selectedMapMetric = (searchParams.get('harvestMetric') || 'npp') as HarvestMetricKey
@@ -826,29 +839,34 @@ export function HarvestWorkspace() {
   return (
     <IntelligenceWorkspaceRoot layout="viewport">
       <IntelligenceWorkspaceHeader>
-      <IntelligenceHero
-        eyebrow="Harvest Prediction"
+      <InvestigationContextHeader
+        eyebrow="Intelligence • Satellite & Harvest"
         title={
           isFieldDetailView
-            ? activeField?.name ?? (parcelId ? 'Loading field...' : 'Production & Harvest Intelligence')
-            : 'Production & Harvest Intelligence'
+            ? activeField?.name ?? (parcelId ? 'Loading field...' : 'Satellite & Harvest Intelligence')
+            : 'Satellite & Harvest Intelligence'
         }
         description={
           isFieldDetailView && activeField
             ? `${activeField.crop} • ${formatArea(activeField.area)} • ${activeField.start_date} → ${activeField.harvest_date}`
-            : 'Satellite-driven water productivity, biomass, and yield outlook integrated directly into the Growa workspace.'
+            : 'Satellite-driven crop health, biomass, water productivity and yield outlook connected to national signals.'
         }
         icon={Sprout}
-        statusItems={[
+        meta={[
           {
             label: 'View',
-            value: mode === 'current' ? 'Observed (current)' : 'Forecast (predict)',
+            value: mode === 'current' ? 'Observed' : 'Forecast',
             accent: true,
           },
           { label: 'Fields', value: String(fields.length) },
           {
             label: 'Source',
             value: isFieldDetailView && activeField ? 'Field detail' : 'National analytics',
+          },
+          {
+            label: 'Signals',
+            value: String(watchtower.signals.length),
+            accent: watchtower.signals.length > 0,
           },
         ]}
       />
@@ -925,6 +943,10 @@ export function HarvestWorkspace() {
 
       </IntelligenceWorkspaceHeader>
 
+      <div className="px-4 pb-2">
+        <OperationalContextBanner />
+      </div>
+
       {loading && !harvestCreateActive ? (
         <IntelligenceLoadingState message="Loading Harvest analytics..." />
       ) : null}
@@ -947,6 +969,7 @@ export function HarvestWorkspace() {
       {!loading && !error && !harvestCreateActive ? (
         <IntelligenceWorkspaceBody>
           {!isFieldDetailView ? (
+            <>
             <div className="mb-3 grid shrink-0 grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
               {headlineMetrics.map((metric, index) => {
                 const meta = HARVEST_METRIC_META[metric.key]
@@ -964,6 +987,26 @@ export function HarvestWorkspace() {
                 )
               })}
             </div>
+            <IntelligenceInvestigationLayout
+              className="mb-4"
+              whatChanged={<IntelligenceWatchtowerChanges changes={watchtower.changes} loading={watchtower.loading} />}
+              mapOrTimeseries={<IntelligenceMapHint moduleLabel="harvest fields and crop-health layers" />}
+              signals={<IntelligenceWatchtowerSignals signals={watchtower.signals} loading={watchtower.loading} />}
+              forecast={
+                <IntelligenceWatchtowerForecast
+                  outlook={watchtower.outlook}
+                  loading={watchtower.loading}
+                  domain="production"
+                />
+              }
+              actions={
+                <IntelligenceModuleActions
+                  module="harvest"
+                  mapLayers={['crop-health', 'harvest-forecast', 'fields']}
+                />
+              }
+            />
+            </>
           ) : null}
 
           {isFieldDetailView && !activeField ? (
@@ -1195,39 +1238,57 @@ export function HarvestWorkspace() {
             </div>
               }
               insights={
-                <IntelligencePanel
-                  title="Field signals"
-                  subtitle="Quick read on the active field"
-                  icon={Activity}
-                >
-                  <div className="space-y-3 text-xs text-muted-foreground">
-                    <p>
-                      <span className="font-medium text-foreground">{activeField.name}</span> •{' '}
-                      {activeField.crop} • {formatArea(activeField.area)}
-                    </p>
-                    <div className="grid grid-cols-2 gap-2">
-                      {FIELD_KPI_METRICS.slice(0, 4).map((key) => (
-                        <div key={key} className="rounded-lg border border-border bg-secondary/20 px-2.5 py-2">
-                          <p className="text-[10px] uppercase tracking-wide">{HARVEST_METRIC_META[key].shortLabel}</p>
-                          <p className="mt-1 text-sm font-semibold text-foreground">
-                            {formatHarvestMetricWithUnit(activeField.metrics?.[key], key)}
-                          </p>
-                        </div>
-                      ))}
-                    </div>
-                    {fieldRaster ? (
+                <div className="space-y-4">
+                  <IntelligencePanel
+                    title="Field signals"
+                    subtitle="Quick read on the active field"
+                    icon={Activity}
+                  >
+                    <div className="space-y-3 text-xs text-muted-foreground">
                       <p>
-                        Active map layer: {HARVEST_METRIC_META[fieldRaster.metric].label} (
-                        {fieldRaster.vmin}–{fieldRaster.vmax} {fieldRaster.unit})
+                        <span className="font-medium text-foreground">{activeField.name}</span> •{' '}
+                        {activeField.crop} • {formatArea(activeField.area)}
                       </p>
-                    ) : (
-                      <p>No satellite raster loaded yet. Select a metric to enable map analysis.</p>
-                    )}
-                    {activeCollectingTask ? (
-                      <p className="text-amber-300">Geospatial collection still in progress.</p>
-                    ) : null}
-                  </div>
-                </IntelligencePanel>
+                      <div className="grid grid-cols-2 gap-2">
+                        {FIELD_KPI_METRICS.slice(0, 4).map((key) => (
+                          <div key={key} className="rounded-lg border border-border bg-secondary/20 px-2.5 py-2">
+                            <p className="text-[10px] uppercase tracking-wide">{HARVEST_METRIC_META[key].shortLabel}</p>
+                            <p className="mt-1 text-sm font-semibold text-foreground">
+                              {formatHarvestMetricWithUnit(activeField.metrics?.[key], key)}
+                            </p>
+                          </div>
+                        ))}
+                      </div>
+                      {fieldRaster ? (
+                        <p>
+                          Active map layer: {HARVEST_METRIC_META[fieldRaster.metric].label} (
+                          {fieldRaster.vmin}–{fieldRaster.vmax} {fieldRaster.unit})
+                        </p>
+                      ) : (
+                        <p>No satellite raster loaded yet. Select a metric to enable map analysis.</p>
+                      )}
+                      {activeCollectingTask ? (
+                        <p className="text-amber-300">Geospatial collection still in progress.</p>
+                      ) : null}
+                    </div>
+                  </IntelligencePanel>
+                  <IntelligenceInvestigationLayout
+                    signals={<IntelligenceWatchtowerSignals signals={watchtower.signals} loading={watchtower.loading} />}
+                    forecast={
+                      <IntelligenceWatchtowerForecast
+                        outlook={watchtower.outlook}
+                        loading={watchtower.loading}
+                        domain="production"
+                      />
+                    }
+                    actions={
+                      <IntelligenceModuleActions
+                        module="harvest"
+                        mapLayers={['crop-health', 'harvest-forecast', 'fields']}
+                      />
+                    }
+                  />
+                </div>
               }
               assistant={<GrowaIntelligencePanel module="harvest" context={growaContext} />}
             />
