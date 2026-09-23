@@ -45,9 +45,14 @@ export function IntelligenceInvestigationLayout({
   ].filter((section) => section.content)
 
   return (
-    <div className={cn('space-y-4', className)}>
+    <div className={cn('grid grid-cols-1 gap-3 lg:grid-cols-2', className)}>
       {sections.map((section) => (
-        <InvestigationSection key={section.key} title={section.label}>
+        <InvestigationSection
+          key={section.key}
+          title={section.label}
+          scrollable={section.key !== 'actions' && section.key !== 'context'}
+          className={section.key === 'actions' || section.key === 'context' ? 'lg:col-span-2' : undefined}
+        >
           {section.content}
         </InvestigationSection>
       ))}
@@ -60,24 +65,37 @@ export function InvestigationSection({
   children,
   compact = false,
   priority = 'default',
+  scrollable = true,
+  className,
 }: {
   title: string
   children: ReactNode
   compact?: boolean
   priority?: 'default' | 'high'
+  scrollable?: boolean
+  className?: string
 }) {
   return (
     <section
       className={cn(
-        'rounded-xl border',
+        'flex min-h-0 flex-col rounded-xl border',
         priority === 'high'
           ? 'border-amber-500/25 bg-amber-500/[0.04]'
           : 'border-white/10 bg-[#0a0d12]/80',
-        compact ? 'p-3' : 'p-4'
+        compact ? 'p-3' : 'p-4',
+        className
       )}
     >
-      <h2 className="text-[10px] font-bold uppercase tracking-widest text-white/45">{title}</h2>
-      <div className={cn(compact ? 'mt-2' : 'mt-3')}>{children}</div>
+      <h2 className="shrink-0 text-[10px] font-bold uppercase tracking-widest text-white/45">{title}</h2>
+      <div
+        className={cn(
+          compact ? 'mt-2' : 'mt-3',
+          scrollable &&
+            'min-h-[120px] max-h-[min(260px,32vh)] overflow-y-auto overscroll-contain pr-1 [-webkit-overflow-scrolling:touch]'
+        )}
+      >
+        {children}
+      </div>
     </section>
   )
 }

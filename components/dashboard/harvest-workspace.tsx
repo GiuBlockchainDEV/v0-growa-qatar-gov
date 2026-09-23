@@ -987,8 +987,8 @@ export function HarvestWorkspace() {
                 )
               })}
             </div>
+            <div className="mb-3 shrink-0">
             <IntelligenceInvestigationLayout
-              className="mb-4"
               whatChanged={<IntelligenceWatchtowerChanges changes={watchtower.changes} loading={watchtower.loading} />}
               mapOrTimeseries={<IntelligenceMapHint moduleLabel="harvest fields and crop-health layers" />}
               signals={<IntelligenceWatchtowerSignals signals={watchtower.signals} loading={watchtower.loading} />}
@@ -1006,6 +1006,7 @@ export function HarvestWorkspace() {
                 />
               }
             />
+            </div>
             </>
           ) : null}
 
@@ -1305,8 +1306,10 @@ export function HarvestWorkspace() {
                   : 'Forecast AETI, TBP, and BWP per field'
               }
               icon={Leaf}
+              fillHeight
+              className="min-h-[min(520px,62vh)]"
             >
-              <IntelligenceDataTable>
+              <IntelligenceDataTable fill>
                 <IntelligenceTableHead>
                   <tr>
                     <th className="px-3 py-2.5 font-medium">Field</th>
@@ -1378,6 +1381,7 @@ export function HarvestWorkspace() {
                   title="Water consumption trend"
                   subtitle="National dekad AETI series"
                   icon={Droplets}
+                  scrollable
                 >
                   <div className="space-y-2">
                     {timeseriesPoints.slice(-12).map((point) => {
@@ -1404,7 +1408,12 @@ export function HarvestWorkspace() {
                   </div>
                 </IntelligencePanel>
 
-                <IntelligencePanel title="Portfolio signals" subtitle="Outliers and collection status" icon={Target}>
+                <IntelligencePanel
+                  title="Portfolio signals"
+                  subtitle="Outliers and collection status"
+                  icon={Target}
+                  scrollable
+                >
                   <div className="space-y-2 text-xs text-muted-foreground">
                     <p>
                       <span className="font-medium text-foreground">Collecting:</span>{' '}

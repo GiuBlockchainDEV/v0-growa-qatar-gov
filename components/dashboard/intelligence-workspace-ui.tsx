@@ -53,7 +53,7 @@ export function IntelligenceWorkspaceBody({ children, scrollable = false }: Inte
 }
 
 export function IntelligenceWorkspaceCommand({ children }: { children: ReactNode }) {
-  return <div className="flex min-h-0 flex-1 flex-col">{children}</div>
+  return <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">{children}</div>
 }
 
 interface IntelligenceStatusItem {
@@ -163,6 +163,7 @@ interface IntelligencePanelProps {
   className?: string
   variant?: 'default' | 'success' | 'warning'
   fillHeight?: boolean
+  scrollable?: boolean
 }
 
 export function IntelligencePanel({
@@ -173,6 +174,7 @@ export function IntelligencePanel({
   className = '',
   variant = 'default',
   fillHeight = false,
+  scrollable = false,
 }: IntelligencePanelProps) {
   const variantClass =
     variant === 'success'
@@ -181,13 +183,15 @@ export function IntelligencePanel({
         ? 'border-amber-400/30 bg-amber-500/10'
         : 'border-border bg-card'
 
+  const useFlexLayout = fillHeight || scrollable
+
   return (
     <section
       className={`rounded-xl border shadow-[inset_0_0_0_1px_rgba(148,163,184,0.05)] ${variantClass} ${
-        fillHeight ? 'flex min-h-0 flex-col overflow-hidden p-3' : 'p-4'
+        useFlexLayout ? 'flex min-h-0 flex-col overflow-hidden p-3' : 'p-4'
       } ${className}`}
     >
-      <div className={`${fillHeight ? 'shrink-0' : ''} mb-3`}>
+      <div className={`${useFlexLayout ? 'shrink-0' : ''} mb-3`}>
         <h2 className="flex items-center gap-2 text-sm font-semibold text-foreground">
           {Icon ? <Icon className="h-4 w-4 text-primary" /> : null}
           {title}
@@ -196,6 +200,10 @@ export function IntelligencePanel({
       </div>
       {fillHeight ? (
         <div className="flex min-h-0 flex-1 flex-col overflow-hidden">{children}</div>
+      ) : scrollable ? (
+        <div className="min-h-0 max-h-[min(320px,38vh)] overflow-y-auto overscroll-contain pr-1 [-webkit-overflow-scrolling:touch]">
+          {children}
+        </div>
       ) : (
         children
       )}
@@ -212,7 +220,7 @@ interface IntelligenceCommandLayoutProps {
 export function IntelligenceCommandLayout({ main, insights, assistant }: IntelligenceCommandLayoutProps) {
   return (
     <div className="grid h-full min-h-0 flex-1 grid-cols-1 gap-3 xl:grid-cols-[minmax(0,1.35fr)_minmax(240px,0.75fr)_minmax(260px,0.9fr)] xl:items-stretch">
-      <div className="min-h-0 min-w-0 overflow-y-auto overscroll-contain pr-1">{main}</div>
+      <div className="flex min-h-0 min-w-0 flex-col overflow-hidden pr-1">{main}</div>
       <div className="min-h-0 min-w-0 space-y-4 overflow-y-auto overscroll-contain pr-1">{insights}</div>
       <div className="flex min-h-[min(520px,62vh)] min-w-0 flex-col overflow-hidden xl:min-h-0 xl:h-full">
         {assistant}
@@ -279,16 +287,48 @@ export function IntelligenceProducerCard({
   )
 }
 
-export function IntelligenceDataTable({ children }: { children: ReactNode }) {
+interface IntelligenceDataTableProps {
+  children: ReactNode
+  scrollable?: boolean
+  maxHeightClass?: string
+  fill?: boolean
+}
+
+export function IntelligenceDataTable({
+  children,
+  scrollable = true,
+  maxHeightClass = 'max-h-[min(480px,55vh)]',
+  fill = false,
+}: IntelligenceDataTableProps) {
   return (
-    <div className="overflow-x-auto rounded-lg border border-border">
-      <table className="min-w-full divide-y divide-border text-left">{children}</table>
+    <div
+      className={`overflow-x-auto rounded-lg border border-border ${
+        fill
+          ? 'flex min-h-0 flex-1 flex-col overflow-hidden'
+          : scrollable
+            ? `${maxHeightClass} overflow-y-auto overscroll-contain [-webkit-overflow-scrolling:touch]`
+            : ''
+      }`}
+    >
+      <div
+        className={
+          fill
+            ? 'min-h-0 flex-1 overflow-y-auto overscroll-contain [-webkit-overflow-scrolling:touch]'
+            : undefined
+        }
+      >
+        <table className="min-w-full divide-y divide-border text-left">{children}</table>
+      </div>
     </div>
   )
 }
 
 export function IntelligenceTableHead({ children }: { children: ReactNode }) {
-  return <thead className="bg-secondary/50 text-xs uppercase tracking-[0.12em] text-muted-foreground">{children}</thead>
+  return (
+    <thead className="sticky top-0 z-10 bg-secondary/95 text-xs uppercase tracking-[0.12em] text-muted-foreground backdrop-blur-sm">
+      {children}
+    </thead>
+  )
 }
 
 export function IntelligenceTableBody({ children }: { children: ReactNode }) {
