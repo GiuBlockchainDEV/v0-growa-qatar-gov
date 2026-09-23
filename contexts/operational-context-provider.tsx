@@ -29,6 +29,7 @@ import type { HarvestMode } from '@/lib/harvest/types'
 import type { IntelligenceSignal } from '@/lib/domain/types'
 import type { WatchtowerTimeframe } from '@/lib/domain/types'
 import { parseWatchtowerTimeframe } from '@/lib/domain/timeframes'
+import { clearOperationalOverlayParams } from '@/lib/dashboard/context-navigation'
 import { resolveDashboardHref } from '@/lib/dashboard/dashboard-navigation'
 
 interface OperationalContextValue {
@@ -110,8 +111,14 @@ export function OperationalContextProvider({ children }: { children: ReactNode }
 
   const clearContext = useCallback(() => {
     const params = new URLSearchParams(searchParams.toString())
-    const moduleKey = params.get('module') || 'watchtower'
-    pushParams(new URLSearchParams(`module=${moduleKey}&timeframe=${timeframe}`))
+    clearOperationalOverlayParams(params)
+    if (!params.get('timeframe')) {
+      params.set('timeframe', timeframe)
+    }
+    if (!params.get('timeRange')) {
+      params.set('timeRange', timeframe)
+    }
+    pushParams(params)
   }, [pushParams, searchParams, timeframe])
 
   const setTimeframe = useCallback(

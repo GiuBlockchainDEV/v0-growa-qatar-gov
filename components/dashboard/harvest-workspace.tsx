@@ -42,9 +42,7 @@ import {
   IntelligencePanel,
   IntelligenceTableBody,
   IntelligenceTableHead,
-  IntelligenceWorkspaceBody,
   IntelligenceWorkspaceCommand,
-  IntelligenceWorkspaceHeader,
   IntelligenceWorkspaceRoot,
 } from '@/components/dashboard/intelligence-workspace-ui'
 import { useHarvestDashboard } from '@/contexts/harvest-dashboard-context'
@@ -835,8 +833,7 @@ export function HarvestWorkspace() {
   }
 
   return (
-    <IntelligenceWorkspaceRoot layout="viewport">
-      <IntelligenceWorkspaceHeader>
+    <IntelligenceWorkspaceRoot layout="scroll">
       <InvestigationContextHeader
         eyebrow="Intelligence • Satellite & Harvest"
         title={
@@ -939,11 +936,7 @@ export function HarvestWorkspace() {
         </p>
       </div>
 
-      </IntelligenceWorkspaceHeader>
-
-      <div className="px-4 pb-2">
-        <OperationalContextBanner />
-      </div>
+      <OperationalContextBanner />
 
       {loading && !harvestCreateActive ? (
         <IntelligenceLoadingState message="Loading Harvest analytics..." />
@@ -951,7 +944,6 @@ export function HarvestWorkspace() {
       {!loading && error && !harvestCreateActive ? <IntelligenceErrorState message={error} /> : null}
 
       {harvestCreateActive ? (
-        <IntelligenceWorkspaceBody scrollable>
         <HarvestFieldCreatePanel
           drawMethod={createDrawMethod}
           rings={createRings}
@@ -961,14 +953,13 @@ export function HarvestWorkspace() {
           onFinishPolygon={finishCreatePolygon}
           onCreated={handleFieldCreated}
         />
-        </IntelligenceWorkspaceBody>
       ) : null}
 
       {!loading && !error && !harvestCreateActive ? (
-        <IntelligenceWorkspaceBody>
+        <>
           {!isFieldDetailView ? (
             <>
-            <div className="mb-3 grid shrink-0 grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
               {headlineMetrics.map((metric, index) => {
                 const meta = HARVEST_METRIC_META[metric.key]
                 const icons = [Droplets, Leaf, TrendingUp, Target]
@@ -985,11 +976,17 @@ export function HarvestWorkspace() {
                 )
               })}
             </div>
-            <div className="mb-3 shrink-0">
             <IntelligenceInvestigationLayout
+              sectionScrollable={false}
               whatChanged={<IntelligenceWatchtowerChanges changes={watchtower.changes} loading={watchtower.loading} />}
               mapOrTimeseries={<IntelligenceMapHint moduleLabel="harvest fields and crop-health layers" />}
-              signals={<IntelligenceWatchtowerSignals signals={watchtower.signals} loading={watchtower.loading} />}
+              signals={
+                <IntelligenceWatchtowerSignals
+                  signals={watchtower.signals}
+                  loading={watchtower.loading}
+                  module="harvest"
+                />
+              }
               forecast={
                 <IntelligenceWatchtowerForecast
                   outlook={watchtower.outlook}
@@ -1004,7 +1001,6 @@ export function HarvestWorkspace() {
                 />
               }
             />
-            </div>
             </>
           ) : null}
 
@@ -1012,11 +1008,11 @@ export function HarvestWorkspace() {
             <IntelligenceLoadingState message="Loading field details..." />
           ) : null}
 
-          <IntelligenceWorkspaceCommand>
+          <IntelligenceWorkspaceCommand variant="stacked">
           {isFieldDetailView && activeField ? (
             <IntelligenceCommandLayout
               key={activeField.parcel_id}
-              mainScrollable
+              variant="stacked"
               main={
             <div className="space-y-4">
               <IntelligencePanel
@@ -1273,7 +1269,14 @@ export function HarvestWorkspace() {
                     </div>
                   </IntelligencePanel>
                   <IntelligenceInvestigationLayout
-                    signals={<IntelligenceWatchtowerSignals signals={watchtower.signals} loading={watchtower.loading} />}
+                    sectionScrollable={false}
+                    signals={
+                      <IntelligenceWatchtowerSignals
+                        signals={watchtower.signals}
+                        loading={watchtower.loading}
+                        module="harvest"
+                      />
+                    }
                     forecast={
                       <IntelligenceWatchtowerForecast
                         outlook={watchtower.outlook}
@@ -1296,7 +1299,7 @@ export function HarvestWorkspace() {
 
           {!isFieldDetailView ? (
           <IntelligenceCommandLayout
-            mainScrollable={false}
+            variant="stacked"
             main={
             <IntelligencePanel
               title="Open-field registry"
@@ -1306,10 +1309,8 @@ export function HarvestWorkspace() {
                   : 'Forecast AETI, TBP, and BWP per field'
               }
               icon={Leaf}
-              fillHeight
-              className="min-h-[min(520px,62vh)]"
             >
-              <IntelligenceDataTable fill>
+              <IntelligenceDataTable>
                 <IntelligenceTableHead>
                   <tr>
                     <th className="px-3 py-2.5 font-medium">Field</th>
@@ -1437,7 +1438,7 @@ export function HarvestWorkspace() {
           />
           ) : null}
           </IntelligenceWorkspaceCommand>
-        </IntelligenceWorkspaceBody>
+        </>
       ) : null}
     </IntelligenceWorkspaceRoot>
   )

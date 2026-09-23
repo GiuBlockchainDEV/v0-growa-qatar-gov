@@ -52,8 +52,26 @@ export function IntelligenceWorkspaceBody({ children, scrollable = false }: Inte
   )
 }
 
-export function IntelligenceWorkspaceCommand({ children }: { children: ReactNode }) {
-  return <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">{children}</div>
+interface IntelligenceWorkspaceCommandProps {
+  children: ReactNode
+  variant?: 'viewport' | 'stacked'
+}
+
+export function IntelligenceWorkspaceCommand({
+  children,
+  variant = 'viewport',
+}: IntelligenceWorkspaceCommandProps) {
+  return (
+    <div
+      className={
+        variant === 'viewport'
+          ? 'flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden'
+          : 'flex min-w-0 flex-col gap-3'
+      }
+    >
+      {children}
+    </div>
+  )
 }
 
 interface IntelligenceStatusItem {
@@ -216,6 +234,7 @@ interface IntelligenceCommandLayoutProps {
   insights: ReactNode
   assistant: ReactNode
   mainScrollable?: boolean
+  variant?: 'viewport' | 'stacked'
 }
 
 export function IntelligenceCommandLayout({
@@ -223,22 +242,35 @@ export function IntelligenceCommandLayout({
   insights,
   assistant,
   mainScrollable = true,
+  variant = 'viewport',
 }: IntelligenceCommandLayoutProps) {
+  const gridClass =
+    variant === 'viewport'
+      ? 'grid h-full min-h-0 flex-1 grid-cols-1 gap-3 xl:grid-cols-[minmax(0,1.35fr)_minmax(240px,0.75fr)_minmax(260px,0.9fr)] xl:items-stretch'
+      : 'grid grid-cols-1 gap-3 xl:grid-cols-[minmax(0,1.35fr)_minmax(240px,0.75fr)_minmax(260px,0.9fr)] xl:items-start'
+
+  const mainClass =
+    variant === 'viewport'
+      ? mainScrollable
+        ? 'min-h-0 min-w-0 overflow-y-auto overscroll-contain pr-1 [-webkit-overflow-scrolling:touch]'
+        : 'flex min-h-0 min-w-0 flex-col overflow-hidden pr-1'
+      : 'min-w-0 pr-1'
+
+  const insightsClass =
+    variant === 'viewport'
+      ? 'min-h-0 min-w-0 space-y-4 overflow-y-auto overscroll-contain pr-1'
+      : 'min-w-0 space-y-4 pr-1'
+
+  const assistantClass =
+    variant === 'viewport'
+      ? 'flex min-h-[min(520px,62vh)] min-w-0 flex-col overflow-hidden xl:min-h-0 xl:h-full'
+      : 'flex min-h-[min(360px,50vh)] min-w-0 flex-col xl:min-h-[min(520px,62vh)]'
+
   return (
-    <div className="grid h-full min-h-0 flex-1 grid-cols-1 gap-3 xl:grid-cols-[minmax(0,1.35fr)_minmax(240px,0.75fr)_minmax(260px,0.9fr)] xl:items-stretch">
-      <div
-        className={`min-h-0 min-w-0 pr-1 ${
-          mainScrollable
-            ? 'overflow-y-auto overscroll-contain [-webkit-overflow-scrolling:touch]'
-            : 'flex flex-col overflow-hidden'
-        }`}
-      >
-        {main}
-      </div>
-      <div className="min-h-0 min-w-0 space-y-4 overflow-y-auto overscroll-contain pr-1">{insights}</div>
-      <div className="flex min-h-[min(520px,62vh)] min-w-0 flex-col overflow-hidden xl:min-h-0 xl:h-full">
-        {assistant}
-      </div>
+    <div className={gridClass}>
+      <div className={mainClass}>{main}</div>
+      <div className={insightsClass}>{insights}</div>
+      <div className={assistantClass}>{assistant}</div>
     </div>
   )
 }

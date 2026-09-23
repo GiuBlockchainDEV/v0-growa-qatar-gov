@@ -1,5 +1,6 @@
 'use client'
 
+import { useSearchParams } from 'next/navigation'
 import { AlertTriangle, Bot, MapPin, Radio } from 'lucide-react'
 import type { IntelligenceSignal, OutlookSummary, SituationChange } from '@/lib/domain/types'
 import {
@@ -24,14 +25,26 @@ export function IntelligenceMapHint({ moduleLabel }: { moduleLabel: string }) {
   )
 }
 
+function resolveInvestigationModule(module: string, currentModule: string | null) {
+  if (module === 'harvest' || module === 'production-harvest') return 'harvest'
+  if (currentModule === 'harvest' || currentModule === 'production-harvest') return 'harvest'
+  return currentModule || 'watchtower'
+}
+
 export function IntelligenceWatchtowerSignals({
   signals,
   loading,
+  module = 'watchtower',
 }: {
   signals: IntelligenceSignal[]
   loading?: boolean
+  module?: string
 }) {
   const opCtx = useOperationalContextOptional()
+  const searchParams = useSearchParams()
+  const currentModule = searchParams.get('module')
+  const targetModule = resolveInvestigationModule(module, currentModule)
+  const parcelId = searchParams.get('parcelId')
 
   if (loading) {
     return <p className="text-sm text-white/45">Loading platform signals…</p>
@@ -47,7 +60,12 @@ export function IntelligenceWatchtowerSignals({
         <button
           key={signal.id}
           type="button"
-          onClick={() => opCtx?.goToModule('watchtower', { signalId: signal.id })}
+          onClick={() =>
+            opCtx?.goToModule(targetModule, {
+              signalId: signal.id,
+              parcelId: targetModule === 'harvest' ? parcelId || undefined : undefined,
+            })
+          }
           className="flex w-full items-start gap-2 rounded-lg border border-white/10 px-3 py-2 text-left hover:border-white/20"
         >
           <AlertTriangle
@@ -149,30 +167,41 @@ export function IntelligenceModuleActions({
   mapLayers?: string[]
 }) {
   const opCtx = useOperationalContextOptional()
+  const searchParams = useSearchParams()
+  const currentModule = searchParams.get('module')
+  const parcelId = searchParams.get('parcelId')
+  const estimationModule = estimationModuleFor(module)
+  const onHarvestDetail = Boolean(parcelId && (module === 'harvest' || currentModule === 'harvest'))
 
   return (
     <InvestigationActionBar>
       <InvestigationActionButton
         variant="primary"
-        onClick={() => opCtx?.goToModule('ai-mission-control', { module })}
+        onClick={() =>
+          opCtx?.goToModule('ai-mission-control', {
+            module,
+            parcelId: onHarvestDetail ? parcelId || undefined : undefined,
+          })
+        }
       >
         <Bot className="h-3.5 w-3.5" />
         Run AI investigation
       </InvestigationActionButton>
-      <InvestigationActionButton
-        variant="ghost"
-        onClick={() => opCtx?.goToModule('watchtower')}
-      >
-        <Radio className="h-3.5 w-3.5" />
-        National Watchtower
-      </InvestigationActionButton>
-      <InvestigationActionButton
-        variant="ghost"
-        onClick={() => opCtx?.goToModule(estimationModuleFor(module))}
-      >
-        <MapPin className="h-3.5 w-3.5" />
-        Open estimation view
-      </InvestigationActionButton>
+      {!onHarvestDetail ? (
+        <InvestigationActionButton variant="ghost" onClick={() => opCtx?.goToModule('watchtower')}>
+          <Radio className="h-3.5 w-3.5" />
+          National Watchtower
+        </InvestigationActionButton>
+      ) : null}
+      {estimationModule !== currentModule && !onHarvestDetail ? (
+        <InvestigationActionButton
+          variant="ghost"
+          onClick={() => opCtx?.goToModule(estimationModule)}
+        >
+          <MapPin className="h-3.5 w-3.5" />
+          Open estimation view
+        </InvestigationActionButton>
+      ) : null}
     </InvestigationActionBar>
   )
 }

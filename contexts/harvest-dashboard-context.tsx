@@ -316,7 +316,7 @@ export function HarvestDashboardProvider({ children }: { children: ReactNode }) 
       const params = new URLSearchParams(searchParams.toString())
       params.set('module', 'harvest')
       params.set('harvestMode', nextMode)
-      router.replace(`/dashboard?${params.toString()}`)
+      router.replace(`/dashboard?${params.toString()}`, { scroll: false })
     },
     [router, searchParams]
   )

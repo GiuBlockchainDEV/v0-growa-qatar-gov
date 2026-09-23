@@ -16,6 +16,7 @@ interface IntelligenceInvestigationLayoutProps {
   aiAnalysis?: ReactNode
   actions?: ReactNode
   className?: string
+  sectionScrollable?: boolean
 }
 
 export function IntelligenceInvestigationLayout({
@@ -30,6 +31,7 @@ export function IntelligenceInvestigationLayout({
   aiAnalysis,
   actions,
   className,
+  sectionScrollable = true,
 }: IntelligenceInvestigationLayoutProps) {
   const sections = [
     { key: 'context', label: 'Context', content: contextHeader },
@@ -50,7 +52,7 @@ export function IntelligenceInvestigationLayout({
         <InvestigationSection
           key={section.key}
           title={section.label}
-          scrollable={section.key !== 'actions' && section.key !== 'context'}
+          scrollable={sectionScrollable && section.key !== 'actions' && section.key !== 'context'}
           className={section.key === 'actions' || section.key === 'context' ? 'lg:col-span-2' : undefined}
         >
           {section.content}

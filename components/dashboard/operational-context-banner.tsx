@@ -1,7 +1,9 @@
 'use client'
 
 import Link from 'next/link'
+import { useSearchParams } from 'next/navigation'
 import { MapPin, Radio, X } from 'lucide-react'
+import { hasOperationalOverlayContext, isHarvestDashboardModule } from '@/lib/dashboard/context-navigation'
 import { useOperationalContextOptional } from '@/contexts/operational-context-provider'
 import { useI18n } from '@/lib/i18n'
 import { timeframeLabel } from '@/lib/domain/timeframes'
@@ -16,10 +18,12 @@ export function OperationalContextBanner({ className }: OperationalContextBanner
   const opCtx = useOperationalContextOptional()
   if (!opCtx) return null
 
+  const searchParams = useSearchParams()
   const { context, timeframe, selectedSignalId, clearContext } = opCtx
-  const hasContext = Boolean(
-    context.farmId || context.parcelId || context.signalId || selectedSignalId || context.cropId
-  )
+  const activeModule = searchParams.get('module')
+  const hasContext = hasOperationalOverlayContext(searchParams, {
+    ignoreParcelId: isHarvestDashboardModule(activeModule),
+  })
 
   if (!hasContext) return null
 
@@ -38,7 +42,9 @@ export function OperationalContextBanner({ className }: OperationalContextBanner
             Farm: {context.farmId.slice(0, 8)}…
           </span>
         )}
-        {context.parcelId && <span>Parcel: {context.parcelId.slice(0, 8)}…</span>}
+        {context.parcelId && !isHarvestDashboardModule(activeModule) ? (
+          <span>Parcel: {context.parcelId.slice(0, 8)}…</span>
+        ) : null}
         {context.cropId && <span>Crop: {context.cropId}</span>}
         {(context.signalId || selectedSignalId) && (
           <span className="inline-flex items-center gap-1">
@@ -50,14 +56,15 @@ export function OperationalContextBanner({ className }: OperationalContextBanner
       </div>
 
       <div className="flex items-center gap-2">
-        {context.farmId && (
+        {context.farmId ? (
           <Link
             href={`/dashboard?module=watchtower&farmId=${context.farmId}`}
+            scroll={false}
             className="text-[10px] text-[#07f880] hover:underline"
           >
-            {t('context.back_to_watchtower')}
+            View in Watchtower
           </Link>
-        )}
+        ) : null}
         <button
           type="button"
           onClick={clearContext}
