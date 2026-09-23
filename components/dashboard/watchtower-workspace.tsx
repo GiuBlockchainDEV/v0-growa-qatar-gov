@@ -3,8 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { AlertTriangle, RefreshCw, Radio } from 'lucide-react'
-import type { WatchtowerSummary, WatchtowerTimeframe, IntelligenceSignal } from '@/lib/domain/types'
-import { WATCHTOWER_TIMEFRAMES, timeframeLabel } from '@/lib/domain/timeframes'
+import type { WatchtowerSummary, IntelligenceSignal } from '@/lib/domain/types'
 import { useOperationalContext } from '@/contexts/operational-context-provider'
 import { useI18n } from '@/lib/i18n'
 import { SignalCard } from '@/components/dashboard/watchtower/signal-card'
@@ -21,7 +20,7 @@ import { cn } from '@/lib/utils'
 export function WatchtowerWorkspace() {
   const { t, locale } = useI18n()
   const searchParams = useSearchParams()
-  const { timeframe, setTimeframe, selectedSignalId, context } = useOperationalContext()
+  const { timeframe, selectedSignalId, context } = useOperationalContext()
   const mapProps = buildDashboardMapProps(searchParams)
 
   const [summary, setSummary] = useState<WatchtowerSummary | null>(null)
@@ -145,20 +144,6 @@ export function WatchtowerWorkspace() {
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
-            <div className="flex rounded border border-white/10 bg-[#0a0d12] p-0.5">
-              {WATCHTOWER_TIMEFRAMES.map((tf) => (
-                <button
-                  key={tf}
-                  onClick={() => setTimeframe(tf)}
-                  className={cn(
-                    'rounded px-2 py-1 text-[9px] font-bold uppercase tracking-wider transition-colors',
-                    timeframe === tf ? 'bg-[#07f880] text-black' : 'text-white/45 hover:text-white/80'
-                  )}
-                >
-                  {timeframeLabel(tf)}
-                </button>
-              ))}
-            </div>
             <button
               onClick={() => loadSummary(true)}
               disabled={refreshing}

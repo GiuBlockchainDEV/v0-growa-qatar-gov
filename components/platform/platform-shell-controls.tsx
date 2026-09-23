@@ -2,13 +2,11 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { Bell, Clock } from 'lucide-react'
+import { Bell } from 'lucide-react'
 import { useI18n } from '@/lib/i18n'
 import { useOrganization } from '@/hooks/use-organization'
 import { useSharedRoleNavigation } from '@/contexts/role-navigation-context'
 import { useOperationalContextOptional } from '@/contexts/operational-context-provider'
-import { WATCHTOWER_TIMEFRAMES, timeframeLabel } from '@/lib/domain/timeframes'
-import { cn } from '@/lib/utils'
 
 export function PlatformShellControls() {
   const { locale } = useI18n()
@@ -53,27 +51,6 @@ export function PlatformShellControls() {
         <p className="text-[9px] uppercase tracking-wider text-white/30">{locale === 'ar' ? 'النطاق' : 'Scope'}</p>
         <p className="text-[11px] text-white/60 truncate">{scopeLabel}</p>
       </div>
-
-      {opCtx && (
-        <div className="hidden xl:flex items-center gap-1 border-l border-white/10 pl-3">
-          <Clock className="h-3 w-3 text-white/30" />
-          <div className="flex rounded border border-white/10 p-0.5">
-            {WATCHTOWER_TIMEFRAMES.map((tf) => (
-              <button
-                key={tf}
-                type="button"
-                onClick={() => opCtx.setTimeframe(tf)}
-                className={cn(
-                  'rounded px-1 py-0.5 text-[8px] font-bold uppercase',
-                  opCtx.timeframe === tf ? 'bg-[#07f880] text-black' : 'text-white/40 hover:text-white/65'
-                )}
-              >
-                {timeframeLabel(tf)}
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
 
       <span className="hidden 2xl:inline text-[10px] text-white/35 border-l border-white/10 pl-3">{roleLabel}</span>
 

@@ -2,9 +2,9 @@ import { describe, expect, it } from 'vitest'
 import { parseWatchtowerTimeframe, resolveTimeWindow } from '@/lib/domain/timeframes'
 
 describe('parseWatchtowerTimeframe', () => {
-  it('defaults to 7d for invalid input', () => {
-    expect(parseWatchtowerTimeframe(null)).toBe('7d')
-    expect(parseWatchtowerTimeframe('invalid')).toBe('7d')
+  it('defaults to season for invalid input', () => {
+    expect(parseWatchtowerTimeframe(null)).toBe('season')
+    expect(parseWatchtowerTimeframe('invalid')).toBe('season')
   })
 
   it('parses valid timeframes', () => {

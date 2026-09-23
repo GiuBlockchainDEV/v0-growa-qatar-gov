@@ -7,7 +7,7 @@ export function parseWatchtowerTimeframe(input: string | null | undefined): Watc
   if (normalized && WATCHTOWER_TIMEFRAMES.includes(normalized as WatchtowerTimeframe)) {
     return normalized as WatchtowerTimeframe
   }
-  return '7d'
+  return 'season'
 }
 
 export function timeframeLabel(timeframe: WatchtowerTimeframe): string {
