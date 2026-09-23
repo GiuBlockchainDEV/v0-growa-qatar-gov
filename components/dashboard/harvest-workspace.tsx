@@ -132,7 +132,7 @@ function HarvestTrendBars({
         </span>
       </div>
       <div className="space-y-1.5">
-        {validPoints.slice(-8).map((point) => {
+        {validPoints.slice(-12).map((point) => {
           const width = maxValue > 0 ? Math.max(4, (point.value / maxValue) * 100) : 4
           return (
             <div key={`${metric}-${point.period}`} className="space-y-1">
@@ -550,7 +550,7 @@ export function HarvestWorkspace() {
       return
     }
 
-    const rasterMode = mode
+    const rasterMode = mapGranularity === 'dekad' ? 'current' : mode
     const requestId = ++rasterLoadSeqRef.current
 
     setFieldRasterLoading(true)

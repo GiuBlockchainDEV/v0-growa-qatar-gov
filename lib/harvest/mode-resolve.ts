@@ -9,8 +9,16 @@ export function resolveHarvestDataMode(
 }
 
 export function harvestStatsModesToTry(mode: HarvestMode): HarvestMode[] {
-  if (mode === 'predict') return ['predict', 'current']
+  if (mode === 'predict') return ['current', 'predict']
   return ['current']
+}
+
+export function harvestRasterModesToTry(
+  mode: HarvestMode,
+  granularity: HarvestTrendGranularity = 'season'
+): HarvestMode[] {
+  if (granularity === 'dekad') return mode === 'current' ? ['current'] : ['current', 'predict']
+  return mode === 'predict' ? ['predict', 'current'] : ['current']
 }
 
 export function harvestAnalyticsModesToTry(mode: HarvestMode): HarvestMode[] {

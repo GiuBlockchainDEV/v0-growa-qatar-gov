@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { requireHarvestAccess, harvestErrorResponse } from '@/lib/harvest/auth'
 import { harvestGetFieldRaster } from '@/lib/harvest/client'
+import { harvestRasterModesToTry } from '@/lib/harvest/mode-resolve'
 import { getDemoFieldRaster } from '@/lib/harvest/demo-data'
 import { isLiveRasterMetric } from '@/lib/harvest/field-raster-fallback'
 import { readRasterImageDimensions } from '@/lib/harvest/raster-image'
@@ -60,10 +61,28 @@ export async function GET(request: Request, context: RouteContext) {
     const query = {
       var: metric,
       granularity,
-      ...(granularity === 'dekad' && period ? { period } : {}),
+      ...(granularity === 'dekad' && period ? { period: period.match(/\d{4}-\d{2}-\d{2}/)?.[0] || period } : {}),
     }
 
-    const buffer = await harvestGetFieldRaster(mode, parcelId, seasonId, query)
+    let buffer: ArrayBuffer | null = null
+    let resolvedMode = mode
+    let lastError: unknown = null
+    for (const rasterMode of harvestRasterModesToTry(mode, granularity)) {
+      try {
+        const candidate = await harvestGetFieldRaster(rasterMode, parcelId, seasonId, query)
+        if (candidate.byteLength > 0) {
+          buffer = candidate
+          resolvedMode = rasterMode
+          break
+        }
+      } catch (error) {
+        lastError = error
+      }
+    }
+
+    if (!buffer) {
+      throw lastError instanceof Error ? lastError : new Error('Harvest raster image unavailable')
+    }
 
     if (!buffer.byteLength) {
       return NextResponse.json({ error: 'Empty raster response from Harvest API' }, { status: 502 })
@@ -77,7 +96,7 @@ export async function GET(request: Request, context: RouteContext) {
         'Content-Type': 'image/png',
         'Cache-Control': 'no-store',
         'Access-Control-Allow-Origin': '*',
-        'X-Harvest-Raster-Mode': mode,
+        'X-Harvest-Raster-Mode': resolvedMode,
         'X-Harvest-Raster-Source': 'entity/raster',
         ...(dimensions
           ? {

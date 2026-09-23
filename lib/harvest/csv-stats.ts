@@ -55,8 +55,78 @@ function resolveMetricColumn(headers: string[], metric: HarvestMetricKey): numbe
   return -1
 }
 
+const METRIC_ALIASES: Record<string, HarvestMetricKey> = {
+  water_consumption: 'aeti',
+  aeti_mm: 'aeti',
+  et: 'aeti',
+  npp_sum: 'npp',
+  total_biomass_product: 'tbp',
+  biomass: 'tbp',
+  biomass_water_productivity: 'bwp',
+}
+
 function isHarvestMetricKey(value: string): value is HarvestMetricKey {
   return METRIC_KEYS.includes(value as HarvestMetricKey)
+}
+
+function resolveMetricKey(raw: string): HarvestMetricKey | null {
+  const normalized = raw.trim().toLowerCase()
+  if (isHarvestMetricKey(normalized)) return normalized
+  return METRIC_ALIASES[normalized] || null
+}
+
+export function normalizeHarvestPeriodDate(raw: string): string {
+  const match = raw.trim().match(/\d{4}-\d{2}-\d{2}/)
+  return match?.[0] || raw.trim()
+}
+
+function classifyStatsGranularity(
+  granularityRaw: string,
+  periodStart: string,
+  periodEnd: string
+): 'dekad' | 'season' | null {
+  const granularity = granularityRaw.trim().toLowerCase()
+  if (['season', 'seasonal', 'season_total', 'total'].includes(granularity)) return 'season'
+  if (['dekad', 'dekadal', 'dekads', '10d', '10-day'].includes(granularity)) return 'dekad'
+
+  const start = Date.parse(normalizeHarvestPeriodDate(periodStart))
+  const end = Date.parse(normalizeHarvestPeriodDate(periodEnd))
+  if (Number.isFinite(start) && Number.isFinite(end)) {
+    const days = (end - start) / 86_400_000
+    if (days > 16) return 'season'
+    if (days >= 0) return 'dekad'
+  }
+
+  if (!granularity || granularity === 'dekad') return 'dekad'
+  return null
+}
+
+function finalizeSeries(
+  series: Partial<Record<HarvestMetricKey, HarvestTimeseriesPoint[]>>,
+  cumulativeMetrics: Set<HarvestMetricKey>
+) {
+  for (const metric of METRIC_KEYS) {
+    const points = series[metric]
+    if (!points?.length) continue
+    const byPeriod = new Map<string, number>()
+    for (const point of points) {
+      byPeriod.set(normalizeHarvestPeriodDate(point.period), point.value)
+    }
+    const sorted = Array.from(byPeriod.entries())
+      .sort(([left], [right]) => left.localeCompare(right))
+      .map(([period, value]) => ({ period, value }))
+
+    series[metric] = cumulativeMetrics.has(metric) ? incrementsFromCumulative(sorted) : sorted
+  }
+}
+
+function incrementsFromCumulative(points: HarvestTimeseriesPoint[]) {
+  let previous = 0
+  return points.map((point) => {
+    const increment = point.value - previous
+    previous = point.value
+    return { period: point.period, value: Math.round(increment * 1000) / 1000 }
+  })
 }
 
 function appendPoint(
@@ -83,43 +153,41 @@ function parseLongFormatStatsCsv(
 
   const dekadSeries: Partial<Record<HarvestMetricKey, HarvestTimeseriesPoint[]>> = {}
   const seasonSeries: Partial<Record<HarvestMetricKey, HarvestTimeseriesPoint[]>> = {}
+  const cumulativeDekadMetrics = new Set<HarvestMetricKey>()
   const periods = new Map<string, HarvestFieldPeriodOption>()
 
   for (const line of lines.slice(1)) {
     const cells = parseCsvLine(line)
-    const granularity = granularityIndex >= 0 ? cells[granularityIndex] : 'dekad'
-    const metricRaw = metricIndex >= 0 ? cells[metricIndex]?.trim().toLowerCase() : ''
-    if (!isHarvestMetricKey(metricRaw)) continue
+    const granularityRaw = granularityIndex >= 0 ? cells[granularityIndex] || '' : ''
+    const metric = metricIndex >= 0 ? resolveMetricKey(cells[metricIndex] || '') : null
+    if (!metric) continue
 
-    const periodStart = periodStartIndex >= 0 ? cells[periodStartIndex] : ''
-    const periodEnd = periodEndIndex >= 0 ? cells[periodEndIndex] : ''
-    const periodLabel = periodEnd ? `${periodStart} / ${periodEnd}` : periodStart
+    const periodStart = periodStartIndex >= 0 ? cells[periodStartIndex] || '' : ''
+    const periodEnd = periodEndIndex >= 0 ? cells[periodEndIndex] || '' : ''
+    const bucket = classifyStatsGranularity(granularityRaw, periodStart, periodEnd)
+    if (!bucket) continue
 
-    if (granularity === 'dekad' && periodStart) {
-      periods.set(periodStart, { value: periodStart, label: periodLabel })
+    const periodDate = normalizeHarvestPeriodDate(periodStart)
+    const periodLabel = periodEnd ? `${periodDate} / ${normalizeHarvestPeriodDate(periodEnd)}` : periodDate
+    if (bucket === 'dekad' && periodDate) {
+      periods.set(periodDate, { value: periodDate, label: periodLabel })
     }
 
-    const value =
-      toMetricValue(valueIndex >= 0 ? cells[valueIndex] : undefined) ??
+    const periodValue = toMetricValue(valueIndex >= 0 ? cells[valueIndex] : undefined)
+    const cumulativeValue =
       toMetricValue(cumulativeValueIndex >= 0 ? cells[cumulativeValueIndex] : undefined) ??
       toMetricValue(totalValueIndex >= 0 ? cells[totalValueIndex] : undefined)
+    const value = periodValue ?? cumulativeValue
     if (value === undefined) continue
+    if (bucket === 'dekad' && periodValue === undefined && cumulativeValue !== undefined) {
+      cumulativeDekadMetrics.add(metric)
+    }
 
-    const target =
-      granularity === 'season'
-        ? seasonSeries
-        : granularity === 'dekad'
-          ? dekadSeries
-          : null
-    if (!target) continue
-
-    appendPoint(
-      target,
-      metricRaw,
-      granularity === 'season' ? 'Season total' : periodStart,
-      value
-    )
+    appendPoint(bucket === 'season' ? seasonSeries : dekadSeries, metric, bucket === 'season' ? 'Season total' : periodDate, value)
   }
+
+  finalizeSeries(dekadSeries, cumulativeDekadMetrics)
+  finalizeSeries(seasonSeries, new Set())
 
   const sortedPeriods = Array.from(periods.values()).sort((left, right) =>
     left.value.localeCompare(right.value)
@@ -155,22 +223,17 @@ function parseWideFormatStatsCsv(
 
   for (const line of lines.slice(1)) {
     const cells = parseCsvLine(line)
-    const granularity = granularityIndex >= 0 ? cells[granularityIndex] : 'dekad'
-    const periodStart = periodStartIndex >= 0 ? cells[periodStartIndex] : ''
-    const periodEnd = periodEndIndex >= 0 ? cells[periodEndIndex] : ''
-    const periodLabel = periodEnd ? `${periodStart} / ${periodEnd}` : periodStart
+    const granularityRaw = granularityIndex >= 0 ? cells[granularityIndex] || '' : ''
+    const periodStart = periodStartIndex >= 0 ? cells[periodStartIndex] || '' : ''
+    const periodEnd = periodEndIndex >= 0 ? cells[periodEndIndex] || '' : ''
+    const bucket = classifyStatsGranularity(granularityRaw, periodStart, periodEnd)
+    if (!bucket) continue
 
-    if (granularity === 'dekad' && periodStart) {
-      periods.set(periodStart, { value: periodStart, label: periodLabel })
+    const periodDate = normalizeHarvestPeriodDate(periodStart)
+    const periodLabel = periodEnd ? `${periodDate} / ${normalizeHarvestPeriodDate(periodEnd)}` : periodDate
+    if (bucket === 'dekad' && periodDate) {
+      periods.set(periodDate, { value: periodDate, label: periodLabel })
     }
-
-    const target =
-      granularity === 'season'
-        ? seasonSeries
-        : granularity === 'dekad'
-          ? dekadSeries
-          : null
-    if (!target) continue
 
     for (const metric of METRIC_KEYS) {
       const columnIndex = metricColumns[metric]
@@ -178,13 +241,16 @@ function parseWideFormatStatsCsv(
       const value = toMetricValue(cells[columnIndex])
       if (value === undefined) continue
       appendPoint(
-        target,
+        bucket === 'season' ? seasonSeries : dekadSeries,
         metric,
-        granularity === 'season' ? 'Season total' : periodStart,
+        bucket === 'season' ? 'Season total' : periodDate,
         value
       )
     }
   }
+
+  finalizeSeries(dekadSeries, new Set())
+  finalizeSeries(seasonSeries, new Set())
 
   const sortedPeriods = Array.from(periods.values()).sort((left, right) =>
     left.value.localeCompare(right.value)
@@ -213,13 +279,24 @@ export function mergeHarvestFieldStats(
     }
   }
 
+  const baseDekadCount = Object.values(base.timeseries.dekad).reduce(
+    (count, points) => count + (points?.length || 0),
+    0
+  )
+  const overlayDekadCount = Object.values(overlay.timeseries.dekad).reduce(
+    (count, points) => count + (points?.length || 0),
+    0
+  )
+  const periods = new Map<string, HarvestFieldPeriodOption>()
+  for (const period of [...base.periods, ...overlay.periods]) {
+    periods.set(period.value, period)
+  }
+
   return {
     ...base,
-    periods: base.periods.length > 0 ? base.periods : overlay.periods,
+    periods: Array.from(periods.values()).sort((left, right) => left.value.localeCompare(right.value)),
     timeseries: {
-      dekad: Object.keys(base.timeseries.dekad).length > 0
-        ? base.timeseries.dekad
-        : overlay.timeseries.dekad,
+      dekad: overlayDekadCount > baseDekadCount ? overlay.timeseries.dekad : base.timeseries.dekad,
       season: mergedSeason,
     },
   }

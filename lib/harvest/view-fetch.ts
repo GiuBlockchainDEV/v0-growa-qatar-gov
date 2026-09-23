@@ -2,6 +2,7 @@ import { harvestGetFieldRasterMeta, harvestGetParcel } from '@/lib/harvest/clien
 import { extractBoundsFromGeoJson } from '@/lib/harvest/geojson'
 import type { HarvestRasterBoundsExtent, HarvestRasterGeorefDebug } from '@/lib/harvest/types'
 import { normalizeRasterLegend, tryNormalizeRasterBounds, type RasterBounds } from '@/lib/harvest/raster-bounds'
+import { harvestRasterModesToTry } from '@/lib/harvest/mode-resolve'
 import type { HarvestMetricKey, HarvestMode, HarvestTrendGranularity } from '@/lib/harvest/types'
 
 export type HarvestRasterImageSource = 'raster'
@@ -46,9 +47,6 @@ function buildRasterQuery({
   }
 }
 
-function rasterModesToTry(mode: HarvestMode): HarvestMode[] {
-  return mode === 'predict' ? ['predict', 'current'] : ['current']
-}
 
 async function resolveParcelBounds(parcelId: string) {
   try {
@@ -184,7 +182,7 @@ export async function fetchHarvestRasterMeta({
         ? [preferredSeasonId]
         : []
 
-  const modesToTry = rasterModesToTry(mode)
+  const modesToTry = harvestRasterModesToTry(mode, granularity)
   let lastError: Error | null = null
 
   for (const trySeasonId of seasonsToTry) {
