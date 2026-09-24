@@ -173,13 +173,15 @@ export function OperationalContextProvider({ children }: { children: ReactNode }
 
   const goToModule = useCallback(
     (module: string, ctx?: Partial<NavigationTarget>) => {
+      const enteringHarvest =
+        (module === 'harvest' || module === 'production-harvest') &&
+        searchParams.get('module') !== 'harvest' &&
+        searchParams.get('module') !== 'production-harvest'
       navigateToUrl(
         navigateToModuleWithContext(searchParams, module, {
           ...ctx,
           timeframe,
-          harvestMode:
-            ctx?.harvestMode ||
-            (module === 'harvest' || module === 'production-harvest' ? 'predict' : undefined),
+          harvestMode: ctx?.harvestMode || (enteringHarvest ? 'predict' : undefined),
         })
       )
     },

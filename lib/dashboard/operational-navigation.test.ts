@@ -3,6 +3,7 @@ import {
   buildModuleUrl,
   navigateToFarm,
   navigateToHarvestField,
+  navigateToModuleWithContext,
   navigateToSignal,
   navigateToSignalEstimation,
   signalRecommendedModule,
@@ -96,14 +97,26 @@ describe('operational-navigation', () => {
     expect(url).not.toContain('focus=')
   })
 
-  it('keeps the current module context when only a signal is selected', () => {
+  it('stays on the module and drops the previous farm when only a signal is selected', () => {
     const url = buildModuleUrl(new URLSearchParams('module=water-intelligence&farmId=f1&zoom=14'), {
       module: 'water-intelligence',
       signalId: 's1',
     })
     expect(url).toContain('module=water-intelligence')
-    expect(url).toContain('farmId=f1')
+    expect(url).not.toContain('farmId=')
+    expect(url).not.toContain('zoom=')
     expect(url).toContain('signalId=s1')
+  })
+
+  it('uses the requested module even when context also names one', () => {
+    const url = navigateToModuleWithContext(
+      new URLSearchParams('module=harvest&parcelId=p1&focus=harvest-p1'),
+      'ai-mission-control',
+      { module: 'harvest', parcelId: 'p1' }
+    )
+    expect(url).toContain('module=ai-mission-control')
+    expect(url).not.toContain('focus=')
+    expect(url).not.toContain('parcelId=')
   })
 
   it('navigateToSignal ignores stale deep links without entity context', () => {

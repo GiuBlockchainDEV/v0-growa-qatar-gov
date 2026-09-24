@@ -27,23 +27,16 @@ export interface NavigationTarget {
   harvestMode?: string
 }
 
-function isSameDashboardModule(current: URLSearchParams, module: string) {
-  return (current.get('module') || 'watchtower') === module
-}
+const CARRIED_PARAMS = ['timeframe', 'timeRange', 'harvestMode'] as const
 
 export function navigationBase(current: URLSearchParams, module: string) {
-  if (isSameDashboardModule(current, module)) {
-    const params = new URLSearchParams(current.toString())
-    params.set('module', module)
-    return params
-  }
-
   const params = new URLSearchParams()
   params.set('module', module)
-  const timeframe = current.get('timeframe') || current.get('timeRange')
-  if (timeframe) {
-    params.set('timeframe', timeframe)
-    params.set('timeRange', timeframe)
+  for (const key of CARRIED_PARAMS) {
+    const value = current.get(key)
+    if (!value) continue
+    if (key === 'harvestMode' && module !== 'harvest' && module !== 'production-harvest') continue
+    params.set(key, value)
   }
   return params
 }
@@ -282,7 +275,8 @@ export function navigateToModuleWithContext(
   module: string,
   context?: Partial<NavigationTarget>
 ) {
-  return buildModuleUrl(current, { module, ...context })
+  const { module: _ignoredModule, ...rest } = context || {}
+  return buildModuleUrl(current, { ...rest, module })
 }
 
 export function signalRecommendedModule(type: IntelligenceSignal['type']): string {

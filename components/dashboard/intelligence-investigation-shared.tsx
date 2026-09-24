@@ -182,7 +182,6 @@ export function IntelligenceModuleActions({
         variant="primary"
         onClick={() =>
           opCtx?.goToModule('ai-mission-control', {
-            module,
             parcelId: onHarvestDetail ? parcelId || undefined : undefined,
           })
         }
