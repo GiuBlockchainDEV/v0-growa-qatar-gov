@@ -58,9 +58,7 @@ export function PlatformSidebar() {
     <aside className="fixed top-0 left-0 bottom-0 z-[2100] w-[15.5rem] flex flex-col border-r border-white/[0.06] bg-[#06080c]">
       <div className="shrink-0 border-b border-white/[0.06] px-4 py-4">
         <div className="flex items-center gap-2.5">
-          <div className="flex h-8 w-8 items-center justify-center rounded-md bg-[#07f880]/10 ring-1 ring-[#07f880]/20">
-            <span className="text-xs font-bold text-[#07f880]">GQ</span>
-          </div>
+          <img src="/growa-logo.png" alt="Growa" className="h-8 w-8 rounded-md" />
           <div className="min-w-0">
             <p className="text-sm font-semibold text-white truncate">Growa Qatar</p>
             <p className="text-[10px] text-white/35 truncate">

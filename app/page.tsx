@@ -44,7 +44,7 @@ export default function Home() {
           {/* Logo */}
           <div className="flex items-center justify-center mb-8">
             <img 
-              src="https://hebbkx1anhila5yf.public.blob.vercel-storage.com/logo512-dN5LxVKBkzU9yWpc5ROgvoTj7C4wM5.png" 
+              src="/growa-logo.png" 
               alt="Growa Logo" 
               className="h-20 w-20 drop-shadow-2xl"
             />

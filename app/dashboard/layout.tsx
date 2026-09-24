@@ -95,7 +95,7 @@ function DashboardShellContent({
           <div className="relative">
             <div className="h-16 w-16 rounded-full border-4 border-[#07f880]/20 border-t-[#07f880] animate-spin" />
             <img
-              src="https://hebbkx1anhila5yf.public.blob.vercel-storage.com/logo512-dN5LxVKBkzU9yWpc5ROgvoTj7C4wM5.png"
+              src="/growa-logo.png"
               alt="Growa"
               className="absolute inset-0 m-auto h-8 w-8"
             />

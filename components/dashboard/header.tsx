@@ -271,7 +271,7 @@ export function DashboardHeader({
           {!hideBrand ? (
             <div className="flex items-center gap-2.5">
               <img
-                src="https://hebbkx1anhila5yf.public.blob.vercel-storage.com/logo512-dN5LxVKBkzU9yWpc5ROgvoTj7C4wM5.png"
+                src="/growa-logo.png"
                 alt="Growa"
                 className="h-8 w-8"
               />

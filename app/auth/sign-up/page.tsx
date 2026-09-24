@@ -73,7 +73,7 @@ export default function Page() {
           <div className="space-y-6">
             <div className="flex items-center gap-3">
               <img 
-                src="https://hebbkx1anhila5yf.public.blob.vercel-storage.com/logo512-dN5LxVKBkzU9yWpc5ROgvoTj7C4wM5.png" 
+                src="/growa-logo.png" 
                 alt="Growa" 
                 className="h-14 w-14 drop-shadow-lg"
               />
@@ -111,7 +111,7 @@ export default function Page() {
             {/* Mobile logo */}
             <div className="lg:hidden flex items-center gap-3 mb-8">
               <img 
-                src="https://hebbkx1anhila5yf.public.blob.vercel-storage.com/logo512-dN5LxVKBkzU9yWpc5ROgvoTj7C4wM5.png" 
+                src="/growa-logo.png" 
                 alt="Growa" 
                 className="h-10 w-10"
               />
