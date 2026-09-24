@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import Link from 'next/link'
+import { DashboardQueryLink } from '@/components/dashboard/dashboard-query-link'
 import { Globe, ArrowRight } from 'lucide-react'
 
 interface FeedItem {
@@ -42,9 +42,9 @@ export function ExternalIntelligencePanel() {
           <Globe className="h-3.5 w-3.5 text-white/40" />
           <h3 className="text-xs font-semibold uppercase tracking-wider text-white/50">External intelligence</h3>
         </div>
-        <Link href="/dashboard?module=rss-feed" className="text-[10px] text-white/40 hover:text-[#07f880]">
+        <DashboardQueryLink href="/dashboard?module=rss-feed" className="text-[10px] text-white/40 hover:text-[#07f880]">
           All feeds →
-        </Link>
+        </DashboardQueryLink>
       </div>
 
       {loading ? (

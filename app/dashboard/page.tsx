@@ -349,7 +349,7 @@ function SlideFromLeftWorkspace({
             aria-label="Open full live map"
             title="Open full live map"
             className="absolute top-20 z-[1700] flex h-9 w-9 items-center justify-center rounded-lg border border-white/15 bg-[#0c0c0e]/90 text-white/80 shadow-lg transition-colors hover:border-[#07f880]/50 hover:text-[#07f880] left-[calc(75%-1.125rem)]"
-            onClick={() => router.replace('/dashboard?module=live-map&zoom=10', { scroll: false })}
+            onClick={() => router.push('/dashboard?module=live-map&zoom=10', { scroll: false })}
           >
             <Maximize2 className="h-4 w-4" />
           </button>

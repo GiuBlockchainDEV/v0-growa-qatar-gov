@@ -1,7 +1,7 @@
 'use client'
 
 import { TrendingDown, TrendingUp, Plus, CheckCircle, Minus } from 'lucide-react'
-import Link from 'next/link'
+import { DashboardQueryLink } from '@/components/dashboard/dashboard-query-link'
 import type { SituationChange } from '@/lib/domain/types'
 import { cn } from '@/lib/utils'
 
@@ -49,12 +49,12 @@ export function WatchtowerChangesPanel({ changes }: ChangesPanelProps) {
               )}
             </div>
             {change.deepLink && (
-              <Link
+              <DashboardQueryLink
                 href={change.deepLink}
                 className="shrink-0 text-[10px] text-[#07f880] hover:underline"
               >
                 View
-              </Link>
+              </DashboardQueryLink>
             )}
           </div>
         )

@@ -1,10 +1,10 @@
 'use client'
 
 import { ArrowRight, MapPin } from 'lucide-react'
-import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
+import { DashboardQueryLink } from '@/components/dashboard/dashboard-query-link'
 import type { IntelligenceSignal } from '@/lib/domain/types'
-import { navigateToSignal, navigateToSignalEstimation } from '@/lib/dashboard/operational-navigation'
+import { navigateToModuleWithContext, navigateToSignalEstimation } from '@/lib/dashboard/operational-navigation'
 import { cn } from '@/lib/utils'
 
 const SEVERITY_STYLES: Record<IntelligenceSignal['severity'], string> = {
@@ -32,7 +32,11 @@ export function WatchtowerSignalQueue({ signals }: SignalQueueProps) {
   return (
     <div className="space-y-2">
       {signals.slice(0, 8).map((signal) => {
-        const href = navigateToSignal(searchParams, signal)
+        const href = navigateToModuleWithContext(searchParams, 'investigations', {
+          signalId: signal.id,
+          farmId: signal.farmIds?.[0],
+          pointId: signal.pointIds?.[0],
+        })
         const estimationHref = navigateToSignalEstimation(searchParams, signal)
         const entityCount =
           signal.farmIds?.length || signal.pointIds?.length || signal.parcelIds?.length || 0
@@ -79,27 +83,27 @@ export function WatchtowerSignalQueue({ signals }: SignalQueueProps) {
               </div>
             </div>
             <div className="mt-3 flex flex-wrap gap-2">
-              <Link
+              <DashboardQueryLink
                 href={estimationHref}
                 className="inline-flex items-center gap-1 rounded-md bg-[#07f880]/15 px-2.5 py-1 text-[11px] font-medium text-[#07f880] hover:bg-[#07f880]/25 transition-colors"
               >
                 <MapPin className="h-3 w-3" />
                 Open estimation
-              </Link>
-              <Link
+              </DashboardQueryLink>
+              <DashboardQueryLink
                 href={href}
                 className="inline-flex items-center gap-1 rounded-md bg-white/10 px-2.5 py-1 text-[11px] font-medium text-white hover:bg-white/15 transition-colors"
               >
                 Investigate
                 <ArrowRight className="h-3 w-3" />
-              </Link>
+              </DashboardQueryLink>
               {signal.recommendedModule && signal.recommendedModule !== 'live-map' && (
-                <Link
+                <DashboardQueryLink
                   href={estimationHref}
                   className="inline-flex items-center gap-1 rounded-md border border-white/10 px-2.5 py-1 text-[11px] text-white/70 hover:text-white hover:border-white/20 transition-colors"
                 >
                   Open {signal.recommendedModule.replace(/-/g, ' ')}
-                </Link>
+                </DashboardQueryLink>
               )}
             </div>
           </div>

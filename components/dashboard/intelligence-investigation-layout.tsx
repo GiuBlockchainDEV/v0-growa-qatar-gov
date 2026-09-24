@@ -1,7 +1,7 @@
 'use client'
 
 import type { LucideIcon } from 'lucide-react'
-import Link from 'next/link'
+import { DashboardQueryLink } from '@/components/dashboard/dashboard-query-link'
 import type { ReactNode } from 'react'
 import { cn } from '@/lib/utils'
 
@@ -170,9 +170,9 @@ export function InvestigationActionButton({
 
   if (href) {
     return (
-      <Link href={href} scroll={false} className={className}>
+      <DashboardQueryLink href={href} className={className}>
         {children}
-      </Link>
+      </DashboardQueryLink>
     )
   }
 

@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
-import Link from 'next/link'
+import { DashboardQueryLink } from '@/components/dashboard/dashboard-query-link'
 import { useSearchParams } from 'next/navigation'
 import { Plus, RefreshCw, Search } from 'lucide-react'
 import { OperationalContextBanner } from '@/components/dashboard/operational-context-banner'
@@ -149,7 +149,7 @@ export function InvestigationsWorkspace() {
         {items.length === 0 ? (
           <p className="text-center text-sm text-white/40 py-12">
             No investigations. Create from Watchtower signals or start a new investigation.
-            <Link href="/dashboard?module=watchtower" className="block mt-2 text-[#07f880] hover:underline">Open Watchtower</Link>
+            <DashboardQueryLink href="/dashboard?module=watchtower" className="block mt-2 text-[#07f880] hover:underline">Open Watchtower</DashboardQueryLink>
           </p>
         ) : (
           items.map((item) => (
@@ -160,9 +160,9 @@ export function InvestigationsWorkspace() {
               </div>
               {item.summary && <p className="mt-1 text-xs text-white/55">{item.summary}</p>}
               {item.source_signal_id && (
-                <Link href={`/dashboard?module=watchtower&signalId=${item.source_signal_id}`} className="mt-2 inline-block text-[10px] text-[#07f880]">
+                <DashboardQueryLink href={`/dashboard?module=watchtower&signalId=${item.source_signal_id}`} className="mt-2 inline-block text-[10px] text-[#07f880]">
                   Source signal →
-                </Link>
+                </DashboardQueryLink>
               )}
             </div>
           ))

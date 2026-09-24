@@ -1,6 +1,6 @@
 'use client'
 
-import Link from 'next/link'
+import { DashboardQueryLink } from '@/components/dashboard/dashboard-query-link'
 import { useMemo } from 'react'
 import { useRoleNavigation } from '@/hooks/use-role-navigation'
 import {
@@ -158,7 +158,7 @@ export function ModuleWorkspace({ moduleKey }: ModuleWorkspaceProps) {
           </h2>
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
             {relatedLinks.map((link) => (
-              <Link
+              <DashboardQueryLink
                 key={link.key}
                 href={link.path}
                 className="flex items-center justify-between rounded-lg border border-white/10 bg-white/[0.02] px-3 py-2.5 text-sm text-white/75 hover:border-[#07f880]/30 hover:text-[#07f880] transition-colors"
@@ -174,7 +174,7 @@ export function ModuleWorkspace({ moduleKey }: ModuleWorkspaceProps) {
                   {link.label}
                 </span>
                 <ArrowRight className="h-3.5 w-3.5 opacity-50" />
-              </Link>
+              </DashboardQueryLink>
             ))}
           </div>
         </div>
@@ -185,9 +185,9 @@ export function ModuleWorkspace({ moduleKey }: ModuleWorkspaceProps) {
           </p>
           <p className="mt-2">
             Start from the{' '}
-            <Link href="/dashboard?module=watchtower" className="text-[#07f880] hover:underline">
+            <DashboardQueryLink href="/dashboard?module=watchtower" className="text-[#07f880] hover:underline">
               National Watchtower
-            </Link>{' '}
+            </DashboardQueryLink>{' '}
             for live situational awareness, then navigate to domain modules with preserved context.
           </p>
         </div>

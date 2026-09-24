@@ -1,7 +1,6 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import {
   Activity,
@@ -17,6 +16,7 @@ import {
   Trash2,
   TrendingUp,
 } from 'lucide-react'
+import { DashboardQueryLink } from '@/components/dashboard/dashboard-query-link'
 import { GrowaIntelligencePanel } from '@/components/dashboard/growa-intelligence-panel'
 import { HarvestFieldCreatePanel } from '@/components/dashboard/harvest-field-create-panel'
 import {
@@ -314,7 +314,7 @@ export function HarvestWorkspace() {
       if (seasonId) params.set('harvestSeasonId', String(seasonId))
       params.delete('harvestCreate')
       params.delete('harvestDraw')
-      router.replace(`/dashboard?${params.toString()}`)
+      router.push(`/dashboard?${params.toString()}`)
       void refreshWorkspace()
     },
     [refreshWorkspace, router, searchParams]
@@ -1359,14 +1359,13 @@ export function HarvestWorkspace() {
                         }`}
                       >
                         <td className="px-3 py-2 font-medium text-foreground">
-                          <Link
+                          <DashboardQueryLink
                             href={getFieldDetailHref(field)}
-                            scroll={false}
                             className="hover:text-primary hover:underline"
                             onClick={(event) => event.stopPropagation()}
                           >
                             {field.name}
-                          </Link>
+                          </DashboardQueryLink>
                           {collectingTasks.some((entry) => entry.parcel_id === field.parcel_id) ? (
                             <span className="ml-2 rounded-full bg-amber-500/15 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-amber-300">
                               Collecting

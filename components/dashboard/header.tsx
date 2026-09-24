@@ -243,7 +243,7 @@ export function DashboardHeader({
   const handleSelectFarm = (farm: FarmSearchOption) => {
     setSearchQuery(farm.name)
     setIsSearchOpen(false)
-    router.replace(buildFarmSearchMapUrl(farm), { scroll: false })
+    router.push(buildFarmSearchMapUrl(farm), { scroll: false })
   }
 
   const shouldShowSearchDropdown =

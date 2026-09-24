@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import Link from 'next/link'
+import { DashboardQueryLink } from '@/components/dashboard/dashboard-query-link'
 import { Bell } from 'lucide-react'
 import { useI18n } from '@/lib/i18n'
 import { useOrganization } from '@/hooks/use-organization'
@@ -54,7 +54,7 @@ export function PlatformShellControls() {
 
       <span className="hidden 2xl:inline text-[10px] text-white/35 border-l border-white/10 pl-3">{roleLabel}</span>
 
-      <Link
+      <DashboardQueryLink
         href="/dashboard?module=alerts-center"
         className="relative flex h-8 w-8 items-center justify-center rounded-md border border-white/10 text-white/55 hover:text-[#07f880] hover:border-[#07f880]/25"
       >
@@ -64,7 +64,7 @@ export function PlatformShellControls() {
             {alertCount > 9 ? '9+' : alertCount}
           </span>
         )}
-      </Link>
+      </DashboardQueryLink>
     </div>
   )
 }

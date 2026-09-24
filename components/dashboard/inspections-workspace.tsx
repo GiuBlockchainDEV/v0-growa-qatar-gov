@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import Link from 'next/link'
+import { DashboardQueryLink } from '@/components/dashboard/dashboard-query-link'
 import { useSearchParams } from 'next/navigation'
 import {
   ArrowRight,
@@ -227,9 +227,9 @@ export function InspectionsWorkspace() {
           {activeQueue.length === 0 ? (
             <p className="text-sm text-white/40 py-8 text-center">
               No active inspections.
-              <Link href="/dashboard?module=watchtower" className="block mt-2 text-[#07f880] hover:underline">
+              <DashboardQueryLink href="/dashboard?module=watchtower" className="block mt-2 text-[#07f880] hover:underline">
                 Open Watchtower
-              </Link>
+              </DashboardQueryLink>
             </p>
           ) : (
             activeQueue.map((item) => (

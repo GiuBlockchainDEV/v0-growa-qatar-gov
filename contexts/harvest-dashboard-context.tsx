@@ -294,7 +294,7 @@ export function HarvestDashboardProvider({ children }: { children: ReactNode }) 
   )
 
   const clearFieldSelection = useCallback(() => {
-    router.replace(buildHarvestNationalDashboardUrl(mode), { scroll: false })
+    router.push(buildHarvestNationalDashboardUrl(mode), { scroll: false })
     setHydratedField(null)
     setMetricOverlay({})
   }, [mode, router])
@@ -305,7 +305,7 @@ export function HarvestDashboardProvider({ children }: { children: ReactNode }) 
       setMetricOverlay({})
       const href = buildHarvestCreateDashboardUrl(drawMethod, mode)
       window.dispatchEvent(new Event('harvest:field-draw-clear'))
-      router.replace(href, { scroll: false })
+      router.push(href, { scroll: false })
     },
     [mode, router]
   )

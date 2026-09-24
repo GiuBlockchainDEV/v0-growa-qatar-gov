@@ -1,6 +1,6 @@
 'use client'
 
-import Link from 'next/link'
+import { DashboardQueryLink } from '@/components/dashboard/dashboard-query-link'
 import { useSearchParams } from 'next/navigation'
 import { MapPin, Radio, X } from 'lucide-react'
 import { hasOperationalOverlayContext, isHarvestDashboardModule } from '@/lib/dashboard/context-navigation'
@@ -58,13 +58,12 @@ export function OperationalContextBanner({ className }: OperationalContextBanner
 
       <div className="flex items-center gap-2">
         {context.farmId ? (
-          <Link
+          <DashboardQueryLink
             href={navigateToFarm(searchParams, context.farmId, 'watchtower', 14)}
-            scroll={false}
             className="text-[10px] text-[#07f880] hover:underline"
           >
             View in Watchtower
-          </Link>
+          </DashboardQueryLink>
         ) : null}
         <button
           type="button"

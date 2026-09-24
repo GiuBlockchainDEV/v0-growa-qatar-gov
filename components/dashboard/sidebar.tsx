@@ -1,6 +1,7 @@
 'use client'
 
 import Link from 'next/link'
+import { DashboardQueryLink } from '@/components/dashboard/dashboard-query-link'
 import { usePathname, useSearchParams } from 'next/navigation'
 import { useI18n } from '@/lib/i18n'
 import { cn } from '@/lib/utils'
@@ -108,7 +109,7 @@ export function DashboardSidebar({
     const Icon = getIconComponent(item.icon)
     const active = isNavItemActive(item.key, item.path)
     return (
-      <Link
+      <DashboardQueryLink
         key={item.key}
         href={item.path}
         onClick={persistent ? undefined : onClose}
@@ -121,7 +122,7 @@ export function DashboardSidebar({
       >
         <Icon className={cn('h-4 w-4', active ? 'text-[#07f880]' : '')} />
         <span>{resolveItemLabel(item)}</span>
-      </Link>
+      </DashboardQueryLink>
     )
   }
 

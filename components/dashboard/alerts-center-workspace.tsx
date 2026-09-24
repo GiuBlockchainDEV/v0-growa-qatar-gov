@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
-import Link from 'next/link'
+import { DashboardQueryLink } from '@/components/dashboard/dashboard-query-link'
 import {
   AlertTriangle,
   Bell,
@@ -186,13 +186,13 @@ export function AlertsCenterWorkspace() {
           <div className="rounded-lg border border-white/10 bg-[#0a0d12] p-8 text-center">
             <Search className="mx-auto h-8 w-8 text-white/20" />
             <p className="mt-3 text-sm text-white/50">{t('alerts.empty')}</p>
-            <Link
+            <DashboardQueryLink
               href="/dashboard?module=watchtower"
               className="mt-4 inline-flex items-center gap-1 text-xs text-[#07f880] hover:underline"
             >
               <Radio className="h-3 w-3" />
               {t('alerts.from_watchtower')}
-            </Link>
+            </DashboardQueryLink>
           </div>
         ) : (
           <div className="space-y-2">
@@ -227,22 +227,22 @@ export function AlertsCenterWorkspace() {
 
                   <div className="mt-3 flex flex-wrap gap-2">
                     {farmId && (
-                      <Link
+                      <DashboardQueryLink
                         href={buildFarmSearchMapUrl({ source: 'farm', id: farmId })}
                         className="inline-flex items-center gap-1 rounded border border-white/10 px-2 py-1 text-[10px] text-white/60 hover:text-[#07f880]"
                       >
                         <MapPin className="h-3 w-3" />
                         View on map
-                      </Link>
+                      </DashboardQueryLink>
                     )}
                     {alert.source_signal_id && (
-                      <Link
+                      <DashboardQueryLink
                         href={`/dashboard?module=watchtower&signalId=${alert.source_signal_id}`}
                         className="inline-flex items-center gap-1 rounded border border-white/10 px-2 py-1 text-[10px] text-white/60 hover:text-[#07f880]"
                       >
                         <Radio className="h-3 w-3" />
                         Source signal
-                      </Link>
+                      </DashboardQueryLink>
                     )}
                     {nextStatus && !unavailable && (
                       <button

@@ -1,7 +1,7 @@
 'use client'
 
-import Link from 'next/link'
 import { usePathname, useSearchParams } from 'next/navigation'
+import { DashboardQueryLink } from '@/components/dashboard/dashboard-query-link'
 import { useI18n } from '@/lib/i18n'
 import { cn } from '@/lib/utils'
 import { getIconComponent } from '@/hooks/use-role-navigation'
@@ -83,10 +83,9 @@ export function PlatformSidebar() {
                   active,
                 })
                 return (
-                  <Link
+                  <DashboardQueryLink
                     key={item.key}
                     href={href}
-                    scroll={false}
                     className={cn(
                       'group flex items-center gap-2.5 rounded-md px-2.5 py-2 text-[13px] transition-colors',
                       active
@@ -100,7 +99,7 @@ export function PlatformSidebar() {
                       className={cn('h-1.5 w-1.5 shrink-0 rounded-full', AVAILABILITY_DOT[item.availability])}
                       title={item.availability}
                     />
-                  </Link>
+                  </DashboardQueryLink>
                 )
               })}
             </div>
