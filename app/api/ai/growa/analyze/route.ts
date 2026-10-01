@@ -1,6 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { generateGrowaAnalysis } from '@/lib/ai/growa'
-import type { GrowaAnalyzeRequest, GrowaChatMessage, GrowaModule } from '@/lib/ai/growa-types'
+import type { GrowaAnalysisContext, GrowaAnalyzeRequest, GrowaChatMessage, GrowaModule } from '@/lib/ai/growa-types'
 import { NextResponse } from 'next/server'
 
 const ALLOWED_MODULES = new Set<GrowaModule>([
@@ -13,6 +13,20 @@ const ALLOWED_MODULES = new Set<GrowaModule>([
 
 function isGrowaModule(value: unknown): value is GrowaModule {
   return typeof value === 'string' && ALLOWED_MODULES.has(value as GrowaModule)
+}
+
+/* The context comes from the browser: check its shape instead of spreading
+   it blindly into the typed union, and cap its size (it is sent to the
+   model verbatim). */
+const MAX_CONTEXT_CHARS = 200_000
+
+function normalizeContext(input: unknown, growaModule: GrowaModule): GrowaAnalysisContext | null {
+  if (!input || typeof input !== 'object' || Array.isArray(input)) return null
+  const record = input as Record<string, unknown>
+  if (typeof record.generatedAt !== 'string') return null
+  if (!record.headline || typeof record.headline !== 'object') return null
+  if (JSON.stringify(record).length > MAX_CONTEXT_CHARS) return null
+  return { ...record, module: growaModule } as unknown as GrowaAnalysisContext
 }
 
 function normalizePrompt(input: unknown) {
@@ -72,8 +86,9 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Analysis prompt is required' }, { status: 400 })
   }
 
-  if (!context || typeof context !== 'object') {
-    return NextResponse.json({ error: 'Operational context is required' }, { status: 400 })
+  const typedContext = normalizeContext(context, growaModule)
+  if (!typedContext) {
+    return NextResponse.json({ error: 'Operational context is missing, malformed or too large' }, { status: 400 })
   }
 
   try {
@@ -81,10 +96,7 @@ export async function POST(request: Request) {
       {
         module: growaModule,
         prompt,
-        context: {
-          ...context,
-          module: growaModule,
-        },
+        context: typedContext,
         messages,
       },
       { request }

@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
-import { AlertTriangle, Bot, PieChart, RefreshCw, ShoppingBasket, Sprout, Truck } from 'lucide-react'
+import { Bot, PieChart, RefreshCw, ShoppingBasket, Sprout, Truck } from 'lucide-react'
 import { OperationalContextBanner } from '@/components/dashboard/operational-context-banner'
 import { GrowaIntelligencePanel } from '@/components/dashboard/growa-intelligence-panel'
 import {
@@ -21,9 +21,15 @@ import { useI18n } from '@/lib/i18n'
 import { COMMODITY_CATALOG, resolveCommodity } from '@/lib/platform/commodity-catalog'
 import type { IntelligenceSignal, WatchtowerSummary } from '@/lib/domain/types'
 import { cn } from '@/lib/utils'
+import { buildWatchtowerGrowaContext } from '@/lib/ai/build-watchtower-growa-context'
+import type { WatchtowerGrowaAnalysisContext } from '@/lib/ai/growa-types'
+import { Notice, Tile } from '@/components/brand/layout'
+import { Metric } from '@/components/brand/ui'
+import { StatusTag } from '@/components/brand/status'
+import { sharedFetch } from '@/lib/client/shared-fetch'
 
 export function CommodityWorkspace() {
-  const { locale } = useI18n()
+  const { tr, locale } = useI18n()
   const searchParams = useSearchParams()
   const { goToModule, timeframe } = useOperationalContext()
   const commodityId = searchParams.get('commodityId') || searchParams.get('commodity') || 'tomato'
@@ -34,17 +40,16 @@ export function CommodityWorkspace() {
     error: opsError,
     cropAggregates,
     producerRanking,
-    headline,
     producerLabelsById,
   } = useIntelligenceData()
 
   const [summary, setSummary] = useState<WatchtowerSummary | null>(null)
   const [summaryLoading, setSummaryLoading] = useState(true)
 
-  const loadSummary = useCallback(async () => {
+  const loadSummary = useCallback(async (force = false) => {
     try {
       setSummaryLoading(true)
-      const res = await fetch(`/api/watchtower/summary?timeframe=${timeframe}`, { cache: 'no-store' })
+      const res = await sharedFetch(`/api/watchtower/summary?timeframe=${timeframe}`, { force })
       const payload = await res.json()
       if (res.ok) setSummary(payload as WatchtowerSummary)
     } catch {
@@ -76,7 +81,11 @@ export function CommodityWorkspace() {
 
   const producingFarms = useMemo(() => {
     if (!commodityAggregate) return []
-    return producerRanking.slice(0, 6).map((entry, index) => ({
+    /* `producerRanking` is { mostEfficient, leastEfficient }, not a list. */
+    return [...producerRanking.mostEfficient]
+      .sort((a, b) => b.productionTons - a.productionTons)
+      .slice(0, 6)
+      .map((entry, index) => ({
       rank: index + 1,
       name: producerLabelsById[entry.pointId] || entry.pointId,
       productionTons: entry.productionTons,
@@ -88,21 +97,21 @@ export function CommodityWorkspace() {
   const coverageLabel =
     coverageValue !== null && coverageValue !== undefined
       ? `${coverageValue.toFixed(0)}%`
-      : 'Insufficient data'
+      : tr('Insufficient data')
 
-  const growaContext = useMemo(() => {
+  /* The panel expects a full analysis context (it keys sessions on
+     `generatedAt`): the commodity view used an ad-hoc object and crashed the
+     panel. Reuse the national context and put the commodity focus first. */
+  const growaContext = useMemo<WatchtowerGrowaAnalysisContext | null>(() => {
     if (!summary) return null
-    return {
-      module: 'commodities',
-      commodity: commodity.name,
-      timeframe,
-      productionTons: commodityAggregate?.totalProductionTons ?? null,
-      farmsCount: commodityAggregate?.farmsCount ?? null,
-      supplyCoverage: coverageValue,
-      relatedSignals: relatedSignals.map((signal) => signal.title),
-      nationalSupply: summary.supply,
-      outlook: summary.outlook,
-    }
+    const base = buildWatchtowerGrowaContext(summary)
+    const focus = [
+      `Commodity focus: ${commodity.name} (${timeframe}).`,
+      `Domestic production: ${commodityAggregate ? `${formatNumber(commodityAggregate.totalProductionTons)} t` : 'unknown'}; farms: ${commodityAggregate?.farmsCount ?? 'unknown'}.`,
+      `National coverage: ${coverageValue ?? 'unknown'}%.`,
+      relatedSignals.length ? `Linked signals: ${relatedSignals.map((signal) => signal.title).join('; ')}.` : 'No linked signals.',
+    ].join('\n')
+    return { ...base, digest: `${focus}\n\n${base.digest}` }
   }, [commodity.name, commodityAggregate, coverageValue, relatedSignals, summary, timeframe])
 
   const selectCommodity = (id: string) => {
@@ -117,78 +126,73 @@ export function CommodityWorkspace() {
   }
 
   return (
-    <div className="flex h-full flex-col overflow-hidden bg-[#050608] text-white">
-      <header className="shrink-0 border-b border-white/10 px-5 py-4 pt-20">
+    <div className="growa h-full overflow-y-auto overscroll-contain bg-background p-6 text-content">
+      <header className="space-y-4">
         <InvestigationContextHeader
-          eyebrow={locale === 'ar' ? 'الأمن الغذائي' : 'Food Security'}
+          eyebrow={tr('Food security')}
           title={locale === 'ar' ? commodity.nameAr : commodity.name}
-          description={
-            locale === 'ar'
-              ? 'تحليل الإنتاج المحلي، التوريد، التغطية الوطنية والمخاطر المرتبطة.'
-              : 'Domestic production, supply position, national coverage and linked risks.'
-          }
+          description={tr('Domestic production, supply position, national coverage and linked risks.')}
           icon={PieChart}
           meta={[
             {
-              label: locale === 'ar' ? 'الإنتاج المحلي' : 'Domestic production',
+              label: tr('Domestic production'),
               value: commodityAggregate
                 ? `${formatNumber(commodityAggregate.totalProductionTons)} t`
                 : '—',
             },
             {
-              label: locale === 'ar' ? 'التغطية الوطنية' : 'National coverage',
+              label: tr('National coverage'),
               value: coverageLabel,
               accent: coverageValue !== null && coverageValue !== undefined && coverageValue < 70,
             },
             {
-              label: locale === 'ar' ? 'الإشارات' : 'Signals',
+              label: tr('Signals'),
               value: String(relatedSignals.length),
               accent: relatedSignals.some((signal) => signal.severity === 'critical' || signal.severity === 'high'),
             },
             {
-              label: locale === 'ar' ? 'الفترة' : 'Timeframe',
-              value: timeframe,
+              label: tr('Timeframe'),
+              value: tr(timeframe),
             },
           ]}
         />
-        <div className="mt-4 flex flex-wrap gap-1.5">
+        <div className="flex flex-wrap gap-1.5" role="group" aria-label={tr('Commodities')}>
           {COMMODITY_CATALOG.map((entry) => (
             <button
               key={entry.id}
               type="button"
               onClick={() => selectCommodity(entry.id)}
+              aria-pressed={entry.id === commodity.id}
               className={cn(
-                'rounded-full border px-3 py-1 text-[11px] transition-colors',
+                'inline-flex h-8 items-center rounded-pill border px-3.5 text-[13px] transition-colors',
                 entry.id === commodity.id
-                  ? 'border-[#07f880]/40 bg-[#07f880]/15 text-[#07f880]'
-                  : 'border-white/10 text-white/55 hover:text-white'
+                  ? 'border-ink bg-ink text-white'
+                  : 'border-line-strong bg-card text-content hover:border-ink'
               )}
             >
               {locale === 'ar' ? entry.nameAr : entry.name}
             </button>
           ))}
         </div>
-        <div className="mt-3">
-          <OperationalContextBanner />
-        </div>
+        <OperationalContextBanner />
       </header>
 
-      <div className="flex-1 overflow-y-auto p-5">
+      <div className="mt-4">
         <IntelligenceInvestigationLayout
           currentCondition={
-            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <div className="grid grid-cols-2 gap-3">
               <MetricTile
-                label="Domestic production"
+                label={tr('Domestic production')}
                 value={commodityAggregate ? `${formatNumber(commodityAggregate.totalProductionTons)} t` : '—'}
                 loading={opsLoading}
               />
               <MetricTile
-                label="Active farms"
+                label={tr('Active farms')}
                 value={commodityAggregate ? String(commodityAggregate.farmsCount) : '—'}
                 loading={opsLoading}
               />
               <MetricTile
-                label="Contract volume"
+                label={tr('Contract volume')}
                 value={
                   summary?.supply.availableVolume?.value
                     ? `${formatNumber(summary.supply.availableVolume.value)} ${summary.supply.availableVolume.unit}`
@@ -197,7 +201,7 @@ export function CommodityWorkspace() {
                 loading={summaryLoading}
               />
               <MetricTile
-                label="At-risk deliveries"
+                label={tr('At-risk deliveries')}
                 value={
                   summary?.supply.atRiskDeliveries?.value
                     ? String(summary.supply.atRiskDeliveries.value)
@@ -210,34 +214,34 @@ export function CommodityWorkspace() {
           }
           whatChanged={
             summary?.changes.length ? (
-              <ul className="space-y-2 text-sm text-white/70">
+              <ul className="space-y-2 text-[14px] text-content">
                 {summary.changes.slice(0, 5).map((change) => (
-                  <li key={change.id} className="flex gap-2">
-                    <span className="text-white/35">•</span>
+                  <li key={change.id} className="flex items-start gap-2.5">
+                    <span aria-hidden="true" className="mt-[7px] h-1.5 w-1.5 shrink-0 bg-ink" style={{ borderRadius: 1 }} />
                     <span>{change.description}</span>
                   </li>
                 ))}
               </ul>
             ) : (
-              <p className="text-sm text-white/45">No significant commodity-linked changes in the selected timeframe.</p>
+              <p className="text-[14px] text-content-soft">{tr('No significant commodity-linked changes in the selected timeframe.')}</p>
             )
           }
           primaryAnalysis={
             <div className="grid gap-3 lg:grid-cols-2">
-              <InvestigationSection title="Production chain" compact>
-                <div className="space-y-2 text-sm text-white/70">
-                  <ChainStep icon={Sprout} label="Agricultural capacity" value={commodityAggregate ? `${commodityAggregate.polygonsCount} active areas` : 'Unknown'} />
-                  <ChainStep icon={PieChart} label="Current production" value={commodityAggregate ? `${formatNumber(commodityAggregate.totalProductionTons)} t` : 'Unknown'} />
-                  <ChainStep icon={ShoppingBasket} label="Domestic supply position" value={coverageLabel} />
-                  <ChainStep icon={Truck} label="Inbound supply" value={summary?.supply.availableVolume?.value ? 'Contracted volume available' : 'Limited linkage'} />
+              <InvestigationSection title={tr('Production chain')} compact>
+                <div className="space-y-2 text-sm text-content">
+                  <ChainStep icon={Sprout} label={tr('Agricultural capacity')} value={commodityAggregate ? tr('{count} active areas', { count: commodityAggregate.polygonsCount }) : tr('Unknown')} />
+                  <ChainStep icon={PieChart} label={tr('Current production')} value={commodityAggregate ? `${formatNumber(commodityAggregate.totalProductionTons)} t` : tr('Unknown')} />
+                  <ChainStep icon={ShoppingBasket} label={tr('Domestic supply position')} value={coverageLabel} />
+                  <ChainStep icon={Truck} label={tr('Inbound supply')} value={summary?.supply.availableVolume?.value ? tr('Contracted volume available') : tr('Limited linkage')} />
                 </div>
               </InvestigationSection>
-              <InvestigationSection title="Resource exposure" compact>
-                <div className="space-y-2 text-sm text-white/70">
-                  <p>Water intensity: {commodityAggregate ? `${formatNumber(commodityAggregate.totalWaterM3 / Math.max(1, commodityAggregate.totalProductionTons))} m³/t` : '—'}</p>
-                  <p>Energy intensity: {commodityAggregate ? `${formatNumber(commodityAggregate.totalEnergyKwh / Math.max(1, commodityAggregate.totalProductionTons))} kWh/t` : '—'}</p>
-                  <p>Climate exposure: {summary?.climate.heatRisk.value ?? '—'} heat risk index</p>
-                  <p>Data confidence: {opsError ? 'Limited' : opsLoading ? 'Loading' : 'Moderate evidence'}</p>
+              <InvestigationSection title={tr('Resource exposure')} compact>
+                <div className="space-y-2 text-sm text-content">
+                  <p>{tr('Water intensity: {value}', { value: commodityAggregate ? `${formatNumber(commodityAggregate.totalWaterM3 / Math.max(1, commodityAggregate.totalProductionTons))} m³/t` : '—' })}</p>
+                  <p>{tr('Energy intensity: {value}', { value: commodityAggregate ? `${formatNumber(commodityAggregate.totalEnergyKwh / Math.max(1, commodityAggregate.totalProductionTons))} kWh/t` : '—' })}</p>
+                  <p>{tr('Climate exposure: {value} heat risk index', { value: summary?.climate.heatRisk.value ?? '—' })}</p>
+                  <p>{tr('Data confidence: {value}', { value: opsError ? tr('Limited') : opsLoading ? tr('Loading') : tr('Moderate evidence') })}</p>
                 </div>
               </InvestigationSection>
             </div>
@@ -250,15 +254,16 @@ export function CommodityWorkspace() {
                     key={farm.pointId}
                     type="button"
                     onClick={() => goToModule('water-intelligence', { pointId: farm.pointId, crop: commodity.name })}
-                    className="flex w-full items-center justify-between rounded-lg border border-white/10 bg-white/[0.02] px-3 py-2 text-left hover:border-white/20"
+                    className="flex w-full items-center justify-between gap-3 border border-line bg-card px-3.5 py-2.5 text-start transition-colors hover:border-line-strong"
+                    style={{ borderRadius: 'var(--radius-lg)' }}
                   >
-                    <span className="text-sm text-white">#{farm.rank} {farm.name}</span>
-                    <span className="text-xs text-white/45">{formatNumber(farm.productionTons)} t</span>
+                    <span className="text-[14px] text-content"><span className="text-content-soft tabular-nums">#{farm.rank}</span> {farm.name}</span>
+                    <span className="text-[13px] text-content-soft tabular-nums">{formatNumber(farm.productionTons)} t</span>
                   </button>
                 ))}
               </div>
             ) : (
-              <p className="text-sm text-white/45">No producing farms matched for this commodity in current operational data.</p>
+              <p className="text-[14px] text-content-soft">{tr('No producing farms matched for this commodity in current operational data.')}</p>
             )
           }
           signals={
@@ -269,50 +274,48 @@ export function CommodityWorkspace() {
                 ))}
               </div>
             ) : (
-              <p className="text-sm text-white/45">No active supply or production signals for this commodity.</p>
+              <p className="text-[14px] text-content-soft">{tr('No active supply or production signals for this commodity.')}</p>
             )
           }
           forecast={
-            <div className="grid gap-3 sm:grid-cols-2 text-sm text-white/70">
+            <div className="grid gap-3 sm:grid-cols-2 text-sm text-content">
               <div>
-                <p className="text-[10px] uppercase tracking-wider text-white/40">7-day outlook</p>
-                <p className="mt-1">{summary?.outlook?.sevenDay?.operationalRisk || 'Insufficient forecast linkage'}</p>
+                <p className="text-[11px] text-content-soft">{tr('7-day outlook')}</p>
+                <p className="mt-1">{summary?.outlook?.sevenDay?.operationalRisk || tr('Insufficient forecast linkage')}</p>
               </div>
               <div>
-                <p className="text-[10px] uppercase tracking-wider text-white/40">30-day outlook</p>
-                <p className="mt-1">{summary?.outlook?.thirtyDay?.supplyImplications || summary?.outlook?.thirtyDay?.harvest || 'Insufficient forecast linkage'}</p>
+                <p className="text-[11px] text-content-soft">{tr('30-day outlook')}</p>
+                <p className="mt-1">{summary?.outlook?.thirtyDay?.supplyImplications || summary?.outlook?.thirtyDay?.harvest || tr('Insufficient forecast linkage')}</p>
               </div>
             </div>
           }
           aiAnalysis={
             growaContext ? (
-              <div className="min-h-[280px] rounded-lg border border-white/10 overflow-hidden">
-                <GrowaIntelligencePanel module="commodities" context={growaContext} />
-              </div>
+              <GrowaIntelligencePanel module="watchtower" context={growaContext} />
             ) : (
-              <p className="text-sm text-white/45">Load platform intelligence to enable commodity AI assessment.</p>
+              <Notice tone="info">{tr('Load platform intelligence to enable the commodity AI assessment.')}</Notice>
             )
           }
           actions={
             <InvestigationActionBar>
               <InvestigationActionButton variant="primary" onClick={startAiMission}>
-                <Bot className="h-3.5 w-3.5" />
-                Run Food Security mission
+                <Bot strokeWidth={1.5} className="h-3.5 w-3.5" />
+                {tr('Run food security mission')}
               </InvestigationActionButton>
               <InvestigationActionButton href="/dashboard/supply-overview" variant="ghost">
-                <Truck className="h-3.5 w-3.5" />
-                Supply position
+                <Truck strokeWidth={1.5} className="h-3.5 w-3.5" />
+                {tr('Supply position')}
               </InvestigationActionButton>
               <InvestigationActionButton
                 onClick={() => goToModule('harvest', { crop: commodity.name })}
                 variant="ghost"
               >
-                <Sprout className="h-3.5 w-3.5" />
-                Satellite & harvest
+                <Sprout strokeWidth={1.5} className="h-3.5 w-3.5" />
+                {tr('Satellite and harvest')}
               </InvestigationActionButton>
-              <InvestigationActionButton onClick={loadSummary} variant="ghost">
-                <RefreshCw className="h-3.5 w-3.5" />
-                Refresh
+              <InvestigationActionButton onClick={() => loadSummary(true)} variant="ghost">
+                <RefreshCw strokeWidth={1.5} className="h-3.5 w-3.5" />
+                {tr('Refresh')}
               </InvestigationActionButton>
             </InvestigationActionBar>
           }
@@ -334,15 +337,9 @@ function MetricTile({
   accent?: boolean
 }) {
   return (
-    <div
-      className={cn(
-        'rounded-lg border px-3 py-3',
-        accent ? 'border-amber-500/30 bg-amber-500/10' : 'border-white/10 bg-white/[0.02]'
-      )}
-    >
-      <p className="text-[10px] uppercase tracking-wider text-white/40">{label}</p>
-      <p className="mt-1 text-lg font-semibold text-white">{loading ? '…' : value}</p>
-    </div>
+    <Tile className={accent ? 'border-warning-line bg-warning-soft' : undefined}>
+      <Metric label={label} value={loading ? '…' : value} size="heading" />
+    </Tile>
   )
 }
 
@@ -357,10 +354,10 @@ function ChainStep({
 }) {
   return (
     <div className="flex items-start gap-2">
-      <Icon className="mt-0.5 h-4 w-4 text-[#07f880]/70" />
+      <Icon strokeWidth={1.5} className="mt-0.5 h-4 w-4 text-content-soft" />
       <div>
-        <p className="text-[10px] uppercase tracking-wider text-white/40">{label}</p>
-        <p className="text-sm text-white/75">{value}</p>
+        <p className="text-[12px] text-content-soft">{label}</p>
+        <p className="text-[14px] text-content">{value}</p>
       </div>
     </div>
   )
@@ -373,24 +370,18 @@ function SignalRow({
   signal: IntelligenceSignal
   onOpen: () => void
 }) {
-  const severityClass =
-    signal.severity === 'critical'
-      ? 'text-red-300'
-      : signal.severity === 'high'
-        ? 'text-orange-300'
-        : 'text-amber-300'
-
   return (
     <button
       type="button"
       onClick={onOpen}
-      className="flex w-full items-start gap-2 rounded-lg border border-white/10 px-3 py-2 text-left hover:border-white/20"
+      className="flex w-full items-start justify-between gap-3 border border-line bg-card px-3.5 py-2.5 text-start transition-colors hover:border-line-strong"
+      style={{ borderRadius: 'var(--radius-lg)' }}
     >
-      <AlertTriangle className={cn('mt-0.5 h-4 w-4 shrink-0', severityClass)} />
-      <div>
-        <p className="text-sm text-white">{signal.title}</p>
-        <p className="text-xs text-white/45">{signal.summary}</p>
+      <div className="min-w-0">
+        <p className="text-[14px] text-content">{signal.title}</p>
+        <p className="mt-0.5 text-[12px] text-content-soft">{signal.summary}</p>
       </div>
+      <StatusTag level={signal.severity} className="shrink-0" />
     </button>
   )
 }

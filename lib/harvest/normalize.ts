@@ -26,7 +26,8 @@ function toNumber(value: unknown): number | undefined {
   return undefined
 }
 
-function pickNumber(record: Record<string, unknown>, keys: string[]): number | undefined {
+function pickNumber(record: Record<string, unknown> | null | undefined, keys: string[]): number | undefined {
+  if (!record) return undefined
   for (const key of keys) {
     const value = toNumber(record[key])
     if (value !== undefined) return value
@@ -34,7 +35,8 @@ function pickNumber(record: Record<string, unknown>, keys: string[]): number | u
   return undefined
 }
 
-function pickString(record: Record<string, unknown>, keys: string[]): string | undefined {
+function pickString(record: Record<string, unknown> | null | undefined, keys: string[]): string | undefined {
+  if (!record) return undefined
   for (const key of keys) {
     const value = record[key]
     if (typeof value === 'string' && value.trim()) return value
@@ -103,7 +105,7 @@ function normalizeFieldMetricsFromRecord(record: Record<string, unknown>): Harve
   }
 
   for (const [alias, target] of Object.entries(METRIC_ALIASES)) {
-    if (metrics[target] !== undefined) continue
+    if (!target || metrics[target] !== undefined) continue
     const aliasValue = pickNumber(record, [alias, `${alias}_sum`, `${alias}_mean`, `${alias}_value`])
     if (aliasValue !== undefined) metrics[target] = aliasValue
   }

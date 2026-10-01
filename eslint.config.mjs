@@ -9,7 +9,11 @@ const eslintConfig = [
   ...nextTypescript,
   {
     rules: {
-      '@typescript-eslint/no-unused-vars': 'warn',
+      // Unused code is an error; a leading underscore marks "intentionally unused".
+      '@typescript-eslint/no-unused-vars': [
+        'error',
+        { argsIgnorePattern: '^_', varsIgnorePattern: '^_', caughtErrors: 'none', ignoreRestSiblings: true },
+      ],
       '@typescript-eslint/no-explicit-any': 'warn',
       '@typescript-eslint/no-empty-object-type': 'off',
       'react-hooks/preserve-manual-memoization': 'off',

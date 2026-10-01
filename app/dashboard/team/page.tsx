@@ -1,20 +1,27 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { useI18n } from '@/lib/i18n'
 import { useAuth } from '@/hooks/use-auth'
 import { useOrganization } from '@/hooks/use-organization'
-import { useTeamManagement } from '@/hooks/use-team-management'
+import { useTeamManagement, type TeamMember } from '@/hooks/use-team-management'
 import { usePermissions } from '@/hooks/use-permissions'
-import { Users, Plus, Trash2, Shield, Eye, Edit3 } from 'lucide-react'
+import { Users, Plus, Trash2, Shield } from 'lucide-react'
+import { useConfirm } from '@/components/brand/feedback'
+import { Card, EmptyState, LoadingState, PageBody, PageHeader } from '@/components/brand/layout'
+import { Button } from '@/components/brand/ui'
+import { StatusTag, humanize } from '@/components/brand/status'
 
 export default function TeamPage() {
+  const { tr, locale } = useI18n()
+  const confirmDialog = useConfirm()
   const { user } = useAuth()
   const { organization } = useOrganization()
-  const { getTeamMembers, updateMemberRole, removeMember } = useTeamManagement()
+  const { getTeamMembers, removeMember } = useTeamManagement()
   const { getUserRole } = usePermissions()
   const organizationId = organization?.id || ''
 
-  const [members, setMembers] = useState<any[]>([])
+  const [members, setMembers] = useState<TeamMember[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [userRole, setUserRole] = useState<string | null>(null)
 
@@ -40,133 +47,111 @@ export default function TeamPage() {
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center min-h-[60vh]">
-        <div className="text-muted-foreground">Loading team members...</div>
+      <div className="h-full flex items-center justify-center bg-background">
+        <LoadingState label={tr('Loading team members…')} />
       </div>
     )
   }
 
   const canManageUsers = userRole === 'admin' || userRole === 'super_admin'
+  const dateLocale = locale === 'ar' ? 'ar-QA' : 'en-GB'
 
-  const getRoleIcon = (role: string) => {
-    const iconProps = { className: 'h-4 w-4' }
-    switch (role) {
-      case 'super_admin':
-        return <Shield {...iconProps} className="h-4 w-4 text-red-500" />
-      case 'admin':
-        return <Shield {...iconProps} className="h-4 w-4 text-orange-500" />
-      case 'editor':
-        return <Edit3 {...iconProps} className="h-4 w-4 text-[#07f880]" />
-      case 'viewer':
-        return <Eye {...iconProps} className="h-4 w-4 text-blue-500" />
-      default:
-        return null
-    }
-  }
-
-  const getRoleColor = (role: string) => {
-    switch (role) {
-      case 'super_admin':
-        return 'bg-red-500/10 text-red-400 border-red-500/20'
-      case 'admin':
-        return 'bg-orange-500/10 text-orange-400 border-orange-500/20'
-      case 'editor':
-        return 'bg-[#07f880]/10 text-[#07f880] border-[#07f880]/20'
-      case 'viewer':
-        return 'bg-blue-500/10 text-blue-400 border-blue-500/20'
-      default:
-        return 'bg-gray-500/10 text-gray-400'
-    }
+  /* Role as a status tag: the square carries the weight of the role. */
+  const ROLE_LEVEL: Record<string, string> = {
+    super_admin: 'critical',
+    admin: 'high',
+    editor: 'good',
+    viewer: 'unknown',
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <Users className="h-6 w-6 text-[#07f880]" />
-          <h1 className="text-2xl font-bold text-foreground">Team Members</h1>
-        </div>
-        {canManageUsers && (
-          <button className="flex items-center gap-2 px-4 py-2 rounded-lg bg-[#07f880]/10 text-[#07f880] hover:bg-[#07f880]/20 transition-colors border border-[#07f880]/20">
-            <Plus className="h-4 w-4" />
-            Invite Member
-          </button>
-        )}
-      </div>
+    <div className="h-full overflow-y-auto bg-background">
+      <PageBody>
+        <PageHeader
+          eyebrow={tr('Company')}
+          title={tr('Team members')}
+          subtitle={tr('People with access to this organisation and their roles.')}
+          actions={
+            canManageUsers ? (
+              <Button>
+                <Plus strokeWidth={1.5} className="h-4 w-4" />
+                {tr('Invite member')}
+              </Button>
+            ) : null
+          }
+        />
 
-      <div className="rounded-lg border border-white/5 overflow-hidden">
-        <div className="divide-y divide-white/5">
-          {members.map((member) => (
-            <div
-              key={member.id}
-              className="flex items-center justify-between p-4 hover:bg-white/[0.02] transition-colors"
-            >
-              <div className="flex items-center gap-4 flex-1">
-                <div className="h-10 w-10 rounded-full bg-[#07f880]/20 flex items-center justify-center">
-                  <span className="text-sm font-bold text-[#07f880]">
-                    {member.first_name?.[0]}{member.last_name?.[0]}
-                  </span>
-                </div>
-                <div>
-                  <p className="font-medium text-foreground">
-                    {member.first_name} {member.last_name}
-                  </p>
-                  <p className="text-sm text-muted-foreground">{member.email}</p>
-                </div>
+        <Card icon={Users} title={tr('Members')} actions={<StatusTag level="good" label={String(members.length)} />} flush>
+          {members.length === 0 ? (
+            <EmptyState compact title={tr('No members yet')} />
+          ) : (
+            <ul className="divide-y divide-line">
+              {members.map((member) => (
+                <li key={member.id} className="flex flex-wrap items-center justify-between gap-4 px-4 py-3.5 hover:bg-muted transition-colors">
+                  <div className="flex items-center gap-3 flex-1 min-w-0">
+                    {/* Initials on an ink square (radius 25%), like the user menu. */}
+                    <div aria-hidden="true" className="h-10 w-10 shrink-0 bg-ink text-cream flex items-center justify-center text-[14px]" style={{ borderRadius: 10, fontWeight: 500 }}>
+                      {member.first_name?.[0]}{member.last_name?.[0]}
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-[14px] text-content truncate" style={{ fontWeight: 500 }}>
+                        {member.first_name} {member.last_name}
+                      </p>
+                      <p className="text-[13px] text-content-soft truncate">{member.email}</p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-4">
+                    <StatusTag level={ROLE_LEVEL[member.role] || 'unknown'} label={tr(humanize(member.role))} />
+                    <span className="text-[12px] text-content-soft tabular-nums">
+                      {/* Typed rows showed it: a missing date used to print "Invalid Date". */}
+                      {(() => {
+                        const raw = member.status === 'invited' ? member.invited_at : member.joined_at ?? member.created_at
+                        if (!raw) return null
+                        const date = new Date(raw).toLocaleDateString(dateLocale)
+                        return member.status === 'invited' ? tr('Invited {date}', { date }) : tr('Joined {date}', { date })
+                      })()}
+                    </span>
+
+                    {canManageUsers && member.user_id !== user?.id && (
+                      <button
+                        disabled={!organizationId}
+                        aria-label={tr('Remove {name}', { name: member.first_name || member.email })}
+                        onClick={async () => {
+                          if (await confirmDialog(tr('Remove this member?'))) {
+                            removeMember(organizationId, member.id).then(() => {
+                              setMembers(members.filter((m) => m.id !== member.id))
+                            })
+                          }
+                        }}
+                        className="w-8 h-8 inline-flex items-center justify-center rounded-pill text-stone-500 hover:text-critical hover:bg-muted transition-colors"
+                      >
+                        <Trash2 strokeWidth={1.5} className="h-4 w-4" />
+                      </button>
+                    )}
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </Card>
+
+        <Card icon={Shield} title={tr('Role permissions')} className="mt-4">
+          <dl className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            {[
+              { role: 'Viewer', level: 'unknown', desc: 'View-only access' },
+              { role: 'Editor', level: 'good', desc: 'Can edit data' },
+              { role: 'Admin', level: 'high', desc: 'Manage users and data' },
+              { role: 'Super admin', level: 'critical', desc: 'Full control' },
+            ].map((item) => (
+              <div key={item.role}>
+                <dt><StatusTag level={item.level} label={tr(item.role)} /></dt>
+                <dd className="mt-1.5 text-[13px] text-content-soft">{tr(item.desc)}</dd>
               </div>
-
-              <div className="flex items-center gap-4">
-                <div className={`flex items-center gap-2 px-3 py-1 rounded-full border text-xs font-medium ${getRoleColor(member.role)}`}>
-                  {getRoleIcon(member.role)}
-                  {member.role.charAt(0).toUpperCase() + member.role.slice(1)}
-                </div>
-
-                <div className="text-xs text-muted-foreground">
-                  {member.status === 'invited'
-                    ? `Invited ${new Date(member.invited_at).toLocaleDateString()}`
-                    : `Joined ${new Date(member.joined_at).toLocaleDateString()}`}
-                </div>
-
-                {canManageUsers && member.user_id !== user?.id && (
-                  <button
-                    disabled={!organizationId}
-                    onClick={() => {
-                      if (confirm('Remove this member?')) {
-                        removeMember(organizationId, member.id).then(() => {
-                          setMembers(members.filter((m) => m.id !== member.id))
-                        })
-                      }
-                    }}
-                    className="p-2 text-red-500/60 hover:text-red-500 hover:bg-red-500/10 rounded-lg transition-colors"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </button>
-                )}
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Role Reference */}
-      <div className="rounded-lg border border-white/5 bg-white/[0.02] p-4">
-        <h3 className="font-semibold text-foreground mb-3">Role Permissions</h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
-          {[
-            { role: 'Viewer', desc: 'View-only access' },
-            { role: 'Editor', desc: 'Can edit data' },
-            { role: 'Admin', desc: 'Manage users & data' },
-            { role: 'Super Admin', desc: 'Full control' },
-          ].map((item) => (
-            <div key={item.role} className="flex gap-2">
-              <div className="text-sm">
-                <p className="font-medium text-foreground">{item.role}</p>
-                <p className="text-xs text-muted-foreground">{item.desc}</p>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
+            ))}
+          </dl>
+        </Card>
+      </PageBody>
     </div>
   )
 }

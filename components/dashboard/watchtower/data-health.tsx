@@ -1,18 +1,22 @@
 'use client'
 
+import { Database, Gauge } from 'lucide-react'
 import type { DataQualityStatus, SourceStatus } from '@/lib/domain/types'
-import { cn } from '@/lib/utils'
+import { Card } from '@/components/brand/layout'
+import { StatusTag, humanize } from '@/components/brand/status'
+import { useI18n } from '@/lib/i18n'
 
-const HEALTH_STYLES: Record<string, string> = {
-  healthy: 'text-[#07f880]',
-  fresh: 'text-[#07f880]',
-  degraded: 'text-amber-300',
-  partial: 'text-amber-300',
-  stale: 'text-amber-300',
-  offline: 'text-red-300',
-  missing: 'text-red-300',
-  unavailable: 'text-red-300',
-  unknown: 'text-white/40',
+/* Source health words → the system's status squares. */
+const HEALTH_LEVEL: Record<string, string> = {
+  healthy: 'good',
+  fresh: 'good',
+  degraded: 'attention',
+  partial: 'attention',
+  stale: 'attention',
+  offline: 'critical',
+  missing: 'critical',
+  unavailable: 'critical',
+  unknown: 'unknown',
 }
 
 interface DataHealthProps {
@@ -21,58 +25,45 @@ interface DataHealthProps {
 }
 
 export function WatchtowerDataHealth({ dataQuality, sourceStatus }: DataHealthProps) {
+  const { tr } = useI18n()
   return (
     <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-      <div>
-        <h4 className="text-xs font-semibold uppercase tracking-wider text-white/50 mb-2">Source health</h4>
-        <div className="space-y-1.5">
+      <Card icon={Gauge} title={tr('Source health')}>
+        <ul className="divide-y divide-dotted divide-line-strong -my-1">
           {sourceStatus.map((source) => (
-            <div
-              key={source.source}
-              className="flex items-center justify-between rounded-md border border-white/10 bg-white/[0.02] px-3 py-2"
-            >
-              <div>
-                <p className="text-xs text-white/80">{source.source}</p>
-                {source.message && (
-                  <p className="text-[10px] text-white/40">{source.message}</p>
-                )}
+            <li key={source.source} className="flex items-center justify-between gap-3 py-2.5">
+              <div className="min-w-0">
+                <p className="text-[14px] text-content font-mono">{source.source}</p>
+                {source.message && <p className="text-[12px] text-content-soft">{source.message}</p>}
               </div>
-              <span className={cn('text-[10px] font-semibold uppercase', HEALTH_STYLES[source.health])}>
-                {source.health}
-              </span>
-            </div>
+              <StatusTag level={HEALTH_LEVEL[source.health] || 'unknown'} label={tr(humanize(source.health))} />
+            </li>
           ))}
-        </div>
-      </div>
-      <div>
-        <h4 className="text-xs font-semibold uppercase tracking-wider text-white/50 mb-2">Data coverage</h4>
-        <div className="space-y-1.5">
+        </ul>
+      </Card>
+      <Card icon={Database} title={tr('Data coverage')}>
+        <ul className="divide-y divide-dotted divide-line-strong -my-1">
           {dataQuality.map((item) => (
-            <div
-              key={item.source}
-              className="flex items-center justify-between rounded-md border border-white/10 bg-white/[0.02] px-3 py-2"
-            >
-              <div>
-                <p className="text-xs text-white/80">{item.source}</p>
+            <li key={item.source} className="flex items-center justify-between gap-3 py-2.5">
+              <div className="min-w-0">
+                <p className="text-[14px] text-content font-mono">{item.source}</p>
                 {item.entityCount !== undefined && (
-                  <p className="text-[10px] text-white/40">
-                    {item.entityCount} records
-                    {item.missingEntityCount ? ` · ${item.missingEntityCount} gaps` : ''}
+                  <p className="text-[12px] text-content-soft">
+                    {tr('{count} records', { count: item.entityCount })}
+                    {item.missingEntityCount ? ` · ${tr('{count} gaps', { count: item.missingEntityCount })}` : ''}
                   </p>
                 )}
               </div>
-              <div className="text-right">
-                <span className={cn('text-[10px] font-semibold uppercase', HEALTH_STYLES[item.status])}>
-                  {item.status}
-                </span>
+              <div className="text-end shrink-0">
+                <StatusTag level={HEALTH_LEVEL[item.status] || 'unknown'} label={tr(humanize(item.status))} />
                 {item.coveragePercent !== undefined && (
-                  <p className="text-[10px] text-white/40">{item.coveragePercent}% coverage</p>
+                  <p className="mt-1 text-[11px] text-content-soft tabular-nums">{tr('{percent}% coverage', { percent: item.coveragePercent })}</p>
                 )}
               </div>
-            </div>
+            </li>
           ))}
-        </div>
-      </div>
+        </ul>
+      </Card>
     </div>
   )
 }

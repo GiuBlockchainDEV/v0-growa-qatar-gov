@@ -10,13 +10,9 @@ import {
   navigateToSignalEstimation,
 } from '@/lib/dashboard/operational-navigation'
 import { cn } from '@/lib/utils'
-
-const SEVERITY_STYLES: Record<IntelligenceSignal['severity'], { border: string; badge: string; label: string }> = {
-  info: { border: 'border-sky-500/20', badge: 'bg-sky-500/15 text-sky-300', label: 'INFO' },
-  attention: { border: 'border-amber-500/25', badge: 'bg-amber-500/15 text-amber-300', label: 'ATTENTION' },
-  high: { border: 'border-orange-500/30', badge: 'bg-orange-500/15 text-orange-300', label: 'HIGH' },
-  critical: { border: 'border-red-500/35', badge: 'bg-red-500/15 text-red-300', label: 'CRITICAL' },
-}
+import { Button } from '@/components/brand/ui'
+import { StatusTag } from '@/components/brand/status'
+import { useI18n } from '@/lib/i18n'
 
 interface SignalCardProps {
   signal: IntelligenceSignal
@@ -26,11 +22,11 @@ interface SignalCardProps {
   compact?: boolean
 }
 
-export function SignalCard({ signal, selected, onCreateAlert, emphasized, compact }: SignalCardProps) {
+export function SignalCard({ signal, selected, onCreateAlert, compact }: SignalCardProps) {
+  const { tr } = useI18n()
   const opCtx = useOperationalContextOptional()
   const router = useRouter()
   const searchParams = useSearchParams()
-  const styles = SEVERITY_STYLES[signal.severity]
   const entityCount =
     signal.farmIds?.length || signal.pointIds?.length || signal.parcelIds?.length || 0
 
@@ -70,98 +66,107 @@ export function SignalCard({ signal, selected, onCreateAlert, emphasized, compac
     navigate(target)
   }
 
+  /* A signal is a tile inside the signals card: white, one-pixel line,
+     severity as a status tag (square + sentence case), the facts on
+     dotted rows, commands as pills. Selection is the sage ring, the one way
+     the app says "look here". */
   return (
-    <div
+    <article
       className={cn(
-        'relative z-10 rounded-lg border bg-[#0a0d12] transition-all',
-        compact ? 'p-2.5' : emphasized ? 'p-3.5' : 'p-3',
-        styles.border,
-        emphasized && 'shadow-[0_0_24px_rgba(251,146,60,0.08)]',
-        selected && 'ring-1 ring-[#07f880]/40 border-[#07f880]/30'
+        'relative z-10 bg-card border border-line transition-colors hover:border-line-strong',
+        compact ? 'p-3' : 'p-4',
+        selected && 'border-sage ring-2 ring-sage/30'
       )}
+      style={{ borderRadius: 'var(--radius-lg)' }}
     >
       <div className="flex items-center justify-between gap-2">
-        <span className={cn('rounded px-1.5 py-0.5 text-[9px] font-bold tracking-wider', styles.badge)}>
-          {styles.label}
-        </span>
-        {signal.sourceMode === 'demo' && (
-          <span className="text-[9px] uppercase text-amber-400/80">Demo</span>
-        )}
+        <StatusTag level={signal.severity} />
+        {signal.sourceMode === 'demo' && <span className="g-tag g-tag--muted" style={{ height: 22, padding: '0 9px', fontSize: 11 }}>{tr('Demo')}</span>}
       </div>
 
-      <h4 className={cn('mt-2 font-medium text-white leading-snug', emphasized ? 'text-sm' : compact ? 'text-xs' : 'text-sm')}>
+      <h4 className={cn('mt-3 text-content leading-snug', compact ? 'text-[13px]' : 'text-[14px]')} style={{ fontWeight: 500 }}>
         {signal.title}
       </h4>
 
-      <div className={cn('mt-2 space-y-1 text-white/55', compact ? 'text-[10px]' : 'text-[11px]')}>
-        {!compact && <p>{signal.summary}</p>}
-        {compact && <p className="line-clamp-2">{signal.summary}</p>}
-        {signal.deviationPercent !== undefined && (
-          <p className="text-white/70">
-            <span className="text-white/40">Deviation:</span>{' '}
-            {signal.deviationPercent > 0 ? '+' : ''}{signal.deviationPercent.toFixed(0)}% vs baseline
-          </p>
-        )}
-        {entityCount > 0 && (
-          <p className="flex items-center gap-1">
-            <MapPin className="h-3 w-3 text-white/40" />
-            {entityCount} affected
-          </p>
-        )}
-        {signal.confidence !== undefined && (
-          <p>
-            <span className="text-white/40">Confidence:</span> {Math.round(signal.confidence * 100)}%
-          </p>
-        )}
-      </div>
+      <p className={cn('mt-1.5 text-content-soft leading-[1.45]', compact ? 'text-[12px] line-clamp-2' : 'text-[13px]')}>
+        {signal.summary}
+      </p>
+
+      {(signal.deviationPercent !== undefined || entityCount > 0 || signal.confidence !== undefined) && (
+        <dl className="mt-3 border-t border-dotted border-line-strong pt-2 text-[12px] space-y-1">
+          {signal.deviationPercent !== undefined && (
+            <div className="flex justify-between gap-3">
+              <dt className="text-content-soft">{tr('Deviation')}</dt>
+              <dd className="text-content tabular-nums" style={{ fontWeight: 500 }}>
+                {tr('{value}% vs baseline', { value: `${signal.deviationPercent > 0 ? '+' : ''}${signal.deviationPercent.toFixed(0)}` })}
+              </dd>
+            </div>
+          )}
+          {entityCount > 0 && (
+            <div className="flex justify-between gap-3">
+              <dt className="text-content-soft">{tr('Affected')}</dt>
+              <dd className="text-content tabular-nums">{entityCount}</dd>
+            </div>
+          )}
+          {signal.confidence !== undefined && (
+            <div className="flex justify-between gap-3">
+              <dt className="text-content-soft">{tr('Confidence')}</dt>
+              <dd className="text-content tabular-nums">{Math.round(signal.confidence * 100)}%</dd>
+            </div>
+          )}
+        </dl>
+      )}
 
       <div className="relative z-10 mt-3 flex flex-wrap gap-1.5">
-        <button
-          type="button"
-          onClick={(event) => {
+        <Button
+          size="sm"
+          variant="secondary"
+          onClick={(event: React.MouseEvent) => {
             event.stopPropagation()
             openEstimation()
           }}
-          className="inline-flex items-center gap-1 rounded bg-[#07f880]/12 px-2 py-1 text-[10px] font-medium text-[#07f880] hover:bg-[#07f880]/20"
+          style={{ height: 28, padding: '0 12px', fontSize: 12 }}
         >
-          <MapPin className="h-3 w-3" />
-          Estimation
-        </button>
-        <button
-          type="button"
-          onClick={(event) => {
+          <MapPin strokeWidth={1.5} className="h-3.5 w-3.5" />
+          {tr('Estimation')}
+        </Button>
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={(event: React.MouseEvent) => {
             event.stopPropagation()
             openInvestigation()
           }}
-          className="inline-flex items-center gap-1 rounded border border-white/10 px-2 py-1 text-[10px] text-white/70 hover:text-white"
+          style={{ height: 28, padding: '0 12px', fontSize: 12 }}
         >
-          Investigate
-          <ArrowRight className="h-3 w-3" />
-        </button>
+          {tr('Investigate')}
+          <ArrowRight strokeWidth={1.5} className="h-3.5 w-3.5 rtl:-scale-x-100" />
+        </Button>
         {onCreateAlert && (
-          <button
-            type="button"
-            onClick={(event) => {
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={(event: React.MouseEvent) => {
               event.stopPropagation()
               onCreateAlert(signal)
             }}
-            className="inline-flex items-center gap-1 rounded border border-white/10 px-2 py-1 text-[10px] text-white/50 hover:text-amber-300"
+            style={{ height: 28, padding: '0 10px', fontSize: 12 }}
           >
-            <Bell className="h-3 w-3" />
-            Alert
-          </button>
+            <Bell strokeWidth={1.5} className="h-3.5 w-3.5" />
+            {tr('Alert')}
+          </Button>
         )}
       </div>
-    </div>
+    </article>
   )
 }
 
 export function SignalCardSkeleton() {
   return (
-    <div className="rounded-lg border border-white/10 bg-[#0a0d12] p-3 animate-pulse">
-      <div className="h-3 w-16 bg-white/10 rounded" />
-      <div className="mt-2 h-4 w-3/4 bg-white/10 rounded" />
-      <div className="mt-2 h-3 w-full bg-white/5 rounded" />
+    <div className="border border-line bg-card p-4 animate-pulse" style={{ borderRadius: 'var(--radius-lg)' }}>
+      <div className="h-[22px] w-20 bg-stone-100 rounded-pill" />
+      <div className="mt-3 h-4 w-3/4 bg-stone-100 rounded-xs" />
+      <div className="mt-2 h-3 w-full bg-muted rounded-xs" />
     </div>
   )
 }

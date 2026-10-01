@@ -1,3 +1,5 @@
+import { getNavItem } from '@/lib/navigation/registry'
+
 export type ModuleImplementationStatus = 'live' | 'partial' | 'upcoming'
 
 export interface ModuleStatusDefinition {
@@ -141,13 +143,15 @@ const MODULE_STATUS: Record<string, ModuleStatusDefinition> = {
 
 export function getModuleStatus(moduleKey: string): ModuleStatusDefinition {
   const normalized = moduleKey.trim().toLowerCase().replace(/_/g, '-')
-  return (
-    MODULE_STATUS[normalized] || {
-      status: 'upcoming',
-      relatedModules: ['watchtower', 'live-map'],
-      description: 'This module is registered in navigation but not yet fully integrated.',
-    }
-  )
+  const base = MODULE_STATUS[normalized] || {
+    status: 'upcoming' as const,
+    relatedModules: ['watchtower', 'live-map'],
+    description: 'This module is registered in navigation but not yet fully integrated.',
+  }
+  // The menu's availability square and this status must agree: the
+  // registry decides for every module it lists.
+  const navEntry = getNavItem(normalized)
+  return navEntry ? { ...base, status: navEntry.availability } : base
 }
 
 export function isLiveModule(moduleKey: string): boolean {

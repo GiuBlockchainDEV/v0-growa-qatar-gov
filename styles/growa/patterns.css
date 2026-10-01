@@ -1,0 +1,15 @@
+/* The signature design element: a lattice of small SQUARES standing in for
+   data points collected from the environment. Squares, never rounded dots.
+   Put .growa-square-grid on an absolutely-positioned overlay layer above imagery. */
+.growa-square-grid{
+  background:var(--dot-color,rgba(238,244,201,.92));
+  -webkit-mask-image:repeating-linear-gradient(to bottom,#000 0 var(--dot-size),transparent var(--dot-size) var(--dot-step)),repeating-linear-gradient(to right,#000 0 var(--dot-size),transparent var(--dot-size) var(--dot-step));
+  mask-image:repeating-linear-gradient(to bottom,#000 0 var(--dot-size),transparent var(--dot-size) var(--dot-step)),repeating-linear-gradient(to right,#000 0 var(--dot-size),transparent var(--dot-size) var(--dot-step));
+  -webkit-mask-composite:source-in;mask-composite:intersect;
+  pointer-events:none;
+}
+/* Cheap round-dot variant for backgrounds where no overlay layer exists. */
+.growa-dotgrid{background-image:radial-gradient(var(--dot-color,rgba(238,244,201,.9)) calc(var(--dot-size)/2),transparent calc(var(--dot-size)/2));background-size:var(--dot-step) var(--dot-step)}
+/* Survey crosshair used over satellite imagery. */
+.growa-crosshair{background-image:linear-gradient(rgba(238,244,201,.45) 1px,transparent 1px),linear-gradient(90deg,rgba(238,244,201,.45) 1px,transparent 1px);background-size:100% var(--crosshair-step,25%),var(--crosshair-step,25%) 100%;pointer-events:none}
+.growa-dotted-rule{border:0;border-top:1px dotted var(--border-default);height:0;margin:0}

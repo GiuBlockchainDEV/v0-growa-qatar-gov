@@ -9,7 +9,7 @@ import { useSharedRoleNavigation } from '@/contexts/role-navigation-context'
 import { useOperationalContextOptional } from '@/contexts/operational-context-provider'
 
 export function PlatformShellControls() {
-  const { locale } = useI18n()
+  const { tr } = useI18n()
   const { organization } = useOrganization()
   const { effectiveRole, roleProfile } = useSharedRoleNavigation()
   const opCtx = useOperationalContextOptional()
@@ -28,39 +28,49 @@ export function PlatformShellControls() {
     return () => { cancelled = true }
   }, [])
 
-  const roleLabel = (roleProfile || effectiveRole || 'viewer')
-    .replace(/_/g, ' ')
-    .replace(/\b\w/g, (c) => c.toUpperCase())
+  // Sentence case (brand rule): "Farm manager", not "Farm Manager".
+  const roleSpaced = (roleProfile || effectiveRole || 'viewer').replace(/_/g, ' ')
+  const roleLabel = roleSpaced.charAt(0).toUpperCase() + roleSpaced.slice(1)
 
   const scopeLabel = opCtx?.context.farmId
-    ? `Farm · ${opCtx.context.farmId.slice(0, 8)}…`
-    : locale === 'ar' ? 'نطاق وطني' : 'National scope'
+    ? tr('Farm · {id}…', { id: opCtx.context.farmId.slice(0, 8) })
+    : tr('National scope')
 
   return (
-    <div className="hidden lg:flex items-center gap-3 shrink-0">
-      <div className="min-w-0 max-w-[140px]">
-        <p className="text-[9px] uppercase tracking-wider text-white/30 truncate">
-          {locale === 'ar' ? 'المنظمة' : 'Org'}
+    /* Context, not chrome: organisation and scope read as two small label /
+       value pairs separated by a dotted rule (the brand never uses a solid
+       divider inside a bar). Labels are sentence case, not tracked caps. */
+    <div className="hidden lg:flex items-center gap-4 shrink-0 me-3">
+      <div className="min-w-0 max-w-[160px]">
+        <p className="text-[11px] text-content-soft truncate leading-tight">
+          {tr('Organisation')}
         </p>
-        <p className="text-[11px] font-medium text-white/80 truncate">
-          {organization?.name || '—'}
+        {/* A lone dash read as a loading glitch: say it plainly. */}
+        <p className={`text-[13px] truncate leading-tight ${organization?.name ? 'text-content' : 'text-content-soft'}`} style={{ fontWeight: organization?.name ? 500 : 400 }}>
+          {organization?.name || tr('Not assigned')}
         </p>
       </div>
 
-      <div className="border-l border-white/10 pl-3 min-w-0 max-w-[120px]">
-        <p className="text-[9px] uppercase tracking-wider text-white/30">{locale === 'ar' ? 'النطاق' : 'Scope'}</p>
-        <p className="text-[11px] text-white/60 truncate">{scopeLabel}</p>
+      <div className="border-s border-dotted border-line-strong ps-4 min-w-0 max-w-[140px]">
+        <p className="text-[11px] text-content-soft leading-tight">{tr('Scope')}</p>
+        <p className="text-[13px] text-content truncate leading-tight">{scopeLabel}</p>
       </div>
 
-      <span className="hidden 2xl:inline text-[10px] text-white/35 border-l border-white/10 pl-3">{roleLabel}</span>
+      <span className="hidden 2xl:inline text-[12px] text-content-soft border-s border-dotted border-line-strong ps-4">{tr(roleLabel)}</span>
 
       <DashboardQueryLink
         href="/dashboard?module=alerts-center"
-        className="relative flex h-8 w-8 items-center justify-center rounded-md border border-white/10 text-white/55 hover:text-[#07f880] hover:border-[#07f880]/25"
+        aria-label={alertCount > 0 ? tr('Alerts ({count} new)', { count: alertCount }) : tr('Alerts')}
+        className="relative flex items-center justify-center h-9 w-9 text-stone-600 hover:text-ink transition-colors"
       >
-        <Bell className="h-4 w-4" />
+        <Bell strokeWidth={1.5} className="h-5 w-5" aria-hidden="true" />
         {alertCount > 0 && (
-          <span className="absolute -top-1 -right-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-amber-500 px-0.5 text-[8px] font-bold text-black">
+          /* New alerts are something to act on: the system red, as a small
+             count pill — a count is a label, and short labels are pills. */
+          <span
+            aria-hidden="true"
+            className="absolute top-0 -end-0.5 flex h-4 min-w-[16px] items-center justify-center rounded-pill bg-critical px-1 text-[10px] font-medium text-white"
+          >
             {alertCount > 9 ? '9+' : alertCount}
           </span>
         )}

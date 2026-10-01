@@ -4,8 +4,10 @@ import Link from 'next/link'
 import { useEffect, useState } from 'react'
 import { useI18n } from '@/lib/i18n'
 import { useOrganization } from '@/hooks/use-organization'
-import { Button } from '@/components/ui/button'
-import { Plus, Search, Filter, Sprout, MapPin, Maximize2, MoreVertical } from 'lucide-react'
+import { Plus, Search, Filter, MapPin } from 'lucide-react'
+import { EmptyState, ErrorState, LoadingState, PageBody, PageHeader } from '@/components/brand/layout'
+import { Button, Field } from '@/components/brand/ui'
+import { StatusTag } from '@/components/brand/status'
 
 interface Farm {
   id: string
@@ -18,7 +20,7 @@ interface Farm {
 }
 
 export default function FarmsPage() {
-  const { locale } = useI18n()
+  const { locale, tr } = useI18n()
   const { organization, loading: orgLoading } = useOrganization()
   const [farms, setFarms] = useState<Farm[]>([])
   const [loading, setLoading] = useState(true)
@@ -34,7 +36,7 @@ export default function FarmsPage() {
         const data = await response.json()
         setFarms(data)
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to load farms')
+        setError(err instanceof Error ? err.message : tr('Failed to load farms'))
       } finally {
         setLoading(false)
       }
@@ -46,212 +48,121 @@ export default function FarmsPage() {
   }, [organization, orgLoading])
 
   const getTypeLabel = (type: string) => {
-    const typeMap: Record<string, { en: string; ar: string }> = {
-      crop: { en: 'Crop', ar: 'محاصيل' },
-      livestock: { en: 'Livestock', ar: 'ماشية' },
-      aquaculture: { en: 'Aquaculture', ar: 'استزراع سمكي' },
+    const typeMap: Record<string, string> = {
+      crop: tr('Crop|farm type'),
+      livestock: tr('Livestock'),
+      aquaculture: tr('Aquaculture'),
     }
-    return typeMap[type]?.[locale === 'ar' ? 'ar' : 'en'] || type
+    return typeMap[type] || type
   }
 
-  const getStatusStyles = (status: string) => {
-    switch (status) {
-      case 'active':
-        return 'bg-[#07f880]/10 text-[#07f880] border-[#07f880]/20'
-      case 'inactive':
-        return 'bg-muted text-muted-foreground border-border'
-      case 'maintenance':
-        return 'bg-amber-500/10 text-amber-400 border-amber-500/20'
-      default:
-        return 'bg-muted text-muted-foreground border-border'
-    }
-  }
-
-  const getTypeIcon = (type: string) => {
-    switch (type) {
-      case 'crop':
-        return <Sprout className="h-4 w-4" />
-      case 'livestock':
-        return <span className="text-sm">🐄</span>
-      case 'aquaculture':
-        return <span className="text-sm">🐟</span>
-      default:
-        return <Sprout className="h-4 w-4" />
-    }
-  }
+  const STATUS_LEVEL: Record<string, string> = { active: 'good', maintenance: 'attention', inactive: 'unknown' }
+  const statusLabel = (status: string) =>
+    status === 'active'
+      ? tr('Active')
+      : status === 'inactive'
+        ? tr('Inactive')
+        : status === 'maintenance'
+          ? tr('Maintenance')
+          : status.charAt(0).toUpperCase() + status.slice(1)
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-foreground tracking-tight">
-            {locale === 'ar' ? 'إدارة المزارع' : 'Farm Management'}
-          </h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            {locale === 'ar' 
-              ? 'إدارة ومراقبة جميع المزارع في المنظمة' 
-              : 'Manage and monitor all farms in your organization'}
-          </p>
-        </div>
-        <Button className="bg-primary hover:bg-primary/90 text-primary-foreground font-medium glow-primary">
-          <Plus className="h-4 w-4 mr-2" />
-          {locale === 'ar' ? 'إضافة مزرعة' : 'Add Farm'}
-        </Button>
-      </div>
+    <div className="h-full overflow-y-auto bg-background">
+      <PageBody>
+        <PageHeader
+          eyebrow={tr('Farms and sites')}
+          title={tr('Farm management')}
+          subtitle={tr('Manage and monitor all farms in your organisation.')}
+          actions={
+            <Button>
+              <Plus strokeWidth={1.5} className="h-4 w-4" />
+              {tr('Add farm')}
+            </Button>
+          }
+        />
 
-      {/* Filters Bar */}
-      <div className="flex flex-col sm:flex-row gap-3">
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <input
-            type="text"
-            placeholder={locale === 'ar' ? 'البحث في المزارع...' : 'Search farms...'}
+        <div className="flex flex-col sm:flex-row gap-2 mb-6">
+          <Field
+            className="flex-1"
+            aria-label={tr('Search farms')}
+            placeholder={tr('Search farms…')}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full h-10 rounded-lg border border-border bg-secondary/50 px-4 pl-10 text-sm placeholder-muted-foreground focus:border-primary/50 focus:outline-none focus:ring-1 focus:ring-primary/30"
+            prefix={<Search strokeWidth={1.5} className="h-4 w-4" />}
           />
+          <Button variant="secondary">
+            <Filter strokeWidth={1.5} className="h-4 w-4" />
+            {tr('Filter')}
+          </Button>
         </div>
-        <Button variant="outline" className="border-border hover:bg-secondary hover:border-primary/30">
-          <Filter className="h-4 w-4 mr-2" />
-          {locale === 'ar' ? 'فلتر' : 'Filter'}
-        </Button>
-      </div>
 
-      {/* Content */}
-      <div className="rounded-lg border border-border bg-card overflow-hidden">
-        {loading || orgLoading ? (
-          <div className="p-16 text-center">
-            <div className="inline-flex flex-col items-center gap-4">
-              <div className="h-10 w-10 rounded-full border-2 border-primary/30 border-t-primary animate-spin" />
-              <p className="text-sm text-muted-foreground">
-                {locale === 'ar' ? 'جاري تحميل المزارع...' : 'Loading farms...'}
-              </p>
-            </div>
-          </div>
-        ) : error ? (
-          <div className="p-16 text-center">
-            <div className="rounded-lg bg-red-500/10 border border-red-500/20 px-6 py-4 inline-block">
-              <p className="text-sm text-red-400">{error}</p>
-            </div>
-          </div>
-        ) : farms.length === 0 ? (
-          <div className="p-16 text-center">
-            <div className="inline-flex flex-col items-center gap-4">
-              <div className="rounded-xl bg-primary/10 p-4">
-                <Sprout className="h-8 w-8 text-primary" />
-              </div>
-              <div>
-                <p className="text-lg font-semibold text-foreground mb-1">
-                  {locale === 'ar' ? 'لا توجد مزارع بعد' : 'No farms yet'}
-                </p>
-                <p className="text-sm text-muted-foreground mb-4">
-                  {locale === 'ar' 
-                    ? 'أضف أول مزرعة لبدء تتبع العمليات' 
-                    : 'Add your first farm to start tracking operations'}
-                </p>
-              </div>
-              <Button className="bg-primary hover:bg-primary/90 text-primary-foreground">
-                <Plus className="h-4 w-4 mr-2" />
-                {locale === 'ar' ? 'إنشاء أول مزرعة' : 'Create First Farm'}
-              </Button>
-            </div>
-          </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="border-b border-border bg-secondary/30">
-                <tr>
-                  <th className="text-left px-6 py-4 font-semibold text-muted-foreground uppercase text-xs tracking-wider">
-                    {locale === 'ar' ? 'المزرعة' : 'Farm'}
-                  </th>
-                  <th className="text-left px-6 py-4 font-semibold text-muted-foreground uppercase text-xs tracking-wider">
-                    {locale === 'ar' ? 'النوع' : 'Type'}
-                  </th>
-                  <th className="text-left px-6 py-4 font-semibold text-muted-foreground uppercase text-xs tracking-wider">
-                    {locale === 'ar' ? 'الموقع' : 'Location'}
-                  </th>
-                  <th className="text-left px-6 py-4 font-semibold text-muted-foreground uppercase text-xs tracking-wider">
-                    {locale === 'ar' ? 'الحجم' : 'Size'}
-                  </th>
-                  <th className="text-left px-6 py-4 font-semibold text-muted-foreground uppercase text-xs tracking-wider">
-                    {locale === 'ar' ? 'الحالة' : 'Status'}
-                  </th>
-                  <th className="text-right px-6 py-4 font-semibold text-muted-foreground uppercase text-xs tracking-wider">
-                    {locale === 'ar' ? 'إجراءات' : 'Actions'}
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border">
-                {farms.map((farm) => (
-                  <tr key={farm.id} className="hover:bg-secondary/30 transition-colors">
-                    <td className="px-6 py-4">
-                      <div className="flex items-center gap-3">
-                        <div className="h-9 w-9 rounded-lg bg-primary/10 flex items-center justify-center text-primary">
-                          {getTypeIcon(farm.type)}
-                        </div>
-                        <div>
-                          <p className="font-medium text-foreground">
-                            {locale === 'ar' ? farm.name_ar : farm.name_en}
-                          </p>
-                          <p className="text-xs text-muted-foreground">ID: {farm.id.slice(0, 8)}</p>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-secondary text-xs font-medium text-foreground">
-                        {getTypeLabel(farm.type)}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="flex items-center gap-2 text-muted-foreground">
-                        <MapPin className="h-3.5 w-3.5" />
-                        <span>{farm.location}</span>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="flex items-center gap-2 text-foreground">
-                        <Maximize2 className="h-3.5 w-3.5 text-muted-foreground" />
-                        <span className="tabular-nums">{farm.size_hectares} ha</span>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md border text-xs font-medium ${getStatusStyles(farm.status)}`}>
-                        <div className={`h-1.5 w-1.5 rounded-full ${farm.status === 'active' ? 'bg-[#07f880]' : farm.status === 'maintenance' ? 'bg-amber-400' : 'bg-muted-foreground'}`} />
-                        {locale === 'ar' 
-                          ? farm.status === 'active' ? 'نشط' : farm.status === 'inactive' ? 'غير نشط' : 'صيانة'
-                          : farm.status.charAt(0).toUpperCase() + farm.status.slice(1)}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 text-right">
-                      <Link
-                        href={`/dashboard/farms/${farm.id}`}
-                        className="inline-flex items-center rounded-md border border-[#07f880]/25 bg-[#07f880]/10 px-2.5 py-1 text-xs font-medium text-[#07f880] hover:bg-[#07f880]/20"
-                      >
-                        {locale === 'ar' ? 'فتح' : 'Open'}
-                      </Link>
-                    </td>
+        <div className="bg-card border border-line overflow-hidden" style={{ borderRadius: 'var(--radius-xl)' }}>
+          {loading || orgLoading ? (
+            <LoadingState label={tr('Loading farms…')} />
+          ) : error ? (
+            <div className="p-6"><ErrorState message={error} /></div>
+          ) : farms.length === 0 ? (
+            <EmptyState
+              title={tr('No farms yet')}
+              description={tr('Add your first farm to start tracking operations.')}
+              action={
+                <Button>
+                  <Plus strokeWidth={1.5} className="h-4 w-4" />
+                  {tr('Create first farm')}
+                </Button>
+              }
+            />
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="g-table g-table--pad w-full">
+                <thead>
+                  <tr>
+                    <th>{tr('Farm')}</th>
+                    <th>{tr('Type')}</th>
+                    <th>{tr('Location')}</th>
+                    <th>{tr('Size')}</th>
+                    <th>{tr('Status')}</th>
+                    <th className="text-end"><span className="sr-only">{tr('Actions')}</span></th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {farms.map((farm) => (
+                    <tr key={farm.id} className="border-t border-line hover:bg-muted transition-colors">
+                      <td className="py-3">
+                        <p className="text-content" style={{ fontWeight: 500 }}>
+                          {locale === 'ar' ? farm.name_ar : farm.name_en}
+                        </p>
+                        <p className="text-[12px] text-content-soft font-mono">{farm.id.slice(0, 8)}</p>
+                      </td>
+                      <td className="py-3 text-content-soft">{getTypeLabel(farm.type)}</td>
+                      <td className="py-3">
+                        <span className="inline-flex items-center gap-1.5 text-content-soft">
+                          <MapPin strokeWidth={1.5} className="h-3.5 w-3.5" />
+                          {farm.location}
+                        </span>
+                      </td>
+                      <td className="py-3 tabular-nums text-content">{farm.size_hectares} <span className="text-content-soft text-[12px]">ha</span></td>
+                      <td className="py-3"><StatusTag level={STATUS_LEVEL[farm.status] || 'unknown'} label={statusLabel(farm.status)} /></td>
+                      <td className="py-3 text-end">
+                        <Link href={`/dashboard/farms/${farm.id}`} className="g-btn g-btn--outline" style={{ height: 30, padding: '0 14px', fontSize: 13 }}>
+                          {tr('Open')}
+                        </Link>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+
+        {farms.length > 0 && (
+          <div className="mt-3 flex items-center justify-between text-[12px] text-content-soft">
+            <span>{tr('Showing {count} farms', { count: farms.length })}</span>
+            <span>{tr('Last updated: just now')}</span>
           </div>
         )}
-      </div>
-
-      {/* Summary Footer */}
-      {farms.length > 0 && (
-        <div className="flex items-center justify-between text-xs text-muted-foreground">
-          <span>
-            {locale === 'ar' 
-              ? `عرض ${farms.length} مزرعة` 
-              : `Showing ${farms.length} farms`}
-          </span>
-          <span>
-            {locale === 'ar' ? 'آخر تحديث: الآن' : 'Last updated: Just now'}
-          </span>
-        </div>
-      )}
+      </PageBody>
     </div>
   )
 }

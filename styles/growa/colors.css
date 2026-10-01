@@ -1,0 +1,83 @@
+/* PRIMARY PALETTE — the four values printed in the rebrand deck (p.61). Do not alter. */
+:root{
+  --growa-white:#FFFFFF;
+  --growa-cream:#EEF4C9;
+  --growa-sage:#6C8952;
+  --growa-ink:#111E13;
+
+  /* DERIVED steps. Not in the deck — interpolated in oklch from the four above
+     so tints/shades stay on-brand. Flagged as derived in readme.md. */
+  --growa-cream-50:#F8FBE9;
+  --growa-cream-100:#F3F7DA;
+  --growa-cream-300:#E2EBAF;
+  --growa-cream-500:#CDD994;
+  --growa-sage-300:#A2B78C;
+  --growa-sage-400:#87A16C;
+  --growa-sage-600:#5A7345;
+  --growa-sage-700:#475B37;
+  --growa-ink-900:#0A1309;
+  --growa-ink-800:#18291B;
+  --growa-ink-700:#223825;
+  --growa-ink-600:#2E4732;
+
+  /* Warm neutrals — pulled toward the ink hue, never a blue grey. */
+  --growa-stone-50:#F7F8F5;
+  --growa-stone-100:#EFF1EC;
+  --growa-stone-200:#E1E4DC;
+  --growa-stone-300:#CBD0C5;
+  --growa-stone-500:#8C9388;
+  --growa-stone-600:#5C635A;
+
+  /* SEMANTIC surfaces */
+  --surface-page:var(--growa-white);
+  --surface-card:var(--growa-white);
+  --surface-muted:var(--growa-stone-50);
+  --surface-accent:var(--growa-cream);
+  --surface-inverse:var(--growa-ink);
+  --surface-inverse-raised:var(--growa-ink-800);
+
+  /* SEMANTIC text */
+  --text-primary:var(--growa-ink);
+  --text-secondary:var(--growa-stone-600);
+  --text-inverse:var(--growa-white);
+  --text-inverse-secondary:var(--growa-stone-300);
+  --text-accent:var(--growa-sage-700);
+  --text-accent-inverse:var(--growa-cream);
+
+  /* SEMANTIC lines */
+  --border-subtle:var(--growa-stone-200);
+  --border-default:var(--growa-stone-300);
+  --border-accent:var(--growa-sage);
+  --border-strong:var(--growa-ink);
+  --border-inverse:rgba(238,244,201,.28);
+
+  /* Interaction */
+  --accent:var(--growa-sage);
+  --accent-hover:var(--growa-sage-600);
+  --focus-ring:var(--growa-sage);
+
+  /* Status — sage/ink are from the palette; the alert red is DERIVED. */
+  --status-good:var(--growa-sage);
+  --status-progress:var(--growa-stone-600);
+  --status-critical:#A8392B;
+  --status-live:#C0392B;
+  --status-neutral:var(--growa-stone-300);
+
+  /* Link colours */
+  --link:var(--growa-sage-700);
+  --link-hover:var(--growa-ink);
+}
+/* Inverse scope: put on any dark-green panel to re-map semantics. */
+.growa-inverse{
+  --surface-page:var(--growa-ink);
+  --surface-card:var(--growa-ink-800);
+  --surface-muted:var(--growa-ink-800);
+  --text-primary:var(--growa-white);
+  --text-secondary:var(--growa-stone-300);
+  --text-accent:var(--growa-cream);
+  --border-subtle:rgba(238,244,201,.18);
+  --border-default:rgba(238,244,201,.28);
+  --accent:var(--growa-cream);
+  --link:var(--growa-cream);
+  --link-hover:var(--growa-white);
+}

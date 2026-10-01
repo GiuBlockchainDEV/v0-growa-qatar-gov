@@ -176,11 +176,11 @@ async function selectPolygons(
 
     const retryable = isMissingScoreColumnError(error) || isMissingMetricsColumnError(error)
     if (!retryable) {
-      return { data: [] as any[], error }
+      return { data: [] as Record<string, unknown>[], error }
     }
   }
 
-  return { data: [] as any[], error: null }
+  return { data: [] as Record<string, unknown>[], error: null }
 }
 
 async function insertPolygon(

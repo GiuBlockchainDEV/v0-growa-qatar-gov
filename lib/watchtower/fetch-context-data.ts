@@ -76,15 +76,14 @@ function toPositiveNumber(value: unknown): number {
 }
 
 async function fetchFarms(supabase: Awaited<ReturnType<typeof createClient>>): Promise<FarmRecord[]> {
-  const selectAttempts = [
-    'id, name, name_en, name_ar, location, gps_latitude, gps_longitude',
-    'id, name_en, name_ar, location, gps_latitude, gps_longitude',
-    'id, name, location',
-  ]
-
-  for (const select of selectAttempts) {
-    const { data, error } = await supabase.from('farms').select(select).limit(500)
-    if (!error && data) {
+  // `*`: the farms columns differ between migrations (see the Supabase audit).
+  const { data, error } = await supabase.from('farms').select('*').limit(500)
+  if (error) {
+    console.error('[watchtower] farms unavailable:', error.code, error.message)
+    return []
+  }
+  {
+    if (data) {
       return data.map((row) => {
         const record = row as Record<string, unknown>
         const name =

@@ -26,7 +26,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         } = await supabase.auth.getSession()
         setUser(session?.user ?? null)
       } catch (error) {
-        console.error('[v0] Error getting session:', error)
+        console.error('[auth] session lookup failed:', error)
       } finally {
         setLoading(false)
       }
@@ -49,7 +49,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       await supabase.auth.signOut()
       setUser(null)
     } catch (error) {
-      console.error('[v0] Error logging out:', error)
+      console.error('[auth] sign-out failed:', error)
       throw error
     }
   }

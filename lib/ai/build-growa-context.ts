@@ -2,7 +2,6 @@ import type {
   GrowaAlerts,
   GrowaFarmAnalysisContext,
   GrowaCropSnapshot,
-  GrowaModule,
   GrowaProducerSnapshot,
   GrowaRankings,
 } from './growa-types'
@@ -16,7 +15,8 @@ import type {
 import { normalizePointLabel } from '@/components/dashboard/intelligence-metrics-shared'
 
 interface BuildGrowaContextInput {
-  module: GrowaModule
+  /** Only the farm-analytics modules build this context. */
+  module: GrowaFarmAnalysisContext['module']
   insights: InsightRow[]
   polygons: PolygonRow[]
   producerLabelsById: Record<string, string>

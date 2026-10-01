@@ -3,7 +3,7 @@
 import { useCallback } from 'react'
 import { useAuth } from '@/hooks/use-auth'
 import { createClient } from '@/lib/supabase/client'
-import type { OrgType, SharedLayer, VisibilityLevel } from './use-governance'
+import type { OrgType, SharedLayer } from './use-governance'
 
 // All possible roles across organization types
 export type UserRole = 

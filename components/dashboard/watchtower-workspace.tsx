@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
-import { AlertTriangle, RefreshCw, Radio } from 'lucide-react'
+import { RefreshCw } from 'lucide-react'
 import type { WatchtowerSummary, IntelligenceSignal } from '@/lib/domain/types'
 import { useOperationalContext } from '@/contexts/operational-context-provider'
 import { useI18n } from '@/lib/i18n'
@@ -15,10 +15,16 @@ import { WatchtowerContextDeck } from '@/components/dashboard/watchtower/context
 import { buildWatchtowerGrowaContext } from '@/lib/ai/build-watchtower-growa-context'
 import { buildDashboardMapProps } from '@/lib/dashboard/map-navigation'
 import { partitionSignalsByPriority } from '@/lib/watchtower/signal-priority'
-import { cn } from '@/lib/utils'
+
+import { useToast } from '@/components/brand/feedback'
+import { Card, CardAction, ErrorState, LoadingState, Notice, PageHeader } from '@/components/brand/layout'
+import { Tag } from '@/components/brand/ui'
+import { History, SignalHigh } from 'lucide-react'
+import { sharedFetch } from '@/lib/client/shared-fetch'
 
 export function WatchtowerWorkspace() {
-  const { t, locale } = useI18n()
+  const showToast = useToast()
+  const { t, tr, locale } = useI18n()
   const searchParams = useSearchParams()
   const { timeframe, selectedSignalId, context } = useOperationalContext()
   const mapProps = buildDashboardMapProps(searchParams)
@@ -36,7 +42,7 @@ export function WatchtowerWorkspace() {
       setError(null)
       setPartialErrors([])
 
-      const response = await fetch(`/api/watchtower/summary?timeframe=${timeframe}`, { cache: 'no-store' })
+      const response = await sharedFetch(`/api/watchtower/summary?timeframe=${timeframe}`, { force: showRefresh })
       const payload = await response.json()
 
       if (!response.ok) throw new Error(payload.error || 'Failed to load watchtower data')
@@ -75,10 +81,10 @@ export function WatchtowerWorkspace() {
         }),
       })
       const payload = await res.json()
-      if (!res.ok) throw new Error(payload.error || 'Failed to create alert')
-      alert(t('watchtower.alert_created'))
+      if (!res.ok) throw new Error(payload.error || tr('Failed to create alert'))
+      showToast(t('watchtower.alert_created'), 'success')
     } catch (e) {
-      alert(e instanceof Error ? e.message : 'Failed to create alert')
+      showToast(e instanceof Error ? e.message : tr('Failed to create alert'), 'error')
     }
   }
 
@@ -92,23 +98,16 @@ export function WatchtowerWorkspace() {
 
   if (loading && !summary) {
     return (
-      <div className="flex h-full items-center justify-center bg-[#050608]">
-        <div className="text-center">
-          <RefreshCw className="mx-auto h-6 w-6 animate-spin text-[#07f880]/60" />
-          <p className="mt-3 text-sm text-white/50">{t('watchtower.loading')}</p>
-        </div>
+      <div className="growa flex h-full items-center justify-center bg-background">
+        <LoadingState label={t('watchtower.loading')} />
       </div>
     )
   }
 
   if (error && !summary) {
     return (
-      <div className="flex h-full flex-col items-center justify-center gap-4 bg-[#050608] p-8">
-        <AlertTriangle className="h-8 w-8 text-amber-400" />
-        <p className="text-sm text-white/70">{error}</p>
-        <button onClick={() => loadSummary()} className="rounded-md bg-white/10 px-4 py-2 text-sm text-white hover:bg-white/15">
-          {t('common.retry')}
-        </button>
+      <div className="growa flex h-full items-center justify-center bg-background p-8">
+        <ErrorState message={error} onRetry={() => loadSummary()} retryLabel={t('common.retry')} className="max-w-sm w-full" />
       </div>
     )
   }
@@ -120,59 +119,50 @@ export function WatchtowerWorkspace() {
   const { priority: prioritySignals, routine: routineSignals } = partitionSignalsByPriority(summary.signals)
   const visibleSignals = [...prioritySignals, ...routineSignals].slice(0, 6)
 
-  return (
-    <div className="flex h-full flex-col overflow-hidden bg-[#050608] text-white">
-      <header className="shrink-0 border-b border-white/10 px-4 py-3 sm:px-5">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="flex items-center gap-2">
-            <div className="flex h-7 w-7 items-center justify-center rounded bg-[#07f880]/10">
-              <Radio className="h-4 w-4 text-[#07f880]" />
-            </div>
-            <div>
-              <h1 className="text-base font-semibold tracking-tight">{t('watchtower.title')}</h1>
-              <p className="text-[10px] text-white/40">
-                {t('watchtower.last_refresh')}:{' '}
-                {new Date(summary.generatedAt).toLocaleString(locale === 'ar' ? 'ar-QA' : 'en-GB', {
-                  hour: '2-digit',
-                  minute: '2-digit',
-                  day: 'numeric',
-                  month: 'short',
-                })}
-                {summary.isDemo ? ` · ${t('watchtower.demo_mode')}` : ''}
-              </p>
-            </div>
-          </div>
+  const refreshedAt = new Date(summary.generatedAt).toLocaleString(locale === 'ar' ? 'ar-QA' : 'en-GB', {
+    hour: '2-digit',
+    minute: '2-digit',
+    day: 'numeric',
+    month: 'short',
+  })
 
-          <div className="flex flex-wrap items-center gap-2">
-            <button
-              onClick={() => loadSummary(true)}
-              disabled={refreshing}
-              className="inline-flex items-center gap-1 rounded border border-white/10 px-2.5 py-1 text-[10px] text-white/60 hover:border-white/20 disabled:opacity-50"
-            >
-              <RefreshCw className={cn('h-3 w-3', refreshing && 'animate-spin')} />
-              {t('watchtower.refresh')}
-            </button>
-          </div>
-        </div>
+  /* Same page grammar as the SaaS: stone-50 page, a Light display title
+     with the square, white cards with a header per family. The map and the
+     signals sit side by side; the AI briefing is the ink (AI) card. */
+  return (
+    <div className="growa h-full overflow-y-auto bg-background text-content">
+      <div className="mx-auto max-w-[1600px] p-6 space-y-4">
+        <PageHeader
+          eyebrow={tr('National watchtower')}
+          title={t('watchtower.title')}
+          subtitle={
+            <>
+              {t('watchtower.last_refresh')}: {refreshedAt}
+            </>
+          }
+          actions={
+            <>
+              {summary.isDemo && <Tag variant="muted">{t('watchtower.demo_mode')}</Tag>}
+              <CardAction icon={RefreshCw} label={t('watchtower.refresh')} onClick={() => loadSummary(true)} disabled={refreshing} spinning={refreshing} />
+            </>
+          }
+          className="!mb-2"
+        />
 
         {partialErrors.length > 0 && (
-          <div className="mt-2 rounded border border-amber-500/20 bg-amber-500/5 px-3 py-1.5 text-[10px] text-amber-200">
-            {t('watchtower.partial_degradation')}: {partialErrors.join(' · ')}
-          </div>
+          <Notice tone="warning" title={t('watchtower.partial_degradation')}>
+            {partialErrors.join(' · ')}
+          </Notice>
         )}
-      </header>
 
-      <div className="shrink-0 border-b border-white/10 px-4 py-3 sm:px-5">
         <WatchtowerProductionSnapshot
           production={summary.production}
           supply={summary.supply}
           climate={summary.climate}
         />
-      </div>
 
-      <div className="flex-1 min-h-0 overflow-y-auto">
-        <div className="grid min-h-[420px] grid-cols-1 xl:grid-cols-[1fr_300px]">
-          <div className="min-h-[380px] p-3 sm:p-4">
+        <div className="grid grid-cols-1 gap-4 xl:grid-cols-[1fr_340px]">
+          <div className="min-h-[520px]">
             <NationalMapPanel
               summary={summary}
               locale={locale}
@@ -185,45 +175,37 @@ export function WatchtowerWorkspace() {
             />
           </div>
 
-          <div className="relative z-20 flex min-h-[320px] flex-col border-t border-white/10 bg-[#050608] xl:border-l xl:border-t-0">
-            <div className="shrink-0 border-b border-white/10 px-3 py-2">
-              <h2 className="text-[10px] font-bold uppercase tracking-widest text-white/45">
-                {t('watchtower.priority_signals')} ({visibleSignals.length})
-              </h2>
-            </div>
-            <div className="flex-1 space-y-2 overflow-y-auto p-3">
-              {visibleSignals.length === 0 ? (
-                <p className="text-xs text-white/40">{t('watchtower.no_signals')}</p>
-              ) : (
-                visibleSignals.map((signal) => (
-                  <SignalCard
-                    key={signal.id}
-                    signal={signal}
-                    selected={selectedSignalId === signal.id}
-                    onCreateAlert={handleCreateAlert}
-                    emphasized={prioritySignals.some((entry) => entry.id === signal.id)}
-                    compact={!prioritySignals.some((entry) => entry.id === signal.id)}
-                  />
-                ))
-              )}
-            </div>
-          </div>
+          <Card
+            icon={SignalHigh}
+            title={t('watchtower.priority_signals')}
+            actions={<Tag variant="outline-ink" size="sm">{visibleSignals.length}</Tag>}
+            className="relative z-20 max-h-[720px]"
+            bodyClassName="overflow-y-auto"
+          >
+            {visibleSignals.length === 0 ? (
+              <p className="text-[13px] text-content-soft">{t('watchtower.no_signals')}</p>
+            ) : (
+              visibleSignals.map((signal) => (
+                <SignalCard
+                  key={signal.id}
+                  signal={signal}
+                  selected={selectedSignalId === signal.id}
+                  onCreateAlert={handleCreateAlert}
+                  emphasized={prioritySignals.some((entry) => entry.id === signal.id)}
+                  compact={!prioritySignals.some((entry) => entry.id === signal.id)}
+                />
+              ))
+            )}
+          </Card>
         </div>
 
-        <div className="grid min-h-[280px] grid-cols-1 border-t border-white/10 lg:grid-cols-2">
-          <div className="border-b border-white/10 p-3 sm:p-4 lg:border-b-0 lg:border-r">
-            <h2 className="mb-2 text-[10px] font-bold uppercase tracking-widest text-white/45">
-              {t('watchtower.what_changed')}
-            </h2>
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+          <Card icon={History} title={t('watchtower.what_changed')}>
             <WatchtowerChangesPanel changes={actionableChanges} />
-          </div>
-          <div className="flex min-h-[280px] flex-col p-3 sm:p-4">
-            <h2 className="mb-2 text-[10px] font-bold uppercase tracking-widest text-white/45">
-              {t('watchtower.ai_briefing')}
-            </h2>
-            <div className="min-h-[240px] flex-1 overflow-hidden rounded-lg border border-white/10 bg-[#0a0d12]">
-              <GrowaIntelligencePanel module="watchtower" context={growaContext} />
-            </div>
+          </Card>
+          {/* The assistant is itself an AI-family card (ink header). */}
+          <div className="min-h-[420px]" aria-label={t('watchtower.ai_briefing')}>
+            <GrowaIntelligencePanel module="watchtower" context={growaContext} />
           </div>
         </div>
 

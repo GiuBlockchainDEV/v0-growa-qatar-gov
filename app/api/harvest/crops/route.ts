@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server'
+
 import { requireHarvestAccess, harvestErrorResponse } from '@/lib/harvest/auth'
 import { harvestGetCrops } from '@/lib/harvest/client'
 import { getDemoHarvestCrops } from '@/lib/harvest/demo-data'

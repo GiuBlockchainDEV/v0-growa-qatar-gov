@@ -2,12 +2,35 @@
 
 import { useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { useAuth } from '@/hooks/use-auth'
 import Link from 'next/link'
-import { Sprout, Shield, Database, Globe, ArrowRight, Activity } from 'lucide-react'
+import { useAuth } from '@/hooks/use-auth'
+import { useI18n } from '@/lib/i18n'
+import { Logo } from '@/components/brand/logo'
+import { DottedDivider, Lattice, SectionTitle, StatusDot } from '@/components/brand/ui'
+
+/*
+ * Landing — built on the brand's website page (Brand Book p.72): a hero of
+ * full-bleed photography inside an ink frame held off the page edge, the
+ * cream mark bare on it, a glass pill for navigation with the active voice
+ * in cream. Below, white and calm: generous negative space (p.46), section
+ * titles marked by the square, dotted rules between columns.
+ *
+ * The photograph is the one the SaaS access screens use. The brand's
+ * register is WIDE AERIAL farmland (p.72, p.81); a proper aerial of Qatari
+ * farms should replace it when available — only `HERO_IMAGE` changes.
+ */
+const HERO_IMAGE = '/brand/auth-soil.jpg'
+
+const FEATURES = [
+  { title: 'Agricultural operations', description: 'Manage farms, crops and production cycles.' },
+  { title: 'Real-time data', description: 'Monitor environmental conditions and inventory.' },
+  { title: 'Sovereign security', description: 'Enterprise-grade data protection and row-level access.' },
+  { title: 'Bilingual', description: 'Full Arabic and English interface, mirrored layout.' },
+]
 
 export default function Home() {
   const { user, loading } = useAuth()
+  const { tr } = useI18n()
   const router = useRouter()
 
   useEffect(() => {
@@ -16,96 +39,96 @@ export default function Home() {
     }
   }, [user, loading, router])
 
-  const features = [
-    { icon: Sprout, title: 'Agricultural Operations', description: 'Manage farms, crops, and production cycles' },
-    { icon: Database, title: 'Real-time Data', description: 'Monitor environmental conditions and inventory' },
-    { icon: Shield, title: 'Sovereign Security', description: 'Enterprise-grade data protection and RLS' },
-    { icon: Globe, title: 'Bilingual Support', description: 'Full Arabic and English interface support' },
-  ]
-
   return (
-    <main className="min-h-screen bg-background relative overflow-hidden">
-      {/* Background grid effect */}
-      <div className="absolute inset-0 data-grid opacity-30" />
-      
-      {/* Gradient orbs */}
-      <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-primary/10 rounded-full blur-3xl" />
-      <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-primary/5 rounded-full blur-3xl" />
+    <main className="growa min-h-screen bg-page">
+      {/* Hero — white framing, ink panel, photograph inside. */}
+      <section className="p-3 lg:p-4">
+        <div
+          className="growa-inverse relative overflow-hidden bg-page min-h-[88vh] flex flex-col"
+          style={{
+            borderRadius: 'var(--radius-2xl)',
+            backgroundImage: `url(${HERO_IMAGE})`,
+            backgroundSize: 'cover',
+            backgroundPosition: 'center',
+          }}
+        >
+          <span aria-hidden="true" className="absolute inset-0" style={{ background: 'var(--protect-full)' }} />
+          <span aria-hidden="true" className="absolute inset-0" style={{ background: 'var(--protect-bottom)' }} />
+          <Lattice color="rgba(238,244,201,.18)" step={34} size={3} style={{ top: '62%' }} />
 
-      <div className="relative z-10 flex flex-col items-center justify-center min-h-screen px-4 py-16">
-        {/* Status badge */}
-        <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-primary/10 border border-primary/20 mb-8">
-          <Activity className="h-3.5 w-3.5 text-primary" />
-          <span className="text-xs font-medium text-primary">System Operational</span>
-        </div>
-
-        {/* Main content */}
-        <div className="text-center space-y-6 max-w-3xl">
-          {/* Logo */}
-          <div className="flex items-center justify-center mb-8">
-            <img 
-              src="/growa-logo.png" 
-              alt="Growa Logo" 
-              className="h-20 w-20 drop-shadow-2xl"
-            />
-          </div>
-
-          <h1 className="text-5xl sm:text-6xl font-bold text-foreground tracking-tight">
-            GROWA <span className="text-primary">QATAR</span>
-          </h1>
-          
-          <p className="text-lg text-muted-foreground max-w-xl mx-auto leading-relaxed">
-            Sovereign Agricultural Operations Platform for Qatar. 
-            Real-time monitoring, analytics, and management of agricultural resources.
-          </p>
-
-          {/* CTA Buttons */}
-          <div className="pt-6 flex flex-col sm:flex-row gap-4 justify-center">
+          {/* Glass pill navigation, active voice in cream (p.72). */}
+          <nav
+            aria-label={tr('Platform access')}
+            className="relative mx-auto mt-6 flex items-center gap-1 p-1 rounded-pill"
+            style={{
+              background: 'rgba(255,255,255,.10)',
+              border: '1px solid rgba(238,244,201,.28)',
+              backdropFilter: 'var(--glass-blur)',
+            }}
+          >
             <Link
               href="/auth/login"
-              className="group inline-flex items-center justify-center gap-2 rounded-lg bg-primary px-8 py-3.5 text-sm font-semibold text-primary-foreground hover:bg-primary/90 transition-all glow-primary"
+              className="inline-flex items-center h-9 px-5 rounded-pill bg-cream text-ink text-[14px] font-medium hover:bg-cream-300 transition-colors"
             >
-              Access Platform
-              <ArrowRight className="h-4 w-4 group-hover:translate-x-0.5 transition-transform" />
+              {tr('Access platform')}
             </Link>
             <Link
               href="/auth/sign-up"
-              className="inline-flex items-center justify-center rounded-lg border border-border px-8 py-3.5 text-sm font-semibold text-foreground hover:bg-secondary hover:border-primary/30 transition-all"
+              className="inline-flex items-center h-9 px-5 rounded-pill text-cream text-[14px] hover:bg-white/10 transition-colors"
             >
-              Request Access
+              {tr('Request access')}
             </Link>
+          </nav>
+
+          {/* The mark, centred and bare. Its clear space is far exceeded by
+              the empty field around it. */}
+          <div className="relative flex-1 flex flex-col items-center justify-center px-6 text-center">
+            <h1 className="sr-only">Growa Qatar</h1>
+            <Logo className="w-[min(72vw,560px)] h-auto text-cream" title="Growa" />
+            <p className="mt-10 text-[18px] leading-[1.45] text-cream/85 max-w-[40ch]">
+              {tr(
+                'Agricultural operations platform for Qatar. Real-time monitoring, analysis and management of the nation’s agricultural resources.'
+              )}
+            </p>
+          </div>
+
+          <div className="relative flex flex-wrap items-end justify-between gap-4 px-6 lg:px-10 pb-7">
+            <span
+              className="inline-flex items-center gap-2 px-3 py-1 text-[12px] text-cream rounded-pill"
+              style={{
+                background: 'rgba(255,255,255,.10)',
+                border: '1px solid rgba(238,244,201,.28)',
+                backdropFilter: 'var(--glass-blur)',
+              }}
+            >
+              <StatusDot tone="var(--growa-sage-300)" size={6} pulse />
+              {tr('System operational')}
+            </span>
+            <span className="text-[12px] text-cream/70">{tr('Doha, Qatar')}</span>
           </div>
         </div>
+      </section>
 
-        {/* Features Grid */}
-        <div className="mt-20 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 max-w-5xl w-full">
-          {features.map((feature) => {
-            const Icon = feature.icon
-            return (
-              <div
-                key={feature.title}
-                className="group rounded-lg border border-border bg-card/50 backdrop-blur-sm p-5 hover:border-primary/30 hover:bg-card transition-all"
-              >
-                <div className="rounded-lg p-2.5 bg-primary/10 text-primary w-fit mb-4 group-hover:bg-primary/20 transition-colors">
-                  <Icon className="h-5 w-5" />
-                </div>
-                <h3 className="font-semibold text-foreground mb-1">{feature.title}</h3>
-                <p className="text-sm text-muted-foreground">{feature.description}</p>
-              </div>
-            )
-          })}
+      {/* Features — negative space, square-marked titles, dotted rules. */}
+      <section className="mx-auto max-w-[1200px] px-6 lg:px-10 py-20 lg:py-28">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-x-10 gap-y-12">
+          {FEATURES.map((feature) => (
+            <div key={feature.title}>
+              <SectionTitle as="h2">{tr(feature.title)}</SectionTitle>
+              <DottedDivider className="my-4" />
+              <p className="text-[14px] leading-[1.45] text-content-soft">{tr(feature.description)}</p>
+            </div>
+          ))}
         </div>
+      </section>
 
-        {/* Footer */}
-        <div className="mt-16 text-center">
-          <p className="text-xs text-muted-foreground">
-            Growa Qatar v0.1.0 - Sovereign Platform
-          </p>
-          <p className="text-xs text-muted-foreground/60 mt-1">
-            Ministry of Municipality - State of Qatar
-          </p>
+      <footer className="mx-auto max-w-[1200px] px-6 lg:px-10 pb-10">
+        <DottedDivider className="mb-6" />
+        <div className="flex flex-wrap items-center justify-between gap-3 text-[12px] text-content-soft">
+          <span>{tr('Growa Qatar v0.1.0 · Sovereign platform')}</span>
+          <span>{tr('Ministry of Municipality · State of Qatar')}</span>
         </div>
-      </div>
+      </footer>
     </main>
   )
 }

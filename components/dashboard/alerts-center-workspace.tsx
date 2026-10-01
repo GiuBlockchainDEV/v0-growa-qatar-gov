@@ -2,20 +2,14 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { DashboardQueryLink } from '@/components/dashboard/dashboard-query-link'
-import {
-  AlertTriangle,
-  Bell,
-  CheckCircle2,
-  Clock,
-  MapPin,
-  Radio,
-  RefreshCw,
-  Search,
-} from 'lucide-react'
+import { CheckCircle2, Clock, MapPin, Radio, RefreshCw } from 'lucide-react'
 import { OperationalContextBanner } from '@/components/dashboard/operational-context-banner'
 import { buildFarmSearchMapUrl } from '@/lib/dashboard/map-navigation'
 import { useI18n } from '@/lib/i18n'
-import { cn } from '@/lib/utils'
+import { useToast } from '@/components/brand/feedback'
+import { CardAction, EmptyState, ErrorState, LoadingState, Notice, PageHeader } from '@/components/brand/layout'
+import { Button, SegmentedToggle } from '@/components/brand/ui'
+import { StatusTag, humanize } from '@/components/brand/status'
 
 type AlertStatus =
   | 'new'
@@ -39,21 +33,35 @@ interface OperationalAlert {
   updated_at: string
 }
 
-const STATUS_STYLES: Record<AlertStatus, string> = {
-  new: 'bg-sky-500/15 text-sky-300',
-  acknowledged: 'bg-violet-500/15 text-violet-300',
-  investigating: 'bg-amber-500/15 text-amber-300',
-  action_required: 'bg-orange-500/15 text-orange-300',
-  monitoring: 'bg-blue-500/15 text-blue-300',
-  resolved: 'bg-[#07f880]/15 text-[#07f880]',
-  dismissed: 'bg-white/10 text-white/40',
+/* Alert lifecycle → status squares: new is critical-red (act on it),
+   work in progress is neutral, resolved is sage. */
+const STATUS_LEVEL: Record<AlertStatus, string> = {
+  new: 'critical',
+  acknowledged: 'attention',
+  investigating: 'progress',
+  action_required: 'high',
+  monitoring: 'progress',
+  resolved: 'good',
+  dismissed: 'unknown',
+} as Record<AlertStatus, string>
+
+/* English labels; translated at render with tr(). */
+const STATUS_LABEL: Record<AlertStatus, string> = {
+  new: 'New',
+  acknowledged: 'Acknowledged',
+  investigating: 'Investigating',
+  action_required: 'Action required',
+  monitoring: 'Monitoring',
+  resolved: 'Resolved',
+  dismissed: 'Dismissed',
 }
 
-const SEVERITY_STYLES: Record<string, string> = {
-  critical: 'text-red-300',
-  high: 'text-orange-300',
-  attention: 'text-amber-300',
-  info: 'text-sky-300',
+const MOVE_LABEL: Partial<Record<AlertStatus, string>> = {
+  acknowledged: 'Move to acknowledged',
+  investigating: 'Move to investigating',
+  action_required: 'Move to action required',
+  monitoring: 'Move to monitoring',
+  resolved: 'Move to resolved',
 }
 
 const NEXT_STATUS: Partial<Record<AlertStatus, AlertStatus>> = {
@@ -65,7 +73,8 @@ const NEXT_STATUS: Partial<Record<AlertStatus, AlertStatus>> = {
 }
 
 export function AlertsCenterWorkspace() {
-  const { t } = useI18n()
+  const showToast = useToast()
+  const { t, tr, locale } = useI18n()
   const [alerts, setAlerts] = useState<OperationalAlert[]>([])
   const [loading, setLoading] = useState(true)
   const [unavailable, setUnavailable] = useState(false)
@@ -109,12 +118,12 @@ export function AlertsCenterWorkspace() {
         body: JSON.stringify({ status }),
       })
       const payload = await res.json()
-      if (!res.ok) throw new Error(payload.error || 'Failed to update alert')
+      if (!res.ok) throw new Error(payload.error || tr('Failed to update alert'))
       setAlerts((current) =>
         current.map((alert) => (alert.id === alertId ? { ...alert, status, ...payload.alert } : alert))
       )
     } catch (e) {
-      alert(e instanceof Error ? e.message : 'Failed to update alert')
+      showToast(e instanceof Error ? e.message : tr('Failed to update alert'), 'error')
     }
   }
 
@@ -123,159 +132,122 @@ export function AlertsCenterWorkspace() {
     return acc
   }, {})
 
+  const FILTERS = ['all', 'new', 'acknowledged', 'investigating', 'action_required', 'monitoring', 'resolved'] as const
+
   return (
-    <div className="flex h-full flex-col overflow-hidden bg-[#050608] text-white">
-      <header className="shrink-0 border-b border-white/10 px-5 py-4 pt-20">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <div className="flex items-center gap-2">
-              <Bell className="h-5 w-5 text-[#07f880]" />
-              <h1 className="text-lg font-semibold">{t('alerts.title')}</h1>
-            </div>
-            <p className="mt-1 text-xs text-white/45">{t('alerts.subtitle')}</p>
-          </div>
-          <button
-            onClick={() => loadAlerts(true)}
-            disabled={refreshing}
-            className="inline-flex items-center gap-1 rounded border border-white/10 px-3 py-1.5 text-xs text-white/60 hover:border-white/20 disabled:opacity-50"
-          >
-            <RefreshCw className={cn('h-3.5 w-3.5', refreshing && 'animate-spin')} />
-            {t('watchtower.refresh')}
-          </button>
+    <div className="growa h-full overflow-y-auto bg-background text-content">
+      <div className="mx-auto max-w-7xl p-6 space-y-4">
+        <PageHeader
+          eyebrow={tr('Operations')}
+          title={t('alerts.title')}
+          subtitle={t('alerts.subtitle')}
+          actions={<CardAction icon={RefreshCw} label={t('watchtower.refresh')} onClick={() => loadAlerts(true)} disabled={refreshing} spinning={refreshing} />}
+          className="!mb-2"
+        />
+        <OperationalContextBanner />
+        {unavailable && <Notice tone="warning">{t('alerts.migration_required')}</Notice>}
+
+        <div className="overflow-x-auto scrollbar-none">
+          <SegmentedToggle
+            size="sm"
+            ariaLabel={tr('Filter by status')}
+            value={statusFilter}
+            onChange={(v) => setStatusFilter(v as AlertStatus | 'all')}
+            options={FILTERS.map((status) => ({
+              value: status,
+              label: `${status === 'all' ? tr('All') : tr(STATUS_LABEL[status])}${status !== 'all' && statusCounts[status] ? ` · ${statusCounts[status]}` : ''}`,
+            }))}
+          />
         </div>
 
-        <div className="mt-3">
-          <OperationalContextBanner />
-        </div>
-
-        {unavailable && (
-          <div className="mt-3 rounded border border-amber-500/20 bg-amber-500/5 px-3 py-2 text-xs text-amber-200">
-            {t('alerts.migration_required')}
-          </div>
-        )}
-      </header>
-
-      <div className="shrink-0 border-b border-white/10 px-5 py-2 flex flex-wrap gap-2">
-        {(['all', 'new', 'acknowledged', 'investigating', 'action_required', 'monitoring', 'resolved'] as const).map(
-          (status) => (
-            <button
-              key={status}
-              onClick={() => setStatusFilter(status)}
-              className={cn(
-                'rounded px-2.5 py-1 text-[10px] font-medium uppercase tracking-wide transition-colors',
-                statusFilter === status
-                  ? 'bg-[#07f880] text-black'
-                  : 'border border-white/10 text-white/50 hover:text-white/80'
-              )}
-            >
-              {status === 'all' ? 'All' : status.replace('_', ' ')}
-              {status !== 'all' && statusCounts[status] ? ` (${statusCounts[status]})` : ''}
-            </button>
-          )
-        )}
-      </div>
-
-      <div className="flex-1 overflow-y-auto px-5 py-4">
         {loading ? (
-          <div className="flex items-center justify-center py-16">
-            <RefreshCw className="h-5 w-5 animate-spin text-white/30" />
-          </div>
+          <LoadingState label={tr('Loading alerts…')} />
         ) : error ? (
-          <div className="rounded-lg border border-red-500/20 bg-red-500/5 p-4 text-sm text-red-300">{error}</div>
+          <ErrorState message={error} onRetry={() => loadAlerts()} retryLabel={tr('Retry')} />
         ) : alerts.length === 0 ? (
-          <div className="rounded-lg border border-white/10 bg-[#0a0d12] p-8 text-center">
-            <Search className="mx-auto h-8 w-8 text-white/20" />
-            <p className="mt-3 text-sm text-white/50">{t('alerts.empty')}</p>
-            <DashboardQueryLink
-              href="/dashboard?module=watchtower"
-              className="mt-4 inline-flex items-center gap-1 text-xs text-[#07f880] hover:underline"
-            >
-              <Radio className="h-3 w-3" />
-              {t('alerts.from_watchtower')}
-            </DashboardQueryLink>
+          <div className="bg-card border border-line" style={{ borderRadius: 'var(--radius-xl)' }}>
+            <EmptyState
+              title={t('alerts.empty')}
+              action={
+                <DashboardQueryLink href="/dashboard?module=watchtower" className="g-btn g-btn--outline" >
+                  <span className="inline-flex items-center gap-2 px-4 h-9 text-[14px]">
+                    <Radio strokeWidth={1.5} className="h-4 w-4" />
+                    {t('alerts.from_watchtower')}
+                  </span>
+                </DashboardQueryLink>
+              }
+            />
           </div>
         ) : (
-          <div className="space-y-2">
+          <div className="space-y-3">
             {alerts.map((alert) => {
               const nextStatus = NEXT_STATUS[alert.status]
               const farmId = alert.affected_farm_ids?.[0]
               return (
-                <div
+                <article
                   key={alert.id}
-                  className="rounded-lg border border-white/10 bg-[#0a0d12] p-4 hover:border-white/15 transition-colors"
+                  className="bg-card border border-line p-5 hover:border-line-strong transition-colors"
+                  style={{ borderRadius: 'var(--radius-xl)' }}
                 >
                   <div className="flex flex-wrap items-start justify-between gap-2">
                     <div className="flex flex-wrap items-center gap-2">
-                      <span className={cn('rounded px-1.5 py-0.5 text-[9px] font-bold uppercase', STATUS_STYLES[alert.status])}>
-                        {alert.status.replace('_', ' ')}
-                      </span>
-                      <span className={cn('text-[10px] font-medium uppercase', SEVERITY_STYLES[alert.severity] || 'text-white/50')}>
-                        {alert.severity}
-                      </span>
+                      <StatusTag level={STATUS_LEVEL[alert.status]} label={tr(STATUS_LABEL[alert.status] ?? humanize(alert.status))} />
+                      <StatusTag level={alert.severity} />
                       {alert.alert_type && (
-                        <span className="text-[10px] text-white/35">{alert.alert_type.replace('_', ' ')}</span>
+                        <span className="g-tag g-tag--muted" style={{ height: 22, padding: '0 9px', fontSize: 11 }}>{tr(humanize(alert.alert_type))}</span>
                       )}
                     </div>
-                    <span className="text-[10px] text-white/35 flex items-center gap-1">
-                      <Clock className="h-3 w-3" />
-                      {new Date(alert.created_at).toLocaleString()}
+                    <span className="text-[12px] text-content-soft flex items-center gap-1.5 tabular-nums">
+                      <Clock strokeWidth={1.5} className="h-3.5 w-3.5" />
+                      {new Date(alert.created_at).toLocaleString(locale === 'ar' ? 'ar-QA' : 'en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
                     </span>
                   </div>
 
-                  <h3 className="mt-2 text-sm font-medium text-white">{alert.title}</h3>
-                  {alert.summary && <p className="mt-1 text-xs text-white/55">{alert.summary}</p>}
+                  <h3 className="mt-3 text-[16px] text-content" style={{ fontWeight: 500 }}>{alert.title}</h3>
+                  {alert.summary && <p className="mt-1 text-[14px] text-content-soft leading-[1.45]">{alert.summary}</p>}
 
-                  <div className="mt-3 flex flex-wrap gap-2">
+                  <div className="mt-4 pt-3 border-t border-dotted border-line-strong flex flex-wrap items-center gap-2">
+                    {nextStatus && !unavailable && (
+                      <Button size="sm" onClick={() => updateStatus(alert.id, nextStatus)}>
+                        <CheckCircle2 strokeWidth={1.5} className="h-4 w-4" />
+                        {tr(MOVE_LABEL[nextStatus] ?? `Move to ${humanize(nextStatus).toLowerCase()}`)}
+                      </Button>
+                    )}
                     {farmId && (
                       <DashboardQueryLink
                         href={buildFarmSearchMapUrl({ source: 'farm', id: farmId })}
-                        className="inline-flex items-center gap-1 rounded border border-white/10 px-2 py-1 text-[10px] text-white/60 hover:text-[#07f880]"
+                        className="g-btn g-btn--outline"
                       >
-                        <MapPin className="h-3 w-3" />
-                        View on map
+                        <span className="inline-flex items-center gap-2 px-4 h-8 text-[14px]">
+                          <MapPin strokeWidth={1.5} className="h-4 w-4" />
+                          {tr('View on map')}
+                        </span>
                       </DashboardQueryLink>
                     )}
                     {alert.source_signal_id && (
                       <DashboardQueryLink
                         href={`/dashboard?module=watchtower&signalId=${alert.source_signal_id}`}
-                        className="inline-flex items-center gap-1 rounded border border-white/10 px-2 py-1 text-[10px] text-white/60 hover:text-[#07f880]"
+                        className="g-btn g-btn--ghost"
                       >
-                        <Radio className="h-3 w-3" />
-                        Source signal
+                        <span className="inline-flex items-center gap-2 px-3 h-8 text-[14px]">
+                          <Radio strokeWidth={1.5} className="h-4 w-4" />
+                          {tr('Source signal')}
+                        </span>
                       </DashboardQueryLink>
                     )}
-                    {nextStatus && !unavailable && (
-                      <button
-                        type="button"
-                        onClick={() => updateStatus(alert.id, nextStatus)}
-                        className="inline-flex items-center gap-1 rounded bg-[#07f880]/12 px-2 py-1 text-[10px] font-medium text-[#07f880] hover:bg-[#07f880]/20"
-                      >
-                        <CheckCircle2 className="h-3 w-3" />
-                        → {nextStatus.replace('_', ' ')}
-                      </button>
-                    )}
                     {alert.status !== 'dismissed' && !unavailable && (
-                      <button
-                        type="button"
-                        onClick={() => updateStatus(alert.id, 'dismissed')}
-                        className="inline-flex items-center gap-1 rounded border border-white/10 px-2 py-1 text-[10px] text-white/40 hover:text-white/70"
-                      >
-                        Dismiss
-                      </button>
+                      <Button size="sm" variant="ghost" onClick={() => updateStatus(alert.id, 'dismissed')} className="ms-auto text-content-soft">
+                        {tr('Dismiss')}
+                      </Button>
                     )}
                   </div>
-                </div>
+                </article>
               )
             })}
           </div>
         )}
 
-        <div className="mt-6 rounded-lg border border-white/10 bg-white/[0.02] p-4">
-          <div className="flex items-center gap-2 text-xs text-white/50">
-            <AlertTriangle className="h-4 w-4 text-amber-400" />
-            <span>{t('alerts.workflow_note')}</span>
-          </div>
-        </div>
+        <Notice tone="info">{t('alerts.workflow_note')}</Notice>
       </div>
     </div>
   )

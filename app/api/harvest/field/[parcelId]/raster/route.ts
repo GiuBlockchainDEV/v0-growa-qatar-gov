@@ -68,12 +68,9 @@ export async function GET(request: Request, context: RouteContext) {
     const fieldPolygonBounds = fieldBoundsFromClipRings(clipRings)
     const demoRaster = getDemoFieldRaster(parcelId, mode, metric, granularity, period)
     if (demoRaster) {
-      const imageParams = new URLSearchParams({
-        mode,
-        metric,
-        granularity,
-        season_id: seasonIdParam,
-      })
+      const imageParams = new URLSearchParams({ mode, metric, granularity })
+      // A null value used to be serialised as the string "null".
+      if (seasonIdParam) imageParams.set('season_id', seasonIdParam)
       if (granularity === 'dekad' && period) imageParams.set('period', period)
       return harvestJsonResponse(
         {
@@ -133,7 +130,7 @@ export async function GET(request: Request, context: RouteContext) {
 
   try {
     requestedSeasonId = await resolveHarvestSeasonId(parcelId, mode, false, seasonIdParam)
-    if (!Number.isFinite(requestedSeasonId)) {
+    if (requestedSeasonId == null || !Number.isFinite(requestedSeasonId)) {
       return NextResponse.json({ error: 'season_id is required' }, { status: 400 })
     }
 

@@ -1,28 +1,16 @@
 'use client'
 
-import { createContext, useContext, useMemo, type ReactNode } from 'react'
-import { useRoleNavigation as useRoleNavigationState } from '@/hooks/use-role-navigation'
-import { buildProductNavigation } from '@/lib/platform/product-navigation'
+import { createContext, useContext, type ReactNode } from 'react'
+import { useRoleNavigation } from '@/hooks/use-role-navigation'
 
-type RoleNavigationContextValue = ReturnType<typeof useRoleNavigationState>
+type RoleNavigationContextValue = ReturnType<typeof useRoleNavigation>
 
 const RoleNavigationContext = createContext<RoleNavigationContextValue | null>(null)
 
+/* One role resolution for the whole dashboard: rail, header, layout and
+   pages read it from here instead of each running the hook. */
 export function RoleNavigationProvider({ children }: { children: ReactNode }) {
-  const baseValue = useRoleNavigationState()
-  const platformNav = useMemo(
-    () => buildProductNavigation(baseValue.effectiveRole, baseValue.roleProfile),
-    [baseValue.effectiveRole, baseValue.roleProfile]
-  )
-
-  const value = useMemo(
-    () => ({
-      ...baseValue,
-      landingPage: platformNav.landing || baseValue.landingPage,
-    }),
-    [baseValue, platformNav.landing]
-  )
-
+  const value = useRoleNavigation()
   return <RoleNavigationContext.Provider value={value}>{children}</RoleNavigationContext.Provider>
 }
 

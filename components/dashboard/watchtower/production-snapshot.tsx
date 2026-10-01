@@ -2,11 +2,15 @@
 
 import type { ProductionSummary, SupplySummary, ClimateSummary } from '@/lib/domain/types'
 import { humanizeMetricSource } from '@/lib/watchtower/production-metrics'
-import { cn } from '@/lib/utils'
+import { Tile } from '@/components/brand/layout'
+import { Metric, StatusDot } from '@/components/brand/ui'
+import { useI18n } from '@/lib/i18n'
 
+/* Number and unit kept apart: the brand sets the figure LIGHT and large,
+   the unit small beside it (Brand Book p.80). */
 function formatValue(value: number | null | undefined, unit: string) {
   if (value === null || value === undefined || Number.isNaN(value)) return null
-  return `${value.toLocaleString('en-US', { maximumFractionDigits: 1 })} ${unit}`
+  return { number: value.toLocaleString('en-US', { maximumFractionDigits: 1 }), unit }
 }
 
 interface ProductionSnapshotProps {
@@ -20,38 +24,41 @@ export function WatchtowerProductionSnapshot({
   supply,
   climate,
 }: ProductionSnapshotProps) {
+  const { tr } = useI18n()
+  // Labels, units and source names below come from the server in English.
+  const trSource = (source: string) => tr(humanizeMetricSource(source))
   const cards = [
     {
-      label: production.productionEstimate.label,
+      label: tr(production.productionEstimate.label),
       value: formatValue(production.productionEstimate.value, production.productionEstimate.unit),
-      detail: humanizeMetricSource(production.productionEstimate.source),
+      detail: trSource(production.productionEstimate.source),
       highlight: Boolean(production.productionEstimate.value),
     },
     {
-      label: production.fieldsMonitored?.label || 'Fields monitored',
-      value: formatValue(production.fieldsMonitored?.value ?? null, production.fieldsMonitored?.unit || 'fields'),
+      label: tr(production.fieldsMonitored?.label || 'Fields monitored'),
+      value: formatValue(production.fieldsMonitored?.value ?? null, tr(production.fieldsMonitored?.unit || 'fields')),
       detail: production.cropTypes?.value
-        ? `${production.cropTypes.value} crop types tracked`
-        : humanizeMetricSource(production.fieldsMonitored?.source || 'harvest.analytics.predict'),
+        ? tr('{count} crop types tracked', { count: production.cropTypes.value })
+        : trSource(production.fieldsMonitored?.source || 'harvest.analytics.predict'),
       highlight: Boolean(production.fieldsMonitored?.value),
     },
     {
-      label: production.atRiskProduction?.label || 'Below health threshold',
-      value: formatValue(production.atRiskProduction?.value ?? null, production.atRiskProduction?.unit || 'fields'),
+      label: tr(production.atRiskProduction?.label || 'Below health threshold'),
+      value: formatValue(production.atRiskProduction?.value ?? null, tr(production.atRiskProduction?.unit || 'fields')),
       detail: production.avgHealthScore?.value
-        ? `Avg score ${production.avgHealthScore.value.toFixed(0)}/100`
-        : 'From vegetation indicators',
+        ? tr('Avg score {score}/100', { score: production.avgHealthScore.value.toFixed(0) })
+        : tr('From vegetation indicators'),
       highlight: Boolean(production.atRiskProduction?.value),
       warning: Boolean(production.atRiskProduction?.value),
     },
     {
-      label: supply.atRiskDeliveries?.value ? 'Supply at risk' : 'Contract volume',
+      label: supply.atRiskDeliveries?.value ? tr('Supply at risk') : tr('Contract volume'),
       value: supply.atRiskDeliveries?.value
-        ? formatValue(supply.atRiskDeliveries.value, supply.atRiskDeliveries.unit || 'lots')
+        ? formatValue(supply.atRiskDeliveries.value, tr(supply.atRiskDeliveries.unit || 'lots'))
         : formatValue(supply.availableVolume?.value ?? null, supply.availableVolume?.unit || 't'),
       detail: climate.heatRisk.value
-        ? `Peak temp ${climate.heatRisk.value.toFixed(1)}°C sampled`
-        : humanizeMetricSource(supply.availableVolume?.source || 'supply_overview_snapshots'),
+        ? tr('Peak temp {value}°C sampled', { value: climate.heatRisk.value.toFixed(1) })
+        : trSource(supply.availableVolume?.source || 'supply_overview_snapshots'),
       highlight: Boolean(supply.atRiskDeliveries?.value || supply.availableVolume?.value || climate.heatRisk.value),
       warning: Boolean(supply.atRiskDeliveries?.value),
     },
@@ -60,23 +67,21 @@ export function WatchtowerProductionSnapshot({
   if (cards.length === 0) return null
 
   return (
-    <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
+    <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
       {cards.map((card) => (
-        <div
-          key={card.label}
-          className={cn(
-            'rounded-lg border px-3 py-2.5',
-            card.warning
-              ? 'border-amber-500/30 bg-amber-500/[0.06]'
-              : card.highlight
-                ? 'border-[#07f880]/25 bg-[#07f880]/[0.05]'
-                : 'border-white/10 bg-white/[0.02]'
-          )}
-        >
-          <p className="text-[10px] uppercase tracking-wider text-white/40">{card.label}</p>
-          <p className="mt-1 text-lg font-semibold text-white">{card.value}</p>
-          <p className="mt-1 text-[10px] text-white/45 line-clamp-2">{card.detail}</p>
-        </div>
+        <Tile key={card.label} className="p-4" style={{ borderRadius: 'var(--radius-xl)' }}>
+          <Metric
+            label={
+              <span className="inline-flex items-center gap-2">
+                {card.warning && <StatusDot tone="warning" size={6} />}
+                {card.label}
+              </span>
+            }
+            value={card.value!.number}
+            unit={card.value!.unit}
+            hint={<span className="line-clamp-2">{card.detail}</span>}
+          />
+        </Tile>
       ))}
     </div>
   )

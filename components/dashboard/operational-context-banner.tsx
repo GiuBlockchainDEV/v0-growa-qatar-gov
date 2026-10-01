@@ -15,11 +15,12 @@ interface OperationalContextBannerProps {
 }
 
 export function OperationalContextBanner({ className }: OperationalContextBannerProps) {
-  const { t } = useI18n()
+  const { t, tr } = useI18n()
   const opCtx = useOperationalContextOptional()
+  // Hooks before any early return (it was called after one: rules-of-hooks).
+  const searchParams = useSearchParams()
   if (!opCtx) return null
 
-  const searchParams = useSearchParams()
   const { context, timeframe, selectedSignalId, clearContext } = opCtx
   const activeModule = searchParams.get('module')
   const hasContext = hasOperationalOverlayContext(searchParams, {
@@ -31,46 +32,47 @@ export function OperationalContextBanner({ className }: OperationalContextBanner
   return (
     <div
       className={cn(
-        'flex flex-wrap items-center justify-between gap-2 rounded-lg border border-[#07f880]/20 bg-[#07f880]/5 px-3 py-2',
+        'flex flex-wrap items-center justify-between gap-2 rounded-lg border border-sage-300 bg-cream-50 px-4 py-2.5',
         className
       )}
     >
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-white/70">
-        <span className="font-medium text-[#07f880]">{t('context.active')}</span>
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[12px] text-content">
+        <span className="inline-flex items-center gap-2 font-medium text-content"><span aria-hidden="true" className="w-1.5 h-1.5 bg-sage" style={{ borderRadius: 1 }} />{t('context.active')}</span>
         {context.farmId && (
           <span className="inline-flex items-center gap-1">
-            <MapPin className="h-3 w-3" />
-            Farm: {context.farmId.slice(0, 8)}…
+            <MapPin strokeWidth={1.5} className="h-3 w-3" />
+            {tr('Farm: {id}…', { id: context.farmId.slice(0, 8) })}
           </span>
         )}
         {context.parcelId && !isHarvestDashboardModule(activeModule) ? (
-          <span>Parcel: {context.parcelId.slice(0, 8)}…</span>
+          <span>{tr('Parcel: {id}…', { id: context.parcelId.slice(0, 8) })}</span>
         ) : null}
-        {context.cropId && <span>Crop: {context.cropId}</span>}
+        {context.cropId && <span>{tr('Crop: {id}', { id: context.cropId })}</span>}
         {(context.signalId || selectedSignalId) && (
           <span className="inline-flex items-center gap-1">
-            <Radio className="h-3 w-3" />
-            Signal active
+            <Radio strokeWidth={1.5} className="h-3 w-3" />
+            {tr('Signal active')}
           </span>
         )}
-        <span className="text-white/40">· {timeframeLabel(timeframe)}</span>
+        <span className="text-content-soft">· {tr(timeframeLabel(timeframe))}</span>
       </div>
 
       <div className="flex items-center gap-2">
         {context.farmId ? (
           <DashboardQueryLink
             href={navigateToFarm(searchParams, context.farmId, 'watchtower', 14)}
-            className="text-[10px] text-[#07f880] hover:underline"
+            className="text-[12px] text-sage-700 hover:text-ink transition-colors"
           >
-            View in Watchtower
+            {tr('View in Watchtower')}
           </DashboardQueryLink>
         ) : null}
         <button
           type="button"
           onClick={clearContext}
-          className="inline-flex items-center gap-1 rounded border border-white/10 px-2 py-0.5 text-[10px] text-white/50 hover:text-white"
+          className="g-tag g-tag--outline-ink hover:bg-card transition-colors"
+          style={{ height: 24, padding: '0 10px', fontSize: 11 }}
         >
-          <X className="h-3 w-3" />
+          <X strokeWidth={1.5} className="h-3 w-3" />
           {t('context.clear')}
         </button>
       </div>

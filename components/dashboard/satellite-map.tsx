@@ -1,14 +1,64 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Crosshair, Minus, Plus } from 'lucide-react'
+import { Crosshair, Minus, Plus, Search, X } from 'lucide-react'
+import type { Layer, LeafletMouseEvent } from 'leaflet'
+
+type LeafletModule = typeof import('leaflet')
 import { createHarvestRasterLayer } from '@/components/dashboard/harvest-raster-layer'
 import { useAuth } from '@/hooks/use-auth'
 import { useOrganization } from '@/hooks/use-organization'
 import type { IntelligenceSignal } from '@/lib/domain/types'
-import { resolvePolygonColor, SIGNAL_SEVERITY_COLORS } from '@/lib/watchtower/map-layer-colors'
+import { MAP_COLORS, resolvePolygonColor, SIGNAL_SEVERITY_COLORS } from '@/lib/watchtower/map-layer-colors'
+import { Logo } from '@/components/brand/logo'
+import { LatticeLoader } from '@/components/brand/ui'
 import { COORDINATE_SEARCH_ZOOM, parseCoordinateQuery } from '@/lib/dashboard/coordinate-search'
 import { resolveMapLayerVisibility } from '@/lib/watchtower/map-layer-visibility'
+import { useConfirm, useToast } from '@/components/brand/feedback'
+import { invalidateShared, sharedFetch } from '@/lib/client/shared-fetch'
+import { useI18n } from '@/lib/i18n'
+import {
+  PointEditDialog,
+  PolygonEditDialog,
+  type PointEditValues,
+  type PolygonEditValues,
+} from '@/components/dashboard/map-edit-dialogs'
+import {
+  type MapPointType,
+  type PolygonDrawMethod,
+  type MapMarker,
+  type OperationsFarmTarget,
+  type SatelliteMapProps,
+  type MapController,
+  type CustomPoint,
+  type PolygonVertex,
+  type PolygonCropData,
+  type PolygonMetricsData,
+  type PointPolygon,
+  type FarmCropInsight,
+  type PointPolygonsMap,
+  POINT_TYPE_OPTIONS,
+  POINT_TYPE_LABELS,
+  SIGNAL_SEVERITY_LABELS,
+  POLYGON_DRAW_METHOD_OPTIONS,
+  type CropTypeOption,
+  normalizeDbCustomPointRows,
+  normalizeCropTypeRows,
+  escapeHtml,
+  calculatePolygonAreaHectares,
+  formatHectares,
+  normalizePolygonScore,
+  scoreToPolygonColor,
+  createRectangleVertices,
+  createCircleVertices,
+  normalizeMetricValue,
+  normalizePointPolygon,
+  normalizeFarmCropInsight,
+  formatMetric,
+  formatScoreValue,
+  getScoreTextColor,
+  normalizeExternalLink,
+} from '@/components/dashboard/map/map-model'
 
 const QATAR_CENTER = { lat: 25.3548, lng: 51.1839 }
 const DEFAULT_ZOOM = 10
@@ -16,571 +66,7 @@ const DEFAULT_FARM_ZOOM = 17
 const DEFAULT_TILE_URL =
   'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'
 
-type MapPointType = 'farm' | 'facility' | 'sensor' | 'custom'
-type PolygonDrawMethod = 'vertex' | 'rectangle' | 'circle'
-
-interface MapMarker {
-  id: string
-  lat: number
-  lng: number
-  label: string
-  type: MapPointType
-}
-
-interface WeatherGridMapPoint {
-  id: string
-  lat: number
-  lng: number
-  north?: number
-  south?: number
-  east?: number
-  west?: number
-}
-
-interface WeatherGridLineSegment {
-  id: string
-  start: { lat: number; lng: number }
-  end: { lat: number; lng: number }
-}
-
-interface WeatherBoundaryPoint {
-  lat: number
-  lng: number
-}
-
-interface HarvestMapField {
-  parcel_id: string
-  season_id?: number
-  name: string
-  crop: string
-  rings: Array<Array<{ lat: number; lng: number }>>
-  centroid: { lat: number; lng: number }
-}
-
-interface OperationsFarmTarget {
-  id: string
-  label: string
-  lat: number
-  lng: number
-}
-
-interface SatelliteMapProps {
-  locale?: string
-  targetPointId?: string | null
-  targetFarmId?: string | null
-  targetCropFilter?: string | null
-  targetFocusToken?: string | null
-  targetZoom?: number
-  isLateralMode?: boolean
-  lateralPanelOpen?: boolean
-  onMapClick?: (coords: { lat: number; lng: number }) => void
-  weatherGridPoints?: WeatherGridMapPoint[]
-  selectedWeatherGridPointId?: string | null
-  weatherGridLines?: WeatherGridLineSegment[]
-  weatherBoundary?: WeatherBoundaryPoint[]
-  onWeatherGridPointClick?: (point: WeatherGridMapPoint) => void
-  harvestFields?: HarvestMapField[]
-  selectedHarvestParcelId?: string | null
-  onHarvestFieldClick?: (field: HarvestMapField) => void
-  mapTileUrl?: string | null
-  harvestRasterOverlay?: {
-    imageUrl: string
-    bounds: [[number, number], [number, number]]
-    opacity?: number
-  } | null
-  harvestFocusBounds?: [[number, number], [number, number]] | null
-  harvestFieldDrawActive?: boolean
-  harvestFieldDrawMethod?: 'vertex' | 'circle'
-  harvestFieldRings?: PolygonVertex[][]
-  harvestFieldVertices?: PolygonVertex[]
-  onHarvestFieldRingsChange?: (rings: PolygonVertex[][]) => void
-  onHarvestFieldVerticesChange?: (vertices: PolygonVertex[]) => void
-  activeMapLayers?: string[]
-}
-
-interface MapController {
-  zoomIn: () => void
-  zoomOut: () => void
-  flyTo: (coords: [number, number], zoom: number, options?: { duration?: number }) => void
-  setView: (coords: [number, number], zoom: number) => void
-  closePopup?: () => void
-  getZoom: () => number
-  on: (event: string, handler: (...args: any[]) => void) => void
-  off: (event: string, handler: (...args: any[]) => void) => void
-  remove: () => void
-}
-
-interface CustomPoint {
-  id: string
-  lat: number
-  lng: number
-  label: string
-  pointType: MapPointType
-  externalUrl: string
-}
-
-interface PolygonVertex {
-  lat: number
-  lng: number
-}
-
-interface PolygonCropData {
-  cropName: string
-  variety: string
-  sowingDate: string
-  expectedHarvestDate: string
-  notes: string
-}
-
-interface PolygonMetricsData {
-  estimatedProductionTons: number
-  energyConsumptionKwh: number
-  waterConsumptionM3: number
-}
-
-interface PointPolygon {
-  id: string
-  customPointId: string
-  name: string
-  vertices: PolygonVertex[]
-  score: number
-  crop: PolygonCropData
-  metrics: PolygonMetricsData
-  createdAt: string
-}
-
-interface FarmCropInsightApiRow {
-  id: string
-  custom_point_id?: string | null
-  pointId?: string | null
-  crop_name?: string | null
-  cropName?: string | null
-  estimated_production_tons?: number | string | null
-  estimatedProductionTons?: number | string | null
-  energy_consumption_kwh?: number | string | null
-  energyConsumptionKwh?: number | string | null
-  water_consumption_m3?: number | string | null
-  waterConsumptionM3?: number | string | null
-  external_url?: string | null
-  externalUrl?: string | null
-  created_at?: string | null
-  createdAt?: string | null
-}
-
-interface FarmCropInsight {
-  id: string
-  pointId: string
-  cropName: string
-  estimatedProductionTons: number
-  energyConsumptionKwh: number
-  waterConsumptionM3: number
-  externalUrl: string
-  createdAt: string
-}
-
-type PointPolygonsMap = Record<string, PointPolygon[]>
-
-const EMPTY_POLYGON_CROP: PolygonCropData = {
-  cropName: '',
-  variety: '',
-  sowingDate: '',
-  expectedHarvestDate: '',
-  notes: '',
-}
-
-const EMPTY_POLYGON_METRICS: PolygonMetricsData = {
-  estimatedProductionTons: 0,
-  energyConsumptionKwh: 0,
-  waterConsumptionM3: 0,
-}
-
-const POINT_TYPE_OPTIONS: Array<{ value: MapPointType; label: string }> = [
-  { value: 'custom', label: 'Custom' },
-  { value: 'farm', label: 'Farm' },
-  { value: 'facility', label: 'Facility' },
-  { value: 'sensor', label: 'Sensor' },
-]
-
-const POINT_TYPE_LABELS: Record<MapPointType, string> = {
-  custom: 'Custom',
-  farm: 'Farm',
-  facility: 'Facility',
-  sensor: 'Sensor',
-}
-
-const POLYGON_DRAW_METHOD_OPTIONS: Array<{ value: PolygonDrawMethod; label: string }> = [
-  { value: 'vertex', label: 'Point by point' },
-  { value: 'rectangle', label: 'Rectangle' },
-  { value: 'circle', label: 'Circle' },
-]
-
-interface DbCustomPointRow {
-  id?: string
-  lat?: number | string
-  lng?: number | string
-  label?: string
-  pointType?: string
-  point_type?: string
-  externalUrl?: string
-  external_url?: string
-}
-
-interface CropTypeOption {
-  id: string
-  code: string
-  nameEn: string
-  nameAr: string
-  varieties: string[]
-}
-
-interface CropTypesApiRow {
-  id?: string
-  code?: string
-  nameEn?: string
-  name_en?: string
-  nameAr?: string
-  name_ar?: string
-  varieties?: unknown
-}
-
-function normalizeDbCustomPointRows(rows: unknown): CustomPoint[] {
-  if (!Array.isArray(rows)) return []
-  return rows
-    .map((entry) => {
-      if (!entry || typeof entry !== 'object') return null
-      const row = entry as DbCustomPointRow
-      const id = typeof row.id === 'string' ? row.id.trim() : ''
-      const lat =
-        typeof row.lat === 'number' ? row.lat : typeof row.lat === 'string' ? Number(row.lat) : Number.NaN
-      const lng =
-        typeof row.lng === 'number' ? row.lng : typeof row.lng === 'string' ? Number(row.lng) : Number.NaN
-      const label = typeof row.label === 'string' ? row.label.trim() : ''
-      const externalUrl =
-        (typeof row.externalUrl === 'string' && row.externalUrl.trim()) ||
-        (typeof row.external_url === 'string' && row.external_url.trim()) ||
-        ''
-      const rawPointType =
-        typeof row.pointType === 'string'
-          ? row.pointType
-          : typeof row.point_type === 'string'
-            ? row.point_type
-            : 'custom'
-      const normalizedPointType = rawPointType.trim().toLowerCase()
-      const pointType: MapPointType = POINT_TYPE_OPTIONS.some((option) => option.value === normalizedPointType)
-        ? (normalizedPointType as MapPointType)
-        : 'custom'
-      if (!id || !Number.isFinite(lat) || !Number.isFinite(lng)) return null
-      return {
-        id,
-        lat,
-        lng,
-        label: label || 'Custom Point',
-        pointType,
-        externalUrl,
-      } satisfies CustomPoint
-    })
-    .filter((point): point is CustomPoint => Boolean(point))
-}
-
-function normalizeCropTypeRows(rows: unknown): CropTypeOption[] {
-  if (!Array.isArray(rows)) return []
-  return rows
-    .map((entry) => {
-      if (!entry || typeof entry !== 'object') return null
-      const row = entry as CropTypesApiRow
-      const id = typeof row.id === 'string' ? row.id.trim() : ''
-      const code = typeof row.code === 'string' ? row.code.trim() : ''
-      const nameEn =
-        (typeof row.nameEn === 'string' && row.nameEn.trim()) ||
-        (typeof row.name_en === 'string' && row.name_en.trim()) ||
-        (typeof (row as Record<string, unknown>).name === 'string' &&
-          ((row as Record<string, unknown>).name as string).trim()) ||
-        ''
-      const nameAr =
-        (typeof row.nameAr === 'string' && row.nameAr.trim()) ||
-        (typeof row.name_ar === 'string' && row.name_ar.trim()) ||
-        ''
-      const varieties = Array.isArray(row.varieties)
-        ? row.varieties
-            .map((entry) => (typeof entry === 'string' ? entry.trim() : ''))
-            .filter((entry) => Boolean(entry))
-        : []
-      if (!id || !code || !nameEn) return null
-      return { id, code, nameEn, nameAr, varieties } satisfies CropTypeOption
-    })
-    .filter((row): row is CropTypeOption => Boolean(row))
-}
-
-function escapeHtml(value: string) {
-  return value
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;')
-}
-
-function calculatePolygonAreaHectares(vertices: PolygonVertex[]): number {
-  if (vertices.length < 3) return 0
-  const earthRadiusMeters = 6371008.8
-  const toRadians = (value: number) => (value * Math.PI) / 180
-  const meanLatRadians =
-    vertices.reduce((sum, vertex) => sum + toRadians(vertex.lat), 0) / vertices.length
-  const cartesianVertices = vertices.map((vertex) => ({
-    x: earthRadiusMeters * toRadians(vertex.lng) * Math.cos(meanLatRadians),
-    y: earthRadiusMeters * toRadians(vertex.lat),
-  }))
-
-  let doubleArea = 0
-  for (let i = 0; i < cartesianVertices.length; i += 1) {
-    const current = cartesianVertices[i]
-    const next = cartesianVertices[(i + 1) % cartesianVertices.length]
-    doubleArea += current.x * next.y - next.x * current.y
-  }
-
-  const areaSquareMeters = Math.abs(doubleArea) * 0.5
-  return areaSquareMeters / 10000
-}
-
-function formatHectares(value: number) {
-  if (!Number.isFinite(value) || value <= 0) return '0.00'
-  if (value >= 1) return value.toFixed(2)
-  if (value >= 0.1) return value.toFixed(3)
-  return value.toFixed(4)
-}
-
-function normalizePolygonScore(value: unknown, fallback = 50) {
-  const numericValue =
-    typeof value === 'number' ? value : typeof value === 'string' ? Number(value) : Number.NaN
-  if (!Number.isFinite(numericValue)) return fallback
-  return Math.min(100, Math.max(0, Math.round(numericValue)))
-}
-
-function scoreToPolygonColor(score: number) {
-  const normalized = normalizePolygonScore(score, 50)
-  // Requested scale: 0 -> red, mid -> yellow/orange, 100 -> green.
-  const hue = (normalized / 100) * 120
-  return `hsl(${hue.toFixed(1)} 100% 56%)`
-}
-
-function createRectangleVertices(start: PolygonVertex, end: PolygonVertex): PolygonVertex[] {
-  const minLat = Math.min(start.lat, end.lat)
-  const maxLat = Math.max(start.lat, end.lat)
-  const minLng = Math.min(start.lng, end.lng)
-  const maxLng = Math.max(start.lng, end.lng)
-  return [
-    { lat: minLat, lng: minLng },
-    { lat: minLat, lng: maxLng },
-    { lat: maxLat, lng: maxLng },
-    { lat: maxLat, lng: minLng },
-  ]
-}
-
-function createCircleVertices(
-  center: PolygonVertex,
-  edge: PolygonVertex,
-  segmentCount = 36
-): PolygonVertex[] {
-  const latScale = 111320
-  const lngScale = Math.cos((center.lat * Math.PI) / 180) * 111320
-  const deltaX = (edge.lng - center.lng) * lngScale
-  const deltaY = (edge.lat - center.lat) * latScale
-  const radiusMeters = Math.sqrt(deltaX * deltaX + deltaY * deltaY)
-  if (!Number.isFinite(radiusMeters) || radiusMeters <= 0) return []
-
-  const vertices: PolygonVertex[] = []
-  for (let i = 0; i < segmentCount; i += 1) {
-    const angle = (2 * Math.PI * i) / segmentCount
-    const x = radiusMeters * Math.cos(angle)
-    const y = radiusMeters * Math.sin(angle)
-    vertices.push({
-      lat: center.lat + y / latScale,
-      lng: center.lng + x / lngScale,
-    })
-  }
-  return vertices
-}
-
-function normalizePolygonVertices(input: unknown): PolygonVertex[] {
-  if (!Array.isArray(input)) return []
-  return input
-    .map((entry) => {
-      if (!entry || typeof entry !== 'object') return null
-      const row = entry as Record<string, unknown>
-      const lat = typeof row.lat === 'number' ? row.lat : Number.NaN
-      const lng = typeof row.lng === 'number' ? row.lng : Number.NaN
-      if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null
-      return { lat, lng } satisfies PolygonVertex
-    })
-    .filter((vertex): vertex is PolygonVertex => Boolean(vertex))
-}
-
-function normalizeMetricValue(input: unknown): number {
-  const value =
-    typeof input === 'number' ? input : typeof input === 'string' ? Number(input) : Number.NaN
-  if (!Number.isFinite(value) || value < 0) return 0
-  return Math.round(value * 100) / 100
-}
-
-function normalizePolygonMetrics(input: unknown, fallback: PolygonMetricsData = EMPTY_POLYGON_METRICS): PolygonMetricsData {
-  const row = input && typeof input === 'object' ? (input as Record<string, unknown>) : {}
-  return {
-    estimatedProductionTons: normalizeMetricValue(
-      row.estimatedProductionTons ??
-        row.estimated_production_tons ??
-        row.estimated_production ??
-        fallback.estimatedProductionTons
-    ),
-    energyConsumptionKwh: normalizeMetricValue(
-      row.energyConsumptionKwh ??
-        row.energy_consumption_kwh ??
-        row.energy_consumption ??
-        fallback.energyConsumptionKwh
-    ),
-    waterConsumptionM3: normalizeMetricValue(
-      row.waterConsumptionM3 ??
-        row.water_consumption_m3 ??
-        row.water_consumption ??
-        fallback.waterConsumptionM3
-    ),
-  }
-}
-
-function normalizePointPolygon(input: unknown): PointPolygon | null {
-  if (!input || typeof input !== 'object') return null
-  const row = input as Record<string, unknown>
-  const vertices = normalizePolygonVertices(row.vertices)
-  if (vertices.length < 3) return null
-
-  const cropRow = row.crop && typeof row.crop === 'object' ? (row.crop as Record<string, unknown>) : null
-  const metricsRow = row.metrics && typeof row.metrics === 'object' ? (row.metrics as Record<string, unknown>) : row
-  const customPointId =
-    (typeof row.customPointId === 'string' && row.customPointId.trim()) ||
-    (typeof row.custom_point_id === 'string' && row.custom_point_id.trim()) ||
-    (typeof row.pointId === 'string' && row.pointId.trim()) ||
-    ''
-  const id = typeof row.id === 'string' && row.id.trim() ? row.id.trim() : ''
-  const name = typeof row.name === 'string' && row.name.trim() ? row.name.trim() : ''
-  if (!id || !customPointId || !name) return null
-  return {
-    id,
-    customPointId,
-    name,
-    vertices,
-    score: normalizePolygonScore(
-      (row as Record<string, unknown>).score ??
-        (row as Record<string, unknown>).polygonScore ??
-        (row as Record<string, unknown>).polygon_score,
-      50
-    ),
-    crop: {
-      cropName:
-        (typeof cropRow?.cropName === 'string' && cropRow.cropName) ||
-        (typeof cropRow?.crop_name === 'string' && cropRow.crop_name) ||
-        (typeof row.cropName === 'string' && row.cropName) ||
-        (typeof row.crop_name === 'string' && row.crop_name) ||
-        '',
-      variety:
-        (typeof cropRow?.variety === 'string' && cropRow.variety) ||
-        (typeof cropRow?.cropVariety === 'string' && cropRow.cropVariety) ||
-        (typeof cropRow?.crop_variety === 'string' && cropRow.crop_variety) ||
-        (typeof row.cropVariety === 'string' && row.cropVariety) ||
-        (typeof row.crop_variety === 'string' && row.crop_variety) ||
-        '',
-      sowingDate:
-        (typeof cropRow?.sowingDate === 'string' && cropRow.sowingDate) ||
-        (typeof cropRow?.sowing_date === 'string' && cropRow.sowing_date) ||
-        (typeof row.plantingDate === 'string' && row.plantingDate) ||
-        (typeof row.sowingDate === 'string' && row.sowingDate) ||
-        (typeof row.sowing_date === 'string' && row.sowing_date) ||
-        '',
-      expectedHarvestDate:
-        (typeof cropRow?.expectedHarvestDate === 'string' && cropRow.expectedHarvestDate) ||
-        (typeof cropRow?.expected_harvest_date === 'string' && cropRow.expected_harvest_date) ||
-        (typeof row.expectedHarvestDate === 'string' && row.expectedHarvestDate) ||
-        (typeof row.expected_harvest_date === 'string' && row.expected_harvest_date) ||
-        '',
-      notes:
-        (typeof cropRow?.notes === 'string' && cropRow.notes) ||
-        (typeof row.notes === 'string' && row.notes) ||
-        '',
-    },
-    metrics: normalizePolygonMetrics(metricsRow),
-    createdAt:
-      (typeof row.createdAt === 'string' && row.createdAt.trim() ? row.createdAt : null) ||
-      (typeof row.created_at === 'string' && row.created_at.trim() ? row.created_at : null) ||
-      new Date().toISOString(),
-  }
-}
-
-function normalizeFarmCropInsight(input: unknown): FarmCropInsight | null {
-  if (!input || typeof input !== 'object') return null
-  const row = input as FarmCropInsightApiRow
-  const id = typeof row.id === 'string' ? row.id.trim() : ''
-  const pointId =
-    (typeof row.custom_point_id === 'string' && row.custom_point_id.trim()) ||
-    (typeof row.pointId === 'string' && row.pointId.trim()) ||
-    ''
-  const cropName =
-    (typeof row.crop_name === 'string' && row.crop_name.trim()) ||
-    (typeof row.cropName === 'string' && row.cropName.trim()) ||
-    ''
-  if (!id || !pointId || !cropName) return null
-  const externalUrl =
-    (typeof row.external_url === 'string' && row.external_url.trim()) ||
-    (typeof row.externalUrl === 'string' && row.externalUrl.trim()) ||
-    ''
-  return {
-    id,
-    pointId,
-    cropName,
-    estimatedProductionTons: normalizeMetricValue(
-      row.estimated_production_tons ?? row.estimatedProductionTons
-    ),
-    energyConsumptionKwh: normalizeMetricValue(
-      row.energy_consumption_kwh ?? row.energyConsumptionKwh
-    ),
-    waterConsumptionM3: normalizeMetricValue(
-      row.water_consumption_m3 ?? row.waterConsumptionM3
-    ),
-    externalUrl,
-    createdAt:
-      (typeof row.created_at === 'string' && row.created_at.trim()) ||
-      (typeof row.createdAt === 'string' && row.createdAt.trim()) ||
-      new Date().toISOString(),
-  }
-}
-
-function formatMetric(value: number, unit: string) {
-  return `${value.toLocaleString('en-US', { maximumFractionDigits: 2 })} ${unit}`
-}
-
-function formatScoreValue(value: number | null) {
-  if (value === null || !Number.isFinite(value)) return '-'
-  return `${value.toFixed(1)}/100`
-}
-
-function getScoreTextColor(value: number | null) {
-  if (value === null || !Number.isFinite(value)) return '#9ca3af'
-  return scoreToPolygonColor(value)
-}
-
-function getScoreSurfaceColor(value: number | null, alpha: number) {
-  if (value === null || !Number.isFinite(value)) {
-    return `rgba(156, 163, 175, ${Math.max(0, Math.min(1, alpha))})`
-  }
-  const normalized = normalizePolygonScore(value, 50)
-  const hue = (normalized / 100) * 120
-  return `hsl(${hue.toFixed(1)} 100% 56% / ${Math.max(0, Math.min(1, alpha))})`
-}
-
-function normalizeExternalLink(input: string) {
-  const trimmed = input.trim()
-  if (!trimmed) return ''
-  return /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`
-}
-
-function isLeafletUiClick(event: any) {
+function isLeafletUiClick(event: { originalEvent?: Event } | null | undefined) {
   const target = event?.originalEvent?.target
   if (!(target instanceof Element)) return false
   return Boolean(
@@ -588,6 +74,52 @@ function isLeafletUiClick(event: any) {
       '.leaflet-marker-icon, .leaflet-popup, .leaflet-popup-content, .leaflet-control, .custom-marker, .leaflet-interactive'
     )
   )
+}
+
+/* Stable empty defaults. A literal `= []` in the signature is a NEW array on
+   every render, and these props are dependencies of the effects that tear
+   down and rebuild every marker and polygon: each zoom or keystroke used to
+   redraw the whole map. */
+const NO_WEATHER_POINTS: NonNullable<SatelliteMapProps['weatherGridPoints']> = []
+const NO_WEATHER_LINES: NonNullable<SatelliteMapProps['weatherGridLines']> = []
+const NO_BOUNDARY: NonNullable<SatelliteMapProps['weatherBoundary']> = []
+const NO_HARVEST_FIELDS: NonNullable<SatelliteMapProps['harvestFields']> = []
+const NO_RINGS: NonNullable<SatelliteMapProps['harvestFieldRings']> = []
+const NO_VERTICES: NonNullable<SatelliteMapProps['harvestFieldVertices']> = []
+
+/* The zoom readout listens to the map itself: as state of the 3,000-line
+   map component, every zoom step re-rendered all of it. */
+function ZoomReadout({ map }: { map: MapController | null }) {
+  const [zoom, setZoom] = useState(() => map?.getZoom() ?? DEFAULT_ZOOM)
+  useEffect(() => {
+    if (!map) return
+    const update = () => setZoom(map.getZoom())
+    update()
+    map.on('zoomend', update)
+    return () => {
+      map.off('zoomend', update)
+    }
+  }, [map])
+  return <>{zoom}</>
+}
+
+/* Writes to the operations API drop the shared GET cache, so the map, the
+   workspace beside it and the header search all read the new data. */
+async function mutateOperations(input: string, init: RequestInit) {
+  try {
+    return await fetch(input, init)
+  } finally {
+    invalidateShared('/api/operations/')
+  }
+}
+
+/** Latest value in a ref: callbacks from the parent without making them effect deps. */
+function useLatestRef<T>(value: T) {
+  const ref = useRef(value)
+  useEffect(() => {
+    ref.current = value
+  }, [value])
+  return ref
 }
 
 export function SatelliteMap({
@@ -599,26 +131,71 @@ export function SatelliteMap({
   targetZoom,
   isLateralMode = false,
   lateralPanelOpen = false,
-  onMapClick,
-  weatherGridPoints = [],
+  onMapClick: onMapClickProp,
+  weatherGridPoints = NO_WEATHER_POINTS,
   selectedWeatherGridPointId = null,
-  weatherGridLines = [],
-  weatherBoundary = [],
-  onWeatherGridPointClick,
-  harvestFields = [],
+  weatherGridLines = NO_WEATHER_LINES,
+  weatherBoundary = NO_BOUNDARY,
+  onWeatherGridPointClick: onWeatherGridPointClickProp,
+  harvestFields = NO_HARVEST_FIELDS,
   selectedHarvestParcelId = null,
-  onHarvestFieldClick,
+  onHarvestFieldClick: onHarvestFieldClickProp,
   mapTileUrl = null,
-  harvestRasterOverlay = null,
+  harvestRasterOverlay: harvestRasterOverlayProp = null,
   harvestFocusBounds = null,
   harvestFieldDrawActive = false,
   harvestFieldDrawMethod = 'vertex',
-  harvestFieldRings = [],
-  harvestFieldVertices = [],
-  onHarvestFieldRingsChange,
-  onHarvestFieldVerticesChange,
+  harvestFieldRings = NO_RINGS,
+  harvestFieldVertices = NO_VERTICES,
+  onHarvestFieldRingsChange: onHarvestFieldRingsChangeProp,
+  onHarvestFieldVerticesChange: onHarvestFieldVerticesChangeProp,
   activeMapLayers,
 }: SatelliteMapProps) {
+  const { tr } = useI18n()
+  const showToast = useToast()
+  const confirmDialog = useConfirm()
+
+  /* Parent callbacks are usually inline arrows (new on every render). Keep
+     them in refs and hand the effects stable wrappers; `undefined` is kept
+     as `undefined` so "is there a handler?" checks still work. */
+  const onMapClickRef = useLatestRef(onMapClickProp)
+  const onWeatherGridPointClickRef = useLatestRef(onWeatherGridPointClickProp)
+  const onHarvestFieldClickRef = useLatestRef(onHarvestFieldClickProp)
+  const onHarvestFieldRingsChangeRef = useLatestRef(onHarvestFieldRingsChangeProp)
+  const onHarvestFieldVerticesChangeRef = useLatestRef(onHarvestFieldVerticesChangeProp)
+  const hasMapClick = Boolean(onMapClickProp)
+  const hasWeatherGridPointClick = Boolean(onWeatherGridPointClickProp)
+  const hasHarvestFieldClick = Boolean(onHarvestFieldClickProp)
+  const hasHarvestFieldRingsChange = Boolean(onHarvestFieldRingsChangeProp)
+  const hasHarvestFieldVerticesChange = Boolean(onHarvestFieldVerticesChangeProp)
+  const onMapClick = useMemo<SatelliteMapProps['onMapClick']>(
+    () => (hasMapClick ? (...args) => onMapClickRef.current?.(...args) : undefined),
+    [hasMapClick, onMapClickRef]
+  )
+  const onWeatherGridPointClick = useMemo<SatelliteMapProps['onWeatherGridPointClick']>(
+    () => (hasWeatherGridPointClick ? (...args) => onWeatherGridPointClickRef.current?.(...args) : undefined),
+    [hasWeatherGridPointClick, onWeatherGridPointClickRef]
+  )
+  const onHarvestFieldClick = useMemo<SatelliteMapProps['onHarvestFieldClick']>(
+    () => (hasHarvestFieldClick ? (...args) => onHarvestFieldClickRef.current?.(...args) : undefined),
+    [hasHarvestFieldClick, onHarvestFieldClickRef]
+  )
+  const onHarvestFieldRingsChange = useMemo<SatelliteMapProps['onHarvestFieldRingsChange']>(
+    () => (hasHarvestFieldRingsChange ? (...args) => onHarvestFieldRingsChangeRef.current?.(...args) : undefined),
+    [hasHarvestFieldRingsChange, onHarvestFieldRingsChangeRef]
+  )
+  const onHarvestFieldVerticesChange = useMemo<SatelliteMapProps['onHarvestFieldVerticesChange']>(
+    () => (hasHarvestFieldVerticesChange ? (...args) => onHarvestFieldVerticesChangeRef.current?.(...args) : undefined),
+    [hasHarvestFieldVerticesChange, onHarvestFieldVerticesChangeRef]
+  )
+
+  /* The raster overlay arrives as a fresh object each render: key it on what
+     actually changes the image so the overlay is not re-added every time. */
+  const rasterKey = harvestRasterOverlayProp
+    ? `${harvestRasterOverlayProp.imageUrl}|${harvestRasterOverlayProp.bounds.flat().join(',')}|${harvestRasterOverlayProp.opacity ?? ''}`
+    : ''
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const harvestRasterOverlay = useMemo(() => harvestRasterOverlayProp, [rasterKey])
   const { user } = useAuth()
   const { organization } = useOrganization()
 
@@ -629,26 +206,27 @@ export function SatelliteMap({
 
   const mapRef = useRef<HTMLDivElement>(null)
   const mapInstanceRef = useRef<MapController | null>(null)
-  const leafletRef = useRef<any>(null)
-  const markerInstancesRef = useRef<any[]>([])
-  const weatherGridMarkerInstancesRef = useRef<any[]>([])
-  const harvestFieldLayerInstancesRef = useRef<any[]>([])
-  const harvestRasterOverlayRef = useRef<any>(null)
-  const harvestDraftLayerRef = useRef<any>(null)
-  const harvestDraftVertexInstancesRef = useRef<any[]>([])
-  const tileLayerRef = useRef<any>(null)
-  const polygonInstancesRef = useRef<any[]>([])
-  const coordinateMarkerRef = useRef<any | null>(null)
-  const signalMarkerInstancesRef = useRef<any[]>([])
-  const draftPolylineRef = useRef<any | null>(null)
-  const draftVertexInstancesRef = useRef<any[]>([])
+  const leafletRef = useRef<LeafletModule | null>(null)
+  const markerInstancesRef = useRef<Layer[]>([])
+  const weatherGridMarkerInstancesRef = useRef<Layer[]>([])
+  const harvestFieldLayerInstancesRef = useRef<Layer[]>([])
+  const harvestRasterOverlayRef = useRef<Layer | null>(null)
+  const harvestDraftLayerRef = useRef<Layer | null>(null)
+  const harvestDraftVertexInstancesRef = useRef<Layer[]>([])
+  const tileLayerRef = useRef<Layer | null>(null)
+  const polygonInstancesRef = useRef<Layer[]>([])
+  const coordinateMarkerRef = useRef<Layer | null>(null)
+  const signalMarkerInstancesRef = useRef<Layer[]>([])
+  const draftPolylineRef = useRef<Layer | null>(null)
+  const draftVertexInstancesRef = useRef<Layer[]>([])
   const polygonDrawPointIdRef = useRef<string | null>(null)
   const lastClearedFocusTokenRef = useRef<string | null>(null)
   const insightsRequestIdRef = useRef(0)
 
   const [isLoading, setIsLoading] = useState(true)
   const [mapReady, setMapReady] = useState(false)
-  const [currentZoom, setCurrentZoom] = useState(DEFAULT_ZOOM)
+  // The live map for small children (zoom readout); effects keep using the ref.
+  const [mapForReadout, setMapForReadout] = useState<MapController | null>(null)
   const [customPoints, setCustomPoints] = useState<CustomPoint[]>([])
   const [nationalFarmMarkers, setNationalFarmMarkers] = useState<MapMarker[]>([])
   const [intelligenceSignals, setIntelligenceSignals] = useState<IntelligenceSignal[]>([])
@@ -659,6 +237,7 @@ export function SatelliteMap({
   const [activePointId, setActivePointId] = useState<string | null>(null)
   const [polygonCropFilterQuery, setPolygonCropFilterQuery] = useState('')
   const [coordinateQuery, setCoordinateQuery] = useState('')
+  const [coordinateSearchOpen, setCoordinateSearchOpen] = useState(false)
   const [coordinateSearchError, setCoordinateSearchError] = useState<string | null>(null)
   const [farmCropInsightsByPoint, setFarmCropInsightsByPoint] = useState<Record<string, FarmCropInsight[]>>({})
   const [cropTypeOptions, setCropTypeOptions] = useState<CropTypeOption[]>([])
@@ -749,7 +328,7 @@ export function SatelliteMap({
   }, [cropTypeOptions, draftCropName])
   const loadCustomPointsFromDb = useCallback(async () => {
     try {
-      const response = await fetch('/api/operations/custom-map-points', { cache: 'no-store' })
+      const response = await sharedFetch('/api/operations/custom-map-points')
       const payload = await response.json().catch(() => null)
       if (!response.ok) return [] as CustomPoint[]
       return normalizeDbCustomPointRows(payload)
@@ -785,7 +364,7 @@ export function SatelliteMap({
     let cancelled = false
     async function loadCropTypes() {
       try {
-        const response = await fetch('/api/operations/crop-types', { cache: 'no-store' })
+        const response = await sharedFetch('/api/operations/crop-types', { ttlMs: 10 * 60_000 })
         const payload = await response.json().catch(() => null)
         if (!response.ok || cancelled) {
           if (!cancelled) setCropTypeOptions([])
@@ -819,9 +398,7 @@ export function SatelliteMap({
     let cancelled = false
     async function loadPolygons() {
       try {
-        const response = await fetch('/api/operations/custom-point-polygons', {
-          cache: 'no-store',
-        })
+        const response = await sharedFetch('/api/operations/custom-point-polygons')
         const payload = await response.json()
         if (!response.ok || !Array.isArray(payload) || cancelled) {
           if (!cancelled) setPointPolygons({})
@@ -858,9 +435,7 @@ export function SatelliteMap({
     let cancelled = false
     async function loadFarmCropInsights() {
       try {
-        const response = await fetch('/api/operations/farm-crop-insights', {
-          cache: 'no-store',
-        })
+        const response = await sharedFetch('/api/operations/farm-crop-insights')
         const payload = await response.json()
         if (!response.ok || !Array.isArray(payload) || cancelled) {
           if (!cancelled) setFarmCropInsightsByPoint({})
@@ -888,6 +463,8 @@ export function SatelliteMap({
     }
   }, [isGrowaAdmin])
 
+  const customPointById = useMemo(() => new Map(customPoints.map((point) => [point.id, point])), [customPoints])
+
   const mapMarkers = useMemo<MapMarker[]>(() => {
     const custom = customPoints.map((point) => ({
       id: point.id,
@@ -898,8 +475,12 @@ export function SatelliteMap({
     }))
     if (!layerVisibility?.showFarms) return custom
     const merged = [...custom]
+    const seen = new Set(custom.map((entry) => entry.id))
     for (const marker of nationalFarmMarkers) {
-      if (!merged.some((entry) => entry.id === marker.id)) merged.push(marker)
+      if (!seen.has(marker.id)) {
+        seen.add(marker.id)
+        merged.push(marker)
+      }
     }
     return merged
   }, [customPoints, layerVisibility?.showFarms, nationalFarmMarkers])
@@ -913,7 +494,7 @@ export function SatelliteMap({
     let cancelled = false
     async function loadNationalFarms() {
       try {
-        const response = await fetch('/api/operations/farms', { cache: 'no-store' })
+        const response = await sharedFetch('/api/operations/farms')
         const payload = await response.json()
         if (!response.ok || cancelled || !Array.isArray(payload)) return
         const markers = payload
@@ -952,7 +533,7 @@ export function SatelliteMap({
     let cancelled = false
     async function loadSignals() {
       try {
-        const response = await fetch('/api/watchtower/summary?timeframe=7d', { cache: 'no-store' })
+        const response = await sharedFetch('/api/watchtower/summary?timeframe=7d')
         const payload = await response.json()
         if (!response.ok || cancelled) return
         setIntelligenceSignals(Array.isArray(payload.signals) ? payload.signals : [])
@@ -994,29 +575,36 @@ export function SatelliteMap({
     return fallback
   }, [])
 
-  const handleEditPoint = useCallback(
-    async (pointId: string) => {
-      const target = customPoints.find((point) => point.id === pointId)
-      if (!target) return
-      const labelInput = window.prompt(
-        locale === 'ar' ? 'عدّل اسم النقطة' : 'Edit point name',
-        target.label
-      )
-      if (labelInput === null) return
-      const nextLabel = labelInput.trim() || target.label
-      const typeInput = window.prompt(
-        locale === 'ar'
-          ? 'عدّل نوع النقطة (custom, farm, facility, sensor)'
-          : 'Edit point type (custom, farm, facility, sensor)',
-        target.pointType
-      )
-      const nextType = parsePointTypeInput(typeInput, target.pointType)
-      const linkInput = window.prompt(
-        locale === 'ar' ? 'رابط صفحة خارجية للنقطة/المزرعة' : 'External page link for this point/farm',
-        target.externalUrl || ''
-      )
-      if (linkInput === null) return
-      const nextExternalUrl = normalizeExternalLink(linkInput)
+  const pointTypeOptions = useMemo(
+    () => POINT_TYPE_OPTIONS.map((option) => ({ ...option, label: tr(option.label) })),
+    [tr]
+  )
+
+  const [editingPointId, setEditingPointId] = useState<string | null>(null)
+  const editingPoint = useMemo(
+    () => (editingPointId ? customPointById.get(editingPointId) ?? null : null),
+    [customPointById, editingPointId]
+  )
+  const editingPointInitial = useMemo<PointEditValues | null>(
+    () =>
+      editingPoint
+        ? { label: editingPoint.label, pointType: editingPoint.pointType, externalUrl: editingPoint.externalUrl || '' }
+        : null,
+    [editingPoint]
+  )
+
+  /* Opens the edit form (it used to be three window.prompt() in a row). */
+  const handleEditPoint = useCallback((pointId: string) => setEditingPointId(pointId), [])
+
+  const savePointEdit = useCallback(
+    async (values: PointEditValues) => {
+      const pointId = editingPointId
+      setEditingPointId(null)
+      const target = pointId ? customPoints.find((point) => point.id === pointId) : null
+      if (!pointId || !target) return
+      const nextLabel = values.label.trim() || target.label
+      const nextType = parsePointTypeInput(values.pointType, target.pointType)
+      const nextExternalUrl = normalizeExternalLink(values.externalUrl)
       const nextPoint = { ...target, label: nextLabel, pointType: nextType, externalUrl: nextExternalUrl }
       setCustomPoints((prev) =>
         prev.map((entry) =>
@@ -1026,7 +614,7 @@ export function SatelliteMap({
         )
       )
       try {
-        const response = await fetch('/api/operations/custom-map-points', {
+        const response = await mutateOperations('/api/operations/custom-map-points', {
           method: 'PATCH',
           headers: {
             'Content-Type': 'application/json',
@@ -1040,7 +628,7 @@ export function SatelliteMap({
         })
         const payload = await response.json().catch(() => null)
         if (!response.ok) {
-          window.alert(payload?.error || 'Failed to update point link.')
+          showToast(payload?.error || tr('Failed to update point link.'), 'error')
           setCustomPoints((prev) => prev.map((entry) => (entry.id === pointId ? target : entry)))
           return
         }
@@ -1049,26 +637,24 @@ export function SatelliteMap({
           setCustomPoints((prev) => prev.map((entry) => (entry.id === pointId ? normalized : entry)))
         }
       } catch {
-        window.alert('Failed to update point link.')
+        showToast(tr('Failed to update point link.'), 'error')
         setCustomPoints((prev) => prev.map((entry) => (entry.id === pointId ? target : entry)))
       }
     },
-    [customPoints, locale, parsePointTypeInput]
+    [customPoints, editingPointId, parsePointTypeInput, showToast, tr]
   )
 
   const handleDeletePoint = useCallback(
     async (pointId: string) => {
       const target = customPoints.find((point) => point.id === pointId)
       if (!target) return
-      const confirmed = window.confirm(
-        locale === 'ar'
-          ? `هل تريد حذف النقطة "${target.label}" وكل المضلعات المرتبطة بها؟`
-          : `Delete point "${target.label}" and all linked polygons?`
+      const confirmed = await confirmDialog(
+        tr('Delete point "{name}" and all linked polygons?', { name: target.label })
       )
       if (!confirmed) return
 
       try {
-        await fetch(`/api/operations/custom-point-polygons?pointId=${encodeURIComponent(pointId)}`, {
+        await mutateOperations(`/api/operations/custom-point-polygons?pointId=${encodeURIComponent(pointId)}`, {
           method: 'DELETE',
         })
       } catch {
@@ -1076,7 +662,7 @@ export function SatelliteMap({
       }
 
       try {
-        await fetch(`/api/operations/custom-map-points?id=${encodeURIComponent(pointId)}`, {
+        await mutateOperations(`/api/operations/custom-map-points?id=${encodeURIComponent(pointId)}`, {
           method: 'DELETE',
         })
       } catch {
@@ -1095,7 +681,7 @@ export function SatelliteMap({
       setDraftPolygon([])
       resetDraftMetadata()
     },
-    [customPoints, locale, resetDraftMetadata]
+    [customPoints, resetDraftMetadata, confirmDialog, tr]
   )
 
   const startPolygonDraw = useCallback(
@@ -1142,7 +728,7 @@ export function SatelliteMap({
   const saveDraftPolygon = useCallback(async () => {
     if (!polygonDrawPointId || draftPolygon.length < 3) return
     const polygonName =
-      draftPolygonName.trim() || `Polygon ${(pointPolygons[polygonDrawPointId]?.length || 0) + 1}`
+      draftPolygonName.trim() || `Polygon ${(pointPolygons[polygonDrawPointId]?.length || 0) + 1}` /* stored name: stays in English */
     const normalizedDraftCropName = draftCropName.trim()
     const canonicalDraftCropName =
       cropNameByNormalized.get(normalizedDraftCropName.toLowerCase()) || normalizedDraftCropName
@@ -1160,7 +746,7 @@ export function SatelliteMap({
     }
 
     try {
-      const response = await fetch('/api/operations/custom-point-polygons', {
+      const response = await mutateOperations('/api/operations/custom-point-polygons', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -1176,7 +762,7 @@ export function SatelliteMap({
       })
       const payload = await response.json()
       if (!response.ok) {
-        window.alert(payload?.error || 'Failed to save polygon metrics.')
+        showToast(payload?.error || tr('Failed to save polygon metrics.'), 'error')
         return
       }
 
@@ -1196,6 +782,7 @@ export function SatelliteMap({
       // Keep draft in place so user can retry save.
     }
   }, [
+    showToast,
     circleSegments,
     cropNameByNormalized,
     draftCropName,
@@ -1214,56 +801,51 @@ export function SatelliteMap({
     polygonDrawMethod,
     refreshPointInsights,
     resetDraftMetadata,
+    tr,
   ])
 
-  const handleEditPolygonData = useCallback(
-    async (polygon: PointPolygon) => {
-      const nextNameInput = window.prompt('Polygon name', polygon.name)
-      if (nextNameInput === null) return
-      const nextName = nextNameInput.trim() || polygon.name
+  const [editingPolygon, setEditingPolygon] = useState<PointPolygon | null>(null)
+  const editingPolygonInitial = useMemo<PolygonEditValues | null>(
+    () =>
+      editingPolygon
+        ? {
+            name: editingPolygon.name,
+            score: editingPolygon.score,
+            cropName: editingPolygon.crop.cropName || '',
+            variety: editingPolygon.crop.variety || '',
+            sowingDate: editingPolygon.crop.sowingDate || '',
+            expectedHarvestDate: editingPolygon.crop.expectedHarvestDate || '',
+            notes: editingPolygon.crop.notes || '',
+            estimatedProductionTons: String(editingPolygon.metrics.estimatedProductionTons ?? ''),
+            energyConsumptionKwh: String(editingPolygon.metrics.energyConsumptionKwh ?? ''),
+            waterConsumptionM3: String(editingPolygon.metrics.waterConsumptionM3 ?? ''),
+          }
+        : null,
+    [editingPolygon]
+  )
 
-      const nextScoreRaw = window.prompt('Score (0-100)', String(polygon.score))
-      if (nextScoreRaw === null) return
-      const nextScore = normalizePolygonScore(nextScoreRaw, polygon.score)
+  /* Opens the edit form (it used to be up to twelve window.prompt() in a row). */
+  const handleEditPolygonData = useCallback((polygon: PointPolygon) => setEditingPolygon(polygon), [])
 
-      const nextCropPrompt = cropTypeOptions.length
-        ? `Crop name (available: ${cropTypeOptions.map((option) => option.nameEn).slice(0, 24).join(', ')})`
-        : 'Crop name'
-      const nextCropName = window.prompt(nextCropPrompt, polygon.crop.cropName || '') ?? polygon.crop.cropName
-      const normalizedCropName = nextCropName.trim()
+  const savePolygonEdit = useCallback(
+    async (values: PolygonEditValues) => {
+      const polygon = editingPolygon
+      setEditingPolygon(null)
+      if (!polygon) return
+      const nextName = values.name.trim() || polygon.name
+      const nextScore = normalizePolygonScore(String(values.score), polygon.score)
+      const normalizedCropName = values.cropName.trim()
       const canonicalCropName = cropNameByNormalized.get(normalizedCropName.toLowerCase()) || normalizedCropName
-      const matchingCropType = cropTypeOptions.find(
-        (cropType) => cropType.nameEn.trim().toLowerCase() === canonicalCropName.toLowerCase()
-      )
-      const nextVarietyPrompt =
-        matchingCropType && matchingCropType.varieties.length > 0
-          ? `Variety (available: ${matchingCropType.varieties.slice(0, 24).join(', ')})`
-          : 'Variety'
-      const nextVariety = window.prompt(nextVarietyPrompt, polygon.crop.variety || '') ?? polygon.crop.variety
-      const nextSowingDate =
-        window.prompt('Sowing date (YYYY-MM-DD)', polygon.crop.sowingDate || '') ?? polygon.crop.sowingDate
-      const nextHarvestDate =
-        window.prompt('Expected harvest date (YYYY-MM-DD)', polygon.crop.expectedHarvestDate || '') ??
-        polygon.crop.expectedHarvestDate
-      const nextNotes = window.prompt('Notes', polygon.crop.notes || '') ?? polygon.crop.notes
-      const nextProductionRaw = window.prompt(
-        'Estimated production for this polygon (tons)',
-        String(polygon.metrics.estimatedProductionTons)
-      )
-      if (nextProductionRaw === null) return
-      const nextEnergyRaw = window.prompt(
-        'Energy consumption for this polygon (kWh)',
-        String(polygon.metrics.energyConsumptionKwh)
-      )
-      if (nextEnergyRaw === null) return
-      const nextWaterRaw = window.prompt(
-        'Water consumption for this polygon (m3)',
-        String(polygon.metrics.waterConsumptionM3)
-      )
-      if (nextWaterRaw === null) return
+      const nextVariety = values.variety.trim()
+      const nextSowingDate = values.sowingDate
+      const nextHarvestDate = values.expectedHarvestDate
+      const nextNotes = values.notes
+      const nextProductionRaw = values.estimatedProductionTons
+      const nextEnergyRaw = values.energyConsumptionKwh
+      const nextWaterRaw = values.waterConsumptionM3
 
       try {
-        const response = await fetch('/api/operations/custom-point-polygons', {
+        const response = await mutateOperations('/api/operations/custom-point-polygons', {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -1286,7 +868,7 @@ export function SatelliteMap({
         })
         const payload = await response.json()
         if (!response.ok) {
-          window.alert(payload?.error || 'Failed to update polygon metrics.')
+          showToast(payload?.error || tr('Failed to update polygon metrics.'), 'error')
           return
         }
         const normalized = normalizePointPolygon(payload)
@@ -1299,21 +881,21 @@ export function SatelliteMap({
         })
         await refreshPointInsights(normalized.customPointId)
       } catch {
-        window.alert('Failed to update polygon metrics.')
+        showToast(tr('Failed to update polygon metrics.'), 'error')
       }
     },
-    [cropNameByNormalized, cropTypeOptions, refreshPointInsights]
+    [cropNameByNormalized, editingPolygon, refreshPointInsights, showToast, tr]
   )
 
   const handleDeletePolygon = useCallback(
     async (polygon: PointPolygon) => {
-      const confirmed = window.confirm(
-        locale === 'ar' ? `هل تريد حذف المضلع "${polygon.name}"؟` : `Delete polygon "${polygon.name}"?`
+      const confirmed = await confirmDialog(
+        tr('Delete polygon "{name}"?', { name: polygon.name })
       )
       if (!confirmed) return
 
       try {
-        const response = await fetch(
+        const response = await mutateOperations(
           `/api/operations/custom-point-polygons?polygonId=${encodeURIComponent(polygon.id)}`,
           { method: 'DELETE' }
         )
@@ -1336,7 +918,7 @@ export function SatelliteMap({
         // Ignore network errors to keep map interactions responsive.
       }
     },
-    [locale, refreshPointInsights]
+    [refreshPointInsights, confirmDialog, tr]
   )
 
   const undoDraftVertex = useCallback(() => {
@@ -1460,7 +1042,7 @@ export function SatelliteMap({
     () => (insightsModalPointId ? customPoints.find((point) => point.id === insightsModalPointId) || null : null),
     [customPoints, insightsModalPointId]
   )
-  const activeInsightsPointLabel = insightsModalPoint?.label || 'Selected point'
+  const activeInsightsPointLabel = insightsModalPoint?.label || tr('Selected point')
   const activeInsightsPointPolygonCount = insightsModalPointId
     ? (pointPolygons[insightsModalPointId] || []).length
     : 0
@@ -1535,7 +1117,7 @@ export function SatelliteMap({
       const payload = await response.json()
       if (requestId !== insightsRequestIdRef.current) return
       if (!response.ok || !Array.isArray(payload)) {
-        setInsightsModalError('Failed to load farm crop insights.')
+        setInsightsModalError(tr('Failed to load farm crop insights.'))
         return
       }
       const normalized = payload
@@ -1548,12 +1130,12 @@ export function SatelliteMap({
       }))
     } catch {
       if (requestId !== insightsRequestIdRef.current) return
-      setInsightsModalError('Failed to load farm crop insights.')
+      setInsightsModalError(tr('Failed to load farm crop insights.'))
     } finally {
       if (requestId !== insightsRequestIdRef.current) return
       setIsInsightsModalLoading(false)
     }
-  }, [])
+  }, [tr])
 
   const handleInsightsModalEditPoint = useCallback(() => {
     if (!insightsModalPointId) return
@@ -1599,9 +1181,7 @@ export function SatelliteMap({
     const parsed = parseCoordinateQuery(coordinateQuery)
     if (!parsed) {
       setCoordinateSearchError(
-        locale === 'ar'
-          ? 'أدخل خط العرض وخط الطول، مثال 25.2854, 51.5310'
-          : 'Enter latitude and longitude, for example 25.2854, 51.5310'
+        tr('Enter latitude and longitude, for example 25.2854, 51.5310')
       )
       return
     }
@@ -1614,13 +1194,13 @@ export function SatelliteMap({
     if (!L) return
     coordinateMarkerRef.current = L.circleMarker([parsed.lat, parsed.lng], {
       radius: 8,
-      color: '#ffffff',
+      color: MAP_COLORS.ink,
       weight: 2,
-      fillColor: '#07f880',
+      fillColor: MAP_COLORS.cream,
       fillOpacity: 1,
       interactive: false,
     }).addTo(map)
-  }, [clearCoordinatePin, coordinateQuery, locale])
+  }, [clearCoordinatePin, coordinateQuery, tr])
 
   const clearFocusParamFromUrl = useCallback(() => {
     if (typeof window === 'undefined') return
@@ -1638,16 +1218,23 @@ export function SatelliteMap({
 
   useEffect(() => {
     let map: MapController | null = null
+    /* React (StrictMode in dev, fast refresh) mounts, cleans up and mounts
+       again while the first run is still awaiting the Leaflet import: both
+       runs then reached `L.map()` on the same div ("Map container is already
+       initialized"). The flag stops a cancelled run after every await, and
+       the container check is repeated once the imports have resolved. */
+    let cancelled = false
     const initMap = async () => {
-      if (!mapRef.current) return
-      if ((mapRef.current as HTMLDivElement & { _leaflet_id?: number })._leaflet_id) {
-        setIsLoading(false)
-        setMapReady(true)
-        return
-      }
+      const container = mapRef.current as (HTMLDivElement & { _leaflet_id?: number }) | null
+      if (!container) return
 
-      const L = (await import('leaflet')).default as any
+      const L = (await import('leaflet')).default
       await import('leaflet/dist/leaflet.css')
+      if (cancelled || !mapRef.current) return
+      if ((mapRef.current as HTMLDivElement & { _leaflet_id?: number })._leaflet_id) {
+        // A previous instance was never removed (hot reload): drop the stale id.
+        delete (mapRef.current as HTMLDivElement & { _leaflet_id?: number })._leaflet_id
+      }
       leafletRef.current = L
       const createdMap = L.map(mapRef.current, {
         center: [QATAR_CENTER.lat, QATAR_CENTER.lng],
@@ -1657,14 +1244,15 @@ export function SatelliteMap({
       }) as MapController
       map = createdMap
       tileLayerRef.current = L.tileLayer(DEFAULT_TILE_URL, { maxZoom: 19 }).addTo(createdMap)
-      createdMap.on('zoomend', () => setCurrentZoom(createdMap.getZoom()))
       mapInstanceRef.current = createdMap
+      setMapForReadout(createdMap)
       setIsLoading(false)
       setMapReady(true)
     }
 
     initMap()
     return () => {
+      cancelled = true
       markerInstancesRef.current.forEach((marker) => marker.remove?.())
       markerInstancesRef.current = []
       polygonInstancesRef.current.forEach((layer) => layer.remove?.())
@@ -1679,6 +1267,7 @@ export function SatelliteMap({
         map.remove()
         mapInstanceRef.current = null
       }
+      setMapForReadout(null)
       leafletRef.current = null
       setMapReady(false)
     }
@@ -1692,6 +1281,23 @@ export function SatelliteMap({
     })
     return () => window.cancelAnimationFrame(frame)
   }, [isLateralMode, lateralPanelOpen, mapReady])
+
+  /* Leaflet only listens to window resizes. The container also changes size
+     when the navigation rail collapses or expands: without this the tiles
+     stop short and clicks land on the wrong coordinates. */
+  useEffect(() => {
+    if (!mapReady || !mapRef.current || typeof ResizeObserver === 'undefined') return
+    let frame = 0
+    const observer = new ResizeObserver(() => {
+      window.cancelAnimationFrame(frame)
+      frame = window.requestAnimationFrame(() => mapInstanceRef.current?.invalidateSize?.())
+    })
+    observer.observe(mapRef.current)
+    return () => {
+      window.cancelAnimationFrame(frame)
+      observer.disconnect()
+    }
+  }, [mapReady])
 
   useEffect(() => {
     if (!activePointId) return
@@ -1716,33 +1322,35 @@ export function SatelliteMap({
       isLateralMode && (Boolean(normalizedTargetCropName) || Boolean(normalizedCropFilter))
 
     const createMarkerIcon = (type: MapMarker['type'], markerId: string) => {
+      /* Nodes are SQUARES (Brand Book p.81: small white squares on the
+         satellite view). The type is told by the fill, in the palette. */
       const colors = {
-        farm: '#07f880',
-        facility: '#3B82F6',
-        sensor: '#F59E0B',
-        custom: '#9ca3af',
+        farm: MAP_COLORS.white,
+        facility: MAP_COLORS.cream,
+        sensor: MAP_COLORS.sage300,
+        custom: MAP_COLORS.stone300,
       }
       const scoreStats = pointScoreStatsById[markerId]
       const scoreBasedColor =
         scoreStats && scoreStats.count > 0 && scoreStats.average !== null
           ? scoreToPolygonColor(scoreStats.average)
-          : '#9ca3af'
+          : MAP_COLORS.unknown
       const color = scoreStats ? scoreBasedColor : colors[type] || colors.farm
       return L.divIcon({
         className: 'custom-marker',
         html: `
-          <div style="
-            width: 24px;
-            height: 24px;
-            background: ${color};
-            border: 3px solid rgba(255,255,255,0.95);
-            border-radius: 50%;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.4), 0 0 16px ${color}50;
-            cursor: pointer;
-          "></div>
-        `,
-        iconSize: [24, 24],
-        iconAnchor: [12, 12],
+ <div style="
+ width: 16px;
+ height: 16px;
+ background: ${color};
+ border: 2px solid ${MAP_COLORS.ink};
+ border-radius: 3px;
+ box-shadow: 0 0 0 2px rgba(255,255,255,0.9), 0 6px 14px -6px rgba(17,30,19,.6);
+ cursor: pointer;
+ "></div>
+ `,
+        iconSize: [16, 16],
+        iconAnchor: [8, 8],
       })
     }
 
@@ -1763,13 +1371,13 @@ export function SatelliteMap({
     }
 
     markerInstancesRef.current = mapMarkers.map((marker) => {
-      const customPoint = customPoints.find((point) => point.id === marker.id) || null
+      const customPoint = customPointById.get(marker.id) || null
       const markerInstance = L.marker([marker.lat, marker.lng], {
         icon: createMarkerIcon(marker.type, marker.id),
       }).addTo(map)
 
       if (customPoint) {
-        markerInstance.on('click', (event: any) => {
+        markerInstance.on('click', (event: LeafletMouseEvent) => {
           event?.originalEvent?.preventDefault?.()
           event?.originalEvent?.stopPropagation?.()
           setActivePointId(customPoint.id)
@@ -1779,14 +1387,13 @@ export function SatelliteMap({
       }
 
       const popupContent = `
-        <div style="font-family: system-ui; padding: 8px; min-width: 140px;">
-          <strong style="color: #07f880; font-size: 13px;">${escapeHtml(marker.label)}</strong>
-          <br/>
-          <span style="font-size: 10px; color: #888; text-transform: uppercase;">Type: ${escapeHtml(
-            POINT_TYPE_LABELS[marker.type]
+ <div class="g-map-pop">
+ <strong class="g-map-pop__title">${escapeHtml(marker.label)}</strong>
+ <span class="g-map-pop__meta">${escapeHtml(
+            tr('Type: {type}', { type: tr(POINT_TYPE_LABELS[marker.type]) })
           )}</span>
-        </div>
-      `
+ </div>
+ `
 
       markerInstance.bindPopup(popupContent, { className: 'custom-popup' })
       markerInstance.on('popupopen', () => {
@@ -1795,7 +1402,7 @@ export function SatelliteMap({
       return markerInstance
     })
   }, [
-    customPoints,
+    customPointById,
     isLateralMode,
     mapMarkers,
     mapReady,
@@ -1806,6 +1413,7 @@ export function SatelliteMap({
     weatherGridPoints,
     harvestFields,
     layerVisibility,
+    tr,
   ])
 
   useEffect(() => {
@@ -1820,36 +1428,36 @@ export function SatelliteMap({
 
     for (const signal of intelligenceSignals) {
       if (signal.lat === undefined || signal.lng === undefined) continue
-      const color = SIGNAL_SEVERITY_COLORS[signal.severity] || '#38bdf8'
+      const color = SIGNAL_SEVERITY_COLORS[signal.severity] || SIGNAL_SEVERITY_COLORS.info
       const marker = L.marker([signal.lat, signal.lng], {
         icon: L.divIcon({
           className: 'custom-marker',
           html: `
-            <div style="
-              width: 18px;
-              height: 18px;
-              background: ${color};
-              border: 2px solid rgba(255,255,255,0.95);
-              border-radius: 3px;
-              transform: rotate(45deg);
-              box-shadow: 0 0 12px ${color}80;
-            "></div>
-          `,
-          iconSize: [18, 18],
-          iconAnchor: [9, 9],
+ <div style="
+ width: 16px;
+ height: 16px;
+ background: ${color};
+ border: 2px solid rgba(255,255,255,0.95);
+ border-radius: 3px;
+ box-shadow: 0 6px 14px -6px rgba(17,30,19,.6);
+ "></div>
+ `,
+          iconSize: [16, 16],
+          iconAnchor: [8, 8],
         }),
       }).addTo(map)
 
       marker.bindPopup(
-        `<div style="font-family:system-ui;padding:8px;min-width:160px;">
-          <strong style="color:${color};font-size:12px;">${escapeHtml(signal.title)}</strong>
-          <br/><span style="font-size:11px;color:#bbb;">${escapeHtml(signal.summary)}</span>
+        `<div class="g-map-pop">
+          <span class="g-map-pop__tag"><i style="background:${color}"></i>${escapeHtml(SIGNAL_SEVERITY_LABELS[signal.severity] ? tr(SIGNAL_SEVERITY_LABELS[signal.severity]) : signal.severity.charAt(0).toUpperCase() + signal.severity.slice(1))}</span>
+          <strong class="g-map-pop__title">${escapeHtml(signal.title)}</strong>
+          <span class="g-map-pop__meta">${escapeHtml(signal.summary)}</span>
         </div>`,
         { className: 'custom-popup' }
       )
       signalMarkerInstancesRef.current.push(marker)
     }
-  }, [intelligenceSignals, layerVisibility?.showIntelligenceSignals, mapReady])
+  }, [intelligenceSignals, layerVisibility?.showIntelligenceSignals, mapReady, tr])
 
   useEffect(() => {
     if (!mapReady || !mapInstanceRef.current || !leafletRef.current) return
@@ -1885,10 +1493,10 @@ export function SatelliteMap({
         const layer = L.polygon(
           ring.map((vertex) => [vertex.lat, vertex.lng]),
           {
-            color: hasRasterOverlay ? (selected ? '#ffffff' : 'rgba(255,255,255,0.7)') : selected ? '#ffffff' : '#07f880',
+            color: hasRasterOverlay ? (selected ? MAP_COLORS.white : 'rgba(255,255,255,0.7)') : selected ? MAP_COLORS.white : MAP_COLORS.cream,
             weight: hasRasterOverlay ? (selected ? 3 : 2) : selected ? 4 : 2,
             opacity: 1,
-            fillColor: hasRasterOverlay ? 'transparent' : '#07f880',
+            fillColor: hasRasterOverlay ? 'transparent' : MAP_COLORS.cream,
             fillOpacity: hasRasterOverlay ? 0.01 : 0.08,
             interactive: !harvestFieldDrawActive,
             bubblingMouseEvents: harvestFieldDrawActive,
@@ -1898,11 +1506,11 @@ export function SatelliteMap({
 
         if (!harvestFieldDrawActive) {
           layer.bindTooltip(
-            `<strong style="color:#07f880;">${escapeHtml(field.name)}</strong><br/><span style="font-size:11px;color:#bbb;">${escapeHtml(field.crop)}</span>`,
+            `<strong class="g-map-pop__title">${escapeHtml(field.name)}</strong><span class="g-map-pop__meta">${escapeHtml(field.crop)}</span>`,
             { direction: 'top', opacity: 0.95, className: 'custom-tooltip' }
           )
 
-          layer.on('click', (event: any) => {
+          layer.on('click', (event: LeafletMouseEvent) => {
             L.DomEvent.stop(event)
             if (!onHarvestFieldClick || harvestFieldDrawActive) return
             onHarvestFieldClick(field)
@@ -2027,14 +1635,14 @@ export function SatelliteMap({
       return
     }
 
-    const layers: any[] = []
+    const layers: Layer[] = []
 
     if (weatherBoundary.length > 2) {
       const outline = L.polyline(
         [...weatherBoundary, weatherBoundary[0]].map((point) => [point.lat, point.lng]),
         {
-          color: '#07f880',
-          weight: 2.4,
+          color: MAP_COLORS.cream,
+          weight: 2,
           opacity: 0.95,
           interactive: false,
         }
@@ -2049,9 +1657,9 @@ export function SatelliteMap({
           [segment.end.lat, segment.end.lng],
         ],
         {
-          color: '#07f880',
-          weight: 1.35,
-          opacity: 0.85,
+          color: MAP_COLORS.cream,
+          weight: 1,
+          opacity: 0.55,
           interactive: false,
         }
       ).addTo(map)
@@ -2072,10 +1680,10 @@ export function SatelliteMap({
               [north, east],
             ],
             {
-              color: selected ? '#07f880' : '#07f880',
-              weight: selected ? 3 : 0,
+              color: MAP_COLORS.white,
+              weight: selected ? 2.5 : 0,
               opacity: selected ? 1 : 0,
-              fillColor: '#07f880',
+              fillColor: MAP_COLORS.cream,
               fillOpacity: selected ? 0.12 : 0.01,
               interactive: true,
               bubblingMouseEvents: false,
@@ -2083,9 +1691,9 @@ export function SatelliteMap({
           )
         : L.circleMarker([point.lat, point.lng], {
             radius: selected ? 7 : 5,
-            color: selected ? '#ffffff' : '#07f880',
-            weight: selected ? 3 : 1,
-            fillColor: selected ? '#07f880' : '#07f880',
+            color: selected ? MAP_COLORS.ink : MAP_COLORS.cream,
+            weight: selected ? 2 : 1,
+            fillColor: selected ? MAP_COLORS.white : MAP_COLORS.cream,
             fillOpacity: selected ? 1 : 0.2,
             interactive: true,
             bubblingMouseEvents: false,
@@ -2097,7 +1705,7 @@ export function SatelliteMap({
         opacity: 0.9,
         className: 'custom-tooltip',
       })
-      clickLayer.on('click', (event: any) => {
+      clickLayer.on('click', (event: LeafletMouseEvent) => {
         L.DomEvent.stopPropagation(event)
         event?.originalEvent?.preventDefault?.()
         event?.originalEvent?.stopPropagation?.()
@@ -2163,53 +1771,29 @@ export function SatelliteMap({
           : scoreToPolygonColor(polygonScore)
         const areaHectares = calculatePolygonAreaHectares(polygon.vertices)
         const metrics = polygon.metrics
+        const row = (label: string, value: string) =>
+          `<div><dt>${escapeHtml(label)}</dt><dd>${escapeHtml(value)}</dd></div>`
         const popupLines = [
-          `<strong style="color:#07f880;font-size:13px;">${escapeHtml(polygon.name)}</strong>`,
-          `<br/><span style="font-size:11px;color:${escapeHtml(polygonColor)};">Score: ${polygonScore}/100</span>`,
-          `<br/><span style="font-size:11px;color:#9ca3af;">Area: ${escapeHtml(formatHectares(areaHectares))} ha</span>`,
-          crop.cropName ? `<br/><span style="font-size:11px;color:#ddd;">Crop: ${escapeHtml(crop.cropName)}</span>` : '',
-          crop.variety ? `<br/><span style="font-size:11px;color:#bbb;">Variety: ${escapeHtml(crop.variety)}</span>` : '',
-          `<br/><span style="font-size:11px;color:#ddd;">Production: ${escapeHtml(formatMetric(metrics.estimatedProductionTons, 'tons'))}</span>`,
-          `<br/><span style="font-size:11px;color:#ddd;">Energy: ${escapeHtml(formatMetric(metrics.energyConsumptionKwh, 'kWh'))}</span>`,
-          `<br/><span style="font-size:11px;color:#ddd;">Water: ${escapeHtml(formatMetric(metrics.waterConsumptionM3, 'm³'))}</span>`,
-          crop.sowingDate ? `<br/><span style="font-size:11px;color:#bbb;">Sowing: ${escapeHtml(crop.sowingDate)}</span>` : '',
-          crop.expectedHarvestDate
-            ? `<br/><span style="font-size:11px;color:#bbb;">Harvest: ${escapeHtml(crop.expectedHarvestDate)}</span>`
-            : '',
-          crop.notes ? `<br/><span style="font-size:11px;color:#999;">${escapeHtml(crop.notes)}</span>` : '',
+          `<strong class="g-map-pop__title">${escapeHtml(polygon.name)}</strong>`,
+          `<span class="g-map-pop__tag"><i style="background:${escapeHtml(polygonColor)}"></i>${escapeHtml(tr('Score {score}/100', { score: polygonScore }))}</span>`,
+          `<dl class="g-map-pop__rows">`,
+          row(tr('Area'), `${formatHectares(areaHectares)} ha`),
+          crop.cropName ? row(tr('Crop'), crop.cropName) : '',
+          crop.variety ? row(tr('Variety'), crop.variety) : '',
+          row(tr('Production'), formatMetric(metrics.estimatedProductionTons, 'tons')),
+          row(tr('Energy'), formatMetric(metrics.energyConsumptionKwh, 'kWh')),
+          row(tr('Water'), formatMetric(metrics.waterConsumptionM3, 'm³')),
+          crop.sowingDate ? row(tr('Sowing'), crop.sowingDate) : '',
+          crop.expectedHarvestDate ? row(tr('Harvest'), crop.expectedHarvestDate) : '',
+          `</dl>`,
+          crop.notes ? `<span class="g-map-pop__meta">${escapeHtml(crop.notes)}</span>` : '',
         ].join('')
         const popupActions = `
-          <div style="margin-top:10px; display:flex; gap:6px;">
-            <button
-              data-edit-polygon-id="${polygon.id}"
-              style="
-                border: 1px solid rgba(147,197,253,0.45);
-                background: rgba(147,197,253,0.14);
-                color: #bfdbfe;
-                border-radius: 6px;
-                padding: 4px 8px;
-                font-size: 11px;
-                cursor: pointer;
-              "
-            >
-              Edit Polygon
-            </button>
-            <button
-              data-delete-polygon-id="${polygon.id}"
-              style="
-                border: 1px solid rgba(239,68,68,0.45);
-                background: rgba(239,68,68,0.14);
-                color: #fca5a5;
-                border-radius: 6px;
-                padding: 4px 8px;
-                font-size: 11px;
-                cursor: pointer;
-              "
-            >
-              Delete Polygon
-            </button>
-          </div>
-        `
+ <div class="g-map-pop__actions">
+ <button data-edit-polygon-id="${polygon.id}" class="g-map-pop__btn">${escapeHtml(tr('Edit polygon'))}</button>
+ <button data-delete-polygon-id="${polygon.id}" class="g-map-pop__btn g-map-pop__btn--danger">${escapeHtml(tr('Delete polygon'))}</button>
+ </div>
+ `
 
         const popupContainer = document.createElement('div')
         popupContainer.style.fontFamily = 'system-ui'
@@ -2253,7 +1837,7 @@ export function SatelliteMap({
         )
           .addTo(map)
           .bindPopup(popupContainer, { className: 'custom-popup' })
-        layer.on('click', (event: any) => {
+        layer.on('click', (event: LeafletMouseEvent) => {
           event?.originalEvent?.preventDefault?.()
           event?.originalEvent?.stopPropagation?.()
           layer.openPopup()
@@ -2265,8 +1849,8 @@ export function SatelliteMap({
       draftPolylineRef.current = L.polyline(
         draftPolygon.map((vertex) => [vertex.lat, vertex.lng]),
         {
-          color: '#38bdf8',
-          weight: 4,
+          color: MAP_COLORS.cream,
+          weight: 3,
           dashArray: '10 6',
           opacity: 1,
           lineCap: 'round',
@@ -2277,9 +1861,9 @@ export function SatelliteMap({
       draftVertexInstancesRef.current = draftPolygon.map((vertex, index) =>
         L.circleMarker([vertex.lat, vertex.lng], {
           radius: index === 0 ? 7 : 6,
-          color: '#ffffff',
+          color: MAP_COLORS.ink,
           weight: 2,
-          fillColor: index === 0 ? '#07f880' : '#38bdf8',
+          fillColor: index === 0 ? MAP_COLORS.cream : MAP_COLORS.white,
           fillOpacity: 1,
           interactive: false,
         }).addTo(map)
@@ -2296,6 +1880,7 @@ export function SatelliteMap({
     pointPolygons,
     polygonDrawPointId,
     harvestFields,
+    tr,
     weatherGridPoints,
   ])
 
@@ -2304,7 +1889,7 @@ export function SatelliteMap({
     if (!mapReady || !mapInstanceRef.current) return
     const map = mapInstanceRef.current
 
-    const handleMapClick = async (event: any) => {
+    const handleMapClick = async (event: LeafletMouseEvent) => {
       if (isLeafletUiClick(event)) return
       const lat = Number(event?.latlng?.lat)
       const lng = Number(event?.latlng?.lng)
@@ -2322,7 +1907,7 @@ export function SatelliteMap({
       }
       setCustomPoints((prev) => [...prev, nextPoint])
       try {
-        const response = await fetch('/api/operations/custom-map-points', {
+        const response = await mutateOperations('/api/operations/custom-map-points', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -2355,7 +1940,7 @@ export function SatelliteMap({
     if (isAddPointMode || polygonDrawPointId) return
     const map = mapInstanceRef.current
 
-    const handleMapClick = (event: any) => {
+    const handleMapClick = (event: LeafletMouseEvent) => {
       if (isLeafletUiClick(event)) return
       const lat = Number(event?.latlng?.lat)
       const lng = Number(event?.latlng?.lng)
@@ -2398,7 +1983,7 @@ export function SatelliteMap({
     if (!mapReady || !mapInstanceRef.current) return
     const map = mapInstanceRef.current
 
-    const handleMapClick = (event: any) => {
+    const handleMapClick = (event: LeafletMouseEvent) => {
       if (isLeafletUiClick(event)) return
       const lat = Number(event?.latlng?.lat)
       const lng = Number(event?.latlng?.lng)
@@ -2425,7 +2010,7 @@ export function SatelliteMap({
       resetHarvestCircleSeed()
     }
 
-    const handleMouseMove = (event: any) => {
+    const handleMouseMove = (event: LeafletMouseEvent) => {
       const seed = harvestShapeSeedRef.current
       if (!seed || harvestFieldDrawMethod !== 'circle') return
       const lat = Number(event?.latlng?.lat)
@@ -2466,16 +2051,16 @@ export function SatelliteMap({
 
     if (!harvestFieldDrawActive) return
 
-    const draftLayers: any[] = []
+    const draftLayers: Layer[] = []
 
     harvestFieldRings.forEach((ring) => {
       if (ring.length < 3) return
       draftLayers.push(
         L.polygon(ring.map((vertex) => [vertex.lat, vertex.lng]), {
-          color: '#22c55e',
+          color: MAP_COLORS.sage300,
           weight: 2,
           opacity: 0.95,
-          fillColor: '#22c55e',
+          fillColor: MAP_COLORS.sage300,
           fillOpacity: 0.14,
           interactive: false,
         }).addTo(map)
@@ -2485,10 +2070,10 @@ export function SatelliteMap({
     if (harvestFieldVertices.length >= 3) {
       draftLayers.push(
         L.polygon(harvestFieldVertices.map((vertex) => [vertex.lat, vertex.lng]), {
-          color: '#fbbf24',
+          color: MAP_COLORS.cream,
           weight: 3,
           opacity: 0.95,
-          fillColor: '#fbbf24',
+          fillColor: MAP_COLORS.cream,
           fillOpacity: 0.18,
           interactive: false,
         }).addTo(map)
@@ -2496,7 +2081,7 @@ export function SatelliteMap({
     } else if (harvestFieldVertices.length > 0) {
       draftLayers.push(
         L.polyline(harvestFieldVertices.map((vertex) => [vertex.lat, vertex.lng]), {
-          color: '#fbbf24',
+          color: MAP_COLORS.cream,
           weight: 3,
           dashArray: '8 6',
           opacity: 0.95,
@@ -2511,9 +2096,9 @@ export function SatelliteMap({
       harvestDraftVertexInstancesRef.current.push(
         L.circleMarker([harvestShapeSeedVertex.lat, harvestShapeSeedVertex.lng], {
           radius: 7,
-          color: '#ffffff',
+          color: MAP_COLORS.ink,
           weight: 2,
-          fillColor: '#38bdf8',
+          fillColor: MAP_COLORS.cream,
           fillOpacity: 1,
           interactive: false,
         }).addTo(map)
@@ -2524,9 +2109,9 @@ export function SatelliteMap({
       ...harvestFieldVertices.map((vertex, index) =>
         L.circleMarker([vertex.lat, vertex.lng], {
           radius: harvestFieldDrawMethod === 'vertex' && index === 0 ? 7 : 5,
-          color: '#ffffff',
+          color: MAP_COLORS.ink,
           weight: 2,
-          fillColor: '#fbbf24',
+          fillColor: harvestFieldDrawMethod === 'vertex' && index === 0 ? MAP_COLORS.cream : MAP_COLORS.white,
           fillOpacity: 1,
           interactive: false,
         }).addTo(map)
@@ -2553,7 +2138,7 @@ export function SatelliteMap({
     if (!mapReady || !mapInstanceRef.current) return
     const map = mapInstanceRef.current
 
-    const handleMapClick = (event: any) => {
+    const handleMapClick = (event: LeafletMouseEvent) => {
       if (isLeafletUiClick(event)) return
       const lat = Number(event?.latlng?.lat)
       const lng = Number(event?.latlng?.lng)
@@ -2580,7 +2165,7 @@ export function SatelliteMap({
       setShapeSeedVertex(null)
     }
 
-    const handleMouseMove = (event: any) => {
+    const handleMouseMove = (event: LeafletMouseEvent) => {
       if (isLeafletUiClick(event)) return
       if (!shapeSeedVertex) return
       const lat = Number(event?.latlng?.lat)
@@ -2616,7 +2201,7 @@ export function SatelliteMap({
     if (!activePointId || isAddPointMode || polygonDrawPointId) return
     const map = mapInstanceRef.current
 
-    const handleMapClick = (event: any) => {
+    const handleMapClick = (event: LeafletMouseEvent) => {
       if (isLeafletUiClick(event)) return
       setActivePointId(null)
     }
@@ -2686,10 +2271,10 @@ export function SatelliteMap({
   }, [clearFocusParamFromUrl, mapReady, explicitTargetPoint, targetZoom, targetFocusToken])
 
   return (
-    <div className="absolute inset-0 pt-16">
+    <div className="growa absolute inset-0">
       <div ref={mapRef} className="h-full w-full" />
 
-      <div className="absolute bottom-6 right-6 z-[1000] flex flex-col gap-2">
+      <div className="absolute bottom-6 end-6 z-[1000] flex flex-col gap-2">
         {isGrowaAdmin && (
           <>
             <button
@@ -2699,25 +2284,26 @@ export function SatelliteMap({
                 setDraftPolygon([])
                 resetDraftMetadata()
               }}
-              className={`h-10 px-3 flex items-center justify-center rounded-lg border transition-all shadow-lg text-xs font-medium ${
+              className={`h-10 px-4 flex items-center justify-center rounded-pill border transition-colors shadow-panel text-[13px] font-medium ${
                 isAddPointMode
-                  ? 'bg-[#07f880]/20 border-[#07f880]/60 text-[#07f880]'
-                  : 'bg-[#0c0c0e]/90 border-white/10 text-white/80 hover:border-[#07f880]/50 hover:text-[#07f880]'
+                  ? 'bg-ink border-ink text-white'
+                  : 'bg-card border-line text-content hover:bg-stone-100'
               }`}
-              title={isAddPointMode ? 'Click map to add points' : 'Enable add point mode'}
+              aria-pressed={isAddPointMode}
+              title={isAddPointMode ? tr('Click map to add points') : tr('Enable add point mode')}
             >
-              {isAddPointMode ? 'Add Point: ON' : 'Add Point'}
+              {isAddPointMode ? tr('Adding points') : tr('Add point')}
             </button>
             {isAddPointMode && !polygonDrawPointId && (
               <select
                 value={newPointType}
                 onChange={(event) => setNewPointType(event.target.value as MapPointType)}
-                className="h-10 rounded-lg border border-white/10 bg-[#0c0c0e]/90 px-2 text-xs text-white shadow-lg focus:border-[#07f880]/60 focus:outline-none"
-                title="Point type for new points"
+                className="h-10 rounded-lg border border-line bg-card px-3 text-[13px] text-content shadow-panel focus:border-sage focus:outline-none"
+                title={tr('Point type for new points')}
               >
                 {POINT_TYPE_OPTIONS.map((option) => (
-                  <option key={option.value} value={option.value} className="bg-[#0c0c0e]">
-                    {option.label}
+                  <option key={option.value} value={option.value} className="bg-card">
+                    {tr(option.label)}
                   </option>
                 ))}
               </select>
@@ -2726,54 +2312,62 @@ export function SatelliteMap({
         )}
         <button
           onClick={handleZoomIn}
-          className="h-10 w-10 flex items-center justify-center rounded-lg bg-[#0c0c0e]/90 border border-white/10 hover:border-[#07f880]/50 hover:bg-[#0c0c0e] transition-all shadow-lg"
-          title="Zoom In"
+          className="h-10 w-10 flex items-center justify-center rounded-pill bg-card border border-line hover:bg-stone-100 transition-colors shadow-panel"
+          title={tr('Zoom in')}
+          aria-label={tr('Zoom in')}
         >
-          <Plus className="h-5 w-5 text-white" />
+          <Plus strokeWidth={1.5} className="h-5 w-5 text-content" />
         </button>
         <button
           onClick={handleZoomOut}
-          className="h-10 w-10 flex items-center justify-center rounded-lg bg-[#0c0c0e]/90 border border-white/10 hover:border-[#07f880]/50 hover:bg-[#0c0c0e] transition-all shadow-lg"
-          title="Zoom Out"
+          className="h-10 w-10 flex items-center justify-center rounded-pill bg-card border border-line hover:bg-stone-100 transition-colors shadow-panel"
+          title={tr('Zoom out')}
+          aria-label={tr('Zoom out')}
         >
-          <Minus className="h-5 w-5 text-white" />
+          <Minus strokeWidth={1.5} className="h-5 w-5 text-content" />
         </button>
         <button
           onClick={handleRecenter}
-          className="h-10 w-10 flex items-center justify-center rounded-lg bg-[#0c0c0e]/90 border border-white/10 hover:border-[#07f880]/50 hover:bg-[#0c0c0e] transition-all shadow-lg"
-          title="Recenter on Qatar"
+          className="h-10 w-10 flex items-center justify-center rounded-pill bg-card border border-line hover:bg-stone-100 transition-colors shadow-panel"
+          title={tr('Recenter on Qatar')}
+          aria-label={tr('Recenter on Qatar')}
         >
-          <Crosshair className="h-5 w-5 text-[#07f880]" />
+          <Crosshair strokeWidth={1.5} className="h-5 w-5 text-content" />
         </button>
       </div>
 
-      <div className="absolute bottom-6 left-6 z-[1000] rounded-lg border border-white/10 bg-[#0c0c0e]/90 px-3 py-1.5 shadow-lg">
-        <div>
-          <span className="text-xs text-white/60">Zoom: </span>
-          <span className="text-xs font-medium text-[#07f880]">{currentZoom}</span>
+      {/* Satellite view signature (Brand Book p.81): the cream mark bare on
+          the imagery, then a white pill with the view state. The mark keeps
+          its clear space (0.4 × 16px ≈ 6px) through the 12px gap. */}
+      <div className="pointer-events-none absolute bottom-6 start-6 z-[1000] flex items-end gap-3">
+        <Logo className="h-4 w-auto text-cream drop-shadow-[0_1px_2px_rgba(17,30,19,.6)]" aria-hidden="true" />
+      </div>
+      <div className="absolute bottom-12 start-6 z-[1000] bg-card border border-line px-3.5 py-2 shadow-panel" style={{ borderRadius: 'var(--radius-lg)' }}>
+        <div className="text-[12px] text-content-soft">
+          {tr('Satellite view · zoom')} <span className="text-content tabular-nums" style={{ fontWeight: 500 }}><ZoomReadout map={mapForReadout} /></span>
         </div>
         {resolvedTargetFarm && (
-          <div className="text-[11px] text-white/75">
-            Focus: <span className="text-[#07f880]">{resolvedTargetFarm.label}</span>
+          <div className="text-[12px] text-content">
+            {tr('Focus:')} <span style={{ fontWeight: 500 }}>{resolvedTargetFarm.label}</span>
           </div>
         )}
         {isGrowaAdmin && isAddPointMode && !polygonDrawPointId && (
-          <div className="text-[11px] text-[#07f880]">
-            Click on map to create a {POINT_TYPE_LABELS[newPointType].toLowerCase()} point.
+          <div className="text-[12px] text-content">
+            {tr('Click on map to create a {type} point.', { type: tr(POINT_TYPE_LABELS[newPointType]).toLowerCase() })}
           </div>
         )}
         {isGrowaAdmin && polygonDrawPointId && (
-          <div className="mt-1 text-[11px] text-[#93c5fd]">
-            Polygon mode:{' '}
+          <div className="mt-1 text-[12px] text-content-soft">
+            {tr('Polygon mode:')}{' '}
             {polygonDrawMethod === 'vertex'
-              ? 'click map to add vertices.'
+              ? tr('click map to add vertices.')
               : polygonDrawMethod === 'rectangle'
                 ? shapeSeedVertex
-                  ? 'click opposite corner to finish rectangle.'
-                  : 'click first corner of rectangle.'
+                  ? tr('click opposite corner to finish rectangle.')
+                  : tr('click first corner of rectangle.')
                 : shapeSeedVertex
-                  ? 'click edge point to finish circle.'
-                  : 'click circle center point.'}
+                  ? tr('click edge point to finish circle.')
+                  : tr('click circle center point.')}
           </div>
         )}
       </div>
@@ -2782,57 +2376,54 @@ export function SatelliteMap({
         <div
           className={`absolute inset-0 z-[2600] flex px-4 py-6 ${
             isLateralMode
-              ? 'items-start justify-end bg-black/50 pt-24 backdrop-blur-[2px]'
-              : 'items-center justify-center bg-black/75 backdrop-blur-sm'
+              ? 'items-start justify-end bg-ink/45 pt-6'
+              : 'items-center justify-center bg-ink/45'
           }`}
           role="dialog"
           aria-modal="true"
           onClick={closePointInsightsModal}
         >
           <div
-            className={`w-full rounded-2xl border border-white/12 bg-gradient-to-b from-[#111216] to-[#090a0d] shadow-[0_20px_80px_rgba(0,0,0,0.65)] ${
+            className={`w-full bg-card ${
               isLateralMode
-                ? 'max-w-[34rem] max-h-[calc(100vh-7rem)] overflow-y-auto p-4'
-                : 'max-w-4xl p-5'
+                ? 'max-w-[34rem] max-h-[calc(100vh-7rem)] overflow-y-auto p-6'
+                : 'max-w-4xl p-7'
             }`}
+            style={{ borderRadius: 'var(--radius-2xl)', boxShadow: 'var(--shadow-panel-lg)' }}
             onClick={(event) => event.stopPropagation()}
           >
-            <div className="flex items-start justify-between gap-3 border-b border-white/10 pb-4">
+            <div className="flex items-start justify-between gap-3 border-b border-dotted border-line-strong pb-4">
               <div>
-                <p className="text-base font-semibold text-white">Farm Crop Insights</p>
-                <p className="mt-1 text-xs text-white/60">
-                  Point: <span className="font-medium text-[#07f880]">{activeInsightsPointLabel}</span>
+                <p className="text-content" style={{ fontSize: 'var(--text-heading)', fontWeight: 500, letterSpacing: 'var(--ls-heading)' }}>{tr('Farm crop insights')}</p>
+                <p className="mt-1 text-[13px] text-content-soft">
+                  {tr('Point:')} <span className="text-content" style={{ fontWeight: 500 }}>{activeInsightsPointLabel}</span>
                 </p>
-                <p className="mt-1 text-[11px] text-white/45">
-                  Totals are summed from the linked polygon metrics for each crop.
+                <p className="mt-1 text-[12px] text-content-soft">
+                  {tr('Totals are summed from the linked polygon metrics for each crop.')}
                 </p>
               </div>
               <button
                 type="button"
                 onClick={closePointInsightsModal}
-                className="rounded-md border border-white/15 bg-white/[0.02] px-2.5 py-1 text-xs text-white/80 hover:border-[#07f880]/45 hover:text-[#07f880]"
+                className="g-btn g-btn--secondary"
+                style={{ height: 32, padding: '0 14px', fontSize: 13 }}
               >
-                Close
+                {tr('Close')}
               </button>
             </div>
 
-            <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-2">
-              <div className="rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2">
-                <p className="text-[10px] uppercase tracking-wide text-white/50">Linked polygons</p>
-                <p className="mt-1 text-sm font-semibold text-white">{activeInsightsPointPolygonCount}</p>
+            {/* Figures Light; the score's ramp colour is its square. */}
+            <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <div className="bg-card border border-line p-3.5" style={{ borderRadius: 'var(--radius-lg)' }}>
+                <p className="text-[12px] text-content-soft">{tr('Linked polygons')}</p>
+                <p className="growa-figure mt-1 text-content" style={{ fontSize: 28 }}>{activeInsightsPointPolygonCount}</p>
               </div>
-              <div
-                className="rounded-lg border px-3 py-2"
-                style={{
-                  borderColor: getScoreSurfaceColor(activeInsightsFarmScore, 0.4),
-                  backgroundColor: getScoreSurfaceColor(activeInsightsFarmScore, 0.14),
-                }}
-              >
-                <p className="text-[10px] uppercase tracking-wide text-white/50">Farm score</p>
-                <p
-                  className="mt-1 text-sm font-semibold"
-                  style={{ color: getScoreTextColor(activeInsightsFarmScore) }}
-                >
+              <div className="bg-card border border-line p-3.5" style={{ borderRadius: 'var(--radius-lg)' }}>
+                <p className="flex items-center gap-1.5 text-[12px] text-content-soft">
+                  <span aria-hidden="true" className="w-1.5 h-1.5" style={{ borderRadius: 1, background: getScoreTextColor(activeInsightsFarmScore) }} />
+                  {tr('Farm score')}
+                </p>
+                <p className="growa-figure mt-1 text-content" style={{ fontSize: 28 }}>
                   {formatScoreValue(activeInsightsFarmScore)}
                 </p>
               </div>
@@ -2843,55 +2434,58 @@ export function SatelliteMap({
                 type="button"
                 onClick={handleInsightsModalEditPoint}
                 disabled={!insightsModalPointId}
-                className="rounded-md border border-[#07f880]/35 bg-[#07f880]/12 px-2.5 py-1.5 text-[11px] font-medium text-[#07f880] disabled:cursor-not-allowed disabled:opacity-40"
+                className="g-btn g-btn--primary"
+                style={{ height: 32, padding: '0 14px', fontSize: 13 }}
               >
-                Edit Point
+                {tr('Edit point')}
               </button>
               <button
                 type="button"
                 onClick={handleInsightsModalDrawPolygon}
                 disabled={!insightsModalPointId}
-                className="rounded-md border border-[#93c5fd]/35 bg-[#93c5fd]/12 px-2.5 py-1.5 text-[11px] font-medium text-[#bfdbfe] disabled:cursor-not-allowed disabled:opacity-40"
+                className="g-btn g-btn--outline"
+                style={{ height: 32, padding: '0 14px', fontSize: 13 }}
               >
-                Draw Polygon
+                {tr('Draw polygon')}
               </button>
               <button
                 type="button"
                 onClick={handleInsightsModalDeletePoint}
                 disabled={!insightsModalPointId}
-                className="rounded-md border border-red-400/35 bg-red-500/12 px-2.5 py-1.5 text-[11px] font-medium text-red-300 disabled:cursor-not-allowed disabled:opacity-40"
+                className="g-btn g-btn--ghost text-critical"
+                style={{ height: 32, padding: '0 14px', fontSize: 13, color: 'var(--status-critical)' }}
               >
-                Delete Point
+                {tr('Delete point')}
               </button>
             </div>
 
-            <div className="mt-4 rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2.5">
-              <p className="text-[10px] uppercase tracking-wide text-white/50">Farm external link</p>
+            <div className="mt-4 bg-muted px-3.5 py-3" style={{ borderRadius: 'var(--radius-lg)' }}>
+              <p className="text-[12px] text-content-soft">{tr('Farm external link')}</p>
               {activeInsightsFarmExternalUrl ? (
                 <a
                   href={activeInsightsFarmExternalUrl}
                   target="_blank"
                   rel="noreferrer"
-                  className="mt-1 inline-block text-xs font-medium text-[#07f880] underline underline-offset-2 hover:text-[#8dffca]"
+                  className="mt-1 inline-block text-[13px] text-sage-700 underline underline-offset-2 hover:text-ink"
                 >
-                  Open Farm Link
+                  {tr('Open farm link')}
                 </a>
               ) : (
-                <p className="mt-1 text-xs text-white/50">No farm link configured yet.</p>
+                <p className="mt-1 text-xs text-content-soft">{tr('No farm link configured yet.')}</p>
               )}
             </div>
 
             {isInsightsModalLoading ? (
-              <div className="py-10 text-center text-sm text-white/65">Loading insights...</div>
+              <div className="py-10 flex justify-center text-ink"><LatticeLoader label={tr('Loading insights…')} /></div>
             ) : insightsModalError ? (
-              <div className="py-10 text-center text-sm text-red-300">{insightsModalError}</div>
+              <div role="alert" className="py-10 text-center text-[14px] text-critical">{insightsModalError}</div>
             ) : activePointInsights.length === 0 ? (
-              <div className="py-10 text-center text-sm text-white/65">
-                No crop insight records found for this point.
+              <div className="py-10 text-center text-[14px] text-content-soft">
+                {tr('No crop insight records found for this point.')}
               </div>
             ) : (
               isLateralMode ? (
-                <div className="mt-4 max-h-[44vh] space-y-2 overflow-y-auto pr-1">
+                <div className="mt-4 max-h-[44vh] space-y-2 overflow-y-auto pe-1">
                   {activePointInsights.map((insight) => {
                     const cropKey = insight.cropName.trim().toLowerCase()
                     const cropScore = cropScoreByName.get(cropKey) ?? null
@@ -2899,41 +2493,36 @@ export function SatelliteMap({
                     return (
                       <div
                         key={insight.id}
-                        className="rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2.5 text-sm text-white/85"
+                        className="bg-card border border-line px-3.5 py-3 text-[14px] text-content"
+                        style={{ borderRadius: 'var(--radius-lg)' }}
                       >
                         <div className="flex items-start justify-between gap-3">
-                          <p className="font-semibold text-white">{insight.cropName}</p>
-                          <span
-                            className="rounded-md border px-2 py-0.5 text-xs font-semibold"
-                            style={{
-                              color: getScoreTextColor(cropScore),
-                              borderColor: getScoreSurfaceColor(cropScore, 0.38),
-                              backgroundColor: getScoreSurfaceColor(cropScore, 0.12),
-                            }}
-                          >
+                          <p className="text-content" style={{ fontWeight: 500 }}>{insight.cropName}</p>
+                          <span className="g-tag g-tag--outline-ink" style={{ height: 22, padding: '0 9px', fontSize: 11 }}>
+                            <span aria-hidden="true" className="w-1.5 h-1.5" style={{ borderRadius: 1, background: getScoreTextColor(cropScore) }} />
                             {formatScoreValue(cropScore)}
                           </span>
                         </div>
-                        <div className="mt-2 space-y-1.5 text-xs">
+                        <div className="mt-2 divide-y divide-dotted divide-line-strong text-[12px] [&>div]:py-1">
                           <div className="flex items-center justify-between gap-3">
-                            <span className="text-white/60">Polygon contributors</span>
-                            <span className="font-medium text-white">{cropPolygonCount}</span>
+                            <span className="text-content-soft">{tr('Polygon contributors')}</span>
+                            <span className="font-medium text-content">{cropPolygonCount}</span>
                           </div>
                           <div className="flex items-center justify-between gap-3">
-                            <span className="text-white/60">Estimated production</span>
-                            <span className="font-medium text-white">
+                            <span className="text-content-soft">{tr('Estimated production')}</span>
+                            <span className="font-medium text-content">
                               {formatMetric(insight.estimatedProductionTons, 'tons')}
                             </span>
                           </div>
                           <div className="flex items-center justify-between gap-3">
-                            <span className="text-white/60">Energy consumption</span>
-                            <span className="font-medium text-white">
+                            <span className="text-content-soft">{tr('Energy consumption')}</span>
+                            <span className="font-medium text-content">
                               {formatMetric(insight.energyConsumptionKwh, 'kWh')}
                             </span>
                           </div>
                           <div className="flex items-center justify-between gap-3">
-                            <span className="text-white/60">Water consumption</span>
-                            <span className="font-medium text-white">
+                            <span className="text-content-soft">{tr('Water consumption')}</span>
+                            <span className="font-medium text-content">
                               {formatMetric(insight.waterConsumptionM3, 'm³')}
                             </span>
                           </div>
@@ -2943,19 +2532,19 @@ export function SatelliteMap({
                   })}
                 </div>
               ) : (
-                <div className="mt-4 max-h-[58vh] overflow-y-auto rounded-lg border border-white/10">
-                  <table className="min-w-full divide-y divide-white/10 text-left">
-                    <thead className="sticky top-0 bg-[#14161b]">
-                      <tr className="text-[11px] uppercase tracking-wide text-white/60">
-                        <th className="px-3 py-2.5 font-medium">Crop</th>
-                        <th className="px-3 py-2.5 font-medium">Crop Score</th>
-                        <th className="px-3 py-2.5 font-medium">Polygons</th>
-                        <th className="px-3 py-2.5 font-medium">Estimated Production</th>
-                        <th className="px-3 py-2.5 font-medium">Energy Consumption</th>
-                        <th className="px-3 py-2.5 font-medium">Water Consumption</th>
+                <div className="mt-4 max-h-[58vh] overflow-y-auto">
+                  <table className="g-table g-table--pad-sm min-w-full text-start">
+                    <thead className="sticky top-0 bg-card">
+                      <tr>
+                        <th>{tr('Crop')}</th>
+                        <th>{tr('Crop score')}</th>
+                        <th>{tr('Polygons')}</th>
+                        <th>{tr('Estimated production')}</th>
+                        <th>{tr('Energy consumption')}</th>
+                        <th>{tr('Water consumption')}</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-white/5">
+                    <tbody className="divide-y divide-line">
                       {activePointInsights.map((insight, index) => {
                         const cropKey = insight.cropName.trim().toLowerCase()
                         const cropScore = cropScoreByName.get(cropKey) ?? null
@@ -2963,19 +2552,20 @@ export function SatelliteMap({
                         return (
                           <tr
                             key={insight.id}
-                            className={`text-xs text-white/85 ${index % 2 === 0 ? 'bg-white/[0.01]' : 'bg-transparent'} hover:bg-white/[0.03]`}
+                            data-row={index}
+                            className="text-[13px] text-content hover:bg-muted"
                           >
-                            <td className="px-3 py-2.5 font-medium text-white">{insight.cropName}</td>
-                            <td
-                              className="px-3 py-2.5 font-semibold"
-                              style={{ color: getScoreTextColor(cropScore) }}
-                            >
-                              {formatScoreValue(cropScore)}
+                            <td className="py-2.5" style={{ fontWeight: 500 }}>{insight.cropName}</td>
+                            <td className="py-2.5 tabular-nums">
+                              <span className="inline-flex items-center gap-1.5">
+                                <span aria-hidden="true" className="w-1.5 h-1.5" style={{ borderRadius: 1, background: getScoreTextColor(cropScore) }} />
+                                {formatScoreValue(cropScore)}
+                              </span>
                             </td>
-                            <td className="px-3 py-2.5">{cropPolygonCount}</td>
-                            <td className="px-3 py-2.5">{formatMetric(insight.estimatedProductionTons, 'tons')}</td>
-                            <td className="px-3 py-2.5">{formatMetric(insight.energyConsumptionKwh, 'kWh')}</td>
-                            <td className="px-3 py-2.5">{formatMetric(insight.waterConsumptionM3, 'm³')}</td>
+                            <td className="py-2.5 tabular-nums">{cropPolygonCount}</td>
+                            <td className="py-2.5 tabular-nums">{formatMetric(insight.estimatedProductionTons, 'tons')}</td>
+                            <td className="py-2.5 tabular-nums">{formatMetric(insight.energyConsumptionKwh, 'kWh')}</td>
+                            <td className="py-2.5 tabular-nums">{formatMetric(insight.waterConsumptionM3, 'm³')}</td>
                           </tr>
                         )
                       })}
@@ -2989,12 +2579,12 @@ export function SatelliteMap({
       )}
 
       {isGrowaAdmin && polygonDrawPointId && (
-        <div className="absolute left-6 top-24 z-[1000] w-80 rounded-lg border border-white/10 bg-[#0c0c0e]/90 p-3 shadow-lg">
-          <p className="text-xs font-semibold uppercase tracking-wide text-white/70">Polygon Draft</p>
-          <p className="mt-1 text-[11px] text-white/60">
-            Vertices: <span className="text-[#93c5fd]">{draftPolygon.length}</span>
+        <div className="absolute start-4 top-4 z-[1000] w-80 max-h-[calc(100%-2rem)] overflow-y-auto bg-card border border-line p-4" style={{ borderRadius: 'var(--radius-xl)', boxShadow: 'var(--shadow-panel)' }}>
+          <p className="text-[14px] text-content" style={{ fontWeight: 500 }}>{tr('Polygon draft')}</p>
+          <p className="mt-0.5 text-[12px] text-content-soft">
+            {tr('Vertices:')} <span className="text-content tabular-nums">{draftPolygon.length}</span>
           </p>
-          <div className="mt-2 grid grid-cols-3 gap-2">
+          <div className="mt-3 g-seg w-full" role="tablist" aria-label={tr('Drawing method')}>
             {POLYGON_DRAW_METHOD_OPTIONS.map((option) => (
               <button
                 key={option.value}
@@ -3003,30 +2593,30 @@ export function SatelliteMap({
                   setShapeSeedVertex(null)
                   setDraftPolygon([])
                 }}
-                className={`h-7 rounded border text-[11px] ${
-                  polygonDrawMethod === option.value
-                    ? 'border-[#07f880]/45 bg-[#07f880]/12 text-[#07f880]'
-                    : 'border-white/15 bg-white/5 text-white/70'
-                }`}
+                role="tab"
+                aria-selected={polygonDrawMethod === option.value}
+                data-active={polygonDrawMethod === option.value ? 'true' : 'false'}
+                className="g-seg__item flex-1"
+                style={{ height: 30, fontSize: 12 }}
               >
-                {option.label}
+                {tr(option.label)}
               </button>
             ))}
           </div>
-          <p className="mt-1 text-[11px] text-white/45">
+          <p className="mt-2 text-[12px] text-content-soft">
             {polygonDrawMethod === 'vertex'
-              ? 'Click to add each vertex.'
+              ? tr('Click to add each vertex.')
               : polygonDrawMethod === 'rectangle'
                 ? shapeSeedVertex
-                  ? 'Move mouse to resize rectangle, then click to confirm.'
-                  : 'Click first corner of rectangle.'
+                  ? tr('Move mouse to resize rectangle, then click to confirm.')
+                  : tr('Click first corner of rectangle.')
                 : shapeSeedVertex
-                  ? 'Move mouse to resize circle, then click to confirm.'
-                  : 'Click circle center point.'}
+                  ? tr('Move mouse to resize circle, then click to confirm.')
+                  : tr('Click circle center point.')}
           </p>
           {polygonDrawMethod === 'circle' && (
             <div className="mt-2 flex items-center gap-2">
-              <span className="text-[11px] text-white/55">Circle detail</span>
+              <span className="text-[12px] text-content-soft">{tr('Circle detail')}</span>
               <input
                 type="range"
                 min={8}
@@ -3034,13 +2624,13 @@ export function SatelliteMap({
                 step={4}
                 value={circleSegments}
                 onChange={(event) => setCircleSegments(Number(event.target.value))}
-                className="flex-1 accent-[#07f880]"
+                className="g-range flex-1"
               />
-              <span className="w-10 text-right text-[11px] text-[#07f880]">{circleSegments}</span>
+              <span className="w-10 text-end text-[12px] text-content tabular-nums">{circleSegments}</span>
             </div>
           )}
           <div className="mt-2 flex items-center gap-2">
-            <span className="text-[11px] text-white/55">Score</span>
+            <span className="text-[12px] text-content-soft">{tr('Score')}</span>
             <input
               type="range"
               min={0}
@@ -3048,24 +2638,25 @@ export function SatelliteMap({
               step={1}
               value={draftPolygonScore}
               onChange={(event) => setDraftPolygonScore(normalizePolygonScore(event.target.value, 50))}
-              className="flex-1 accent-[#07f880]"
+              className="g-range flex-1"
             />
-            <span className="w-12 text-right text-[11px] text-[#07f880]">{draftPolygonScore}</span>
+            <span className="w-12 text-end text-[12px] text-content tabular-nums">{draftPolygonScore}</span>
           </div>
 
           <div className="mt-3 space-y-2">
             <input
               value={draftPolygonName}
               onChange={(event) => setDraftPolygonName(event.target.value)}
-              placeholder="Polygon name (e.g. Tomato Plot A)"
-              className="h-8 w-full rounded border border-white/10 bg-[#0b0b0c] px-2 text-[11px] text-white placeholder:text-white/35 focus:border-[#07f880]/60 focus:outline-none"
+              placeholder={tr('Polygon name (e.g. Tomato plot A)')}
+              aria-label={tr('Polygon name')}
+              className="h-9 w-full rounded-md border border-line-strong bg-card px-3 text-[13px] text-content placeholder:text-content-soft focus:border-sage focus:outline-none transition-colors"
             />
             <input
               value={draftCropName}
               onChange={(event) => setDraftCropName(event.target.value)}
-              placeholder="Crop name"
+              placeholder={tr('Crop name')}
               list="draft-crop-type-options"
-              className="h-8 w-full rounded border border-white/10 bg-[#0b0b0c] px-2 text-[11px] text-white placeholder:text-white/35 focus:border-[#07f880]/60 focus:outline-none"
+              className="h-9 w-full rounded-md border border-line-strong bg-card px-3 text-[13px] text-content placeholder:text-content-soft focus:border-sage focus:outline-none transition-colors"
             />
             <datalist id="draft-crop-type-options">
               {cropTypeOptions.map((cropType) => (
@@ -3075,9 +2666,9 @@ export function SatelliteMap({
             <input
               value={draftCropVariety}
               onChange={(event) => setDraftCropVariety(event.target.value)}
-              placeholder="Variety"
+              placeholder={tr('Variety')}
               list="draft-crop-variety-options"
-              className="h-8 w-full rounded border border-white/10 bg-[#0b0b0c] px-2 text-[11px] text-white placeholder:text-white/35 focus:border-[#07f880]/60 focus:outline-none"
+              className="h-9 w-full rounded-md border border-line-strong bg-card px-3 text-[13px] text-content placeholder:text-content-soft focus:border-sage focus:outline-none transition-colors"
             />
             <datalist id="draft-crop-variety-options">
               {cropVarietyOptionsForDraft.map((variety) => (
@@ -3089,13 +2680,17 @@ export function SatelliteMap({
                 type="date"
                 value={draftSowingDate}
                 onChange={(event) => setDraftSowingDate(event.target.value)}
-                className="h-8 w-full rounded border border-white/10 bg-[#0b0b0c] px-2 text-[11px] text-white focus:border-[#07f880]/60 focus:outline-none"
+                aria-label={tr('Sowing date')}
+                title={tr('Sowing date')}
+                className="h-9 w-full rounded-md border border-line-strong bg-card px-3 text-[13px] text-content focus:border-sage focus:outline-none"
               />
               <input
                 type="date"
                 value={draftExpectedHarvestDate}
                 onChange={(event) => setDraftExpectedHarvestDate(event.target.value)}
-                className="h-8 w-full rounded border border-white/10 bg-[#0b0b0c] px-2 text-[11px] text-white focus:border-[#07f880]/60 focus:outline-none"
+                aria-label={tr('Expected harvest')}
+                title={tr('Expected harvest')}
+                className="h-9 w-full rounded-md border border-line-strong bg-card px-3 text-[13px] text-content focus:border-sage focus:outline-none"
               />
             </div>
             <div className="grid grid-cols-3 gap-2">
@@ -3105,8 +2700,8 @@ export function SatelliteMap({
                 step="0.01"
                 value={draftEstimatedProductionTons}
                 onChange={(event) => setDraftEstimatedProductionTons(event.target.value)}
-                placeholder="Tons"
-                className="h-8 w-full rounded border border-white/10 bg-[#0b0b0c] px-2 text-[11px] text-white placeholder:text-white/35 focus:border-[#07f880]/60 focus:outline-none"
+                placeholder={tr('Tons')}
+                className="h-9 w-full rounded-md border border-line-strong bg-card px-3 text-[13px] text-content placeholder:text-content-soft focus:border-sage focus:outline-none transition-colors"
               />
               <input
                 type="number"
@@ -3115,7 +2710,7 @@ export function SatelliteMap({
                 value={draftEnergyConsumptionKwh}
                 onChange={(event) => setDraftEnergyConsumptionKwh(event.target.value)}
                 placeholder="kWh"
-                className="h-8 w-full rounded border border-white/10 bg-[#0b0b0c] px-2 text-[11px] text-white placeholder:text-white/35 focus:border-[#07f880]/60 focus:outline-none"
+                className="h-9 w-full rounded-md border border-line-strong bg-card px-3 text-[13px] text-content placeholder:text-content-soft focus:border-sage focus:outline-none transition-colors"
               />
               <input
                 type="number"
@@ -3124,15 +2719,15 @@ export function SatelliteMap({
                 value={draftWaterConsumptionM3}
                 onChange={(event) => setDraftWaterConsumptionM3(event.target.value)}
                 placeholder="m3"
-                className="h-8 w-full rounded border border-white/10 bg-[#0b0b0c] px-2 text-[11px] text-white placeholder:text-white/35 focus:border-[#07f880]/60 focus:outline-none"
+                className="h-9 w-full rounded-md border border-line-strong bg-card px-3 text-[13px] text-content placeholder:text-content-soft focus:border-sage focus:outline-none transition-colors"
               />
             </div>
             <textarea
               value={draftCropNotes}
               onChange={(event) => setDraftCropNotes(event.target.value)}
-              placeholder="Notes"
+              placeholder={tr('Notes')}
               rows={2}
-              className="w-full resize-none rounded border border-white/10 bg-[#0b0b0c] px-2 py-1.5 text-[11px] text-white placeholder:text-white/35 focus:border-[#07f880]/60 focus:outline-none"
+              className="w-full resize-none rounded-md border border-line-strong bg-card px-3 py-2 text-[13px] text-content placeholder:text-content-soft focus:border-sage focus:outline-none"
             />
           </div>
 
@@ -3140,54 +2735,74 @@ export function SatelliteMap({
             <button
               onClick={undoDraftVertex}
               disabled={polygonDrawMethod !== 'vertex' ? !shapeSeedVertex && draftPolygon.length === 0 : draftPolygon.length === 0}
-              className="h-8 flex-1 rounded border border-white/15 bg-white/5 text-[11px] text-white/80 disabled:cursor-not-allowed disabled:opacity-40"
+              className="g-btn g-btn--ghost flex-1"
+              style={{ height: 32, padding: '0 12px', fontSize: 13 }}
             >
-              Undo
+              {tr('Undo')}
             </button>
             <button
               onClick={cancelPolygonDraw}
-              className="h-8 flex-1 rounded border border-white/15 bg-white/5 text-[11px] text-white/80"
+              className="g-btn g-btn--secondary flex-1"
+              style={{ height: 32, padding: '0 12px', fontSize: 13 }}
             >
-              Cancel
+              {tr('Cancel')}
             </button>
             <button
               onClick={saveDraftPolygon}
               disabled={draftPolygon.length < 3}
-              className="h-8 flex-1 rounded border border-[#07f880]/35 bg-[#07f880]/15 text-[11px] text-[#07f880] disabled:cursor-not-allowed disabled:opacity-40"
+              className="g-btn g-btn--primary flex-1"
+              style={{ height: 32, padding: '0 12px', fontSize: 13 }}
             >
-              Save
+              {tr('Save')}
             </button>
           </div>
         </div>
       )}
 
+      {/* Collapsed by default: open, the card sat over the middle of every
+          map — a quarter of the side map, and on top of the markers in the
+          watchtower panel. A round control, like the zoom buttons, opens it. */}
+      {coordinateSearchOpen ? (
       <form
-        className="absolute right-6 top-24 z-[1000] w-80 rounded-lg border border-white/10 bg-[#0c0c0e]/90 p-3 shadow-lg"
+        className={`absolute end-4 z-[1000] w-[min(20rem,calc(100%-2rem))] bg-card border border-line p-4 top-4`}
+        style={{ borderRadius: 'var(--radius-xl)', boxShadow: 'var(--shadow-panel)' }}
         onSubmit={(event) => {
           event.preventDefault()
           goToCoordinates()
         }}
       >
-        <p className="text-xs font-semibold uppercase tracking-wide text-white/70">
-          {locale === 'ar' ? 'بحث بالإحداثيات' : 'Coordinate Search'}
-        </p>
+        <div className="flex items-center justify-between gap-2">
+          <p className="text-[14px] text-content" style={{ fontWeight: 500 }}>
+            {tr('Coordinate search')}
+          </p>
+          <button
+            type="button"
+            onClick={() => setCoordinateSearchOpen(false)}
+            aria-label={tr('Close')}
+            className="-me-1.5 inline-flex h-7 w-7 items-center justify-center rounded-pill text-stone-600 hover:bg-muted hover:text-ink transition-colors"
+          >
+            <X strokeWidth={1.5} className="h-4 w-4" />
+          </button>
+        </div>
         <div className="mt-2 flex items-center gap-2">
           <input
             type="text"
+            autoFocus
             value={coordinateQuery}
             onChange={(event) => {
               setCoordinateQuery(event.target.value)
               if (coordinateSearchError) setCoordinateSearchError(null)
             }}
-            placeholder={locale === 'ar' ? '25.2854, 51.5310' : '25.2854, 51.5310'}
-            aria-label={locale === 'ar' ? 'خط العرض وخط الطول' : 'Latitude and longitude'}
-            className="h-8 flex-1 rounded border border-white/10 bg-[#0b0b0c] px-2 text-[11px] text-white placeholder:text-white/35 focus:border-[#07f880]/60 focus:outline-none"
+            placeholder="25.2854, 51.5310"
+            aria-label={tr('Latitude and longitude')}
+            className="h-9 flex-1 rounded-md border border-line-strong bg-card px-3 text-[13px] text-content placeholder:text-content-soft focus:border-sage focus:outline-none transition-colors"
           />
           <button
             type="submit"
-            className="h-8 rounded border border-[#07f880]/35 bg-[#07f880]/15 px-2 text-[11px] text-[#07f880] hover:bg-[#07f880]/25"
+            className="g-btn g-btn--primary"
+            style={{ height: 32, padding: '0 12px', fontSize: 13 }}
           >
-            {locale === 'ar' ? 'اذهب' : 'Go'}
+            {tr('Go')}
           </button>
           <button
             type="button"
@@ -3196,54 +2811,92 @@ export function SatelliteMap({
               setCoordinateSearchError(null)
               clearCoordinatePin()
             }}
-            className="h-8 rounded border border-white/15 bg-white/5 px-2 text-[11px] text-white/80 hover:border-[#07f880]/40 hover:text-[#07f880]"
+            className="g-btn g-btn--ghost"
+            style={{ height: 32, padding: '0 10px', fontSize: 13 }}
           >
-            {locale === 'ar' ? 'مسح' : 'Clear'}
+            {tr('Clear')}
           </button>
         </div>
-        <p className={`mt-2 text-[11px] ${coordinateSearchError ? 'text-red-300' : 'text-white/60'}`}>
+        <p className={`mt-2 text-[12px] ${coordinateSearchError ? 'text-critical' : 'text-content-soft'}`}>
           {coordinateSearchError ||
-            (locale === 'ar'
-              ? 'خط العرض ثم خط الطول. مثال: 25.2854, 51.5310'
-              : 'Latitude, then longitude. Example: 25.2854, 51.5310')}
+            tr('Latitude, then longitude. Example: 25.2854, 51.5310')}
         </p>
       </form>
+      ) : (
+        <button
+          type="button"
+          onClick={() => setCoordinateSearchOpen(true)}
+          aria-label={tr('Coordinate search')}
+          title={tr('Coordinate search')}
+          className={`absolute end-4 z-[1000] inline-flex h-10 w-10 items-center justify-center rounded-pill border border-line bg-card text-content transition-colors hover:bg-stone-100 top-4`}
+          style={{ boxShadow: 'var(--shadow-panel)' }}
+        >
+          <Search strokeWidth={1.5} className="h-4 w-4" />
+        </button>
+      )}
 
       {isLoading && (
         <div className="absolute inset-0 z-50 flex items-center justify-center bg-background">
-          <div className="flex flex-col items-center gap-4">
-            <div className="relative">
-              <div className="h-16 w-16 animate-spin rounded-full border-4 border-[#07f880]/20 border-t-[#07f880]" />
-              <img
-                src="/growa-logo.png"
-                alt="Growa"
-                className="absolute inset-0 m-auto h-8 w-8"
-              />
-            </div>
-            <span className="text-sm font-medium text-muted-foreground">
-              {locale === 'ar' ? 'جاري تحميل صور الأقمار الصناعية...' : 'Loading satellite imagery...'}
+          <div className="flex flex-col items-center gap-4 text-ink">
+            <LatticeLoader label={tr('Loading satellite imagery…')} />
+            <span className="text-[14px] text-content-soft">
+              {tr('Loading satellite imagery…')}
             </span>
           </div>
         </div>
       )}
 
+      {/* Leaflet builds popups and tooltips outside React: they are styled
+          here, as the SaaS does for third-party widgets. White card, the
+          brand radius and the single floating shadow; facts on dotted rows;
+          commands as pills. */}
       <style jsx global>{`
-        .custom-popup .leaflet-popup-content-wrapper {
-          background: rgba(12, 12, 14, 0.95);
-          border: 1px solid rgba(255, 255, 255, 0.1);
-          border-radius: 8px;
-          box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
-        }
-        .custom-popup .leaflet-popup-tip {
-          background: rgba(12, 12, 14, 0.95);
-        }
-        .custom-popup .leaflet-popup-close-button {
-          color: #888;
-        }
-        .custom-popup .leaflet-popup-close-button:hover {
-          color: #07f880;
-        }
-      `}</style>
+ .custom-popup .leaflet-popup-content-wrapper,
+ .custom-tooltip.leaflet-tooltip {
+ background: #ffffff;
+ color: #111e13;
+ border: 1px solid #e1e4dc;
+ border-radius: 12px;
+ box-shadow: 0 18px 44px -18px rgba(17, 30, 19, 0.34);
+ font-family: var(--font-core);
+ }
+ .custom-popup .leaflet-popup-content { margin: 12px 14px; }
+ .custom-popup .leaflet-popup-tip { background: #ffffff; box-shadow: none; }
+ .custom-popup .leaflet-popup-close-button { color: #5c635a; }
+ .custom-popup .leaflet-popup-close-button:hover { color: #111e13; }
+ .custom-tooltip.leaflet-tooltip { padding: 6px 10px; }
+ .custom-tooltip.leaflet-tooltip-top::before { border-top-color: #ffffff; }
+ .g-map-pop { display: flex; flex-direction: column; gap: 4px; min-width: 160px; font-family: var(--font-core); }
+ .g-map-pop__title { display: block; font-size: 14px; font-weight: 500; color: #111e13; }
+ .g-map-pop__meta { display: block; font-size: 12px; color: #5c635a; line-height: 1.4; }
+ .g-map-pop__tag { display: inline-flex; align-items: center; gap: 6px; width: fit-content; height: 22px; padding: 0 9px; border: 1px solid #cbd0c5; border-radius: 999px; font-size: 11px; color: #111e13; }
+ .g-map-pop__tag i { display: block; width: 6px; height: 6px; border-radius: 1px; }
+ .g-map-pop__rows { margin: 6px 0 0; font-size: 12px; }
+ .g-map-pop__rows div { display: flex; justify-content: space-between; gap: 12px; padding: 3px 0; border-top: 1px dotted #cbd0c5; }
+ .g-map-pop__rows dt { color: #5c635a; }
+ .g-map-pop__rows dd { margin: 0; color: #111e13; }
+ .g-map-pop__actions { margin-top: 10px; display: flex; gap: 6px; }
+ .g-map-pop__btn { height: 28px; padding: 0 12px; border-radius: 999px; border: 1px solid #cbd0c5; background: #ffffff; color: #111e13; font-size: 12px; cursor: pointer; }
+ .g-map-pop__btn:hover { background: #eff1ec; }
+ .g-map-pop__btn--danger { color: #a8392b; }
+ `}</style>
+
+      <PointEditDialog
+        open={Boolean(editingPointInitial)}
+        locale={locale}
+        initial={editingPointInitial}
+        typeOptions={pointTypeOptions}
+        onCancel={() => setEditingPointId(null)}
+        onSave={savePointEdit}
+      />
+      <PolygonEditDialog
+        open={Boolean(editingPolygonInitial)}
+        locale={locale}
+        initial={editingPolygonInitial}
+        cropOptions={cropTypeOptions}
+        onCancel={() => setEditingPolygon(null)}
+        onSave={savePolygonEdit}
+      />
     </div>
   )
 }

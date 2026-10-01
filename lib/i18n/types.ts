@@ -31,3 +31,6 @@ export const localeConfigs: Record<Locale, LocaleConfig> = {
 
 export const defaultLocale: Locale = 'en'
 export const supportedLocales: Locale[] = ['en', 'ar']
+
+/** Cookie that carries the interface language to the server render. */
+export const LOCALE_COOKIE = 'growa-locale'

@@ -6,18 +6,35 @@ import type { AgentMission } from '@/lib/ai/agents/types'
 import { AGENT_REGISTRY } from '@/lib/ai/agents/registry'
 import { OperationalContextBanner } from '@/components/dashboard/operational-context-banner'
 import { useI18n } from '@/lib/i18n'
-import { cn } from '@/lib/utils'
+import { useToast } from '@/components/brand/feedback'
+import { Card, CardAction, EmptyState, Notice, PageHeader, Tile } from '@/components/brand/layout'
+import { Button, Field, LatticeLoader } from '@/components/brand/ui'
+import { StatusTag, humanize } from '@/components/brand/status'
+import { Archive, Sparkles, Users } from 'lucide-react'
 
-const STATUS_STYLE: Record<string, string> = {
-  queued: 'text-sky-300 bg-sky-500/10',
-  running: 'text-[#07f880] bg-[#07f880]/10',
-  waiting_for_human: 'text-amber-300 bg-amber-500/10',
-  completed: 'text-white/70 bg-white/10',
-  failed: 'text-red-300 bg-red-500/10',
+/* Mission status → the system's status squares. */
+const STATUS_LEVEL: Record<string, string> = {
+  queued: 'unknown',
+  running: 'progress',
+  waiting_for_agent: 'progress',
+  waiting_for_human: 'attention',
+  completed: 'good',
+  failed: 'critical',
+}
+
+/* English labels; translated at render with tr(). */
+const STATUS_LABEL: Record<string, string> = {
+  queued: 'Queued',
+  running: 'Running',
+  waiting_for_agent: 'Waiting for agent',
+  waiting_for_human: 'Waiting for human',
+  completed: 'Completed',
+  failed: 'Failed',
 }
 
 export function AiMissionControlWorkspace() {
-  const { t, locale } = useI18n()
+  const showToast = useToast()
+  const { tr } = useI18n()
   const [missions, setMissions] = useState<AgentMission[]>([])
   const [loading, setLoading] = useState(true)
   const [objective, setObjective] = useState('')
@@ -53,14 +70,14 @@ export function AiMissionControlWorkspace() {
         body: JSON.stringify({ objective: text, taskType: 'investigation' }),
       })
       const payload = await res.json()
-      if (!res.ok) throw new Error(payload.error || 'Failed to start mission')
+      if (!res.ok) throw new Error(payload.error || tr('Failed to start mission'))
       if (payload.mission) {
         setMissions((current) => [payload.mission as AgentMission, ...current])
       }
       setObjective('')
       setUnavailable(Boolean(payload.unavailable))
     } catch (e) {
-      alert(e instanceof Error ? e.message : 'Failed to start mission')
+      showToast(e instanceof Error ? e.message : tr('Failed to start mission'), 'error')
     } finally {
       setRunning(false)
     }
@@ -71,158 +88,127 @@ export function AiMissionControlWorkspace() {
   const completed = missions.filter((m) => m.status === 'completed')
 
   return (
-    <div className="flex h-full flex-col overflow-hidden bg-[#050608] text-white">
-      <header className="shrink-0 border-b border-white/10 px-5 py-4 pt-20">
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <div className="flex items-center gap-2">
-              <Cpu className="h-5 w-5 text-[#07f880]" />
-              <h1 className="text-lg font-semibold">
-                {locale === 'ar' ? 'مركز مهام الذكاء الاصطناعي' : 'AI Mission Control'}
-              </h1>
-            </div>
-            <p className="mt-1 text-xs text-white/45">
-              {locale === 'ar'
-                ? 'عمل مؤسسي محاكى بواسطة وكلاء متخصصين — يتطلب موافقة بشرية للإجراءات'
-                : 'Simulated institutional work via specialist agents — human approval required for actions'}
-            </p>
+    <div className="growa h-full overflow-y-auto bg-background text-content">
+      <div className="mx-auto max-w-7xl p-6 space-y-4">
+        <PageHeader
+          eyebrow={tr('Artificial intelligence')}
+          title={tr('AI mission control')}
+          subtitle={tr('Simulated institutional work via specialist agents — human approval required for actions.')}
+          actions={<CardAction icon={RefreshCw} label={tr('Refresh')} onClick={load} spinning={loading} />}
+          className="!mb-2"
+        />
+        <OperationalContextBanner />
+        {unavailable && <Notice tone="warning">{tr('Migration {migration} required for persistence.', { migration: '00029_agent_missions' })}</Notice>}
+
+        {/* Starting a mission is an AI command: the ink AI card. */}
+        <Card family="ai" icon={Sparkles} title={tr('New mission')} subtitle={tr('Describe the objective; the orchestrator assigns it to the agents.')}>
+          <div className="flex flex-col sm:flex-row gap-2">
+            <Field
+              className="flex-1"
+              aria-label={tr('Mission objective')}
+              value={objective}
+              onChange={(e) => setObjective(e.target.value)}
+              placeholder={tr('e.g. Investigate irrigation pressure in northern Qatar')}
+              onKeyDown={(e) => e.key === 'Enter' && startMission()}
+            />
+            <Button onClick={startMission} disabled={running || !objective.trim()}>
+              {running ? (
+                <span role="status" className="inline-flex"><LatticeLoader className="text-cream scale-50" label={tr('Starting')} /></span>
+              ) : (
+                <Play strokeWidth={1.5} className="h-4 w-4 rtl:-scale-x-100" />
+              )}
+              {tr('Start mission')}
+            </Button>
           </div>
-          <button onClick={load} className="rounded border border-white/10 px-3 py-1.5 text-xs text-white/60 hover:text-white">
-            <RefreshCw className={cn('h-3.5 w-3.5 inline', loading && 'animate-spin')} />
-          </button>
+        </Card>
+
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+          <Card icon={Cpu} title={tr('Active missions')} actions={<StatusTag level="progress" label={String(active.length)} />}>
+            {active.length === 0 ? (
+              <EmptyState compact title={tr('No active missions')} />
+            ) : (
+              active.map((m) => <MissionCard key={m.id} mission={m} />)
+            )}
+          </Card>
+
+          <Card family="comando" icon={UserCheck} title={tr('Waiting for human')} actions={<StatusTag level="attention" label={String(waitingHuman.length)} />}>
+            {waitingHuman.length === 0 ? (
+              <EmptyState compact title={tr('No pending reviews')} />
+            ) : (
+              waitingHuman.map((m) => <MissionCard key={m.id} mission={m} showActions />)
+            )}
+          </Card>
         </div>
-        <div className="mt-3"><OperationalContextBanner /></div>
-        {unavailable && (
-          <p className="mt-2 text-xs text-amber-300">
-            Migration 00029_agent_missions required for persistence.
-          </p>
-        )}
-      </header>
 
-      <div className="shrink-0 border-b border-white/10 px-5 py-3">
-        <div className="flex gap-2">
-          <input
-            value={objective}
-            onChange={(e) => setObjective(e.target.value)}
-            placeholder={locale === 'ar' ? 'مثال: تحقيق في ضغط الري في الشمال' : 'e.g. Investigate irrigation pressure in northern Qatar'}
-            className="flex-1 rounded-lg border border-white/10 bg-[#0a0d12] px-3 py-2 text-sm text-white placeholder:text-white/30 focus:border-[#07f880]/40 focus:outline-none"
-            onKeyDown={(e) => e.key === 'Enter' && startMission()}
-          />
-          <button
-            onClick={startMission}
-            disabled={running || !objective.trim()}
-            className="inline-flex items-center gap-1.5 rounded-lg bg-[#07f880] px-4 py-2 text-sm font-medium text-black disabled:opacity-50"
-          >
-            <Play className="h-4 w-4" />
-            {locale === 'ar' ? 'بدء مهمة' : 'Start mission'}
-          </button>
-        </div>
-      </div>
-
-      <div className="flex-1 overflow-y-auto px-5 py-4 space-y-6">
-        <Section title={locale === 'ar' ? 'مهام نشطة' : 'Active missions'} count={active.length}>
-          {active.length === 0 ? (
-            <Empty text={locale === 'ar' ? 'لا توجد مهام نشطة' : 'No active missions'} />
+        <Card icon={Archive} title={tr('Recent outputs')} actions={<StatusTag level="good" label={String(completed.length)} />}>
+          {missions.filter((m) => m.outputs.length > 0).length === 0 ? (
+            <EmptyState compact title={tr('No outputs yet')} />
           ) : (
-            active.map((m) => <MissionCard key={m.id} mission={m} />)
+            missions.slice(0, 5).map((m) =>
+              m.outputs.length > 0 ? (
+                <div key={`out-${m.id}`} className="bg-card border border-line p-3.5" style={{ borderRadius: 'var(--radius-lg)' }}>
+                  <p className="text-[12px] text-content-soft">{m.objective}</p>
+                  {m.outputs.slice(-1).map((o) => (
+                    <p key={o.id} className="mt-1.5 text-[14px] text-content">{o.title}</p>
+                  ))}
+                </div>
+              ) : null
+            )
           )}
-        </Section>
+        </Card>
 
-        <Section title={locale === 'ar' ? 'بانتظار المراجعة' : 'Waiting for human'} count={waitingHuman.length} icon={UserCheck}>
-          {waitingHuman.length === 0 ? (
-            <Empty text={locale === 'ar' ? 'لا توجد مراجعات معلقة' : 'No pending reviews'} />
-          ) : (
-            waitingHuman.map((m) => <MissionCard key={m.id} mission={m} showActions />)
-          )}
-        </Section>
-
-        <Section title={locale === 'ar' ? 'مخرجات حديثة' : 'Recent outputs'} count={completed.length}>
-          {missions.slice(0, 5).map((m) => (
-            m.outputs.length > 0 ? (
-              <div key={`out-${m.id}`} className="rounded-lg border border-white/10 bg-[#0a0d12] p-3">
-                <p className="text-xs text-white/40">{m.objective}</p>
-                {m.outputs.slice(-1).map((o) => (
-                  <p key={o.id} className="mt-2 text-sm text-white/75">{o.title}</p>
-                ))}
-              </div>
-            ) : null
-          ))}
-        </Section>
-
-        <Section title={locale === 'ar' ? 'الوكلاء المتاحون' : 'Available agents'}>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+        <Card icon={Users} title={tr('Available agents')}>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
             {Object.values(AGENT_REGISTRY)
               .filter((a) => a.type !== 'orchestrator')
               .map((agent) => (
-                <div key={agent.type} className="rounded border border-white/10 bg-white/[0.02] px-3 py-2">
+                <Tile key={agent.type}>
                   <div className="flex items-center gap-2">
-                    <Bot className="h-3.5 w-3.5 text-[#07f880]" />
-                    <span className="text-xs font-medium text-white">{agent.label}</span>
+                    <Bot strokeWidth={1.5} className="h-4 w-4 text-content-soft" />
+                    <span className="text-[13px] text-content" style={{ fontWeight: 500 }}>{tr(agent.label)}</span>
                   </div>
-                  <p className="mt-1 text-[10px] text-white/45">{agent.mission}</p>
-                </div>
+                  <p className="mt-1.5 text-[12px] text-content-soft leading-snug">{tr(agent.mission)}</p>
+                </Tile>
               ))}
           </div>
-        </Section>
+        </Card>
       </div>
     </div>
   )
-}
-
-function Section({ title, count, icon: Icon, children }: {
-  title: string
-  count?: number
-  icon?: typeof Cpu
-  children: React.ReactNode
-}) {
-  return (
-    <div>
-      <h2 className="mb-2 flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-white/40">
-        {Icon && <Icon className="h-3.5 w-3.5" />}
-        {title}{count !== undefined ? ` (${count})` : ''}
-      </h2>
-      <div className="space-y-2">{children}</div>
-    </div>
-  )
-}
-
-function Empty({ text }: { text: string }) {
-  return <p className="text-xs text-white/35 py-4 text-center rounded border border-dashed border-white/10">{text}</p>
 }
 
 function MissionCard({ mission, showActions }: { mission: AgentMission; showActions?: boolean }) {
+  const { tr, locale } = useI18n()
+  const agentLabel = AGENT_REGISTRY[mission.assignedAgent]?.label
   return (
-    <div className="rounded-lg border border-white/10 bg-[#0a0d12] p-4">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="text-sm font-medium text-white">{mission.objective}</p>
-        <span className={cn('rounded px-2 py-0.5 text-[9px] font-bold uppercase', STATUS_STYLE[mission.status] || STATUS_STYLE.queued)}>
-          {mission.status.replace(/_/g, ' ')}
-        </span>
+    <div className="bg-card border border-line p-4" style={{ borderRadius: 'var(--radius-lg)' }}>
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <p className="text-[14px] text-content" style={{ fontWeight: 500 }}>{mission.objective}</p>
+        <StatusTag level={STATUS_LEVEL[mission.status] || 'unknown'} label={tr(STATUS_LABEL[mission.status] ?? humanize(mission.status))} />
       </div>
-      <p className="mt-1 text-[10px] text-white/40">
-        {AGENT_REGISTRY[mission.assignedAgent]?.label} · {mission.agentsInvolved.length} agents
+      <p className="mt-1 text-[12px] text-content-soft">
+        {agentLabel ? tr(agentLabel) : ''} · {tr('{count} agents', { count: mission.agentsInvolved.length })}
       </p>
 
       {mission.events.length > 0 && (
-        <div className="mt-3 border-t border-white/5 pt-3 space-y-1.5">
+        <ol className="mt-3 border-t border-dotted border-line-strong pt-3 space-y-1.5">
           {mission.events.slice(-5).map((evt) => (
-            <div key={evt.id} className="flex gap-2 text-[10px] text-white/50">
-              <span className="text-white/30 shrink-0">{new Date(evt.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
-              <span className="text-white/70">{evt.title}</span>
-            </div>
+            <li key={evt.id} className="flex gap-3 text-[12px]">
+              <span className="text-content-soft shrink-0 tabular-nums">{new Date(evt.timestamp).toLocaleTimeString(locale === 'ar' ? 'ar-QA' : [], { hour: '2-digit', minute: '2-digit' })}</span>
+              <span className="text-content">{evt.title}</span>
+            </li>
           ))}
-        </div>
+        </ol>
       )}
 
       {showActions && mission.proposedActions.length > 0 && (
         <div className="mt-3 space-y-2">
-          <p className="text-[10px] uppercase tracking-wider text-amber-300/80">AI recommends</p>
+          <p className="text-[12px] text-content-soft">{tr('AI recommends')}</p>
           {mission.proposedActions.map((action) => (
-            <div key={action.id} className="rounded border border-amber-500/20 bg-amber-500/5 px-3 py-2">
-              <p className="text-xs text-white/80">{action.type.replace(/_/g, ' ')}</p>
-              <p className="text-[10px] text-white/50 mt-1">{action.reason}</p>
-              <p className="text-[9px] text-white/35 mt-1">Requires human approval</p>
-            </div>
+            <Notice key={action.id} tone="warning" title={humanize(action.type)}>
+              {action.reason}
+              <span className="block mt-1 text-[11px]">{tr('Requires human approval')}</span>
+            </Notice>
           ))}
         </div>
       )}

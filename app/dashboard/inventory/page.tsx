@@ -1,20 +1,18 @@
 'use client'
 
-export default function InventoryPage() {
-  return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold text-foreground">📦 Inventory</h1>
-        <p className="mt-2 text-base text-muted-foreground">
-          Track inputs, seeds, feed, fertilizers, and other resources
-        </p>
-      </div>
+import { useI18n } from '@/lib/i18n'
+import { EmptyState, PageBody, PageHeader } from '@/components/brand/layout'
 
-      <div className="rounded-lg border border-dashed border-border bg-muted/30 p-8 text-center">
-        <p className="text-sm text-muted-foreground">
-          Inventory management features coming soon...
-        </p>
-      </div>
+export default function InventoryPage() {
+  const { tr } = useI18n()
+  return (
+    <div className="h-full overflow-y-auto bg-background">
+      <PageBody>
+        <PageHeader eyebrow={tr('Resources')} title={tr('Inventory')} subtitle={tr('Track inputs, seeds, feed, fertilisers and other resources.')} />
+        <div className="bg-card border border-line" style={{ borderRadius: 'var(--radius-xl)' }}>
+          <EmptyState title={tr('Coming soon')} description={tr('Inventory management features coming soon.')} />
+        </div>
+      </PageBody>
     </div>
   )
 }

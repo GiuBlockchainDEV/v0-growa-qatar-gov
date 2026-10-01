@@ -128,11 +128,11 @@ async function selectInsights(
       isMissingColumnError(error, 'energy_consumption_kwh') ||
       isMissingColumnError(error, 'water_consumption_m3')
     if (!retryable) {
-      return { data: [] as any[], error }
+      return { data: [] as Record<string, unknown>[], error }
     }
   }
 
-  return { data: [] as any[], error: null }
+  return { data: [] as Record<string, unknown>[], error: null }
 }
 
 async function selectPolygonMetricRows(
@@ -160,10 +160,10 @@ async function selectPolygonMetricRows(
     isMissingColumnError(error, 'energy_consumption_kwh') ||
     isMissingColumnError(error, 'water_consumption_m3')
   if (isMissingRelationError(error, 'custom_point_polygons')) {
-    return { data: [] as any[], hasMetrics: false, error: null as null }
+    return { data: [] as Record<string, unknown>[], hasMetrics: false, error: null as null }
   }
   if (!missingMetrics) {
-    return { data: [] as any[], hasMetrics: false, error }
+    return { data: [] as Record<string, unknown>[], hasMetrics: false, error }
   }
 
   let cropQuery = supabase
@@ -178,7 +178,7 @@ async function selectPolygonMetricRows(
 
   const { data: cropData, error: cropError } = await cropQuery
   if (cropError) {
-    return { data: [] as any[], hasMetrics: false, error: cropError }
+    return { data: [] as Record<string, unknown>[], hasMetrics: false, error: cropError }
   }
 
   return { data: cropData || [], hasMetrics: false, error: null as null }

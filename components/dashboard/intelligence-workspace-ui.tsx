@@ -2,6 +2,9 @@
 
 import type { LucideIcon } from 'lucide-react'
 import { forwardRef, type ReactNode } from 'react'
+import { CardHeader, ErrorState, LoadingState, PageHeader } from '@/components/brand/layout'
+import { StatusDot } from '@/components/brand/ui'
+import { cn } from '@/lib/utils'
 
 interface IntelligenceWorkspaceRootProps {
   children: ReactNode
@@ -14,7 +17,7 @@ export const IntelligenceWorkspaceRoot = forwardRef<HTMLDivElement, Intelligence
       return (
         <div
           ref={ref}
-          className="flex h-full min-h-0 flex-col gap-3 overflow-hidden px-4 py-4 text-foreground sm:px-6"
+          className="growa flex h-full min-h-0 flex-col gap-4 overflow-hidden bg-background p-6 text-content"
         >
           {children}
         </div>
@@ -24,7 +27,7 @@ export const IntelligenceWorkspaceRoot = forwardRef<HTMLDivElement, Intelligence
     return (
       <div
         ref={ref}
-        className="h-full overflow-y-auto overscroll-contain space-y-5 p-6 pt-20 text-foreground"
+        className="growa h-full overflow-y-auto overscroll-contain space-y-4 bg-background p-6 text-content"
       >
         {children}
       </div>
@@ -32,12 +35,11 @@ export const IntelligenceWorkspaceRoot = forwardRef<HTMLDivElement, Intelligence
   }
 )
 
+/* Header and body scroll together with the page, as on every other screen
+   (weather, watchtower, the SaaS). They used to be two scroll areas: the
+   header stayed pinned with its own capped scroll and only the body moved. */
 export function IntelligenceWorkspaceHeader({ children }: { children: ReactNode }) {
-  return (
-    <div className="max-h-[min(36vh,380px)] shrink-0 space-y-4 overflow-y-auto overscroll-contain pr-1">
-      {children}
-    </div>
-  )
+  return <div className="space-y-4">{children}</div>
 }
 
 interface IntelligenceWorkspaceBodyProps {
@@ -45,16 +47,10 @@ interface IntelligenceWorkspaceBodyProps {
   scrollable?: boolean
 }
 
-export function IntelligenceWorkspaceBody({ children, scrollable = false }: IntelligenceWorkspaceBodyProps) {
-  return (
-    <div
-      className={`flex min-h-0 min-w-0 flex-1 flex-col ${
-        scrollable ? 'overflow-y-auto overscroll-contain' : 'overflow-hidden'
-      }`}
-    >
-      {children}
-    </div>
-  )
+// `scrollable` is kept for compatibility: the page scrolls, never the body.
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+export function IntelligenceWorkspaceBody({ children, scrollable }: IntelligenceWorkspaceBodyProps) {
+  return <div className="flex min-w-0 flex-col">{children}</div>
 }
 
 interface IntelligenceWorkspaceCommandProps {
@@ -93,45 +89,41 @@ interface IntelligenceHeroProps {
   statusItems?: IntelligenceStatusItem[]
 }
 
+/* The module header in the SaaS page grammar: bracketed micro-label,
+   Light title with the square, subtitle; the status items become
+   label / value pairs on the end side, each with its square. */
 export function IntelligenceHero({
   eyebrow,
   title,
   description,
-  icon: Icon,
   statusItems = [],
 }: IntelligenceHeroProps) {
   return (
-    <div className="relative overflow-hidden rounded-2xl border border-border bg-card p-6 shadow-[0_0_0_1px_rgba(7,248,128,0.08),0_20px_50px_rgba(0,0,0,0.35)]">
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(7,248,128,0.12),transparent_42%),radial-gradient(circle_at_bottom_left,rgba(7,248,128,0.06),transparent_40%)]" />
-      <div className="pointer-events-none absolute inset-0 opacity-20 [background-image:linear-gradient(rgba(148,163,184,0.1)_1px,transparent_1px),linear-gradient(90deg,rgba(148,163,184,0.1)_1px,transparent_1px)] [background-size:24px_24px]" />
-      <div className="relative flex flex-wrap items-start justify-between gap-4">
-        <div className="max-w-2xl">
-          <p className="text-xs uppercase tracking-[0.2em] text-primary">{eyebrow}</p>
-          <h1 className="mt-2 flex items-center gap-2 text-3xl font-semibold text-foreground">
-            <Icon className="h-7 w-7 text-primary" />
-            {title}
-          </h1>
-          <p className="mt-2 text-sm text-muted-foreground">{description}</p>
-        </div>
-        {statusItems.length > 0 ? (
-          <div className="grid min-w-[220px] grid-cols-2 gap-2 text-xs sm:text-sm">
+    <PageHeader
+      eyebrow={eyebrow}
+      title={title}
+      subtitle={description}
+      className="!mb-2"
+      actions={
+        statusItems.length > 0 ? (
+          <dl className="flex flex-wrap items-stretch gap-2">
             {statusItems.map((item) => (
               <div
                 key={item.label}
-                className={`rounded-lg border px-3 py-2 ${
-                  item.accent
-                    ? 'border-primary/30 bg-primary/10 text-primary'
-                    : 'border-border bg-secondary/40 text-foreground'
-                }`}
+                className="bg-card border border-line px-3 py-2 min-w-[96px]"
+                style={{ borderRadius: 'var(--radius-lg)' }}
               >
-                <p className="text-[10px] uppercase tracking-[0.14em] opacity-70">{item.label}</p>
-                <p className="mt-0.5 font-medium">{item.value}</p>
+                <dt className="flex items-center gap-1.5 text-[11px] text-content-soft">
+                  {item.accent && <StatusDot tone="good" size={6} />}
+                  {item.label}
+                </dt>
+                <dd className="mt-0.5 text-[14px] text-content" style={{ fontWeight: 500 }}>{item.value}</dd>
               </div>
             ))}
-          </div>
-        ) : null}
-      </div>
-    </div>
+          </dl>
+        ) : null
+      }
+    />
   )
 }
 
@@ -143,6 +135,8 @@ interface IntelligenceKpiCardProps {
   tone?: 'default' | 'sky' | 'amber'
 }
 
+/* KPI tile: white, one-pixel line, the figure LIGHT. `accent` and `tone`
+   no longer tint the whole tile: they put the status square by the label. */
 export function IntelligenceKpiCard({
   label,
   value,
@@ -150,30 +144,20 @@ export function IntelligenceKpiCard({
   accent = false,
   tone = 'default',
 }: IntelligenceKpiCardProps) {
-  const toneClass =
-    tone === 'sky'
-      ? 'text-sky-300'
-      : tone === 'amber'
-        ? 'text-amber-300'
-        : accent
-          ? 'text-primary'
-          : 'text-foreground'
-
+  const dot = tone === 'amber' ? 'warning' : accent ? 'good' : null
+  const [number, ...unit] = String(value).split(' ')
   return (
-    <div
-      className={`rounded-xl border p-4 shadow-[inset_0_0_0_1px_rgba(148,163,184,0.06)] ${
-        accent ? 'border-primary/30 bg-primary/10' : 'border-border bg-card/80'
-      }`}
-    >
-      <p
-        className={`flex items-center gap-1.5 text-xs uppercase tracking-[0.14em] ${
-          accent ? 'text-primary/90' : 'text-muted-foreground'
-        }`}
-      >
-        {Icon ? <Icon className="h-3.5 w-3.5" /> : null}
+    <div className="bg-card border border-line p-4" style={{ borderRadius: 'var(--radius-xl)' }}>
+      <p className="flex items-center gap-1.5 text-[12px] text-content-soft">
+        {dot ? <StatusDot tone={dot} size={6} /> : Icon ? <Icon className="h-3.5 w-3.5" strokeWidth={1.5} /> : null}
         {label}
       </p>
-      <p className={`mt-2 text-2xl font-semibold ${toneClass}`}>{value}</p>
+      <p className="growa-figure mt-2 text-content" style={{ fontSize: 'clamp(20px, 1.8vw, 28px)', overflowWrap: 'anywhere' }}>
+        {number}
+        {unit.length > 0 && (
+          <span className="ms-1 text-[12px] text-content-soft" style={{ fontWeight: 400, letterSpacing: 0 }}>{unit.join(' ')}</span>
+        )}
+      </p>
     </div>
   )
 }
@@ -189,47 +173,47 @@ interface IntelligencePanelProps {
   scrollable?: boolean
 }
 
+/* A card of the monitoring family. `variant` used to tint the whole
+   panel green or amber; now the frame stays white (the state never changes
+   the frame) and the variant becomes the status square in the header. */
 export function IntelligencePanel({
   title,
   subtitle,
-  icon: Icon,
+  icon,
   children,
   className = '',
   variant = 'default',
   fillHeight = false,
   scrollable = false,
 }: IntelligencePanelProps) {
-  const variantClass =
-    variant === 'success'
-      ? 'border-primary/30 bg-primary/10'
-      : variant === 'warning'
-        ? 'border-amber-400/30 bg-amber-500/10'
-        : 'border-border bg-card'
-
   const useFlexLayout = fillHeight || scrollable
-
   return (
     <section
-      className={`rounded-xl border shadow-[inset_0_0_0_1px_rgba(148,163,184,0.05)] ${variantClass} ${
-        useFlexLayout ? 'flex min-h-0 flex-col overflow-hidden p-3' : 'p-4'
-      } ${className}`}
+      data-famiglia="monitoraggio"
+      className={cn('growa bg-card border border-line overflow-hidden', useFlexLayout && 'flex min-h-0 flex-col', className)}
+      style={{ borderRadius: 'var(--radius-xl)' }}
     >
-      <div className={`${useFlexLayout ? 'shrink-0' : ''} mb-3`}>
-        <h2 className="flex items-center gap-2 text-sm font-semibold text-foreground">
-          {Icon ? <Icon className="h-4 w-4 text-primary" /> : null}
-          {title}
-        </h2>
-        {subtitle ? <p className="mt-1 text-xs text-muted-foreground">{subtitle}</p> : null}
+      <CardHeader
+        icon={icon}
+        title={title}
+        subtitle={subtitle}
+        actions={
+          variant === 'default' ? null : (
+            <StatusDot tone={variant === 'success' ? 'good' : 'warning'} size={7} />
+          )
+        }
+      />
+      <div className={cn('g-card-corpo p-4', useFlexLayout && 'flex min-h-0 flex-1 flex-col')}>
+        {fillHeight ? (
+          <div className="flex min-h-0 flex-1 flex-col overflow-hidden">{children}</div>
+        ) : scrollable ? (
+          <div className="min-h-0 max-h-[min(320px,38vh)] overflow-y-auto overscroll-contain pe-1 [-webkit-overflow-scrolling:touch]">
+            {children}
+          </div>
+        ) : (
+          children
+        )}
       </div>
-      {fillHeight ? (
-        <div className="flex min-h-0 flex-1 flex-col overflow-hidden">{children}</div>
-      ) : scrollable ? (
-        <div className="min-h-0 max-h-[min(320px,38vh)] overflow-y-auto overscroll-contain pr-1 [-webkit-overflow-scrolling:touch]">
-          {children}
-        </div>
-      ) : (
-        children
-      )}
     </section>
   )
 }
@@ -249,49 +233,63 @@ export function IntelligenceCommandLayout({
   mainScrollable = true,
   variant = 'viewport',
 }: IntelligenceCommandLayoutProps) {
+  /* Container queries, not viewport breakpoints: this layout sits in a panel
+     that is three quarters of the page, or half of a card. Three columns at
+     `xl` squeezed the crop table and the assistant into 240px columns. Now:
+     one column when narrow, the main table over two columns when there is
+     room, three columns only in a genuinely wide container. */
+  const three = '@6xl:grid-cols-[minmax(0,1.35fr)_minmax(240px,0.75fr)_minmax(260px,0.9fr)]'
   const gridClass =
     variant === 'viewport'
-      ? 'grid h-full min-h-0 flex-1 grid-cols-1 gap-3 xl:grid-cols-[minmax(0,1.35fr)_minmax(240px,0.75fr)_minmax(260px,0.9fr)] xl:items-stretch'
-      : 'grid grid-cols-1 gap-3 xl:grid-cols-[minmax(0,1.35fr)_minmax(240px,0.75fr)_minmax(260px,0.9fr)] xl:items-start'
+      ? `grid grid-cols-1 gap-4 @3xl:grid-cols-2 ${three} @6xl:h-full @6xl:min-h-0 @6xl:flex-1 @6xl:items-stretch`
+      : `grid grid-cols-1 gap-4 @3xl:grid-cols-2 ${three} @6xl:items-start`
 
   const mainClass =
     variant === 'viewport'
       ? mainScrollable
-        ? 'min-h-0 min-w-0 overflow-y-auto overscroll-contain pr-1 [-webkit-overflow-scrolling:touch]'
-        : 'flex min-h-0 min-w-0 flex-col overflow-hidden pr-1'
-      : 'min-w-0 pr-1'
+        ? 'min-w-0 @3xl:col-span-2 @6xl:col-span-1 @6xl:min-h-0 @6xl:overflow-y-auto @6xl:overscroll-contain @6xl:pe-1'
+        : 'flex min-w-0 flex-col @3xl:col-span-2 @6xl:col-span-1 @6xl:min-h-0 @6xl:overflow-hidden @6xl:pe-1'
+      : 'min-w-0 @3xl:col-span-2 @6xl:col-span-1'
 
   const insightsClass =
     variant === 'viewport'
-      ? 'min-h-0 min-w-0 space-y-4 overflow-y-auto overscroll-contain pr-1'
-      : 'min-w-0 space-y-4 pr-1'
+      ? 'min-w-0 space-y-4 @6xl:min-h-0 @6xl:overflow-y-auto @6xl:overscroll-contain @6xl:pe-1'
+      : 'min-w-0 space-y-4'
 
   const assistantClass =
     variant === 'viewport'
-      ? 'flex min-h-[min(520px,62vh)] min-w-0 flex-col overflow-hidden xl:min-h-0 xl:h-full'
-      : 'flex min-h-[min(360px,50vh)] min-w-0 flex-col xl:min-h-[min(520px,62vh)]'
+      ? 'flex min-h-[min(520px,62vh)] min-w-0 flex-col overflow-hidden @6xl:min-h-0 @6xl:h-full'
+      : 'flex min-h-[min(420px,55vh)] min-w-0 flex-col'
 
   return (
-    <div className={gridClass}>
-      <div className={mainClass}>{main}</div>
-      <div className={insightsClass}>{insights}</div>
-      <div className={assistantClass}>{assistant}</div>
+    <div className="@container min-w-0 flex-1 min-h-0">
+      <div className={gridClass}>
+        <div className={mainClass}>{main}</div>
+        {assistant ? (
+          <>
+            <div className={insightsClass}>{insights}</div>
+            <div className={assistantClass}>{assistant}</div>
+          </>
+        ) : (
+          /* No assistant here: the insight cards share the row instead of
+             leaving an empty column beside them. */
+          <div className="min-w-0 @3xl:col-span-2 grid gap-4 @3xl:grid-cols-2 items-start">{insights}</div>
+        )}
+      </div>
     </div>
   )
 }
 
 export function IntelligenceLoadingState({ message }: { message: string }) {
   return (
-    <div className="rounded-xl border border-border bg-card/60 p-8 text-center text-sm text-muted-foreground">
-      {message}
+    <div className="bg-card border border-line" style={{ borderRadius: 'var(--radius-xl)' }}>
+      <LoadingState label={message} />
     </div>
   )
 }
 
 export function IntelligenceErrorState({ message }: { message: string }) {
-  return (
-    <div className="rounded-xl border border-red-400/30 bg-red-500/10 p-4 text-sm text-red-200">{message}</div>
-  )
+  return <ErrorState message={message} />
 }
 
 interface IntelligenceProducerCardProps {
@@ -302,6 +300,8 @@ interface IntelligenceProducerCardProps {
   variant?: 'default' | 'success' | 'warning'
 }
 
+/* Ranked producer: a row, not a tinted box. The rank is a figure, the
+   variant is the square. */
 export function IntelligenceProducerCard({
   rank,
   name,
@@ -309,31 +309,31 @@ export function IntelligenceProducerCard({
   onClick,
   variant = 'default',
 }: IntelligenceProducerCardProps) {
-  const variantClass =
-    variant === 'success'
-      ? 'border-primary/30 bg-card/70 hover:bg-primary/10'
-      : variant === 'warning'
-        ? 'border-amber-400/30 bg-card/70 hover:bg-amber-500/10'
-        : 'border-border bg-card/70 hover:bg-white/5'
-
   const Tag = onClick ? 'button' : 'div'
-
   return (
     <Tag
       type={onClick ? 'button' : undefined}
       onClick={onClick}
-      className={`w-full rounded-lg border px-3 py-2.5 text-left transition-colors ${variantClass} ${
-        onClick ? 'cursor-pointer' : ''
-      }`}
+      className={cn(
+        'flex w-full items-start gap-3 bg-card border border-line px-3.5 py-3 text-start transition-colors',
+        onClick && 'cursor-pointer hover:border-line-strong'
+      )}
+      style={{ borderRadius: 'var(--radius-lg)' }}
     >
-      <p className="text-sm font-medium text-foreground">
-        #{rank} {name}
-      </p>
-      {lines.map((line, lineIndex) => (
-        <p key={`${rank}-${lineIndex}`} className="mt-1 text-xs text-muted-foreground">
-          {line}
-        </p>
-      ))}
+      <span className="growa-figure text-content-soft w-6 shrink-0 tabular-nums" style={{ fontSize: 18 }}>
+        {String(rank).padStart(2, '0')}
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="flex items-center gap-2 text-[14px] text-content" style={{ fontWeight: 500 }}>
+          {variant !== 'default' && <StatusDot tone={variant === 'success' ? 'good' : 'warning'} size={6} />}
+          {name}
+        </span>
+        {lines.map((line, lineIndex) => (
+          <span key={`${rank}-${lineIndex}`} className="mt-1 block text-[12px] text-content-soft">
+            {line}
+          </span>
+        ))}
+      </span>
     </Tag>
   )
 }
@@ -353,13 +353,14 @@ export function IntelligenceDataTable({
 }: IntelligenceDataTableProps) {
   return (
     <div
-      className={`overflow-x-auto rounded-lg border border-border ${
+      className={cn(
+        'overflow-x-auto rounded-lg border border-line bg-card',
         fill
           ? 'flex min-h-0 flex-1 flex-col overflow-hidden'
           : scrollable
             ? `${maxHeightClass} overflow-y-auto overscroll-contain [-webkit-overflow-scrolling:touch]`
             : ''
-      }`}
+      )}
     >
       <div
         className={
@@ -368,7 +369,7 @@ export function IntelligenceDataTable({
             : undefined
         }
       >
-        <table className="min-w-full divide-y divide-border text-left">{children}</table>
+        <table className="g-table g-table--pad-sm min-w-full text-start text-[13px]">{children}</table>
       </div>
     </div>
   )
@@ -376,12 +377,14 @@ export function IntelligenceDataTable({
 
 export function IntelligenceTableHead({ children }: { children: ReactNode }) {
   return (
-    <thead className="sticky top-0 z-10 bg-secondary/95 text-xs uppercase tracking-[0.12em] text-muted-foreground backdrop-blur-sm">
+    /* Header row as in `.g-table`: regular weight, caption size, secondary
+       colour, dotted rule under it — no filled band. */
+    <thead className="sticky top-0 z-10 bg-card text-[12px] text-content-soft [&_th]:font-normal [&_th]:border-b [&_th]:border-dotted [&_th]:border-line-strong">
       {children}
     </thead>
   )
 }
 
 export function IntelligenceTableBody({ children }: { children: ReactNode }) {
-  return <tbody className="divide-y divide-border/70">{children}</tbody>
+  return <tbody className="divide-y divide-line text-content">{children}</tbody>
 }

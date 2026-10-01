@@ -3,7 +3,7 @@
 import { useCallback, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 
-interface DataSharingRecord {
+export interface DataSharingRecord {
   id: string
   owner_organization_id: string
   shared_with_organization_id: string
@@ -32,7 +32,7 @@ export function useDataSharing() {
           .eq('is_active', true)
 
         if (error) throw error
-        return data || []
+        return (data || []) as DataSharingRecord[]
       } finally {
         setIsLoading(false)
       }

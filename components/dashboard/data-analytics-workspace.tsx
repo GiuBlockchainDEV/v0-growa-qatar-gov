@@ -1,5 +1,7 @@
 'use client'
 
+import { scoreToRampColor } from '@/lib/watchtower/map-layer-colors'
+
 import { useEffect, useMemo, useState } from 'react'
 import { Activity, BarChart3, Cpu, Droplets, Flame, Gauge, Leaf, TrendingDown, TrendingUp } from 'lucide-react'
 import { buildGrowaContext } from '@/lib/ai/build-growa-context'
@@ -22,6 +24,8 @@ import {
 } from '@/components/dashboard/intelligence-workspace-ui'
 import { useMapNavigation } from '@/components/dashboard/intelligence-metrics-shared'
 import { OperationalContextBanner } from '@/components/dashboard/operational-context-banner'
+import { sharedFetch } from '@/lib/client/shared-fetch'
+import { useI18n } from '@/lib/i18n'
 
 interface InsightRow {
   id: string
@@ -151,15 +155,8 @@ function clampScore(value: number) {
 }
 
 function scoreColor(value: number) {
-  const normalized = clampScore(value)
-  const hue = (normalized / 100) * 120
-  return `hsl(${hue} 100% 56%)`
-}
-
-function scoreSurface(value: number, alpha = 0.16) {
-  const normalized = clampScore(value)
-  const hue = (normalized / 100) * 120
-  return `hsl(${hue} 100% 56% / ${alpha})`
+  // Brand performance ramp (lib/watchtower/map-layer-colors.ts).
+  return scoreToRampColor(clampScore(value))
 }
 
 function normalizePointLabelRows(input: unknown): MapPointLabelRow[] {
@@ -183,6 +180,7 @@ function getProducerDisplayName(pointId: string, labelsById: Record<string, stri
 }
 
 export function DataAnalyticsWorkspace() {
+  const { tr } = useI18n()
   const { navigateToCropOnMap, navigateToProducerPoint } = useMapNavigation('data-analytics')
   const [insights, setInsights] = useState<InsightRow[]>([])
   const [polygons, setPolygons] = useState<PolygonRow[]>([])
@@ -197,9 +195,9 @@ export function DataAnalyticsWorkspace() {
         setLoading(true)
         setError(null)
         const [insightsResponse, polygonsResponse, pointsResponse] = await Promise.all([
-          fetch('/api/operations/farm-crop-insights', { cache: 'no-store' }),
-          fetch('/api/operations/custom-point-polygons', { cache: 'no-store' }),
-          fetch('/api/operations/custom-map-points', { cache: 'no-store' }),
+          sharedFetch('/api/operations/farm-crop-insights'),
+          sharedFetch('/api/operations/custom-point-polygons'),
+          sharedFetch('/api/operations/custom-map-points'),
         ])
 
         const [insightsPayload, polygonsPayload, pointsPayload] = await Promise.all([
@@ -390,103 +388,95 @@ export function DataAnalyticsWorkspace() {
   ])
 
   return (
-    <IntelligenceWorkspaceRoot layout="viewport">
+    <IntelligenceWorkspaceRoot layout="scroll">
       <IntelligenceWorkspaceHeader>
       <IntelligenceHero
-        eyebrow="Operational Intelligence Layer"
-        title="Data Analytics Command"
-        description="Unified command view for crop performance, resource pressure, and producer efficiency across all mapped farm points."
+        eyebrow={tr('Operational intelligence layer')}
+        title={tr('Data analytics command')}
+        description={tr('Unified command view for crop performance, resource pressure, and producer efficiency across all mapped farm points.')}
         icon={BarChart3}
         statusItems={[
-          { label: 'Status', value: 'Live', accent: true },
-          { label: 'Grid', value: 'Online' },
-          { label: 'Signal', value: formatScore(analyticsMeta.avgPolygonScore) },
-          { label: 'Polygons', value: String(polygons.length) },
+          { label: tr('Status'), value: tr('Live'), accent: true },
+          { label: tr('Grid'), value: tr('Online') },
+          { label: tr('Signal'), value: formatScore(analyticsMeta.avgPolygonScore) },
+          { label: tr('Polygons'), value: String(polygons.length) },
         ]}
       />
 
       </IntelligenceWorkspaceHeader>
 
-      <div className="px-4 pb-2">
-        <OperationalContextBanner />
-      </div>
+      <OperationalContextBanner />
 
       {loading ? (
-        <IntelligenceLoadingState message="Loading analytics..." />
+        <IntelligenceLoadingState message={tr('Loading analytics…')} />
       ) : error ? (
-        <IntelligenceErrorState message={error} />
+        <IntelligenceErrorState message={tr(error)} />
       ) : (
-        <IntelligenceWorkspaceBody>
-          <div className="mb-3 grid shrink-0 grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-6">
-            <IntelligenceKpiCard label="Crops tracked" value={String(headline.cropCount)} />
-            <IntelligenceKpiCard label="Producers" value={String(headline.producerCount)} />
+        <IntelligenceWorkspaceBody scrollable>
+          {/* Six figures in one row were cut to "200,0…": three per row. */}
+          <div className="mb-3 grid shrink-0 grid-cols-2 gap-3 md:grid-cols-3">
+            <IntelligenceKpiCard label={tr('Crops tracked')} value={String(headline.cropCount)} />
+            <IntelligenceKpiCard label={tr('Producers')} value={String(headline.producerCount)} />
             <IntelligenceKpiCard
-              label="Production"
+              label={tr('Production')}
               value={formatNumber(headline.totalProduction, ' t')}
               icon={Activity}
               accent
             />
             <IntelligenceKpiCard
-              label="Energy"
+              label={tr('Energy')}
               value={formatNumber(headline.totalEnergy, ' kWh')}
               icon={Cpu}
             />
             <IntelligenceKpiCard
-              label="Water"
+              label={tr('Water')}
               value={formatNumber(headline.totalWater, ' m³')}
               icon={Droplets}
             />
             <IntelligenceKpiCard
-              label="Resource / Ton"
+              label={tr('Resource / ton')}
               value={formatNumber(analyticsMeta.resourceIntensityPerTon)}
               icon={Gauge}
             />
           </div>
 
-          <IntelligenceWorkspaceCommand>
+          <IntelligenceWorkspaceCommand variant="stacked">
           <IntelligenceCommandLayout
+            variant="stacked"
             main={
               <IntelligencePanel
-                title="Crop Intelligence Matrix"
-                subtitle="Resource and production profile by crop family."
+                title={tr('Crop intelligence matrix')}
+                subtitle={tr('Resource and production profile by crop family.')}
                 icon={Leaf}
               >
                 <IntelligenceDataTable>
                   <IntelligenceTableHead>
                     <tr>
-                      <th className="px-3 py-2.5 font-medium">Crop</th>
-                      <th className="px-3 py-2.5 font-medium">Farms</th>
-                      <th className="px-3 py-2.5 font-medium">Polygons</th>
-                      <th className="px-3 py-2.5 font-medium">Production</th>
-                      <th className="px-3 py-2.5 font-medium">Energy</th>
-                      <th className="px-3 py-2.5 font-medium">Water</th>
-                      <th className="px-3 py-2.5 font-medium">Score</th>
+                      <th className="px-3 py-2.5">{tr('Crop')}</th>
+                      <th className="px-3 py-2.5">{tr('Farms')}</th>
+                      <th className="px-3 py-2.5">{tr('Polygons')}</th>
+                      <th className="px-3 py-2.5">{tr('Production')}</th>
+                      <th className="px-3 py-2.5">{tr('Energy')}</th>
+                      <th className="px-3 py-2.5">{tr('Water')}</th>
+                      <th className="px-3 py-2.5">{tr('Score')}</th>
                     </tr>
                   </IntelligenceTableHead>
                   <IntelligenceTableBody>
-                    {cropAggregates.map((crop, index) => (
+                    {cropAggregates.map((crop) => (
                       <tr
                         key={crop.cropName}
                         onClick={() => navigateToCropOnMap(crop.cropName)}
-                        className={`cursor-pointer text-sm text-foreground transition-colors hover:bg-primary/10 ${
-                          index % 2 === 0 ? 'bg-card/60' : 'bg-secondary/20'
-                        }`}
+                        className="cursor-pointer text-[13px] text-content transition-colors hover:bg-muted"
                       >
-                        <td className="px-3 py-2.5 font-medium">{crop.cropName}</td>
+                        <td className="px-3 py-2.5" style={{ fontWeight: 500 }}>{crop.cropName}</td>
                         <td className="px-3 py-2.5">{crop.farmsCount}</td>
                         <td className="px-3 py-2.5">{crop.polygonsCount}</td>
                         <td className="px-3 py-2.5">{formatNumber(crop.totalProductionTons, ' t')}</td>
                         <td className="px-3 py-2.5">{formatNumber(crop.totalEnergyKwh, ' kWh')}</td>
                         <td className="px-3 py-2.5">{formatNumber(crop.totalWaterM3, ' m³')}</td>
                         <td className="px-3 py-2.5">
-                          <span
-                            className="rounded-md border px-2 py-1 font-semibold"
-                            style={{
-                              color: scoreColor(crop.averageScore),
-                              borderColor: scoreSurface(crop.averageScore, 0.4),
-                              backgroundColor: scoreSurface(crop.averageScore, 0.14),
-                            }}
-                          >
+                          <span className="g-tag g-tag--outline-ink tabular-nums" style={{ height: 22, padding: '0 9px', fontSize: 11 }}>
+            <span aria-hidden="true" className="w-1.5 h-1.5" style={{ borderRadius: 1, background: scoreColor(crop.averageScore) }} />
                             {formatScore(crop.averageScore)}
                           </span>
                         </td>
@@ -498,18 +488,18 @@ export function DataAnalyticsWorkspace() {
             }
             insights={
               <>
-                <IntelligencePanel title="System Pulse">
+                <IntelligencePanel title={tr('System pulse')}>
                   <div className="space-y-3">
                     <div>
                       <div className="mb-1 flex items-center justify-between text-sm">
-                        <span>Average polygon score</span>
+                        <span>{tr('Average polygon score')}</span>
                         <span style={{ color: scoreColor(analyticsMeta.avgPolygonScore) }}>
                           {formatScore(analyticsMeta.avgPolygonScore)}
                         </span>
                       </div>
-                      <div className="h-2 rounded bg-secondary/70">
+                      <div className="h-2 overflow-hidden" style={{ background: 'var(--growa-stone-200)', borderRadius: 2 }}>
                         <div
-                          className="h-2 rounded"
+                          className="h-2"
                           style={{
                             width: `${clampScore(analyticsMeta.avgPolygonScore)}%`,
                             backgroundColor: scoreColor(analyticsMeta.avgPolygonScore),
@@ -518,19 +508,19 @@ export function DataAnalyticsWorkspace() {
                       </div>
                     </div>
                     <div className="grid grid-cols-2 gap-2 text-sm">
-                      <div className="rounded-md border border-border bg-secondary/40 px-2.5 py-2">
-                        <p className="text-muted-foreground">Top crop</p>
-                        <p className="mt-1 font-medium">{analyticsMeta.topCrop?.cropName || 'N/A'}</p>
+                      <div className="rounded-lg border border-line bg-card px-3 py-2.5">
+                        <p className="text-content-soft">{tr('Top crop')}</p>
+                        <p className="mt-1 font-medium">{analyticsMeta.topCrop?.cropName || tr('N/A')}</p>
                       </div>
-                      <div className="rounded-md border border-border bg-secondary/40 px-2.5 py-2">
-                        <p className="text-muted-foreground">Efficiency spread</p>
+                      <div className="rounded-lg border border-line bg-card px-3 py-2.5">
+                        <p className="text-content-soft">{tr('Efficiency spread')}</p>
                         <p className="mt-1 font-medium">{formatNumber(analyticsMeta.efficiencySpread)}</p>
                       </div>
                     </div>
-                    <div className="rounded-md border border-border bg-secondary/40 px-2.5 py-2 text-sm">
-                      <p className="flex items-center gap-1 text-muted-foreground">
-                        <Flame className="h-3.5 w-3.5 text-primary" />
-                        Production efficiency
+                    <div className="rounded-lg border border-line bg-card px-3 py-2.5 text-sm">
+                      <p className="flex items-center gap-1 text-content-soft">
+                        <Flame strokeWidth={1.5} className="h-3.5 w-3.5 text-content-soft" />
+                        {tr('Production efficiency')}
                       </p>
                       <p className="mt-1 font-medium">
                         {formatNumber(analyticsMeta.productionEfficiency, ' t / resource-unit')}
@@ -539,10 +529,10 @@ export function DataAnalyticsWorkspace() {
                   </div>
                 </IntelligencePanel>
 
-                <IntelligencePanel title="Most Efficient Producers" icon={TrendingUp} variant="success">
+                <IntelligencePanel title={tr('Most efficient producers')} icon={TrendingUp} variant="success">
                   <div className="space-y-2">
                     {producerRanking.mostEfficient.length === 0 ? (
-                      <p className="text-sm text-muted-foreground">No producers available.</p>
+                      <p className="text-sm text-content-soft">{tr('No producers available.')}</p>
                     ) : (
                       producerRanking.mostEfficient.map((entry, index) => (
                         <IntelligenceProducerCard
@@ -550,8 +540,8 @@ export function DataAnalyticsWorkspace() {
                           rank={index + 1}
                           name={getProducerDisplayName(entry.pointId, producerLabelsById)}
                           lines={[
-                            `Efficiency ${entry.efficiencyScore.toFixed(2)} • Score ${formatScore(entry.averagePolygonScore)}`,
-                            `Variety ${entry.cropVarietyCount} • Production ${formatNumber(entry.productionTons, ' t')}`,
+                            tr('Efficiency {efficiency} · Score {score}', { efficiency: entry.efficiencyScore.toFixed(2), score: formatScore(entry.averagePolygonScore) }),
+                            tr('Variety {count} · Production {production}', { count: entry.cropVarietyCount, production: formatNumber(entry.productionTons, ' t') }),
                           ]}
                           onClick={() => navigateToProducerPoint(entry.pointId)}
                           variant="success"
@@ -561,10 +551,10 @@ export function DataAnalyticsWorkspace() {
                   </div>
                 </IntelligencePanel>
 
-                <IntelligencePanel title="Least Efficient Producers" icon={TrendingDown} variant="warning">
+                <IntelligencePanel title={tr('Least efficient producers')} icon={TrendingDown} variant="warning">
                   <div className="space-y-2">
                     {producerRanking.leastEfficient.length === 0 ? (
-                      <p className="text-sm text-muted-foreground">No producers available.</p>
+                      <p className="text-sm text-content-soft">{tr('No producers available.')}</p>
                     ) : (
                       producerRanking.leastEfficient.map((entry, index) => (
                         <IntelligenceProducerCard
@@ -572,8 +562,8 @@ export function DataAnalyticsWorkspace() {
                           rank={index + 1}
                           name={getProducerDisplayName(entry.pointId, producerLabelsById)}
                           lines={[
-                            `Efficiency ${entry.efficiencyScore.toFixed(2)} • Score ${formatScore(entry.averagePolygonScore)}`,
-                            `Variety ${entry.cropVarietyCount} • Production ${formatNumber(entry.productionTons, ' t')}`,
+                            tr('Efficiency {efficiency} · Score {score}', { efficiency: entry.efficiencyScore.toFixed(2), score: formatScore(entry.averagePolygonScore) }),
+                            tr('Variety {count} · Production {production}', { count: entry.cropVarietyCount, production: formatNumber(entry.productionTons, ' t') }),
                           ]}
                           onClick={() => navigateToProducerPoint(entry.pointId)}
                           variant="warning"

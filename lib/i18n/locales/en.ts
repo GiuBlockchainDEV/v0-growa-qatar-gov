@@ -8,7 +8,7 @@
 
 const en: Record<string, string> = {
   // Common
-  'common.loading': 'Loading...',
+  'common.loading': 'Loading…',
   'common.error': 'An error occurred',
   'common.retry': 'Retry',
   'common.cancel': 'Cancel',
@@ -26,29 +26,30 @@ const en: Record<string, string> = {
   'common.previous': 'Previous',
   'common.submit': 'Submit',
   'common.or': 'Or',
+  'common.confirm_title': 'Are you sure?',
 
   // App
   'app.name': 'Growa Qatar',
-  'app.tagline': 'Sovereign Agricultural Operations Platform',
+  'app.tagline': 'Sovereign agricultural operations platform',
 
   // Auth - Sign In
   'auth.sign_in': 'Sign In',
-  'auth.sign_in_subtitle': 'Agricultural Operations Platform for Qatar',
+  'auth.sign_in_subtitle': 'Agricultural operations platform for Qatar',
   'auth.email': 'Email',
   'auth.password': 'Password',
-  'auth.forgot_password': 'Forgot Password?',
+  'auth.forgot_password': 'Forgot password?',
   'auth.have_invitation': 'I have an invitation code',
   'auth.no_account_contact_admin': 'Don\'t have an account? Contact your organization administrator',
-  'auth.failed_attempts': 'Failed Attempts',
+  'auth.failed_attempts': 'Failed attempts',
 
   // Auth - General
-  'auth.signOut': 'Sign Out',
-  'auth.resetPassword': 'Reset Password',
+  'auth.signOut': 'Sign out',
+  'auth.resetPassword': 'Reset password',
 
   // Watchtower
-  'watchtower.title': 'Qatar Agricultural Watchtower',
+  'watchtower.title': 'Qatar agricultural watchtower',
   'watchtower.subtitle': 'National situational awareness & operational intelligence',
-  'watchtower.loading': 'Loading national watchtower...',
+  'watchtower.loading': 'Loading national watchtower…',
   'watchtower.refresh': 'Refresh',
   'watchtower.last_refresh': 'Last refresh',
   'watchtower.data_coverage': 'Data coverage',
@@ -75,10 +76,10 @@ const en: Record<string, string> = {
   'context.clear': 'Clear',
 
   // Alerts
-  'alerts.title': 'Alerts Center',
+  'alerts.title': 'Alerts center',
   'alerts.subtitle': 'Operational alert lifecycle from Watchtower intelligence signals',
   'alerts.empty': 'No alerts in the current filter. Create alerts from Watchtower priority signals.',
-  'alerts.from_watchtower': 'Open National Watchtower',
+  'alerts.from_watchtower': 'Open national Watchtower',
   'alerts.migration_required': 'Alerts persistence requires database migration 00028_operational_alerts. Alert creation from Watchtower will be unavailable until applied.',
   'alerts.workflow_note': 'Signals from the Watchtower can be promoted to alerts. Alerts follow: new → acknowledged → investigating → action required → monitoring → resolved.',
 
@@ -89,24 +90,24 @@ const en: Record<string, string> = {
   'nav.area.watchtower': 'Watchtower',
   'nav.area.operations': 'Operations',
   'nav.area.intelligence': 'Intelligence',
-  'nav.area.food_security': 'Food Security',
-  'nav.area.risk_response': 'Risk & Response',
+  'nav.area.food_security': 'Food security',
+  'nav.area.risk_response': 'Risk & response',
   'nav.area.governance': 'Governance',
-  'nav.area.ai_operations': 'AI Operations',
+  'nav.area.ai_operations': 'AI operations',
   'nav.area.platform': 'Platform',
 
   'nav.section.watchtower': 'Watchtower',
   'nav.section.operations': 'Operations',
   'nav.section.intelligence': 'Intelligence',
-  'nav.section.food_security': 'Food Security',
-  'nav.section.risk_compliance': 'Risk & Compliance',
+  'nav.section.food_security': 'Food security',
+  'nav.section.risk_compliance': 'Risk & compliance',
   'nav.section.collaboration': 'Collaboration',
-  'nav.section.feeds': 'Intelligence Feeds',
+  'nav.section.feeds': 'Intelligence feeds',
   'nav.section.platform': 'Platform',
 
   // Navigation
   'nav.dashboard': 'Dashboard',
-  'nav.map': 'Operations Map',
+  'nav.map': 'Operations map',
   'nav.alerts': 'Alerts',
   'nav.inspections': 'Inspections',
   'nav.reports': 'Reports',
@@ -125,28 +126,28 @@ const en: Record<string, string> = {
 
   // Organizations
   'org.ministry': 'Ministry',
-  'org.sovereign': 'Sovereign Entity',
-  'org.stateOperator': 'State Operator',
-  'org.financial': 'Financial Institution',
-  'org.research': 'Research Entity',
-  'org.external': 'External Operator',
+  'org.sovereign': 'Sovereign entity',
+  'org.stateOperator': 'State operator',
+  'org.financial': 'Financial institution',
+  'org.research': 'Research entity',
+  'org.external': 'External operator',
 
   // Direction
-  'direction.ltr': 'Left to Right',
-  'direction.rtl': 'Right to Left',
+  'direction.ltr': 'Left to right',
+  'direction.rtl': 'Right to left',
   'language.english': 'English',
   'language.arabic': 'Arabic',
-  'language.switch': 'Switch Language',
+  'language.switch': 'Switch language',
 
   // Operations - Farms
   'operations.farms': 'Farms',
   'operations.farms_description': 'Manage all farms in your organization',
-  'operations.add_farm': 'Add Farm',
-  'operations.create_farm': 'Add New Farm',
-  'operations.farm_name_en': 'Farm Name (English)',
-  'operations.farm_name_ar': 'Farm Name (Arabic)',
+  'operations.add_farm': 'Add farm',
+  'operations.create_farm': 'Add new farm',
+  'operations.farm_name_en': 'Farm name (English)',
+  'operations.farm_name_ar': 'Farm name (Arabic)',
   'operations.farm_location': 'Location',
-  'operations.farm_type': 'Farm Type',
+  'operations.farm_type': 'Farm type',
   'operations.farm_size': 'Size (Hectares)',
   'operations.farm_status': 'Status',
   'operations.farm_type_crop': 'Crop',
@@ -159,7 +160,7 @@ const en: Record<string, string> = {
   'operations.create_first_farm': 'Create your first farm',
 
   // Operations - Cycles
-  'operations.cycles': 'Production Cycles',
+  'operations.cycles': 'Production cycles',
   'operations.cycles_description': 'Track growing and breeding cycles',
 
   // Operations - Inventory
@@ -173,7 +174,7 @@ const en: Record<string, string> = {
   'operations.actions': 'Actions',
   'operations.save': 'Save',
   'operations.cancel': 'Cancel',
-  'operations.deleting': 'Deleting...',
+  'operations.deleting': 'Deleting…',
   'operations.confirm_delete': 'Are you sure?',
 }
 

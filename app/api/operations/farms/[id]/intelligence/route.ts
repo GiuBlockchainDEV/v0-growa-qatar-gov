@@ -16,20 +16,10 @@ export async function GET(
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  const farmSelectAttempts = [
-    'id, name, name_en, name_ar, location, gps_latitude, gps_longitude, area_hectares, organization_id',
-    'id, name, name_en, location, gps_latitude, gps_longitude',
-    'id, name, location',
-  ]
-
-  let farm: Record<string, unknown> | null = null
-  for (const select of farmSelectAttempts) {
-    const { data, error } = await supabase.from('farms').select(select).eq('id', farmId).maybeSingle()
-    if (!error && data) {
-      farm = data as Record<string, unknown>
-      break
-    }
-  }
+  /* `*` instead of guessing column lists: the farms schema differs between
+     migrations, and each wrong guess cost a failed round-trip. */
+  const { data: farmRow } = await supabase.from('farms').select('*').eq('id', farmId).maybeSingle()
+  const farm = (farmRow as Record<string, unknown> | null) ?? null
 
   if (!farm) {
     return NextResponse.json({ error: 'Farm not found' }, { status: 404 })

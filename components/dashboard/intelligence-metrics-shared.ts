@@ -1,5 +1,7 @@
 'use client'
 
+import { scoreToRampColor } from '@/lib/watchtower/map-layer-colors'
+
 import { useEffect, useMemo, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { buildDashboardMapFocusParams, resolveDashboardModule } from '@/lib/dashboard/map-navigation'
@@ -10,6 +12,7 @@ import {
   type InsightRow,
   type PolygonRow,
 } from '@/lib/operations/intelligence-normalize'
+import { sharedFetch } from '@/lib/client/shared-fetch'
 
 export type { InsightRow, PolygonRow }
 export { normalizeInsightRows, normalizePolygonRows }
@@ -83,15 +86,12 @@ export function clampScore(value: number) {
 }
 
 export function scoreColor(value: number) {
-  const normalized = clampScore(value)
-  const hue = (normalized / 100) * 120
-  return `hsl(${hue} 100% 56%)`
+  // Brand performance ramp (lib/watchtower/map-layer-colors.ts).
+  return scoreToRampColor(clampScore(value))
 }
 
 export function scoreSurface(value: number, alpha = 0.16) {
-  const normalized = clampScore(value)
-  const hue = (normalized / 100) * 120
-  return `hsl(${hue} 100% 56% / ${alpha})`
+  return scoreToRampColor(clampScore(value)).replace('rgb(', 'rgba(').replace(')', `, ${alpha})`)
 }
 
 export function normalizePointLabel(pointId: string, labelsById: Record<string, string>) {
@@ -100,9 +100,9 @@ export function normalizePointLabel(pointId: string, labelsById: Record<string, 
 
 export async function fetchIntelligenceDataset(): Promise<IntelligenceDataset> {
   const [insightsResponse, polygonsResponse, pointsResponse] = await Promise.all([
-    fetch('/api/operations/farm-crop-insights', { cache: 'no-store' }),
-    fetch('/api/operations/custom-point-polygons', { cache: 'no-store' }),
-    fetch('/api/operations/custom-map-points', { cache: 'no-store' }),
+    sharedFetch('/api/operations/farm-crop-insights'),
+    sharedFetch('/api/operations/custom-point-polygons'),
+    sharedFetch('/api/operations/custom-map-points'),
   ])
 
   const [insightsPayload, polygonsPayload, pointsPayload] = await Promise.all([

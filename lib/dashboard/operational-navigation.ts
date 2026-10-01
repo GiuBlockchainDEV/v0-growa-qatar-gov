@@ -176,10 +176,10 @@ export function navigateToParcel(
   parcelId: string,
   options?: { module?: string; zoom?: number; seasonId?: number; harvestMode?: HarvestMode }
 ) {
-  const module = options?.module || 'harvest'
-  const params = navigationBase(current, module)
+  const moduleKey = options?.module || 'harvest'
+  const params = navigationBase(current, moduleKey)
 
-  if (module === 'harvest' || module === 'production-harvest') {
+  if (moduleKey === 'harvest' || moduleKey === 'production-harvest') {
     applyHarvestFieldSelectionToParams(
       params,
       { parcel_id: parcelId, season_id: options?.seasonId },
@@ -195,7 +195,7 @@ export function navigateToParcel(
     if (options?.zoom) params.set('zoom', String(options.zoom))
   }
 
-  clearIncompatibleDashboardParams(params, module)
+  clearIncompatibleDashboardParams(params, moduleKey)
   return `/dashboard?${params.toString()}`
 }
 
@@ -257,14 +257,14 @@ export function navigateToSignalOnMap(current: URLSearchParams, signal: Intellig
 }
 
 export function navigateToSignalEstimation(current: URLSearchParams, signal: IntelligenceSignal) {
-  const module = signal.recommendedModule || signalRecommendedModule(signal.type)
-  if (module === 'supply-overview') return '/dashboard/supply-overview'
+  const moduleKey = signal.recommendedModule || signalRecommendedModule(signal.type)
+  if (moduleKey === 'supply-overview') return '/dashboard/supply-overview'
 
   return buildModuleUrl(
     current,
     buildSignalNavigationTarget(
       signal,
-      module,
+      moduleKey,
       current.get('timeframe') as WatchtowerTimeframe | undefined
     )
   )

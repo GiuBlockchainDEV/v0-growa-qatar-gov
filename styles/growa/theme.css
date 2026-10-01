@@ -1,0 +1,312 @@
+/* =====================================================================
+   GROWA — brand layer for Growa Qatar
+   ---------------------------------------------------------------------
+   Ported from the Growa SaaS (`src/app/growa-theme.css`), which bridges
+   the Growa design system into Tailwind v4. Same tokens, same utility
+   names, so a class written in one product means the same thing in the
+   other.
+
+   WHAT IS IMPORTED AND WHAT IS TRANSCRIBED — and the reason matters.
+
+   Copied verbatim from `design-system/tokens/` into `styles/growa/`:
+   `colors.css`, `spacing.css`, `patterns.css`, `components.css`.
+   If the design system changes, re-copy those four files; nothing else.
+
+   Transcribed below: typography, radius, elevation, motion. Not a style
+   choice: those four files use the names Tailwind v4 reserves
+   (`--text-*` sizes, `--radius-*`, `--shadow-*`, `--ease-*`). Importing
+   them and re-declaring them in `@theme` produces
+   `--radius-xs: var(--radius-xs)`, a circular reference that raises no
+   error and simply yields an empty utility.
+
+   NOT IMPORTED, ON PURPOSE:
+   `tokens/fonts.css` — points at TT Commons Pro Fontspring DEMO files,
+   "Personal Use Only". DM Sans + IBM Plex Sans Arabic are loaded in
+   `app/layout.tsx` instead.
+   `tokens/base.css` — element selectors (`a { border-bottom }`, `h1`…)
+   would restyle every screen at once. The same rules live below, scoped
+   under `.growa`.
+   ===================================================================== */
+
+@import "./colors.css";
+@import "./spacing.css";
+/* The design-system CLASSES go into Tailwind's `components` layer. Left
+   unlayered (as in the SaaS) they beat every utility: `.growa-dotted-rule`
+   has `margin: 0`, so `<hr class="growa-dotted-rule my-8">` silently lost
+   its margin, and `.g-tag { display: inline-flex }` defeated `hidden`.
+   In the layer, utilities win — which is what a class list means. */
+@import "./patterns.css" layer(components);
+@import "./components.css" layer(components);
+
+
+/* ---------------------------------------------------------------------
+   COLOURS — `@theme inline`, unlike the SaaS.
+   ---------------------------------------------------------------------
+   With `inline`, `bg-page` compiles to `background-color:
+   var(--surface-page)` at the point of use, so it re-resolves inside any
+   scope that remaps the semantics (`.growa-inverse`). In the SaaS the
+   aliases are plain `@theme` and resolve once on `:root`, which is why an
+   ink panel stayed white until the aliases were re-declared on the scope
+   element. Inline removes that trap at the source. The re-declaration
+   block further down is kept anyway, for code that reads `--color-*`
+   directly (`var(--color-page)` in inline styles, canvas colours).
+
+   Tailwind's default palette stays, so the existing classes keep working
+   and the migration proceeds screen by screen. `stone-*` is deliberately
+   overridden with the brand's warm neutrals.
+   --------------------------------------------------------------------- */
+@theme inline {
+  /* The four brand values (deck p.61). Do not alter. */
+  --color-cream: var(--growa-cream);
+  --color-sage:  var(--growa-sage);
+  --color-ink:   var(--growa-ink);
+
+  /* Intermediate steps — DERIVED, not approved by the brand yet. */
+  --color-cream-50:  var(--growa-cream-50);
+  --color-cream-100: var(--growa-cream-100);
+  --color-cream-300: var(--growa-cream-300);
+  --color-cream-500: var(--growa-cream-500);
+  --color-sage-300:  var(--growa-sage-300);
+  --color-sage-400:  var(--growa-sage-400);
+  --color-sage-600:  var(--growa-sage-600);
+  --color-sage-700:  var(--growa-sage-700);
+  --color-ink-600:   var(--growa-ink-600);
+  --color-ink-700:   var(--growa-ink-700);
+  --color-ink-800:   var(--growa-ink-800);
+  --color-ink-900:   var(--growa-ink-900);
+
+  /* Warm neutrals — pulled toward the ink hue, never a blue grey. */
+  --color-stone-50:  var(--growa-stone-50);
+  --color-stone-100: var(--growa-stone-100);
+  --color-stone-200: var(--growa-stone-200);
+  --color-stone-300: var(--growa-stone-300);
+  --color-stone-500: var(--growa-stone-500);
+  --color-stone-600: var(--growa-stone-600);
+
+  /* Semantics: use these, not raw colours. `card` and `muted` are shared
+     with the shadcn layer in globals.css and mean the same thing there. */
+  --color-page:           var(--surface-page);
+  --color-accent-surface: var(--surface-accent);
+  --color-inverse:        var(--surface-inverse);
+  --color-inverse-raised: var(--surface-inverse-raised);
+
+  /* Text COLOUR. `--text-*` in Tailwind is font SIZE, so the colour
+     utilities are `text-content*`, never `text-primary`. */
+  --color-content:         var(--text-primary);
+  --color-content-soft:    var(--text-secondary);
+  --color-content-inverse: var(--text-inverse);
+  --color-content-accent:  var(--text-accent);
+
+  --color-line:        var(--border-subtle);
+  --color-line-strong: var(--border-default);
+  --color-line-accent: var(--border-accent);
+
+  /* Status. "Good" is the brand sage — the agronomic positive — not a
+     traffic-light green. The reds are derived. */
+  --color-good:     var(--status-good);
+  --color-progress: var(--status-progress);
+  --color-critical: var(--status-critical);
+  --color-live:     var(--status-live);
+}
+
+/* ---------------------------------------------------------------------
+   SIZES, RADII, SHADOWS, MOTION — plain `@theme`.
+   These must exist as real custom properties on `:root`, because the
+   design-system classes (`.g-btn`, `.g-tag`…) read `var(--radius-pill)`,
+   `var(--text-body)`, `var(--ease-brand)` directly.
+   --------------------------------------------------------------------- */
+@theme {
+  /* One family carries display, UI and data: the brand has no pairing. */
+  --font-sans: var(--font-core);
+  --font-mono: ui-monospace, "SFMono-Regular", Menlo, monospace;
+
+  --text-display-1:  clamp(44px, 7vw, 104px);
+  --text-display-2:  clamp(34px, 4.6vw, 68px);
+  --text-display-3:  clamp(28px, 3.2vw, 44px);
+  --text-title:      28px;
+  --text-heading:    22px;
+  --text-subheading: 18px;
+  --text-body:       16px;
+  --text-body-sm:    14px;
+  --text-caption:    12px;
+  --text-micro:      10px;
+
+  /* The brand law is "radius = 25% of the shortest side" (deck p.59):
+     fixed steps are that rule pre-computed for recurring heights.
+     Buttons, tags, nav items and switches are ALWAYS pills. */
+  --radius-brand: 25%;
+  --radius-xs:    3px;
+  --radius-sm:    5px;
+  --radius-md:    8px;
+  --radius-lg:    12px;
+  --radius-xl:    20px;
+  --radius-2xl:   32px;
+  --radius-3xl:   48px;
+  --radius-pill:  999px;
+  --radius-mark:  22%;
+
+  /* Shadows: almost none. A soft lift for panels floating over imagery;
+     everything else is a one-pixel line. */
+  --shadow-panel:    0 18px 44px -18px rgba(17, 30, 19, .34);
+  --shadow-panel-lg: 0 34px 80px -28px rgba(17, 30, 19, .42);
+
+  /* Motion: one curve. */
+  --ease-brand: cubic-bezier(.22, .61, .36, 1);
+  --ease-out:   cubic-bezier(.16, 1, .3, 1);
+  --ease-inout: cubic-bezier(.65, 0, .35, 1);
+}
+
+
+/* Inverse scope — see the note on `@theme inline` above. Re-declared on
+   the element so direct `var(--color-*)` reads also get the ink values. */
+.growa-inverse {
+  --color-page:    var(--surface-page);
+  --color-card:    var(--surface-card);
+  --color-muted:   var(--surface-muted);
+
+  --color-content:        var(--text-primary);
+  --color-content-soft:   var(--text-secondary);
+  --color-content-accent: var(--text-accent);
+
+  --color-line:        var(--border-subtle);
+  --color-line-strong: var(--border-default);
+
+  /* On ink, the derived red reads muddy and stone-600 disappears:
+     critical lifts to clay, progress becomes cream. */
+  --status-critical: #D19C8A;
+  --status-progress: var(--growa-cream);
+}
+
+
+/* ---------------------------------------------------------------------
+   Tokens Tailwind has no namespace for: weights, line heights, letter
+   spacing, durations. Used through `var()`, and expected by the
+   design-system classes.
+   --------------------------------------------------------------------- */
+:root {
+  /* `--font-growa` (DM Sans) and `--font-arabic` (IBM Plex Sans Arabic)
+     come from `next/font/local` in app/layout.tsx. The browser picks the
+     Arabic face per glyph, so mixed lines need no extra markup. */
+  --font-core: var(--font-growa), var(--font-arabic), "DM Sans",
+               "IBM Plex Sans Arabic", "Helvetica Neue", Arial, sans-serif;
+
+  --fw-light: 300;
+  --fw-regular: 400;
+  --fw-medium: 500;
+  --fw-demibold: 600;
+  --fw-bold: 700;
+  --fw-black: 900;
+
+  --lh-tight: 1.04;
+  --lh-display: 1.1;
+  --lh-heading: 1.2;
+  --lh-body: 1.45;
+  --lh-loose: 1.6;
+
+  --ls-display: -0.02em;
+  --ls-heading: -0.01em;
+  --ls-body: 0em;
+  --ls-eyebrow: 0.14em;
+  --ls-wordmark: 0.02em;
+
+  --shadow-none: none;
+  --shadow-pressed: inset 0 1px 2px rgba(17, 30, 19, .18);
+  --hairline: 1px solid var(--border-subtle);
+
+  /* Type over photography: a protection gradient for paragraphs, a
+     capsule for short labels. The only gradients the brand allows. */
+  --protect-bottom: linear-gradient(to top, rgba(17,30,19,.72) 0%, rgba(17,30,19,.34) 38%, rgba(17,30,19,0) 78%);
+  --protect-top: linear-gradient(to bottom, rgba(17,30,19,.6) 0%, rgba(17,30,19,0) 60%);
+  --protect-full: linear-gradient(to bottom, rgba(17,30,19,.45), rgba(17,30,19,.45));
+  --glass-blur: saturate(1.05) blur(14px);
+
+  --dur-instant: 90ms;
+  --dur-fast: 160ms;
+  --dur-base: 260ms;
+  --dur-slow: 480ms;
+  --dur-reveal: 900ms;
+  --press-scale: .985;
+
+  /* Sign of the reading direction, for transforms that must mirror. */
+  --dir-segno: 1;
+}
+[dir="rtl"] { --dir-segno: -1; }
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --dur-instant: 0ms;
+    --dur-fast: 0ms;
+    --dur-base: 0ms;
+    --dur-slow: 0ms;
+    --dur-reveal: 0ms;
+  }
+}
+
+
+/* ---------------------------------------------------------------------
+   BRAND BASE, SCOPED — the rules of `tokens/base.css`, inside `.growa`.
+   Put the class on a screen's container once that screen is migrated.
+   --------------------------------------------------------------------- */
+.growa {
+  font-family: var(--font-core);
+  font-size: var(--text-body);
+  line-height: var(--lh-body);
+  color: var(--text-primary);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+.growa h1, .growa h2, .growa h3 {
+  font-weight: var(--fw-medium);
+  letter-spacing: var(--ls-heading);
+  line-height: var(--lh-heading);
+}
+.growa a:focus-visible,
+.growa button:focus-visible,
+.growa input:focus-visible,
+.growa select:focus-visible,
+.growa textarea:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+.growa ::selection { background: var(--growa-cream); color: var(--growa-ink); }
+
+/* The micro-label register: uppercase, tracked, small. The ONLY uppercase
+   the brand allows — everything else is sentence case. */
+.growa-eyebrow {
+  font-size: var(--text-caption);
+  font-weight: var(--fw-demibold);
+  letter-spacing: var(--ls-eyebrow);
+  text-transform: uppercase;
+}
+/* Arabic has no case, and tracking breaks its joined letterforms. */
+[dir="rtl"] .growa-eyebrow { letter-spacing: 0; }
+
+/* Big numbers are LIGHT, never bold. */
+.growa-figure {
+  font-weight: var(--fw-light);
+  line-height: var(--lh-tight);
+  letter-spacing: var(--ls-display);
+}
+
+/* The lattice that lights up — the brand's loading state. Dots switch on
+   and off (two near-coincident stops, linear), they do not fade: a
+   measurement is either there or not. */
+@keyframes growa-scan-5 {
+  0%, 20%      { opacity: 1; }
+  20.01%, 100% { opacity: .13; }
+}
+@keyframes growa-scan-3 {
+  0%, 33%      { opacity: 1; }
+  33.01%, 100% { opacity: .13; }
+}
+.growa-loader-dot      { animation: growa-scan-5 1.5s linear infinite; }
+.growa-loader-dot--row { animation: growa-scan-3 .9s linear infinite; }
+@media (prefers-reduced-motion: reduce) {
+  .growa-loader-dot,
+  .growa-loader-dot--row { animation: none; }
+}
+
+@keyframes growa-avviso-entra {
+  from { opacity: 0; transform: translateY(-4px); }
+  to   { opacity: 1; transform: none; }
+}

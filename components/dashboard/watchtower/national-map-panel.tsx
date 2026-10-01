@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { BarChart3, Layers, Sprout, TrendingUp } from 'lucide-react'
-import { SatelliteMap } from '@/components/dashboard/satellite-map'
+import { SatelliteMap } from '@/components/dashboard/lazy-modules'
 import { WATCHTOWER_MAP_LAYERS } from '@/lib/watchtower/map-layers'
 import { humanizeMetricSource } from '@/lib/watchtower/production-metrics'
 import { useOperationalContextOptional } from '@/contexts/operational-context-provider'
@@ -11,6 +11,8 @@ import type { WatchtowerSummary } from '@/lib/domain/types'
 import type { HarvestMapField } from '@/lib/harvest/types'
 import { getQatarBoundaryCoordinates } from '@/lib/weather/qatar-grid'
 import { cn } from '@/lib/utils'
+import { CardHeader } from '@/components/brand/layout'
+import { Button, StatusDot, Tag } from '@/components/brand/ui'
 
 const PRODUCTION_LAYER_IDS = new Set([
   'fields',
@@ -55,7 +57,9 @@ export function NationalMapPanel({
   targetCropFilter,
   selectedParcelId,
 }: NationalMapPanelProps) {
-  const { t } = useI18n()
+  const { t, tr } = useI18n()
+  // Labels, units and source names below come from the server in English.
+  const trSource = (source: string) => tr(humanizeMetricSource(source))
   const opCtx = useOperationalContextOptional()
   const activeLayers = opCtx?.activeMapLayers?.length
     ? opCtx.activeMapLayers.filter((layer) => PRODUCTION_LAYER_IDS.has(layer))
@@ -79,12 +83,12 @@ export function NationalMapPanel({
 
   const headlineMetrics = [
     {
-      label: summary.production.productionEstimate.label,
+      label: tr(summary.production.productionEstimate.label),
       value: formatMetricValue(
         summary.production.productionEstimate.value,
         summary.production.productionEstimate.unit
       ),
-      detail: humanizeMetricSource(summary.production.productionEstimate.source),
+      detail: trSource(summary.production.productionEstimate.source),
       onClick: () =>
         opCtx?.goToModule('harvest', {
           harvestMode: 'predict',
@@ -97,14 +101,14 @@ export function NationalMapPanel({
         }),
     },
     {
-      label: summary.production.fieldsMonitored?.label || 'Fields monitored',
+      label: tr(summary.production.fieldsMonitored?.label || 'Fields monitored'),
       value: formatMetricValue(
         summary.production.fieldsMonitored?.value ?? harvestFields.length,
-        summary.production.fieldsMonitored?.unit || 'fields'
+        tr(summary.production.fieldsMonitored?.unit || 'fields')
       ),
       detail: summary.production.cropTypes?.value
-        ? `${summary.production.cropTypes.value} crop types`
-        : 'Harvest forecast coverage',
+        ? tr('{count} crop types', { count: summary.production.cropTypes.value })
+        : tr('Harvest forecast coverage'),
       onClick: () =>
         opCtx?.goToModule('harvest', {
           harvestMode: 'predict',
@@ -116,14 +120,14 @@ export function NationalMapPanel({
         }),
     },
     {
-      label: summary.production.atRiskProduction?.label || 'Below health threshold',
+      label: tr(summary.production.atRiskProduction?.label || 'Below health threshold'),
       value: formatMetricValue(
         summary.production.atRiskProduction?.value ?? null,
-        summary.production.atRiskProduction?.unit || 'fields'
+        tr(summary.production.atRiskProduction?.unit || 'fields')
       ),
       detail: summary.production.avgHealthScore?.value
-        ? `Avg vegetation ${summary.production.avgHealthScore.value.toFixed(0)}/100`
-        : 'From satellite indicators',
+        ? tr('Avg vegetation {score}/100', { score: summary.production.avgHealthScore.value.toFixed(0) })
+        : tr('From satellite indicators'),
       warning: Boolean(summary.production.atRiskProduction?.value),
       onClick: () =>
         opCtx?.goToModule('harvest', {
@@ -179,35 +183,43 @@ export function NationalMapPanel({
     }
   }, [summary.timeframe])
 
+  /* A card like every other one (white frame, dotted header rule); the
+     left rail is the card's own legend: headline figures in Light, the map
+     layers as square-marked toggles, then the two onward commands. */
   return (
-    <div className="flex h-full min-h-[360px] flex-col rounded-lg border border-white/10 bg-[#06080c] overflow-hidden">
-      <div className="flex items-center justify-between border-b border-white/10 px-3 py-2 shrink-0">
-        <div className="flex items-center gap-2">
-          <TrendingUp className="h-4 w-4 text-[#07f880]" />
-          <span className="text-xs font-semibold uppercase tracking-wider text-white/70">
-            {t('watchtower.national_estimations')}
-          </span>
-        </div>
-        <div className="flex items-center gap-2 text-[10px] text-white/35">
-          <Layers className="h-3 w-3" />
-          <span>{effectiveLayers.length} {t('watchtower.layers_active')}</span>
-          {summary.isDemo && <span className="text-amber-400 uppercase">Demo</span>}
-          {mapLoading && <span className="text-white/25">Loading…</span>}
-        </div>
-      </div>
+    <section
+      data-famiglia="monitoraggio"
+      className="growa flex h-full min-h-[360px] flex-col bg-card border border-line overflow-hidden"
+      style={{ borderRadius: 'var(--radius-xl)' }}
+    >
+      <CardHeader
+        icon={TrendingUp}
+        title={t('watchtower.national_estimations')}
+        actions={
+          <>
+            {mapLoading && <span className="text-[12px] text-content-soft">{tr('Loading…')}</span>}
+            {summary.isDemo && <Tag variant="muted" size="sm">{tr('Demo')}</Tag>}
+            <Tag variant="outline-ink" size="sm">
+              <Layers strokeWidth={1.5} className="h-3 w-3" aria-hidden="true" />
+              {effectiveLayers.length} {t('watchtower.layers_active')}
+            </Tag>
+          </>
+        }
+      />
 
       <div className="flex flex-1 min-h-0">
-        <div className="relative z-20 hidden sm:flex w-40 shrink-0 flex-col border-r border-white/10 overflow-y-auto bg-[#06080c]">
+        <div className="relative z-20 hidden sm:flex w-48 shrink-0 flex-col border-e border-dotted border-line-strong overflow-y-auto bg-card">
           {headlineMetrics.length > 0 && (
-            <div className="space-y-2 border-b border-white/10 p-2">
+            <div className="space-y-2 p-3">
               {headlineMetrics.map((metric) => (
-                <MetricCard key={metric.label} {...metric} />
+                <MetricCard key={metric.label} {...metric} value={metric.value ?? '—'} />
               ))}
             </div>
           )}
 
-          <div className="p-2">
-            <p className="mb-1 text-[9px] uppercase tracking-widest text-white/30">Map layers</p>
+          <div className="px-3 pb-3">
+            <hr className="growa-dotted-rule mb-3" />
+            <p className="mb-1.5 text-[12px] text-content-soft">{tr('Map layers')}</p>
             {productionLayers.map((layer) => {
               const active = effectiveLayers.includes(layer.id)
               return (
@@ -215,24 +227,28 @@ export function NationalMapPanel({
                   key={layer.id}
                   type="button"
                   disabled={!layer.available}
+                  aria-pressed={active}
                   onClick={() => opCtx?.toggleMapLayer(layer.id)}
                   className={cn(
-                    'mb-0.5 w-full rounded px-1.5 py-1 text-left text-[10px] transition-colors',
-                    !layer.available && 'cursor-not-allowed opacity-30',
-                    active
-                      ? 'bg-[#07f880]/15 text-[#07f880]'
-                      : 'text-white/50 hover:bg-white/5 hover:text-white/80'
+                    'flex w-full items-center gap-2 rounded-pill px-2 h-8 text-start text-[12px] transition-colors',
+                    !layer.available && 'cursor-not-allowed opacity-40',
+                    active ? 'text-content' : 'text-content-soft hover:bg-muted hover:text-content'
                   )}
+                  style={{ fontWeight: active ? 500 : 400 }}
                 >
-                  {layer.label}
+                  <StatusDot tone={active ? 'ink' : 'neutral'} size={7} />
+                  {tr(layer.label)}
                 </button>
               )
             })}
           </div>
 
-          <div className="mt-auto space-y-1.5 border-t border-white/10 p-2">
-            <button
-              type="button"
+          <div className="mt-auto space-y-2 p-3">
+            <hr className="growa-dotted-rule mb-3" />
+            <Button
+              size="sm"
+              variant="secondary"
+              fullWidth
               onClick={() =>
                 opCtx?.goToModule('harvest', {
                   harvestMode: 'predict',
@@ -240,19 +256,21 @@ export function NationalMapPanel({
                   timeframe: summary.timeframe,
                 })
               }
-              className="inline-flex w-full items-center justify-center gap-1.5 rounded bg-[#07f880]/15 px-2 py-1.5 text-[10px] font-medium text-[#07f880]"
+              style={{ fontSize: 12 }}
             >
-              <Sprout className="h-3 w-3" />
-              Open harvest forecast
-            </button>
-            <button
-              type="button"
+              <Sprout strokeWidth={1.5} className="h-3.5 w-3.5" />
+              {tr('Harvest forecast')}
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              fullWidth
               onClick={() => opCtx?.goToModule('data-analytics', { timeframe: summary.timeframe })}
-              className="inline-flex w-full items-center justify-center gap-1.5 rounded border border-white/10 px-2 py-1.5 text-[10px] text-white/70 hover:text-white"
+              style={{ fontSize: 12 }}
             >
-              <BarChart3 className="h-3 w-3" />
-              Production analytics
-            </button>
+              <BarChart3 strokeWidth={1.5} className="h-3.5 w-3.5" />
+              {tr('Production analytics')}
+            </Button>
           </div>
         </div>
 
@@ -280,10 +298,12 @@ export function NationalMapPanel({
           />
         </div>
       </div>
-    </div>
+    </section>
   )
 }
 
+/* Headline figure as a clickable tile: Light number, unit small, the
+   warning said with the square, not with a tinted box. */
 function MetricCard({
   label,
   value,
@@ -297,18 +317,27 @@ function MetricCard({
   warning?: boolean
   onClick?: () => void
 }) {
+  const [number, ...unitParts] = value.split(' ')
   return (
     <button
       type="button"
       onClick={onClick}
-      className={cn(
-        'w-full rounded-lg border px-2.5 py-2 text-left transition-colors hover:brightness-110',
-        warning ? 'border-amber-500/30 bg-amber-500/10' : 'border-[#07f880]/25 bg-[#07f880]/10'
-      )}
+      className="w-full bg-card border border-line px-3 py-2.5 text-start transition-colors hover:border-line-strong"
+      style={{ borderRadius: 'var(--radius-lg)' }}
     >
-      <p className="text-[9px] uppercase tracking-wider text-white/40">{label}</p>
-      <p className="mt-0.5 text-sm font-semibold text-white">{value}</p>
-      <p className="mt-0.5 text-[9px] text-white/45 line-clamp-2">{detail}</p>
+      <p className="flex items-center gap-1.5 text-[11px] text-content-soft">
+        {warning && <StatusDot tone="warning" size={6} />}
+        {label}
+      </p>
+      <p className="growa-figure mt-1 text-content" style={{ fontSize: 22 }}>
+        {number}
+        {unitParts.length > 0 && (
+          <span className="ms-1 text-[11px] text-content-soft" style={{ fontWeight: 400, letterSpacing: 0 }}>
+            {unitParts.join(' ')}
+          </span>
+        )}
+      </p>
+      <p className="mt-1 text-[11px] text-content-soft line-clamp-2">{detail}</p>
     </button>
   )
 }

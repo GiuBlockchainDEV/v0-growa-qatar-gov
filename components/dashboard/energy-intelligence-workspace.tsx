@@ -29,19 +29,13 @@ import {
   IntelligenceWorkspaceHeader,
   IntelligenceWorkspaceRoot,
 } from '@/components/dashboard/intelligence-workspace-ui'
-import {
-  normalizePointLabel,
-  formatNumber,
-  formatScore,
-  scoreColor,
-  scoreSurface,
-  useIntelligenceData,
-  useMapNavigation,
-} from './intelligence-metrics-shared'
+import { normalizePointLabel, formatNumber, formatScore, scoreColor, useIntelligenceData, useMapNavigation } from './intelligence-metrics-shared'
 import { OperationalContextBanner } from '@/components/dashboard/operational-context-banner'
 import { useModuleWatchtowerContext } from '@/lib/intelligence/use-module-watchtower-context'
+import { useI18n } from '@/lib/i18n'
 
 export function EnergyIntelligenceWorkspace() {
+  const { tr } = useI18n()
   const {
     loading,
     error,
@@ -89,39 +83,38 @@ export function EnergyIntelligenceWorkspace() {
   ])
 
   return (
-    <IntelligenceWorkspaceRoot layout="viewport">
+    <IntelligenceWorkspaceRoot layout="scroll">
       <IntelligenceWorkspaceHeader>
         <InvestigationContextHeader
-          eyebrow="Intelligence • Resources"
-          title="Energy Intelligence"
-          description="Grid pressure, crop energy intensity and producer efficiency. Connect anomalies to national signals and farm context."
+          eyebrow={tr('Intelligence · resources')}
+          title={tr('Energy intelligence')}
+          description={tr('Grid pressure, crop energy intensity and producer efficiency. Connect anomalies to national signals and farm context.')}
           icon={Bolt}
           meta={[
-            { label: 'Status', value: 'Live', accent: true },
-            { label: 'Polygons', value: String(polygons.length) },
-            { label: 'Energy / Ton', value: formatNumber(energyMeta.energyPerTon, ' kWh/t') },
-            { label: 'Signals', value: String(watchtower.signals.length), accent: watchtower.signals.length > 0 },
+            { label: tr('Status'), value: tr('Live'), accent: true },
+            { label: tr('Polygons'), value: String(polygons.length) },
+            { label: tr('Energy / ton'), value: formatNumber(energyMeta.energyPerTon, ' kWh/t') },
+            { label: tr('Signals'), value: String(watchtower.signals.length), accent: watchtower.signals.length > 0 },
           ]}
         />
       </IntelligenceWorkspaceHeader>
 
-      <div className="px-4 pb-2">
-        <OperationalContextBanner />
-      </div>
+      <OperationalContextBanner />
 
       {loading ? (
-        <IntelligenceLoadingState message="Loading energy intelligence..." />
+        <IntelligenceLoadingState message={tr('Loading energy intelligence…')} />
       ) : error ? (
-        <IntelligenceErrorState message={error} />
+        <IntelligenceErrorState message={tr(error)} />
       ) : (
         <IntelligenceWorkspaceBody scrollable>
           <IntelligenceInvestigationLayout
+              wideAnalysis
             currentCondition={
-              <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
-                <IntelligenceKpiCard label="Total Energy" value={formatNumber(headline.totalEnergy, ' kWh')} icon={Bolt} />
-                <IntelligenceKpiCard label="Average / Farm" value={formatNumber(energyMeta.averageEnergyPerFarm, ' kWh')} />
-                <IntelligenceKpiCard label="Energy / Ton" value={formatNumber(energyMeta.energyPerTon, ' kWh/t')} tone="amber" />
-                <IntelligenceKpiCard label="Polygon Score" value={formatScore(analyticsMeta.avgPolygonScore)} accent />
+              <div className="grid grid-cols-2 gap-3">
+                <IntelligenceKpiCard label={tr('Total energy')} value={formatNumber(headline.totalEnergy, ' kWh')} icon={Bolt} />
+                <IntelligenceKpiCard label={tr('Average / farm')} value={formatNumber(energyMeta.averageEnergyPerFarm, ' kWh')} />
+                <IntelligenceKpiCard label={tr('Energy / ton')} value={formatNumber(energyMeta.energyPerTon, ' kWh/t')} tone="amber" />
+                <IntelligenceKpiCard label={tr('Polygon score')} value={formatScore(analyticsMeta.avgPolygonScore)} accent />
               </div>
             }
             whatChanged={<IntelligenceWatchtowerChanges changes={watchtower.changes} loading={watchtower.loading} />}
@@ -129,44 +122,36 @@ export function EnergyIntelligenceWorkspace() {
               <IntelligenceCommandLayout
                 main={
                   <IntelligencePanel
-                    title="Energy by Crop"
-                    subtitle="Click a crop row to focus the map on related polygons."
+                    title={tr('Energy by crop')}
+                    subtitle={tr('Click a crop row to focus the map on related polygons.')}
                     icon={LineChart}
                   >
                     <IntelligenceDataTable>
                       <IntelligenceTableHead>
                         <tr>
-                          <th className="px-3 py-2.5 font-medium">Crop</th>
-                          <th className="px-3 py-2.5 font-medium">Energy</th>
-                          <th className="px-3 py-2.5 font-medium">Production</th>
-                          <th className="px-3 py-2.5 font-medium">Energy / Ton</th>
-                          <th className="px-3 py-2.5 font-medium">Score</th>
+                          <th className="px-3 py-2.5">{tr('Crop')}</th>
+                          <th className="px-3 py-2.5">{tr('Energy')}</th>
+                          <th className="px-3 py-2.5">{tr('Production')}</th>
+                          <th className="px-3 py-2.5">{tr('Energy / ton')}</th>
+                          <th className="px-3 py-2.5">{tr('Score')}</th>
                         </tr>
                       </IntelligenceTableHead>
                       <IntelligenceTableBody>
-                        {cropAggregates.map((crop, index) => {
+                        {cropAggregates.map((crop) => {
                           const energyPerCropTon = crop.totalEnergyKwh / Math.max(1, crop.totalProductionTons)
                           return (
                             <tr
                               key={crop.cropName}
                               onClick={() => navigateToCropOnMap(crop.cropName)}
-                              className={`cursor-pointer text-sm text-foreground transition-colors hover:bg-primary/10 ${
-                                index % 2 === 0 ? 'bg-card/60' : 'bg-secondary/20'
-                              }`}
+                              className="cursor-pointer text-[13px] text-content transition-colors hover:bg-muted"
                             >
-                              <td className="px-3 py-2.5 font-medium">{crop.cropName}</td>
+                              <td className="px-3 py-2.5" style={{ fontWeight: 500 }}>{crop.cropName}</td>
                               <td className="px-3 py-2.5">{formatNumber(crop.totalEnergyKwh, ' kWh')}</td>
                               <td className="px-3 py-2.5">{formatNumber(crop.totalProductionTons, ' t')}</td>
                               <td className="px-3 py-2.5">{formatNumber(energyPerCropTon, ' kWh/t')}</td>
                               <td className="px-3 py-2.5">
-                                <span
-                                  className="rounded-md border px-2 py-1 font-semibold"
-                                  style={{
-                                    color: scoreColor(crop.averageScore),
-                                    borderColor: scoreSurface(crop.averageScore, 0.4),
-                                    backgroundColor: scoreSurface(crop.averageScore, 0.14),
-                                  }}
-                                >
+                                <span className="g-tag g-tag--outline-ink tabular-nums" style={{ height: 22, padding: '0 9px', fontSize: 11 }}>
+            <span aria-hidden="true" className="w-1.5 h-1.5" style={{ borderRadius: 1, background: scoreColor(crop.averageScore) }} />
                                   {crop.averageScore.toFixed(1)}/100
                                 </span>
                               </td>
@@ -179,10 +164,10 @@ export function EnergyIntelligenceWorkspace() {
                 }
                 insights={
                   <>
-                    <IntelligencePanel title="Highest Efficiency" icon={Gauge} variant="success">
+                    <IntelligencePanel title={tr('Highest efficiency')} icon={Gauge} variant="success">
                       <div className="space-y-2">
                         {producerRanking.mostEfficient.length === 0 ? (
-                          <p className="text-sm text-muted-foreground">No producer data available.</p>
+                          <p className="text-sm text-content-soft">{tr('No producer data available.')}</p>
                         ) : (
                           producerRanking.mostEfficient.map((entry, index) => (
                             <IntelligenceProducerCard
@@ -190,7 +175,7 @@ export function EnergyIntelligenceWorkspace() {
                               rank={index + 1}
                               name={normalizePointLabel(entry.pointId, producerLabelsById)}
                               lines={[
-                                `Score ${entry.averagePolygonScore.toFixed(1)}/100 • Intensity ${formatNumber(entry.resourceIntensity / Math.max(1, entry.productionTons), ' unit/t')}`,
+                                tr('Score {score} · Intensity {intensity}', { score: `${entry.averagePolygonScore.toFixed(1)}/100`, intensity: formatNumber(entry.resourceIntensity / Math.max(1, entry.productionTons), ' unit/t') }),
                               ]}
                               onClick={() => navigateToProducerPoint(entry.pointId)}
                               variant="success"
@@ -199,10 +184,10 @@ export function EnergyIntelligenceWorkspace() {
                         )}
                       </div>
                     </IntelligencePanel>
-                    <IntelligencePanel title="Lowest Efficiency" icon={Zap}>
+                    <IntelligencePanel title={tr('Lowest efficiency')} icon={Zap}>
                       <div className="space-y-2">
                         {producerRanking.leastEfficient.length === 0 ? (
-                          <p className="text-sm text-muted-foreground">No producer data available.</p>
+                          <p className="text-sm text-content-soft">{tr('No producer data available.')}</p>
                         ) : (
                           producerRanking.leastEfficient.map((entry, index) => (
                             <IntelligenceProducerCard
@@ -210,7 +195,7 @@ export function EnergyIntelligenceWorkspace() {
                               rank={index + 1}
                               name={normalizePointLabel(entry.pointId, producerLabelsById)}
                               lines={[
-                                `Score ${entry.averagePolygonScore.toFixed(1)}/100 • Intensity ${formatNumber(entry.resourceIntensity / Math.max(1, entry.productionTons), ' unit/t')}`,
+                                tr('Score {score} · Intensity {intensity}', { score: `${entry.averagePolygonScore.toFixed(1)}/100`, intensity: formatNumber(entry.resourceIntensity / Math.max(1, entry.productionTons), ' unit/t') }),
                               ]}
                               onClick={() => navigateToProducerPoint(entry.pointId)}
                             />
@@ -220,10 +205,10 @@ export function EnergyIntelligenceWorkspace() {
                     </IntelligencePanel>
                   </>
                 }
-                assistant={<div className="hidden xl:block" />}
+                assistant={null}
               />
             }
-            mapOrTimeseries={<IntelligenceMapHint moduleLabel="energy intensity across farms" />}
+            mapOrTimeseries={<IntelligenceMapHint moduleLabel={tr('energy intensity across farms')} />}
             affectedEntities={
               <div className="space-y-2">
                 {producerRanking.leastEfficient.slice(0, 5).map((entry, index) => (
@@ -231,7 +216,7 @@ export function EnergyIntelligenceWorkspace() {
                     key={`${entry.pointId}-energy-affected`}
                     rank={index + 1}
                     name={normalizePointLabel(entry.pointId, producerLabelsById)}
-                    lines={[`High energy intensity • ${formatNumber(entry.resourceIntensity)} total resource use`]}
+                    lines={[tr('High energy intensity · {total} total resource use', { total: formatNumber(entry.resourceIntensity) })]}
                     onClick={() => navigateToProducerPoint(entry.pointId)}
                     variant="warning"
                   />

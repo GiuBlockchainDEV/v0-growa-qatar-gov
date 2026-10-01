@@ -1,21 +1,26 @@
+'use client'
+
 import Link from 'next/link'
+import { useI18n } from '@/lib/i18n'
+import { AuthShell } from '@/components/brand/auth-shell'
+import { StatusDot } from '@/components/brand/ui'
 
 export default function SignUpSuccessPage() {
+  const { tr } = useI18n()
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center bg-background">
-      <div className="text-center space-y-6 max-w-md">
-        <div className="text-5xl">✅</div>
-        <h1 className="text-3xl font-bold text-foreground">Account Created</h1>
-        <p className="text-muted-foreground">
-          Your account has been successfully created. Please check your email to verify your account.
-        </p>
-        <Link
-          href="/auth/login"
-          className="inline-flex items-center justify-center rounded-lg bg-primary px-6 py-3 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors mt-4"
-        >
-          Go to Sign In
-        </Link>
-      </div>
-    </main>
+    <AuthShell>
+      {/* The brand has no emoji and no tick icon: the square data point,
+          in sage — the "good" state — says it. */}
+      <StatusDot tone="good" size={10} />
+      <h1 className="mt-5 text-content text-title" style={{ fontWeight: 500, letterSpacing: 'var(--ls-heading)' }}>
+        {tr('Account created')}
+      </h1>
+      <p className="mt-3 text-[14px] leading-[1.45] text-content-soft">
+        {tr('Your account has been created. Please check your email to verify it.')}
+      </p>
+      <Link href="/auth/login" className="g-btn g-btn--primary mt-8 w-full" style={{ height: 44, padding: '0 24px' }}>
+        {tr('Go to sign in')}
+      </Link>
+    </AuthShell>
   )
 }

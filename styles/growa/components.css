@@ -1,0 +1,49 @@
+/* Interaction states for the component library. Growa's states are quiet:
+   hover darkens or lifts opacity a little, press shrinks by 1.5%. No bounce. */
+.g-btn{display:inline-flex;align-items:center;justify-content:center;gap:var(--space-2);font-family:var(--font-core);font-weight:var(--fw-medium);letter-spacing:var(--ls-body);border-radius:var(--radius-pill);border:1px solid transparent;cursor:pointer;text-decoration:none;white-space:nowrap;transition:background-color var(--dur-fast) var(--ease-brand),color var(--dur-fast) var(--ease-brand),border-color var(--dur-fast) var(--ease-brand),transform var(--dur-instant) var(--ease-brand),opacity var(--dur-fast) var(--ease-brand)}
+.g-btn:active:not(:disabled){transform:scale(var(--press-scale))}
+.g-btn:disabled,.g-btn[aria-disabled="true"]{opacity:.4;cursor:not-allowed;transform:none}
+.g-btn--primary{background:var(--growa-ink);color:var(--growa-white)}
+.g-btn--primary:hover:not(:disabled){background:var(--growa-ink-600)}
+.g-btn--accent{background:var(--growa-cream);color:var(--growa-ink)}
+.g-btn--accent:hover:not(:disabled){background:var(--growa-cream-300)}
+.g-btn--secondary{background:var(--growa-stone-100);color:var(--growa-ink)}
+.g-btn--secondary:hover:not(:disabled){background:var(--growa-stone-200)}
+.g-btn--outline{background:transparent;color:var(--growa-sage-700);border-color:var(--growa-sage)}
+.g-btn--outline:hover:not(:disabled){background:var(--growa-cream-100);border-color:var(--growa-sage-600)}
+.g-btn--ghost{background:transparent;color:var(--text-primary)}
+.g-btn--ghost:hover:not(:disabled){background:var(--growa-stone-100)}
+.g-btn--inverse{background:var(--growa-white);color:var(--growa-ink)}
+.g-btn--inverse:hover:not(:disabled){background:var(--growa-cream-50)}
+.g-btn--glass{background:rgba(255,255,255,.1);color:var(--growa-white);border-color:rgba(255,255,255,.55);backdrop-filter:var(--glass-blur)}
+.g-btn--glass:hover:not(:disabled){background:rgba(255,255,255,.2)}
+.g-btn__icon{display:inline-flex;align-items:center}
+
+.g-tag{display:inline-flex;align-items:center;gap:var(--space-2);border-radius:var(--radius-pill);border:1px solid transparent;font-family:var(--font-core);font-weight:var(--fw-medium);white-space:nowrap;transition:background-color var(--dur-fast) var(--ease-brand),border-color var(--dur-fast) var(--ease-brand)}
+.g-tag--outline{color:var(--growa-sage-700);border-color:var(--growa-sage)}
+.g-tag--outline-ink{color:var(--text-primary);border-color:var(--border-default)}
+.g-tag--outline-inverse{color:var(--growa-cream);border-color:var(--border-inverse)}
+.g-tag--cream{background:var(--growa-cream);color:var(--growa-ink)}
+.g-tag--ink{background:var(--growa-ink);color:var(--growa-white)}
+.g-tag--muted{background:var(--growa-stone-100);color:var(--text-secondary)}
+a.g-tag:hover{border-color:var(--growa-sage-600)}
+
+.g-seg{display:inline-flex;align-items:center;padding:0;border-radius:var(--radius-pill);background:var(--growa-cream);overflow:hidden}
+.g-seg--inverse{background:rgba(255,255,255,.14);backdrop-filter:var(--glass-blur)}
+.g-seg__item{appearance:none;border:0;background:transparent;font-family:var(--font-core);font-weight:var(--fw-medium);color:var(--growa-ink);border-radius:var(--radius-pill);cursor:pointer;white-space:nowrap;transition:background-color var(--dur-base) var(--ease-brand),color var(--dur-base) var(--ease-brand)}
+.g-seg--inverse .g-seg__item{color:var(--growa-white)}
+.g-seg__item[data-active="true"]{background:var(--growa-ink);color:var(--growa-white)}
+.g-seg--inverse .g-seg__item[data-active="true"]{background:var(--growa-cream);color:var(--growa-ink)}
+.g-seg__item:hover:not([data-active="true"]){background:rgba(17,30,19,.07)}
+
+.g-card{background:var(--surface-card);color:var(--text-primary);border-radius:var(--radius-2xl);box-shadow:var(--shadow-panel)}
+.g-link-row{display:flex;align-items:center;gap:var(--space-5);flex-wrap:wrap}
+.g-link-row a{border-bottom:0;opacity:1;transition:opacity var(--dur-fast) var(--ease-brand)}
+.g-link-row a:hover{opacity:.62}
+
+.g-table{width:100%;border-collapse:collapse;font-family:var(--font-core)}
+.g-table th{text-align:left;font-weight:var(--fw-regular);font-size:var(--text-caption);color:var(--text-secondary);padding:0 0 var(--space-3);border-bottom:1px dotted var(--border-default)}
+.g-table td{padding:var(--space-2) 0;font-size:var(--text-body-sm);vertical-align:baseline}
+.g-table tbody tr+tr td{border-top:1px solid transparent}
+
+@keyframes g-pulse{0%,100%{opacity:1}50%{opacity:.35}}

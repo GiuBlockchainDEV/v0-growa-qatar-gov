@@ -4,21 +4,23 @@ import { useEffect, useMemo, useState } from 'react'
 import { useI18n } from '@/lib/i18n'
 import { Maximize2 } from 'lucide-react'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { SatelliteMap } from '@/components/dashboard/satellite-map'
-import { ModuleWorkspace } from '@/components/dashboard/module-workspace'
-import { RssFeedWorkspace } from '@/components/dashboard/rss-feed-workspace'
-import { DataAnalyticsWorkspace } from '@/components/dashboard/data-analytics-workspace'
-import { WaterIntelligenceWorkspace } from '@/components/dashboard/water-intelligence-workspace'
-import { EnergyIntelligenceWorkspace } from '@/components/dashboard/energy-intelligence-workspace'
-import { WeatherWorkspace } from '@/components/dashboard/weather-workspace'
-import { HarvestWorkspace } from '@/components/dashboard/harvest-workspace'
-import { WatchtowerWorkspace } from '@/components/dashboard/watchtower-workspace'
-import { AlertsCenterWorkspace } from '@/components/dashboard/alerts-center-workspace'
-import { AiMissionControlWorkspace } from '@/components/dashboard/ai-mission-control-workspace'
-import { InvestigationsWorkspace } from '@/components/dashboard/investigations-workspace'
-import { InspectionsWorkspace } from '@/components/dashboard/inspections-workspace'
-import { DataHealthWorkspace } from '@/components/dashboard/data-health-workspace'
-import { CommodityWorkspace } from '@/components/dashboard/commodity-workspace'
+import {
+  SatelliteMap,
+  ModuleWorkspace,
+  RssFeedWorkspace,
+  DataAnalyticsWorkspace,
+  WaterIntelligenceWorkspace,
+  EnergyIntelligenceWorkspace,
+  WeatherWorkspace,
+  HarvestWorkspace,
+  WatchtowerWorkspace,
+  AlertsCenterWorkspace,
+  AiMissionControlWorkspace,
+  InvestigationsWorkspace,
+  InspectionsWorkspace,
+  DataHealthWorkspace,
+  CommodityWorkspace,
+} from '@/components/dashboard/lazy-modules'
 import { HarvestDashboardProvider, useHarvestDashboardOptional } from '@/contexts/harvest-dashboard-context'
 import { useOperationalContextOptional } from '@/contexts/operational-context-provider'
 import { buildWeatherDashboardParams } from '@/lib/dashboard/weather-url'
@@ -34,6 +36,11 @@ import {
   DASHBOARD_MAP_SURFACE_MODULES,
   resolveDashboardPageModule,
 } from '@/lib/dashboard/map-navigation'
+
+/* Shared empty lists: a fresh `[]` per render is a new dependency for the map
+   effects and made them redraw every layer. */
+const NO_FIELDS: never[] = []
+const NO_LINES: never[] = []
 
 function SlideFromLeftWorkspace({
   children,
@@ -54,6 +61,7 @@ function SlideFromLeftWorkspace({
   targetZoom?: number
   targetCropFilter: string | null
 }) {
+  const { tr } = useI18n()
   const router = useRouter()
   const searchParams = useSearchParams()
   const weatherGridPoints = useMemo(
@@ -218,7 +226,7 @@ function SlideFromLeftWorkspace({
     }
   }, [isHarvestModule])
 
-  const harvestFields = harvestDashboard?.mapFields ?? []
+  const harvestFields = harvestDashboard?.mapFields ?? NO_FIELDS
 
   useEffect(() => {
     if (!isHarvestModule || !selectedHarvestParcelId) {
@@ -276,8 +284,10 @@ function SlideFromLeftWorkspace({
   return (
     <div className="relative h-full w-full overflow-hidden">
       <div
-        className={`absolute inset-0 z-0 transition-[left] duration-300 ease-out ${
-          panelVisible ? 'left-3/4' : 'left-0'
+        /* Logical insets: in Arabic the panel is on the right and the map
+           slides to the left of it. */
+        className={`absolute inset-y-0 end-0 z-0 transition-[inset-inline-start] duration-300 ease-out ${
+          panelVisible ? 'start-3/4' : 'start-0'
         }`}
       >
         <SatelliteMap
@@ -292,9 +302,9 @@ function SlideFromLeftWorkspace({
           onMapClick={undefined}
           weatherGridPoints={weatherGridPoints}
           selectedWeatherGridPointId={selectedWeatherGridPointId}
-          weatherGridLines={isHarvestModule ? [] : weatherGridLines}
+          weatherGridLines={isHarvestModule ? NO_LINES : weatherGridLines}
           weatherBoundary={weatherBoundary}
-          harvestFields={isHarvestModule ? harvestFields : []}
+          harvestFields={isHarvestModule ? harvestFields : NO_FIELDS}
           selectedHarvestParcelId={
             isHarvestModule && !harvestCreateActive ? selectedHarvestParcelId : null
           }
@@ -346,21 +356,23 @@ function SlideFromLeftWorkspace({
         moduleKey !== 'production-harvest' && (
           <button
             type="button"
-            aria-label="Open full live map"
-            title="Open full live map"
-            className="absolute top-20 z-[1700] flex h-9 w-9 items-center justify-center rounded-lg border border-white/15 bg-[#0c0c0e]/90 text-white/80 shadow-lg transition-colors hover:border-[#07f880]/50 hover:text-[#07f880] left-[calc(75%-1.125rem)]"
+            aria-label={tr('Open full live map')}
+            title={tr('Open full live map')}
+            className="absolute top-4 z-[1900] flex h-10 w-10 items-center justify-center rounded-pill border border-line bg-card text-content shadow-panel transition-colors hover:bg-stone-100 start-[calc(75%+0.75rem)]"
             onClick={() => router.push('/dashboard?module=live-map&zoom=10', { scroll: false })}
           >
-            <Maximize2 className="h-4 w-4" />
+            <Maximize2 strokeWidth={1.5} className="h-4 w-4" />
           </button>
         )}
 
       <div
-        className={`pointer-events-auto absolute bottom-0 left-0 top-16 z-[1800] w-3/4 transform transition-transform duration-300 ease-out ${
-          panelVisible ? 'translate-x-0' : '-translate-x-full'
+        className={`pointer-events-auto absolute bottom-0 start-0 top-0 z-[1800] w-3/4 transform transition-transform duration-300 ease-out ${
+          panelVisible ? 'translate-x-0' : '-translate-x-full rtl:translate-x-full'
         }`}
       >
-        <div className="relative z-[1] flex h-full min-h-0 flex-col overflow-hidden border-r border-white/10 bg-[#070a10]/95 backdrop-blur-md shadow-2xl">
+        {/* The panel is the page: stone-50 surface with white cards on it,
+           as every SaaS page. One hairline separates it from the map. */}
+        <div className="relative z-[1] flex h-full min-h-0 flex-col overflow-hidden border-e border-line bg-background">
           {children}
         </div>
       </div>

@@ -1,102 +1,131 @@
 @import 'tailwindcss';
-@import 'tw-animate-css';
+@import '../styles/growa/theme.css';
 
+/* The app is light-first; `.dark` is no longer applied (providers.tsx
+   forces the light theme). The variant stays defined so the existing
+   `dark:` classes compile — they are simply inert. */
 @custom-variant dark (&:is(.dark *));
 
-/* Palantir-inspired Dark Theme - Growa Qatar */
+/* =====================================================================
+   SHADCN LAYER → GROWA SEMANTICS
+   ---------------------------------------------------------------------
+   The app uses shadcn's semantic names ~965 times (`bg-card`,
+   `text-muted-foreground`, `border-primary`…). Rather than rewrite them,
+   each name is pointed at the brand semantic with the same MEANING, so
+   the whole interface moves onto the brand in one step and the screens
+   are then refined one at a time.
+
+   Decisions worth knowing:
+   · `primary` is INK, not sage. Sage is the agronomic "good", not an
+     action colour; the brand's primary action is ink (Brand Book p.79).
+     The old lime `text-primary` highlights therefore read as ink until
+     each screen is reviewed.
+   · `accent` (shadcn's hover/selected surface) is cream-100: the brand's
+     highlight tint, quiet enough for a hover.
+   · `ring` is sage — the brand focus ring.
+   · Charts use the brand series (sage, terracotta, ochre, dark teal,
+     warm grey): no default rainbow.
+   · `warning` has no brand value. Ochre from the chart series is used
+     and flagged as DERIVED.
+
+   WHY THE INVERSE BLOCK REPEATS EVERYTHING. A custom property resolves
+   where it is DECLARED: `--card: var(--surface-card)` on :root computes
+   to white there and that value is inherited as is. `.growa-inverse`
+   remaps `--surface-card` to ink-800, but `--card` would not recompute —
+   the ink panel would keep white cards (the SaaS hit exactly this). So
+   every shadcn name is re-declared on the scope element, where it
+   resolves against the remapped brand values. Any future scope that
+   remaps the brand semantics must do the same.
+   ===================================================================== */
 :root {
-  /* Force dark mode as default for Palantir aesthetic */
-  --background: oklch(0.09 0.005 260);
-  --foreground: oklch(0.95 0 0);
-  --card: oklch(0.12 0.005 260);
-  --card-foreground: oklch(0.95 0 0);
-  --popover: oklch(0.11 0.005 260);
-  --popover-foreground: oklch(0.95 0 0);
-  
-  /* Lime Green accent - Growa signature color #07f880 */
-  --primary: #07f880;
-  --primary-foreground: oklch(0.1 0.01 260);
-  
-  --secondary: oklch(0.18 0.01 260);
-  --secondary-foreground: oklch(0.9 0 0);
-  
-  --muted: oklch(0.16 0.005 260);
-  --muted-foreground: oklch(0.6 0 0);
-  
-  --accent: #07f880;
-  --accent-foreground: oklch(0.1 0.01 260);
-  
-  --destructive: oklch(0.55 0.2 25);
-  --destructive-foreground: oklch(0.95 0 0);
-  
-  --border: oklch(0.22 0.01 260);
-  --input: oklch(0.16 0.01 260);
-  --ring: #07f880;
-  
-  /* Chart colors - data visualization palette */
-  --chart-1: #07f880;
-  --chart-2: #07f880;
-  --chart-3: oklch(0.75 0.15 85);
-  --chart-4: oklch(0.65 0.2 300);
-  --chart-5: oklch(0.6 0.18 30);
-  
-  --radius: 0.5rem;
-  
-  /* Sidebar - slightly darker for depth */
-  --sidebar: oklch(0.07 0.005 260);
-  --sidebar-foreground: oklch(0.9 0 0);
-  --sidebar-primary: #07f880;
-  --sidebar-primary-foreground: oklch(0.1 0.01 260);
-  --sidebar-accent: oklch(0.14 0.01 260);
-  --sidebar-accent-foreground: oklch(0.95 0 0);
-  --sidebar-border: oklch(0.18 0.01 260);
-  --sidebar-ring: #07f880;
-  
-  /* Custom Palantir accents */
-  --glow: rgb(7 248 128 / 0.15);
-  --success: #07f880;
-  --warning: oklch(0.75 0.15 85);
-  --info: #07f880;
+  /* Same rule as the Growa SaaS (globals.css there):
+       page background   = stone-50
+       cards and panels  = white (`bg-card`)
+       `bg-muted`        = a surface INSIDE a white card
+     White cards on a white page leave only a 1.29:1 hairline to separate
+     them; the warm near-white gives them a surface to sit on. The access
+     screens and the landing set `bg-page` (white) explicitly, as in the SaaS. */
+  --background: var(--growa-stone-50);
+  --foreground: var(--text-primary);
+  --card: var(--surface-card);
+  --card-foreground: var(--text-primary);
+  --popover: var(--surface-card);
+  --popover-foreground: var(--text-primary);
+  --primary: var(--growa-ink);
+  --primary-foreground: var(--growa-white);
+  --secondary: var(--growa-stone-100);
+  --secondary-foreground: var(--text-primary);
+  --muted: var(--surface-muted);
+  --muted-foreground: var(--text-secondary);
+  --accent: var(--growa-cream-100);
+  --accent-foreground: var(--growa-ink);
+  --destructive: var(--status-critical);
+  --destructive-foreground: var(--growa-white);
+  --border: var(--border-subtle);
+  --input: var(--border-default);
+  --ring: var(--focus-ring);
+
+  --chart-1: #6C8952;  /* sage — brand */
+  --chart-2: #B4644A;  /* terracotta — derived */
+  --chart-3: #C9A227;  /* ochre — derived */
+  --chart-4: #2F5D50;  /* dark teal — derived */
+  --chart-5: #8C9388;  /* warm grey — stone-500 */
+
+  /* SEVERITY SCALE — DERIVED, not in the brand (it has good / progress /
+     critical only). A national alerting console needs four steps, so two
+     are taken from the brand chart series and given a dark text variant
+     that passes 4.5:1 on white:
+       critical  #A8392B  (brand system red)
+       high      #B4644A terracotta  → text #8C4A33
+       warning   #C9A227 ochre       → text #7A5E0F
+       low/info  stone-600 (brand "progress")
+     To be validated with the brand agency, like the SaaS derived steps. */
+  --warning: #C9A227;
+  --warning-strong: #7A5E0F;
+  --warning-soft: #FBF6E4;
+  --warning-line: #EAD9A0;
+  --high: #B4644A;
+  --high-strong: #8C4A33;
+  --success: var(--status-good);
+  --info: var(--growa-stone-600);
+
+  /* Legacy radius base, read by components/ui/sidebar.tsx. 12px = the
+     brand `lg` step (25% of a 48px control). */
+  --radius: 12px;
+
+  /* Navigation rail: an INK panel with cream as its voice (the brand's
+     strong inverse moment). The rail carries `.growa-inverse`. */
+  --sidebar: var(--growa-ink);
+  --sidebar-foreground: var(--growa-white);
+  --sidebar-primary: var(--growa-cream);
+  --sidebar-primary-foreground: var(--growa-ink);
+  --sidebar-accent: var(--growa-ink-800);
+  --sidebar-accent-foreground: var(--growa-white);
+  --sidebar-border: rgba(238, 244, 201, .18);
+  --sidebar-ring: var(--growa-cream);
 }
 
-.dark {
-  --background: oklch(0.09 0.005 260);
-  --foreground: oklch(0.95 0 0);
-  --card: oklch(0.12 0.005 260);
-  --card-foreground: oklch(0.95 0 0);
-  --popover: oklch(0.11 0.005 260);
-  --popover-foreground: oklch(0.95 0 0);
-  --primary: #07f880;
-  --primary-foreground: oklch(0.1 0.01 260);
-  --secondary: oklch(0.18 0.01 260);
-  --secondary-foreground: oklch(0.9 0 0);
-  --muted: oklch(0.16 0.005 260);
-  --muted-foreground: oklch(0.6 0 0);
-  --accent: #07f880;
-  --accent-foreground: oklch(0.1 0.01 260);
-  --destructive: oklch(0.55 0.2 25);
-  --destructive-foreground: oklch(0.95 0 0);
-  --border: oklch(0.22 0.01 260);
-  --input: oklch(0.16 0.01 260);
-  --ring: #07f880;
-  --chart-1: #07f880;
-  --chart-2: #07f880;
-  --chart-3: oklch(0.75 0.15 85);
-  --chart-4: oklch(0.65 0.2 300);
-  --chart-5: oklch(0.6 0.18 30);
-  --sidebar: oklch(0.07 0.005 260);
-  --sidebar-foreground: oklch(0.9 0 0);
-  --sidebar-primary: #07f880;
-  --sidebar-primary-foreground: oklch(0.1 0.01 260);
-  --sidebar-accent: oklch(0.14 0.01 260);
-  --sidebar-accent-foreground: oklch(0.95 0 0);
-  --sidebar-border: oklch(0.18 0.01 260);
-  --sidebar-ring: #07f880;
+.growa-inverse {
+  --background: var(--surface-page);
+  --foreground: var(--text-primary);
+  --card: var(--surface-card);
+  --card-foreground: var(--text-primary);
+  --popover: var(--surface-card);
+  --popover-foreground: var(--text-primary);
+  --primary: var(--growa-cream);
+  --primary-foreground: var(--growa-ink);
+  --secondary: var(--growa-ink-700);
+  --secondary-foreground: var(--growa-white);
+  --muted: var(--surface-muted);
+  --muted-foreground: var(--text-secondary);
+  --accent: var(--growa-ink-700);
+  --accent-foreground: var(--growa-white);
+  --border: var(--border-subtle);
+  --input: var(--border-default);
+  --ring: var(--growa-cream);
 }
 
 @theme inline {
-  --font-sans: 'Geist', 'Geist Fallback', system-ui, sans-serif;
-  --font-mono: 'Geist Mono', 'Geist Mono Fallback', monospace;
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
@@ -121,10 +150,14 @@
   --color-chart-3: var(--chart-3);
   --color-chart-4: var(--chart-4);
   --color-chart-5: var(--chart-5);
-  --radius-sm: calc(var(--radius) - 4px);
-  --radius-md: calc(var(--radius) - 2px);
-  --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) + 4px);
+  --color-warning: var(--warning);
+  --color-warning-strong: var(--warning-strong);
+  --color-warning-soft: var(--warning-soft);
+  --color-warning-line: var(--warning-line);
+  --color-high: var(--high);
+  --color-high-strong: var(--high-strong);
+  --color-success: var(--success);
+  --color-info: var(--info);
   --color-sidebar: var(--sidebar);
   --color-sidebar-foreground: var(--sidebar-foreground);
   --color-sidebar-primary: var(--sidebar-primary);
@@ -141,23 +174,220 @@
   }
   body {
     @apply bg-background text-foreground antialiased;
+    font-family: var(--font-core);
   }
 }
 
-/* Palantir-style custom utilities */
 @layer utilities {
-  .glow-primary {
-    box-shadow: 0 0 20px var(--glow), 0 0 40px var(--glow);
-  }
-  .glow-border {
-    box-shadow: inset 0 0 0 1px var(--primary), 0 0 15px var(--glow);
-  }
+  /* RETIRED. The glow belonged to the old neon console; the brand has
+     almost no shadows and no decorative effects. Kept as no-ops so the
+     remaining call sites compile until each screen is migrated. */
+  .glow-primary { box-shadow: none; }
+  .glow-border { box-shadow: inset 0 0 0 1px var(--border-default); }
+
+  /* The old line grid becomes the brand lattice: small SQUARES standing
+     for data points, never lines or round dots. Low-contrast stone on
+     light surfaces, cream when the parent is `.growa-inverse`. */
   .data-grid {
-    background-image: 
-      linear-gradient(to right, oklch(0.2 0.01 260 / 0.3) 1px, transparent 1px),
-      linear-gradient(to bottom, oklch(0.2 0.01 260 / 0.3) 1px, transparent 1px);
-    background-size: 20px 20px;
+    --dot-color: var(--growa-stone-300);
+    --dot-step: 28px;
+    --dot-size: 2px;
+    background: var(--dot-color);
+    -webkit-mask-image:
+      repeating-linear-gradient(to bottom, #000 0 var(--dot-size), transparent var(--dot-size) var(--dot-step)),
+      repeating-linear-gradient(to right, #000 0 var(--dot-size), transparent var(--dot-size) var(--dot-step));
+    mask-image:
+      repeating-linear-gradient(to bottom, #000 0 var(--dot-size), transparent var(--dot-size) var(--dot-step)),
+      repeating-linear-gradient(to right, #000 0 var(--dot-size), transparent var(--dot-size) var(--dot-step));
+    -webkit-mask-composite: source-in;
+    mask-composite: intersect;
+    pointer-events: none;
   }
+  .growa-inverse .data-grid { --dot-color: rgba(238, 244, 201, .5); }
+}
+
+/* =====================================================================
+   PARITY WITH THE GROWA SAAS
+   ---------------------------------------------------------------------
+   The two products follow one brand identity: the rules below are ported
+   as-is from the SaaS `globals.css`, so a card, a table or a disabled
+   button look the same in both. Unlayered on purpose (as in the SaaS):
+   they are deliberate overrides of utilities.
+   ===================================================================== */
+
+:root {
+  --top-bar-height: 64px;
+  /* How far content breathes from the window edges. */
+  --main-pad: 16px;
+}
+@media (min-width: 768px) {
+  :root { --main-pad: 24px; }
+}
+
+/* Scrollbar: a warm neutral pill, transparent track. A tool, not a colour. */
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--growa-stone-300); border-radius: var(--radius-pill); }
+::-webkit-scrollbar-thumb:hover { background: var(--growa-stone-500); }
+@supports not selector(::-webkit-scrollbar) {
+  * { scrollbar-width: thin; scrollbar-color: var(--growa-stone-300) transparent; }
+}
+.scrollbar-none { -ms-overflow-style: none; scrollbar-width: none; }
+.scrollbar-none::-webkit-scrollbar { display: none; }
+
+/* Focus: one sage ring everywhere. Fields that already show focus with a
+   sage border (`outline-none` + `focus:border-sage`) skip the ring. */
+a:focus-visible,
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+[tabindex]:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+input.outline-none:focus-visible,
+select.outline-none:focus-visible,
+textarea.outline-none:focus-visible { outline: none; }
+
+::selection { background: var(--growa-cream); color: var(--growa-ink); }
+
+/* `.g-table` with spacing: 8px between columns, 16px on the outer edges. */
+.g-table--pad th,
+.g-table--pad td { padding-inline: var(--space-2); }
+.g-table--pad th:first-child,
+.g-table--pad td:first-child { padding-inline-start: var(--space-4); }
+.g-table--pad th:last-child,
+.g-table--pad td:last-child { padding-inline-end: var(--space-4); }
+.g-table.g-table--pad thead th { padding-top: var(--space-5); padding-bottom: var(--space-3); }
+.g-table--pad-sm th,
+.g-table--pad-sm td { padding-inline: var(--space-1); }
+.g-table--pad-sm th:first-child,
+.g-table--pad-sm td:first-child { padding-inline-start: var(--space-3); }
+.g-table--pad-sm th:last-child,
+.g-table--pad-sm td:last-child { padding-inline-end: var(--space-3); }
+.g-table.g-table--pad-sm thead th { padding-top: var(--space-4); padding-bottom: var(--space-2); }
+
+/* Range slider: neutral track, a round sage thumb (things you grab are
+   pills; a pill as tall as it is wide is a circle). */
+.g-range {
+  -webkit-appearance: none; appearance: none;
+  width: 100%; height: 6px;
+  border-radius: var(--radius-pill);
+  background: var(--growa-stone-200);
+  outline: none;
+}
+.g-range::-webkit-slider-thumb {
+  -webkit-appearance: none; appearance: none;
+  width: 20px; height: 20px; border-radius: 50%;
+  background: var(--growa-sage);
+  border: 2px solid var(--surface-card);
+  box-shadow: var(--shadow-panel);
+  cursor: pointer;
+}
+.g-range::-moz-range-thumb {
+  width: 20px; height: 20px; border-radius: 50%;
+  background: var(--growa-sage);
+  border: 2px solid var(--surface-card);
+  box-shadow: var(--shadow-panel);
+  cursor: pointer;
+}
+.g-range:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 3px var(--focus-ring); }
+.g-range:focus-visible::-moz-range-thumb { box-shadow: 0 0 0 3px var(--focus-ring); }
+.g-range:disabled { opacity: .6; cursor: not-allowed; }
+
+/* ---------------------------------------------------------------------
+   CARD FRAME BY FAMILY — `data-famiglia` on the card, `.g-card-testata`
+   on its header, `.g-card-icona` on the icon tile (same names as the SaaS).
+     monitoraggio (default) — white header, dotted rule, outlined icon;
+     comando — cream header, ink icon: the card acts on something;
+     ai — ink header with cream text: the brand's voice on dark.
+   The state never changes the frame.
+   --------------------------------------------------------------------- */
+.g-card-testata {
+  background: var(--surface-card);
+  border-bottom: 1px dotted var(--border-default);
+}
+.g-card-icona {
+  background: var(--surface-card);
+  color: var(--text-primary);
+  box-shadow: inset 0 0 0 1px var(--border-default);
+}
+[data-famiglia="comando"] .g-card-testata {
+  background: var(--growa-cream);
+  border-bottom: 1px solid var(--border-subtle);
+}
+[data-famiglia="comando"] .g-card-icona {
+  background: var(--growa-ink);
+  color: var(--growa-white);
+  box-shadow: none;
+}
+/* AI: re-declare the semantics AND the shadcn names on the element (they
+   resolve where declared, see the note at the top of this file). */
+[data-famiglia="ai"] .g-card-testata {
+  background: var(--growa-ink);
+  border-bottom: 1px solid var(--growa-ink);
+  color: var(--growa-cream);
+  --text-primary:   var(--growa-cream);
+  --text-secondary: var(--growa-sage-300);
+  --text-accent:    var(--growa-cream);
+  --surface-card:   var(--growa-ink-700);
+  --surface-muted:  var(--growa-ink-700);
+  --border-subtle:  rgba(238, 244, 201, .18);
+  --border-default: rgba(238, 244, 201, .28);
+  --card: var(--surface-card);
+  --muted: var(--surface-muted);
+  --foreground: var(--text-primary);
+  --muted-foreground: var(--text-secondary);
+  --border: var(--border-subtle);
+  --status-progress: var(--growa-cream);
+  --status-critical: #D19C8A;
+}
+[data-famiglia="ai"] .g-card-icona {
+  background: var(--growa-cream);
+  color: var(--growa-ink);
+  box-shadow: none;
+}
+[data-famiglia="ai"] .g-card-testata .g-tag--muted {
+  background: transparent;
+  color: var(--growa-cream);
+  border-color: rgba(238, 244, 201, .32);
+}
+[data-famiglia="ai"] .g-card-testata button.bg-card {
+  background: transparent;
+  color: var(--growa-cream);
+  box-shadow: inset 0 0 0 1px rgba(238, 244, 201, .36);
+}
+[data-famiglia="ai"] .g-card-testata button.bg-card:hover:not(:disabled) {
+  background: rgba(238, 244, 201, .10);
+}
+
+/* A disabled PRIMARY reads "not yet", not a heavy grey pill: it becomes an
+   outline — unless it is disabled because it is working (it contains a
+   `role="status"` loader), which keeps the fill. */
+.g-btn--primary:disabled:not(:has([role="status"])),
+.g-btn--primary[aria-disabled="true"]:not(:has([role="status"])) {
+  opacity: 1;
+  background: transparent;
+  color: var(--text-secondary);
+  border-color: var(--border-default);
+}
+
+/* CARD BODY: always white. Bordered white panels that are DIRECT children
+   (or children of a direct column) lose frame and side padding and are
+   separated by the dotted rule — no card-in-card. Tiles inside grids/rows
+   keep their frame. */
+.g-card-corpo { background: var(--surface-card); }
+:is(.g-card-corpo, .g-card-corpo > :is(:not(.grid, .flex), .flex.flex-col)) > .bg-card.border-line {
+  background: transparent;
+  border-color: transparent;
+  border-radius: 0;
+  padding-inline: 0;
+}
+:is(.g-card-corpo, .g-card-corpo > :is(:not(.grid, .flex), .flex.flex-col)) > .bg-card.border-line:first-child { padding-top: 0; }
+:is(.g-card-corpo, .g-card-corpo > :is(:not(.grid, .flex), .flex.flex-col)) > .bg-card.border-line:last-child { padding-bottom: 0; }
+:is(.g-card-corpo, .g-card-corpo > :is(:not(.grid, .flex), .flex.flex-col)) > .bg-card.border-line + .bg-card.border-line {
+  border-top: 1px dotted var(--border-default);
 }
 
 /* Harvest raster overlay must not steal polygon click events */
@@ -167,4 +397,34 @@
 
 .leaflet-harvest-field-polygon {
   cursor: pointer;
+}
+
+/* Arabic tables: "35,000 m³" rendered as "m³ 35,000" because the cell took
+   the page direction. Each cell now follows its own first strong character:
+   figures with Latin units read left to right, Arabic text right to left. */
+@layer components {
+  .g-table td,
+  .g-table th {
+    unicode-bidi: plaintext;
+  }
+  /* plaintext also resolves `start` per cell: keep the column alignment of
+     the page (utilities such as text-end still win, they are layered later). */
+  [dir='rtl'] .g-table td,
+  [dir='rtl'] .g-table th {
+    text-align: right;
+  }
+}
+
+/* Buttons used as bare `.g-btn` (without the Button component, which sets
+   height and padding inline) had no padding at all: the label touched the
+   pill edge. Default to the md-small size; inline styles still override. */
+@layer components {
+  .g-btn {
+    height: 40px;
+    padding: 0 20px;
+    font-size: 14px;
+    line-height: 1.2;
+    flex-shrink: 0;
+    max-width: 100%;
+  }
 }

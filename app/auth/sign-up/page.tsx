@@ -1,15 +1,23 @@
 'use client'
 
 import { createClient } from '@/lib/supabase/client'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
+import { useI18n } from '@/lib/i18n'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useState } from 'react'
-import { Sprout, ArrowLeft, Mail, Lock, Shield, Activity } from 'lucide-react'
+import { AuthShell } from '@/components/brand/auth-shell'
+import {
+  Button,
+  Field,
+  FormMessage,
+  LatticeLoader,
+  PasswordField,
+  PasswordStrength,
+  StatusDot,
+} from '@/components/brand/ui'
 
 export default function Page() {
+  const { tr } = useI18n()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [repeatPassword, setRepeatPassword] = useState('')
@@ -24,13 +32,13 @@ export default function Page() {
     setError(null)
 
     if (password !== repeatPassword) {
-      setError('Passwords do not match')
+      setError(tr('Passwords do not match'))
       setIsLoading(false)
       return
     }
 
     if (password.length < 8) {
-      setError('Password must be at least 8 characters')
+      setError(tr('Password must be at least 8 characters'))
       setIsLoading(false)
       return
     }
@@ -48,180 +56,97 @@ export default function Page() {
       if (error) throw error
       router.push('/auth/sign-up-success')
     } catch (error: unknown) {
-      setError(error instanceof Error ? error.message : 'An error occurred')
+      setError(error instanceof Error ? error.message : tr('An error occurred'))
     } finally {
       setIsLoading(false)
     }
   }
 
   return (
-    <div className="min-h-screen bg-background relative overflow-hidden">
-      {/* Background effects */}
-      <div className="absolute inset-0 data-grid opacity-20" />
-      <div className="absolute top-1/3 right-1/4 w-96 h-96 bg-primary/5 rounded-full blur-3xl" />
-      
-      <div className="relative z-10 flex min-h-screen">
-        {/* Left side - branding */}
-        <div className="hidden lg:flex lg:w-1/2 flex-col justify-between p-12 bg-card/30 border-r border-border">
-          <div>
-            <Link href="/" className="flex items-center gap-3 text-foreground hover:text-primary transition-colors">
-              <ArrowLeft className="h-4 w-4" />
-              <span className="text-sm font-medium">Back to Home</span>
-            </Link>
-          </div>
-          
-          <div className="space-y-6">
-            <div className="flex items-center gap-3">
-              <img 
-                src="/growa-logo.png" 
-                alt="Growa" 
-                className="h-14 w-14 drop-shadow-lg"
-              />
-            </div>
-            <h1 className="text-4xl font-bold text-foreground tracking-tight">
-              Join <span className="text-primary">GROWA</span>
-            </h1>
-            <p className="text-lg text-muted-foreground max-w-md">
-              Request access to Qatar&apos;s premier agricultural operations platform. 
-              Get real-time insights and manage resources efficiently.
-            </p>
-            
-            <div className="space-y-3 pt-4">
-              {[
-                'Real-time environmental monitoring',
-                'Production cycle management',
-                'Inventory tracking and analytics',
-              ].map((feature) => (
-                <div key={feature} className="flex items-center gap-3">
-                  <div className="h-1.5 w-1.5 rounded-full bg-primary" />
-                  <span className="text-sm text-muted-foreground">{feature}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-          
-          <p className="text-xs text-muted-foreground">
-            Ministry of Municipality - State of Qatar
-          </p>
+    <AuthShell
+      claim="Grow Beyond Average."
+      intro={tr('Request access to Qatar’s agricultural operations platform: real-time insight into production, resources and supply.')}
+    >
+      <h1 className="text-content text-title" style={{ fontWeight: 500, letterSpacing: 'var(--ls-heading)' }}>
+        {tr('Request access')}
+      </h1>
+      <p className="mt-2 text-[14px] text-content-soft">
+        {tr('Create your account to join the platform.')}
+      </p>
+
+      {/* The brand's bullet is the square data point. */}
+      <ul className="mt-6 space-y-2">
+        {[
+          'Real-time environmental monitoring',
+          'Production cycle management',
+          'Inventory tracking and analytics',
+        ].map((feature) => (
+          <li key={feature}>
+            <StatusDot tone="good" size={6} label={<span className="text-[13px] text-content-soft">{tr(feature)}</span>} />
+          </li>
+        ))}
+      </ul>
+
+      <form onSubmit={handleSignUp} className="mt-8 space-y-5">
+        <Field
+          id="email"
+          label={tr('Email address')}
+          type="email"
+          autoComplete="email"
+          placeholder="operator@growa.qa"
+          required
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+        />
+
+        <div>
+          <PasswordField
+            id="password"
+            label={tr('Password')}
+            autoComplete="new-password"
+            hint={tr('At least 8 characters.')}
+            required
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+          />
+          <PasswordStrength password={password} />
         </div>
 
-        {/* Right side - sign up form */}
-        <div className="flex-1 flex items-center justify-center p-6 md:p-12">
-          <div className="w-full max-w-md">
-            {/* Mobile logo */}
-            <div className="lg:hidden flex items-center gap-3 mb-8">
-              <img 
-                src="/growa-logo.png" 
-                alt="Growa" 
-                className="h-10 w-10"
-              />
-              <h1 className="text-2xl font-bold text-foreground tracking-tight">
-                GROWA <span className="text-primary">QATAR</span>
-              </h1>
-            </div>
+        <PasswordField
+          id="repeat-password"
+          label={tr('Confirm password')}
+          autoComplete="new-password"
+          required
+          value={repeatPassword}
+          onChange={(e) => setRepeatPassword(e.target.value)}
+        />
 
-            <div className="space-y-6">
-              <div>
-                <h2 className="text-2xl font-bold text-foreground">Request Access</h2>
-                <p className="text-sm text-muted-foreground mt-2">
-                  Create your account to join the platform
-                </p>
-              </div>
+        <FormMessage>{error}</FormMessage>
 
-              <form onSubmit={handleSignUp} className="space-y-5">
-                <div className="space-y-2">
-                  <Label htmlFor="email" className="text-sm font-medium text-foreground">
-                    Email Address
-                  </Label>
-                  <div className="relative">
-                    <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                    <Input
-                      id="email"
-                      type="email"
-                      placeholder="operator@growa.qa"
-                      required
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      className="pl-10 h-11 bg-secondary/50 border-border focus:border-primary/50 focus:ring-primary/30"
-                    />
-                  </div>
-                </div>
+        <Button type="submit" fullWidth disabled={isLoading} aria-busy={isLoading || undefined}>
+          {isLoading ? (
+            <>
+              <LatticeLoader className="text-cream scale-75" label={tr('Creating account')} />
+              {tr('Creating account…')}
+            </>
+          ) : (
+            tr('Create account')
+          )}
+        </Button>
 
-                <div className="space-y-2">
-                  <Label htmlFor="password" className="text-sm font-medium text-foreground">
-                    Password
-                  </Label>
-                  <div className="relative">
-                    <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                    <Input
-                      id="password"
-                      type="password"
-                      placeholder="Min. 8 characters"
-                      required
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      className="pl-10 h-11 bg-secondary/50 border-border focus:border-primary/50 focus:ring-primary/30"
-                    />
-                  </div>
-                </div>
+        <p className="text-[12px] text-content-soft">
+          {tr('Your data is protected with enterprise-grade encryption.')}
+        </p>
+      </form>
 
-                <div className="space-y-2">
-                  <Label htmlFor="repeat-password" className="text-sm font-medium text-foreground">
-                    Confirm Password
-                  </Label>
-                  <div className="relative">
-                    <Shield className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                    <Input
-                      id="repeat-password"
-                      type="password"
-                      placeholder="Repeat your password"
-                      required
-                      value={repeatPassword}
-                      onChange={(e) => setRepeatPassword(e.target.value)}
-                      className="pl-10 h-11 bg-secondary/50 border-border focus:border-primary/50 focus:ring-primary/30"
-                    />
-                  </div>
-                </div>
+      <hr className="growa-dotted-rule my-8" />
 
-                {error && (
-                  <div className="rounded-lg bg-red-500/10 border border-red-500/20 px-4 py-3">
-                    <p className="text-sm text-red-400">{error}</p>
-                  </div>
-                )}
-
-                <Button 
-                  type="submit" 
-                  className="w-full h-11 bg-primary hover:bg-primary/90 text-primary-foreground font-semibold glow-primary" 
-                  disabled={isLoading}
-                >
-                  {isLoading ? (
-                    <div className="flex items-center gap-2">
-                      <div className="h-4 w-4 border-2 border-primary-foreground/30 border-t-primary-foreground rounded-full animate-spin" />
-                      <span>Creating account...</span>
-                    </div>
-                  ) : (
-                    'Create Account'
-                  )}
-                </Button>
-
-                <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                  <Activity className="h-3.5 w-3.5 text-primary" />
-                  <span>Your data is secured with enterprise-grade encryption</span>
-                </div>
-              </form>
-
-              <div className="text-center">
-                <p className="text-sm text-muted-foreground">
-                  Already have an account?{' '}
-                  <Link href="/auth/login" className="text-primary hover:text-primary/80 font-medium transition-colors">
-                    Sign In
-                  </Link>
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
+      <p className="text-[14px] text-content-soft">
+        {tr('Already have an account?')}{' '}
+        <Link href="/auth/login" className="text-sage-700 hover:text-ink font-medium transition-colors">
+          {tr('Sign in')}
+        </Link>
+      </p>
+    </AuthShell>
   )
 }

@@ -22,7 +22,7 @@ function buildStats(
     Object.fromEntries(
       Object.entries(values).map(([metric, points]) => [
         metric,
-        points.map((value, index) => ({ period: `2025-09-${String(index + 1).padStart(2, '0')}`, value })),
+        (points ?? []).map((value, index) => ({ period: `2025-09-${String(index + 1).padStart(2, '0')}`, value })),
       ])
     )
 

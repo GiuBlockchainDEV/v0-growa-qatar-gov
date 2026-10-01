@@ -15,6 +15,7 @@ import {
 import { buildHarvestNationalDashboardUrl } from '@/lib/harvest/field-navigation'
 import type { LatLngVertex } from '@/lib/harvest/geojson'
 import type { HarvestCropGroup } from '@/lib/harvest/types'
+import { useI18n } from '@/lib/i18n'
 
 type HarvestDrawMethod = 'vertex' | 'circle'
 
@@ -46,6 +47,7 @@ export function HarvestFieldCreatePanel({
   onFinishPolygon,
   onCreated,
 }: HarvestFieldCreatePanelProps) {
+  const { tr } = useI18n()
   const router = useRouter()
   const searchParams = useSearchParams()
   const harvestMode = searchParams.get('harvestMode') === 'predict' ? 'predict' : 'current'
@@ -149,7 +151,7 @@ export function HarvestFieldCreatePanel({
 
   const submitField = useCallback(async () => {
     if (hasDraftInProgress) {
-      setError('Finish the current polygon or clear it before creating the field.')
+      setError(tr('Finish the current polygon or clear it before creating the field.'))
       return
     }
 
@@ -174,14 +176,14 @@ export function HarvestFieldCreatePanel({
       })
       const payload = await response.json()
       if (!response.ok) {
-        throw new Error(typeof payload?.error === 'string' ? payload.error : 'Unable to create field')
+        throw new Error(typeof payload?.error === 'string' ? payload.error : tr('Unable to create field'))
       }
 
       window.dispatchEvent(new Event('harvest:fields-updated'))
       onCreated?.(payload.parcel_id, payload.season_id)
       exitCreateMode()
     } catch (submitError) {
-      setError(submitError instanceof Error ? submitError.message : 'Unable to create field')
+      setError(submitError instanceof Error ? submitError.message : tr('Unable to create field'))
     } finally {
       setSubmitting(false)
     }
@@ -194,6 +196,7 @@ export function HarvestFieldCreatePanel({
     onCreated,
     rings,
     startDate,
+    tr,
     validationError,
   ])
 
@@ -204,8 +207,8 @@ export function HarvestFieldCreatePanel({
 
   return (
     <IntelligencePanel
-      title="Create new field"
-      subtitle="Draw the boundary on the map, then select the crop to auto-fill season dates"
+      title={tr('Create new field')}
+      subtitle={tr('Draw the boundary on the map, then select the crop to auto-fill season dates')}
       icon={Plus}
     >
       <div className="space-y-4">
@@ -213,55 +216,55 @@ export function HarvestFieldCreatePanel({
           <button
             type="button"
             onClick={() => onDrawMethodChange('vertex')}
-            className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium ${
+            className={`inline-flex items-center gap-1.5 rounded-pill border px-3 py-1.5 text-xs font-medium ${
               drawMethod === 'vertex'
-                ? 'border-primary/40 bg-primary/15 text-primary'
-                : 'border-border bg-card text-muted-foreground hover:text-foreground'
+                ? 'border-ink bg-ink text-white'
+                : 'border-line bg-card text-content-soft hover:text-content'
             }`}
           >
-            <Pentagon className="h-3.5 w-3.5" />
-            Polygon
+            <Pentagon strokeWidth={1.5} className="h-3.5 w-3.5" />
+            {tr('Polygon')}
           </button>
           <button
             type="button"
             onClick={() => onDrawMethodChange('circle')}
-            className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium ${
+            className={`inline-flex items-center gap-1.5 rounded-pill border px-3 py-1.5 text-xs font-medium ${
               drawMethod === 'circle'
-                ? 'border-primary/40 bg-primary/15 text-primary'
-                : 'border-border bg-card text-muted-foreground hover:text-foreground'
+                ? 'border-ink bg-ink text-white'
+                : 'border-line bg-card text-content-soft hover:text-content'
             }`}
           >
-            <Circle className="h-3.5 w-3.5" />
-            Circle
+            <Circle strokeWidth={1.5} className="h-3.5 w-3.5" />
+            {tr('Circle')}
           </button>
           <button
             type="button"
             onClick={exitCreateMode}
-            className="ml-auto inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs text-muted-foreground hover:text-foreground"
+            className="ms-auto inline-flex items-center gap-1.5 rounded-pill border border-line px-3 py-1.5 text-xs text-content-soft hover:text-content"
           >
-            <X className="h-3.5 w-3.5" />
-            Cancel
+            <X strokeWidth={1.5} className="h-3.5 w-3.5" />
+            {tr('Cancel')}
           </button>
         </div>
 
-        <div className="rounded-lg border border-border bg-secondary/20 px-3 py-2 text-xs text-muted-foreground">
+        <div className="bg-muted px-3 py-2.5 text-[12px] leading-[1.45] text-content-soft" style={{ borderRadius: 'var(--radius-md)' }}>
           {drawMethod === 'vertex'
-            ? 'Click on the map to add vertices. Use "Finish polygon" to save it, then draw more polygons in the same field.'
-            : 'Click the circle center, move the mouse to set the radius, then click again to confirm. You can add multiple circles.'}
+            ? tr('Click on the map to add vertices. Use “Finish polygon” to save it, then draw more polygons in the same field.')
+            : tr('Click the circle center, move the mouse to set the radius, then click again to confirm. You can add multiple circles.')}
         </div>
 
         <div className="grid grid-cols-3 gap-2 text-xs">
-          <div className="rounded-lg border border-border bg-card/70 px-3 py-2">
-            <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Polygons</p>
-            <p className="mt-1 font-semibold text-foreground">{polygonCount}</p>
+          <div className="rounded-lg border border-line bg-card px-3 py-2">
+            <p className="text-[11px] text-content-soft">{tr('Polygons')}</p>
+            <p className="mt-1 growa-figure text-[16px] text-content">{polygonCount}</p>
           </div>
-          <div className="rounded-lg border border-border bg-card/70 px-3 py-2">
-            <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Draft pts</p>
-            <p className="mt-1 font-semibold text-foreground">{draftVertices.length}</p>
+          <div className="rounded-lg border border-line bg-card px-3 py-2">
+            <p className="text-[11px] text-content-soft">{tr('Draft pts')}</p>
+            <p className="mt-1 growa-figure text-[16px] text-content">{draftVertices.length}</p>
           </div>
-          <div className="rounded-lg border border-border bg-card/70 px-3 py-2">
-            <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Area</p>
-            <p className={`mt-1 font-semibold ${areaValid ? 'text-foreground' : 'text-amber-300'}`}>
+          <div className="rounded-lg border border-line bg-card px-3 py-2">
+            <p className="text-[11px] text-content-soft">{tr('Area')}</p>
+            <p className={`mt-1 growa-figure text-[16px] ${areaValid ? 'text-content' : 'text-warning-strong'}`}>
               {polygonCount > 0 || draftVertices.length >= 3 ? `${totalAreaHa.toFixed(2)} ha` : '—'}
             </p>
           </div>
@@ -271,34 +274,34 @@ export function HarvestFieldCreatePanel({
           <button
             type="button"
             onClick={onFinishPolygon}
-            className="w-full rounded-lg border border-primary/30 bg-primary/10 px-3 py-2 text-xs font-medium text-primary hover:bg-primary/15"
+            className="g-btn g-btn--primary w-full" style={{ height: 36, fontSize: 13 }}
           >
-            Finish polygon and add another
+            {tr('Finish polygon and add another')}
           </button>
         ) : null}
 
-        <p className="text-[11px] text-muted-foreground">
-          Season start is suggested from crop type and field location. Harvest date must be set
-          manually. Start must be at least{' '}
-          {START_DATE_LOOKBACK_DAYS} days before today (latest {latestStartDate}). Area must be between{' '}
-          {MIN_FIELD_AREA_HECTARES} and {MAX_FIELD_AREA_HECTARES} ha.
+        <p className="text-[11px] text-content-soft">
+          {tr(
+            'Season start is suggested from crop type and field location. Harvest date must be set manually. Start must be at least {days} days before today (latest {latest}). Area must be between {min} and {max} ha.',
+            { days: START_DATE_LOOKBACK_DAYS, latest: latestStartDate, min: MIN_FIELD_AREA_HECTARES, max: MAX_FIELD_AREA_HECTARES }
+          )}
         </p>
 
         <div className="space-y-3">
           <input
             value={name}
             onChange={(event) => setName(event.target.value)}
-            placeholder="Field name"
-            className="h-9 w-full rounded-lg border border-border bg-card px-3 text-sm text-foreground placeholder:text-muted-foreground"
+            placeholder={tr('Field name')}
+            className="h-9 w-full rounded-md border border-line-strong bg-card px-3 text-[14px] text-content placeholder:text-content-soft focus:border-sage focus:outline-none"
           />
 
           <select
             value={cropId}
             onChange={(event) => setCropId(event.target.value)}
             disabled={loadingCrops}
-            className="h-9 w-full rounded-lg border border-border bg-card px-3 text-sm text-foreground"
+            className="h-9 w-full rounded-md border border-line-strong bg-card px-3 text-[14px] text-content placeholder:text-content-soft focus:border-sage focus:outline-none"
           >
-            <option value="">Select crop</option>
+            <option value="">{tr('Select crop')}</option>
             {cropGroups.map((group) => (
               <optgroup key={group.label} label={group.label}>
                 {group.options.map((option) => (
@@ -311,48 +314,48 @@ export function HarvestFieldCreatePanel({
           </select>
 
           <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
-            <label className="space-y-1 text-xs text-muted-foreground">
-              <span>Season start (auto)</span>
+            <label className="space-y-1 text-xs text-content-soft">
+              <span>{tr('Season start (auto)')}</span>
               <input
                 type="date"
                 value={startDate}
                 max={latestStartDate}
                 min="2018-01-01"
                 readOnly
-                className="h-9 w-full rounded-lg border border-border bg-secondary/30 px-3 text-sm text-foreground"
+                className="h-9 w-full rounded-md border border-line-strong bg-muted px-3 text-[14px] text-content placeholder:text-content-soft focus:border-sage focus:outline-none"
               />
             </label>
-            <label className="space-y-1 text-xs text-muted-foreground">
-              <span>Harvest date</span>
+            <label className="space-y-1 text-xs text-content-soft">
+              <span>{tr('Harvest date')}</span>
               <input
                 type="date"
                 value={harvestDate}
                 min={startDate || '2018-01-01'}
                 onChange={(event) => setHarvestDate(event.target.value)}
-                className="h-9 w-full rounded-lg border border-border bg-card px-3 text-sm text-foreground"
+                className="h-9 w-full rounded-md border border-line-strong bg-card px-3 text-[14px] text-content placeholder:text-content-soft focus:border-sage focus:outline-none"
               />
             </label>
           </div>
         </div>
 
-        {error ? <p className="text-xs text-red-300">{error}</p> : null}
+        {error ? <p role="alert" className="text-[12px] text-critical">{tr(error)}</p> : null}
 
         <div className="flex flex-wrap gap-2">
           <button
             type="button"
             onClick={onClearDraw}
-            className="rounded-lg border border-border px-3 py-2 text-xs text-muted-foreground hover:text-foreground"
+            className="rounded-pill border border-line px-3 py-2 text-xs text-content-soft hover:text-content"
           >
-            Clear drawing
+            {tr('Clear drawing')}
           </button>
           <button
             type="button"
             onClick={() => void submitField()}
             disabled={submitting || Boolean(validationError) || hasDraftInProgress}
-            className="inline-flex flex-1 items-center justify-center gap-2 rounded-lg border border-primary/30 bg-primary/10 px-3 py-2 text-xs font-medium text-primary disabled:cursor-not-allowed disabled:opacity-50"
+            className="inline-flex flex-1 items-center justify-center gap-2 rounded-pill border border-ink bg-ink px-3 py-2 text-xs font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
           >
-            {submitting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <MapPin className="h-3.5 w-3.5" />}
-            Create field on map
+            {submitting ? <Loader2 strokeWidth={1.5} className="h-3.5 w-3.5 animate-spin" /> : <MapPin strokeWidth={1.5} className="h-3.5 w-3.5" />}
+            {tr('Create field on map')}
           </button>
         </div>
       </div>

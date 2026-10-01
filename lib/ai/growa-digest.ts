@@ -1,6 +1,6 @@
 import { HARVEST_METRIC_META } from '@/lib/harvest/metrics'
-import type { GrowaAnalysisContext, GrowaFarmAnalysisContext, GrowaModule, HarvestGrowaAnalysisContext } from './growa-types'
-import { isHarvestGrowaContext } from './growa-types'
+import type { GrowaFarmAnalysisContext, GrowaModule, HarvestGrowaAnalysisContext } from './growa-types'
+
 import { getGrowaModuleTitle } from './growa-prompts'
 
 function formatMetric(value: number, suffix = '', digits = 2) {

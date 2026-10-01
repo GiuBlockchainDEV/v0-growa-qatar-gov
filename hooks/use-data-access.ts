@@ -1,13 +1,11 @@
 'use client'
 
 import { useCallback } from 'react'
-import { useAuth } from './use-auth'
 import { useOrganization } from './use-organization'
 
 type OrganizationType = 'government_master' | 'government' | 'private' | 'public'
 
 export function useDataAccess() {
-  const { user } = useAuth()
   const { organization } = useOrganization()
 
   /**

@@ -1,12 +1,19 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { useI18n } from '@/lib/i18n'
 import { useOrganization } from '@/hooks/use-organization'
 import { useDataSharing } from '@/hooks/use-data-sharing'
 import { useDataAccess } from '@/hooks/use-data-access'
-import { Share2, Lock, Unlock, Trash2 } from 'lucide-react'
+import { Share2, Unlock, Trash2 } from 'lucide-react'
+import { useConfirm } from '@/components/brand/feedback'
+import { Card, EmptyState, LoadingState, Notice, PageBody, PageHeader } from '@/components/brand/layout'
+import { Tag } from '@/components/brand/ui'
+import { humanize } from '@/components/brand/status'
 
 export default function DataSharingPage() {
+  const { tr } = useI18n()
+  const confirmDialog = useConfirm()
   const { organization } = useOrganization()
   const { getDataSharing, createSharing, removeSharing, getShareableOrganizations } = useDataSharing()
   const { canManageSharing } = useDataAccess()
@@ -37,94 +44,92 @@ export default function DataSharingPage() {
     loadData()
   }, [organizationId, organizationType, getDataSharing, getShareableOrganizations])
 
+  /* Copy was Italian in an English / Arabic interface: brought to English
+     like the rest of the app. */
   if (!canManageSharing()) {
     return (
-      <div className="space-y-6">
-        <div className="rounded-lg border border-red-500/20 bg-red-500/10 p-4">
-          <p className="text-sm text-red-400">Solo le organizzazioni governative possono gestire la condivisione dati.</p>
-        </div>
+      <div className="h-full overflow-y-auto bg-background">
+        <PageBody>
+          <PageHeader eyebrow={tr('Settings')} title={tr('Data sharing')} />
+          <Notice tone="critical">{tr('Only government organisations can manage data sharing.')}</Notice>
+        </PageBody>
       </div>
     )
   }
 
   if (isLoading) {
-    return <div className="text-muted-foreground">Caricamento...</div>
+    return (
+      <div className="h-full flex items-center justify-center bg-background">
+        <LoadingState label={tr('Loading…')} />
+      </div>
+    )
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center gap-3">
-        <Share2 className="h-6 w-6 text-[#07f880]" />
-        <h1 className="text-2xl font-bold text-foreground">Data Sharing</h1>
-      </div>
+    <div className="h-full overflow-y-auto bg-background">
+      <PageBody>
+        <PageHeader eyebrow={tr('Settings')} title={tr('Data sharing')} subtitle={tr('Organisations that can read your data, and those you can share with.')} />
 
-      {/* Condivisioni attive */}
-      <div className="rounded-lg border border-white/5">
-        <div className="border-b border-white/5 px-5 py-4">
-          <h2 className="font-semibold text-foreground">Condivisioni Attive</h2>
-        </div>
+        <div className="space-y-4">
+          <Card icon={Share2} title={tr('Active sharing')} actions={<Tag size="sm" variant="outline-ink">{sharings.length}</Tag>} flush>
+            {sharings.length === 0 ? (
+              <EmptyState compact title={tr('No active data sharing')} />
+            ) : (
+              <ul className="divide-y divide-line">
+                {sharings.map((sharing) => (
+                  <li key={sharing.id} className="flex items-center justify-between gap-3 px-4 py-3.5">
+                    <div className="min-w-0">
+                      <p className="text-[14px] text-content" style={{ fontWeight: 500 }}>{humanize(sharing.resource_type)}</p>
+                      <p className="text-[13px] text-content-soft truncate">
+                        {tr('Shared with:')} <span className="font-mono">{sharing.shared_with_organization_id}</span>
+                      </p>
+                    </div>
+                    <button
+                      aria-label={tr('Remove sharing')}
+                      onClick={async () => {
+                        if (await confirmDialog(tr('Remove this data sharing?'))) {
+                          removeSharing(sharing.id).then(() => {
+                            setSharings(sharings.filter((s) => s.id !== sharing.id))
+                          })
+                        }
+                      }}
+                      className="w-8 h-8 inline-flex items-center justify-center rounded-pill text-stone-500 hover:text-critical hover:bg-muted transition-colors"
+                    >
+                      <Trash2 strokeWidth={1.5} className="h-4 w-4" />
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </Card>
 
-        {sharings.length === 0 ? (
-          <div className="px-5 py-8 text-center text-muted-foreground">
-            Nessuna condivisione dati attiva
-          </div>
-        ) : (
-          <div className="divide-y divide-white/5">
-            {sharings.map((sharing) => (
-              <div key={sharing.id} className="flex items-center justify-between p-4">
-                <div>
-                  <p className="font-medium text-foreground">{sharing.resource_type}</p>
-                  <p className="text-sm text-muted-foreground">
-                    Condiviso con: {sharing.shared_with_organization_id}
-                  </p>
-                </div>
-                <button
-                  onClick={() => {
-                    if (confirm('Rimuovere questa condivisione?')) {
-                      removeSharing(sharing.id).then(() => {
-                        setSharings(sharings.filter((s) => s.id !== sharing.id))
+          {shareableOrgs.length > 0 && (
+            <Card family="comando" icon={Unlock} title={tr('Add sharing')} subtitle={tr('You can share your data with these organisations.')}>
+              <div className="space-y-2">
+                {shareableOrgs.map((org) => (
+                  <button
+                    key={org.id}
+                    onClick={() =>
+                      createSharing(organizationId, org.id, 'all').then(() => {
+                        getDataSharing(organizationId).then(setSharings)
                       })
                     }
-                  }}
-                  className="p-2 text-red-500/60 hover:text-red-500 hover:bg-red-500/10 rounded-lg transition-colors"
-                >
-                  <Trash2 className="h-4 w-4" />
-                </button>
+                    disabled={!organizationId}
+                    className="w-full flex items-center justify-between gap-3 bg-card border border-line px-4 py-3 hover:border-line-strong transition-colors text-start disabled:opacity-40"
+                    style={{ borderRadius: 'var(--radius-lg)' }}
+                  >
+                    <div>
+                      <p className="text-[14px] text-content" style={{ fontWeight: 500 }}>{org.name}</p>
+                      <p className="text-[12px] text-content-soft">{humanize(org.type)}</p>
+                    </div>
+                    <span className="g-btn g-btn--outline" style={{ height: 30, padding: '0 12px', fontSize: 12 }}>{tr('Share')}</span>
+                  </button>
+                ))}
               </div>
-            ))}
-          </div>
-        )}
-      </div>
-
-      {/* Aggiungi nuova condivisione */}
-      {shareableOrgs.length > 0 && (
-        <div className="rounded-lg border border-white/5 p-5">
-          <h3 className="font-semibold text-foreground mb-4">Aggiungi Condivisione</h3>
-          <div className="space-y-3">
-            <div className="text-sm text-muted-foreground mb-3">
-              Puoi condividere i tuoi dati con le seguenti organizzazioni:
-            </div>
-            {shareableOrgs.map((org) => (
-              <button
-                key={org.id}
-                onClick={() =>
-                  createSharing(organizationId, org.id, 'all').then(() => {
-                    getDataSharing(organizationId).then(setSharings)
-                  })
-                }
-                disabled={!organizationId}
-                className="w-full flex items-center justify-between p-3 rounded-lg border border-white/10 hover:border-[#07f880]/50 hover:bg-[#07f880]/5 transition-colors text-left"
-              >
-                <div>
-                  <p className="font-medium text-foreground">{org.name}</p>
-                  <p className="text-xs text-muted-foreground">{org.type}</p>
-                </div>
-                <Unlock className="h-4 w-4 text-[#07f880]" />
-              </button>
-            ))}
-          </div>
+            </Card>
+          )}
         </div>
-      )}
+      </PageBody>
     </div>
   )
 }

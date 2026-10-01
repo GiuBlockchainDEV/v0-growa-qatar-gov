@@ -1,10 +1,13 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { useI18n } from '@/lib/i18n'
 import { useGovernance, SHARED_LAYERS } from '@/hooks/use-governance'
 import { usePermissions } from '@/hooks/use-permissions'
 import { useOrganization } from '@/hooks/use-organization'
-import { Building2, Shield, ShoppingCart, DollarSign, Wrench, Users, ChevronRight } from 'lucide-react'
+import { Building2, Layers, Shield, ShoppingCart, DollarSign, Wrench, ChevronRight } from 'lucide-react'
+import { Card, LoadingState, Notice, PageBody, PageHeader, Tile } from '@/components/brand/layout'
+import { StatusTag } from '@/components/brand/status'
 
 interface Organization {
   id: string
@@ -16,6 +19,7 @@ interface Organization {
 }
 
 export default function OrganizationsPage() {
+  const { tr } = useI18n()
   const { getTopLevelOrganizations } = useGovernance()
   const { getUserOrgType } = usePermissions()
   const { organization } = useOrganization()
@@ -43,8 +47,8 @@ export default function OrganizationsPage() {
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center min-h-[60vh]">
-        <div className="text-muted-foreground">Loading organizations...</div>
+      <div className="h-full flex items-center justify-center bg-background">
+        <LoadingState label={tr('Loading organisations…')} />
       </div>
     )
   }
@@ -52,32 +56,20 @@ export default function OrganizationsPage() {
   // Only government_master (Ministry) can see all organizations
   const canViewAllOrgs = userOrgType === 'government_master'
 
-  const getOrgIcon = (type: string) => {
-    switch (type) {
-      case 'government_master': return <Shield className="h-5 w-5 text-red-500" />
-      case 'government': return <Building2 className="h-5 w-5 text-orange-500" />
-      case 'farm_company': return <Users className="h-5 w-5 text-[#07f880]" />
-      default: return <Building2 className="h-5 w-5 text-blue-500" />
-    }
-  }
-
   const getOrgTypeLabel = (type: string) => {
     switch (type) {
-      case 'government_master': return 'Master Authority'
-      case 'government': return 'Government Entity'
-      case 'farm_company': return 'Farm Company'
-      case 'private': return 'Private Organization'
+      case 'government_master': return tr('Master authority')
+      case 'government': return tr('Government entity')
+      case 'farm_company': return tr('Farm company')
+      case 'private': return tr('Private organisation')
       default: return type
     }
   }
 
-  const getOrgTypeColor = (type: string) => {
-    switch (type) {
-      case 'government_master': return 'bg-red-500/10 text-red-400 border-red-500/20'
-      case 'government': return 'bg-orange-500/10 text-orange-400 border-orange-500/20'
-      case 'farm_company': return 'bg-[#07f880]/10 text-[#07f880] border-[#07f880]/20'
-      default: return 'bg-blue-500/10 text-blue-400 border-blue-500/20'
-    }
+  const ORG_LEVEL: Record<string, string> = {
+    government_master: 'critical',
+    government: 'high',
+    farm_company: 'good',
   }
 
   const getSharedLayersForOrg = (type: string) => {
@@ -94,113 +86,83 @@ export default function OrganizationsPage() {
   }
 
   const layerIcons: Record<string, React.ReactNode> = {
-    regulatory: <Shield className="h-4 w-4" />,
-    commercial: <ShoppingCart className="h-4 w-4" />,
-    finance: <DollarSign className="h-4 w-4" />,
-    technical_support: <Wrench className="h-4 w-4" />,
+    regulatory: <Shield strokeWidth={1.5} className="h-4 w-4" />,
+    commercial: <ShoppingCart strokeWidth={1.5} className="h-4 w-4" />,
+    finance: <DollarSign strokeWidth={1.5} className="h-4 w-4" />,
+    technical_support: <Wrench strokeWidth={1.5} className="h-4 w-4" />,
   }
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-foreground flex items-center gap-3">
-          <Building2 className="h-6 w-6 text-[#07f880]" />
-          Organizations
-        </h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          {canViewAllOrgs 
-            ? 'Manage all organizations in the Growa Qatar ecosystem'
-            : 'View your organization details'
-          }
-        </p>
-      </div>
+    <div className="h-full overflow-y-auto bg-background">
+      <PageBody>
+        <PageHeader
+          eyebrow={tr('Settings')}
+          title={tr('Organisations')}
+          subtitle={canViewAllOrgs ? tr('Manage all organisations in the Growa Qatar ecosystem.') : tr('Your organisation details.')}
+        />
 
-      {/* Organization Hierarchy */}
-      <div className="rounded-lg border border-white/5 overflow-hidden">
-        <div className="p-4 bg-white/[0.02] border-b border-white/5">
-          <h2 className="font-semibold text-foreground">Top-Level Organizations (Tier 1)</h2>
-          <p className="text-xs text-muted-foreground mt-1">
-            Primary stakeholders with equal authority in the Growa ecosystem
-          </p>
-        </div>
-
-        <div className="divide-y divide-white/5">
-          {organizations.map((org) => (
-            <div
-              key={org.id}
-              className="p-4 hover:bg-white/[0.02] transition-colors"
-            >
-              <div className="flex items-start justify-between">
-                <div className="flex items-start gap-4">
-                  <div className="mt-1">
-                    {getOrgIcon(org.type)}
-                  </div>
-                  <div>
-                    <h3 className="font-medium text-foreground">{org.name}</h3>
-                    <p className="text-sm text-muted-foreground mt-0.5">
-                      {org.description || `Tier ${org.tier} organization`}
-                    </p>
-                    
-                    {/* Shared Layers Access */}
-                    <div className="flex items-center gap-2 mt-3">
-                      <span className="text-xs text-muted-foreground">Shared Layers:</span>
-                      <div className="flex items-center gap-1">
+        <div className="space-y-4">
+          <Card icon={Building2} title={tr('Top-level organisations (tier 1)')} subtitle={tr('Primary stakeholders with equal authority in the Growa ecosystem.')} flush>
+            <ul className="divide-y divide-line">
+              {organizations.map((org) => (
+                <li key={org.id} className="px-4 py-4 hover:bg-muted transition-colors">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <h3 className="text-[15px] text-content" style={{ fontWeight: 500 }}>{org.name}</h3>
+                      <p className="text-[13px] text-content-soft mt-0.5">
+                        {org.description || tr('Tier {tier} organisation', { tier: org.tier })}
+                      </p>
+                      <div className="flex flex-wrap items-center gap-2 mt-3">
+                        <span className="text-[12px] text-content-soft">{tr('Shared layers')}</span>
                         {getSharedLayersForOrg(org.type).map((layer) => (
-                          <div
+                          <span
                             key={layer}
-                            className="flex items-center gap-1 px-2 py-1 rounded bg-white/5 text-xs text-white/70"
-                            title={SHARED_LAYERS[layer as keyof typeof SHARED_LAYERS]?.description}
+                            className="g-tag g-tag--muted"
+                            style={{ height: 24, padding: '0 10px', fontSize: 12 }}
+                            title={tr(SHARED_LAYERS[layer as keyof typeof SHARED_LAYERS]?.description ?? '')}
                           >
                             {layerIcons[layer]}
-                            <span>{SHARED_LAYERS[layer as keyof typeof SHARED_LAYERS]?.name}</span>
-                          </div>
+                            {tr(SHARED_LAYERS[layer as keyof typeof SHARED_LAYERS]?.name ?? '')}
+                          </span>
                         ))}
                       </div>
                     </div>
+
+                    <div className="flex items-center gap-2">
+                      <StatusTag level={ORG_LEVEL[org.type] || 'unknown'} label={getOrgTypeLabel(org.type)} size="md" />
+                      {canViewAllOrgs && (
+                        <button aria-label={tr('Open {name}', { name: org.name })} className="w-8 h-8 inline-flex items-center justify-center text-content-soft hover:text-content hover:bg-stone-100 rounded-pill transition-colors">
+                          <ChevronRight strokeWidth={1.5} className="h-4 w-4 rtl:-scale-x-100" />
+                        </button>
+                      )}
+                    </div>
                   </div>
-                </div>
+                </li>
+              ))}
+            </ul>
+          </Card>
 
-                <div className="flex items-center gap-3">
-                  <span className={`px-3 py-1 rounded-full border text-xs font-medium ${getOrgTypeColor(org.type)}`}>
-                    {getOrgTypeLabel(org.type)}
-                  </span>
-                  {canViewAllOrgs && (
-                    <button className="p-2 text-white/40 hover:text-white hover:bg-white/5 rounded-lg transition-colors">
-                      <ChevronRight className="h-4 w-4" />
-                    </button>
-                  )}
-                </div>
-              </div>
+          <Card icon={Layers} title={tr('Shared layers overview')}>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
+              {Object.entries(SHARED_LAYERS).map(([key, layer]) => (
+                <Tile key={key}>
+                  <div className="flex items-center gap-2 mb-1.5 text-content-soft">
+                    {layerIcons[key]}
+                    <span className="text-[14px] text-content" style={{ fontWeight: 500 }}>{tr(layer.name)}</span>
+                  </div>
+                  <p className="text-[12px] text-content-soft leading-snug">{tr(layer.description)}</p>
+                </Tile>
+              ))}
             </div>
-          ))}
-        </div>
-      </div>
+          </Card>
 
-      {/* Governance Overview */}
-      <div className="rounded-lg border border-white/5 bg-white/[0.02] p-4">
-        <h3 className="font-semibold text-foreground mb-4">Shared Layers Overview</h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          {Object.entries(SHARED_LAYERS).map(([key, layer]) => (
-            <div key={key} className="p-3 rounded-lg bg-white/5 border border-white/5">
-              <div className="flex items-center gap-2 mb-2">
-                {layerIcons[key]}
-                <span className="font-medium text-foreground text-sm">{layer.name}</span>
-              </div>
-              <p className="text-xs text-muted-foreground">{layer.description}</p>
-            </div>
-          ))}
+          <Notice tone="good" title={tr('Data isolation and privacy')}>
+            {tr(
+              'Each organisation keeps its data isolated by default. Data can only be shared with the Ministry of Municipality when explicitly approved by the owning organisation in the data sharing settings. All data access is logged for audit purposes.'
+            )}
+          </Notice>
         </div>
-      </div>
-
-      {/* Data Isolation Notice */}
-          <div className="rounded-lg border border-[#07f880]/20 bg-[#07f880]/5 p-4">
-            <h3 className="font-semibold text-[#07f880] mb-2">Data Isolation & Privacy</h3>
-        <p className="text-sm text-white/70">
-          Each organization maintains isolated data by default. Data can only be shared with the 
-          Ministry of Municipality when explicitly approved by the owning organization through 
-          the Data Sharing settings. All data access is logged for audit purposes.
-        </p>
-      </div>
+      </PageBody>
     </div>
   )
 }

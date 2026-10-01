@@ -22,8 +22,11 @@ export function timeframeLabel(timeframe: WatchtowerTimeframe): string {
       return '30D'
     case 'season':
       return 'SEASON'
-    default:
-      return timeframe.toUpperCase()
+    default: {
+      // Exhaustive: a new timeframe fails to compile here instead of rendering blank.
+      const unknownTimeframe: never = timeframe
+      return String(unknownTimeframe).toUpperCase()
+    }
   }
 }
 

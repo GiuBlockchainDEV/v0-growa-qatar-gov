@@ -4,10 +4,10 @@ import type { WatchtowerRawData } from '@/lib/watchtower/fetch-context-data'
 
 describe('buildHarvestProductionSnapshot', () => {
   it('aggregates forecast biomass and field coverage from harvest data', () => {
-    const snapshot = buildHarvestProductionSnapshot({
+    const raw: WatchtowerRawData = {
       farms: [],
       insights: [],
-      polygons: [{ pointId: 'p1', score: 40, cropName: 'tomato' }],
+      polygons: [{ id: 'poly-1', pointId: 'p1', score: 40, crop: { cropName: 'tomato' } }],
       harvestFields: [
         { parcel_id: 'a', name: 'North', crop: 'tomato', metrics: { tbp: 120, bwp: 1.3 } },
         { parcel_id: 'b', name: 'South', crop: 'cucumber', metrics: { tbp: 80, bwp: 1.1 } },
@@ -19,7 +19,8 @@ describe('buildHarvestProductionSnapshot', () => {
       supply: null,
       supplyAvailable: false,
       fetchedAt: '2026-09-23T00:00:00.000Z',
-    } as WatchtowerRawData)
+    }
+    const snapshot = buildHarvestProductionSnapshot(raw)
 
     expect(snapshot.forecastBiomassTons).toBe(200)
     expect(snapshot.fieldCount).toBe(2)

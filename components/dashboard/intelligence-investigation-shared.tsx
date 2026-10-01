@@ -1,27 +1,24 @@
 'use client'
 
 import { useSearchParams } from 'next/navigation'
-import { AlertTriangle, Bot, MapPin, Radio } from 'lucide-react'
+import { Bot, MapPin, Radio } from 'lucide-react'
 import type { IntelligenceSignal, OutlookSummary, SituationChange } from '@/lib/domain/types'
 import {
   InvestigationActionBar,
   InvestigationActionButton,
 } from '@/components/dashboard/intelligence-investigation-layout'
 import { useOperationalContextOptional } from '@/contexts/operational-context-provider'
-import { cn } from '@/lib/utils'
+import { Notice } from '@/components/brand/layout'
+import { StatusDot } from '@/components/brand/ui'
+import { severityTone } from '@/components/brand/status'
+import { useI18n } from '@/lib/i18n'
 
 export function IntelligenceMapHint({ moduleLabel }: { moduleLabel: string }) {
+  const { tr } = useI18n()
   return (
-    <div className="rounded-lg border border-[#07f880]/20 bg-[#07f880]/5 px-4 py-3 text-sm text-white/70">
-      <p className="flex items-center gap-2 font-medium text-[#07f880]">
-        <MapPin className="h-4 w-4" />
-        Map surface active
-      </p>
-      <p className="mt-1 text-xs text-white/50">
-        Use the national map panel to explore {moduleLabel}. Click rows, producers or grid cells to focus the map
-        without losing investigation context.
-      </p>
-    </div>
+    <Notice tone="good" title={tr('Map surface active')}>
+      {tr('Use the national map panel to explore {module}. Click rows, producers or grid cells to focus the map without losing investigation context.', { module: moduleLabel })}
+    </Notice>
   )
 }
 
@@ -34,16 +31,17 @@ export function IntelligenceWatchtowerSignals({
   loading?: boolean
   module?: string
 }) {
+  const { tr } = useI18n()
   const opCtx = useOperationalContextOptional()
   const searchParams = useSearchParams()
   const activeModule = searchParams.get('module') || module
 
   if (loading) {
-    return <p className="text-sm text-white/45">Loading platform signals…</p>
+    return <p className="text-[13px] text-content-soft">{tr('Loading platform signals…')}</p>
   }
 
   if (signals.length === 0) {
-    return <p className="text-sm text-white/45">No active signals linked to this domain in the current timeframe.</p>
+    return <p className="text-[13px] text-content-soft">{tr('No active signals linked to this domain in the current timeframe.')}</p>
   }
 
   return (
@@ -69,17 +67,13 @@ export function IntelligenceWatchtowerSignals({
                   : undefined,
             })
           }
-          className="flex w-full items-start gap-2 rounded-lg border border-white/10 px-3 py-2 text-left hover:border-white/20"
+          className="flex w-full items-start gap-3 bg-card border border-line px-3.5 py-3 text-start transition-colors hover:border-line-strong"
+          style={{ borderRadius: 'var(--radius-lg)' }}
         >
-          <AlertTriangle
-            className={cn(
-              'mt-0.5 h-4 w-4 shrink-0',
-              signal.severity === 'critical' ? 'text-red-300' : signal.severity === 'high' ? 'text-orange-300' : 'text-amber-300'
-            )}
-          />
+          <StatusDot tone={severityTone(signal.severity)} size={7} className="mt-1.5 shrink-0" />
           <div>
-            <p className="text-sm text-white">{signal.title}</p>
-            <p className="text-xs text-white/45 line-clamp-2">{signal.summary}</p>
+            <p className="text-[14px] text-content" style={{ fontWeight: 500 }}>{signal.title}</p>
+            <p className="text-[12px] text-content-soft line-clamp-2 mt-0.5">{signal.summary}</p>
           </div>
         </button>
       ))}
@@ -94,19 +88,20 @@ export function IntelligenceWatchtowerChanges({
   changes: SituationChange[]
   loading?: boolean
 }) {
+  const { tr } = useI18n()
   if (loading) {
-    return <p className="text-sm text-white/45">Loading recent changes…</p>
+    return <p className="text-[13px] text-content-soft">{tr('Loading recent changes…')}</p>
   }
 
   if (changes.length === 0) {
-    return <p className="text-sm text-white/45">No significant platform changes in the selected timeframe.</p>
+    return <p className="text-[13px] text-content-soft">{tr('No significant platform changes in the selected timeframe.')}</p>
   }
 
   return (
-    <ul className="space-y-2 text-sm text-white/70">
+    <ul className="divide-y divide-dotted divide-line-strong text-[13px] text-content -my-1">
       {changes.map((change) => (
-        <li key={change.id} className="flex gap-2">
-          <span className="text-white/30">•</span>
+        <li key={change.id} className="flex gap-3 py-2">
+          <span aria-hidden="true" className="mt-[7px] w-1.5 h-1.5 shrink-0 bg-content-soft" style={{ borderRadius: 1 }} />
           <span>{change.description}</span>
         </li>
       ))}
@@ -123,8 +118,9 @@ export function IntelligenceWatchtowerForecast({
   loading?: boolean
   domain?: 'climate' | 'production' | 'operational'
 }) {
+  const { tr } = useI18n()
   if (loading) {
-    return <p className="text-sm text-white/45">Loading outlook…</p>
+    return <p className="text-[13px] text-content-soft">{tr('Loading outlook…')}</p>
   }
 
   const sevenDay =
@@ -142,14 +138,14 @@ export function IntelligenceWatchtowerForecast({
         : outlook?.thirtyDay?.supplyImplications
 
   return (
-    <div className="grid gap-3 sm:grid-cols-2 text-sm text-white/70">
+    <div className="grid gap-3 sm:grid-cols-2 text-[13px] text-content">
       <div>
-        <p className="text-[10px] uppercase tracking-wider text-white/40">7-day outlook</p>
-        <p className="mt-1">{sevenDay || 'Insufficient forecast linkage'}</p>
+        <p className="text-[12px] text-content-soft">{tr('7-day outlook')}</p>
+        <p className="mt-1">{sevenDay || tr('Insufficient forecast linkage')}</p>
       </div>
       <div>
-        <p className="text-[10px] uppercase tracking-wider text-white/40">30-day outlook</p>
-        <p className="mt-1">{thirtyDay || 'Insufficient forecast linkage'}</p>
+        <p className="text-[12px] text-content-soft">{tr('30-day outlook')}</p>
+        <p className="mt-1">{thirtyDay || tr('Insufficient forecast linkage')}</p>
       </div>
     </div>
   )
@@ -169,6 +165,7 @@ export function IntelligenceModuleActions({
   module: string
   mapLayers?: string[]
 }) {
+  const { tr } = useI18n()
   const opCtx = useOperationalContextOptional()
   const searchParams = useSearchParams()
   const currentModule = searchParams.get('module')
@@ -186,13 +183,13 @@ export function IntelligenceModuleActions({
           })
         }
       >
-        <Bot className="h-3.5 w-3.5" />
-        Run AI investigation
+        <Bot strokeWidth={1.5} className="h-3.5 w-3.5" />
+        {tr('Run AI investigation')}
       </InvestigationActionButton>
       {!onHarvestDetail ? (
         <InvestigationActionButton variant="ghost" onClick={() => opCtx?.goToModule('watchtower')}>
-          <Radio className="h-3.5 w-3.5" />
-          National Watchtower
+          <Radio strokeWidth={1.5} className="h-3.5 w-3.5" />
+          {tr('National watchtower')}
         </InvestigationActionButton>
       ) : null}
       {estimationModule !== currentModule && !onHarvestDetail ? (
@@ -200,7 +197,7 @@ export function IntelligenceModuleActions({
           variant="ghost"
           onClick={() => opCtx?.goToModule(estimationModule)}
         >
-          <MapPin className="h-3.5 w-3.5" />
+          <MapPin strokeWidth={1.5} className="h-3.5 w-3.5" />
           Open estimation view
         </InvestigationActionButton>
       ) : null}

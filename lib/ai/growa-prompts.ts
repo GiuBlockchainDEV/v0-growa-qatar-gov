@@ -1,5 +1,5 @@
 import type { GrowaAnalysisContext, GrowaFarmAnalysisContext, GrowaModule } from './growa-types'
-import { isHarvestGrowaContext } from './growa-types'
+import { isFarmGrowaContext, isHarvestGrowaContext } from './growa-types'
 
 export interface GrowaPromptOption {
   id: string
@@ -236,14 +236,15 @@ export function getGrowaPrompts(module: GrowaModule, context?: GrowaAnalysisCont
         ? harvestFieldPrompts(context)
         : harvestNationalPrompts(context)
     case 'water-intelligence':
-      return isHarvestGrowaContext(context) ? FALLBACK_PROMPTS.harvest : waterIntelligencePrompts(context)
+      return isFarmGrowaContext(context) ? waterIntelligencePrompts(context) : FALLBACK_PROMPTS[module]
     case 'energy-intelligence':
-      return isHarvestGrowaContext(context) ? FALLBACK_PROMPTS.harvest : energyIntelligencePrompts(context)
+      return isFarmGrowaContext(context) ? energyIntelligencePrompts(context) : FALLBACK_PROMPTS[module]
     case 'watchtower':
       return FALLBACK_PROMPTS.watchtower
     case 'data-analytics':
     default:
-      return isHarvestGrowaContext(context) ? FALLBACK_PROMPTS.harvest : dataAnalyticsPrompts(context)
+      // A watchtower context under a farm module used to reach the farm prompt builders.
+      return isFarmGrowaContext(context) ? dataAnalyticsPrompts(context) : FALLBACK_PROMPTS[module]
   }
 }
 

@@ -2,12 +2,7 @@ import { harvestGetParcel } from '@/lib/harvest/client'
 import { getDemoParcelGeojson } from '@/lib/harvest/demo-data'
 import { extractBoundsFromGeoJson } from '@/lib/harvest/geojson'
 import { buildDemoRasterMeta, buildDemoRasterSvg } from '@/lib/harvest/raster'
-import type {
-  HarvestMetricKey,
-  HarvestMode,
-  HarvestRasterResponse,
-  HarvestTrendGranularity,
-} from '@/lib/harvest/types'
+import type { HarvestMetricKey, HarvestRasterResponse, HarvestTrendGranularity } from '@/lib/harvest/types'
 
 export const HARVEST_LIVE_RASTER_METRICS: HarvestMetricKey[] = ['aeti', 'npp', 'tbp', 'bwp', 'rwd']
 

@@ -3,18 +3,16 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { DashboardQueryLink } from '@/components/dashboard/dashboard-query-link'
 import { useSearchParams } from 'next/navigation'
-import {
-  ArrowRight,
-  CheckCircle,
-  ClipboardList,
-  MapPin,
-  Plus,
-  RefreshCw,
-} from 'lucide-react'
+import { ArrowRight, CheckCircle, MapPin, Plus, RefreshCw } from 'lucide-react'
 import { OperationalContextBanner } from '@/components/dashboard/operational-context-banner'
 import { useOperationalContext } from '@/contexts/operational-context-provider'
 import { useI18n } from '@/lib/i18n'
 import { cn } from '@/lib/utils'
+import { useToast } from '@/components/brand/feedback'
+import { Card, CardAction, EmptyState, Notice, PageHeader } from '@/components/brand/layout'
+import { Button, Field, StatusDot, Textarea } from '@/components/brand/ui'
+import { StatusTag, humanize } from '@/components/brand/status'
+import { FilePlus2, ListChecks } from 'lucide-react'
 
 interface Inspection {
   id: string
@@ -50,10 +48,18 @@ const STATUS_LABELS: Record<string, string> = {
   closed: 'Closed',
 }
 
+const PRIORITY_LABEL: Record<string, string> = {
+  low: 'Low',
+  medium: 'Medium',
+  high: 'High',
+  critical: 'Critical',
+}
+
 export function InspectionsWorkspace() {
-  const { locale } = useI18n()
+  const showToast = useToast()
+  const { tr } = useI18n()
   const searchParams = useSearchParams()
-  const { goToFarm, goToModule } = useOperationalContext()
+  const { goToFarm } = useOperationalContext()
   const farmIdFromUrl = searchParams.get('farmId')
   const inspectionIdFromUrl = searchParams.get('inspectionId')
 
@@ -108,7 +114,7 @@ export function InspectionsWorkspace() {
         }),
       })
       const payload = await res.json()
-      if (!res.ok) throw new Error(payload.error || 'Failed to create')
+      if (!res.ok) throw new Error(payload.error || tr('Failed to create'))
       setShowForm(false)
       setTitle('')
       setSummary('')
@@ -116,7 +122,7 @@ export function InspectionsWorkspace() {
       await load()
       if (payload.inspection?.id) setSelectedId(payload.inspection.id)
     } catch (e) {
-      alert(e instanceof Error ? e.message : 'Failed')
+      showToast(e instanceof Error ? e.message : tr('Failed'), 'error')
     }
   }
 
@@ -128,11 +134,11 @@ export function InspectionsWorkspace() {
         body: JSON.stringify({ advance: true }),
       })
       const payload = await res.json()
-      if (!res.ok) throw new Error(payload.error || 'Failed to advance')
+      if (!res.ok) throw new Error(payload.error || tr('Failed to advance'))
       await load()
       setSelectedId(id)
     } catch (e) {
-      alert(e instanceof Error ? e.message : 'Failed')
+      showToast(e instanceof Error ? e.message : tr('Failed'), 'error')
     }
   }
 
@@ -144,10 +150,10 @@ export function InspectionsWorkspace() {
         body: JSON.stringify({ findings, evidenceNotes }),
       })
       const payload = await res.json()
-      if (!res.ok) throw new Error(payload.error || 'Failed to save')
+      if (!res.ok) throw new Error(payload.error || tr('Failed to save'))
       await load()
     } catch (e) {
-      alert(e instanceof Error ? e.message : 'Failed')
+      showToast(e instanceof Error ? e.message : tr('Failed'), 'error')
     }
   }
 
@@ -155,147 +161,117 @@ export function InspectionsWorkspace() {
   const completed = items.filter((item) => item.status === 'closed')
 
   return (
-    <div className="flex h-full flex-col bg-[#050608] text-white overflow-hidden">
-      <header className="shrink-0 border-b border-white/10 px-5 py-4 pt-20">
-        <div className="flex items-center justify-between gap-3">
-          <div>
-            <h1 className="text-lg font-semibold flex items-center gap-2">
-              <ClipboardList className="h-5 w-5 text-[#07f880]" />
-              {locale === 'ar' ? 'التفتيشات الميدانية' : 'Field Inspections'}
-            </h1>
-            <p className="text-xs text-white/45 mt-1">
-              Assigned → Prepare → Visit → Evidence → Findings → Verification → Closure
-            </p>
-          </div>
-          <div className="flex gap-2">
-            <button
-              type="button"
-              onClick={() => setShowForm(!showForm)}
-              className="inline-flex items-center gap-1 rounded bg-[#07f880]/15 px-3 py-1.5 text-xs text-[#07f880]"
-            >
-              <Plus className="h-3.5 w-3.5" />
-              {locale === 'ar' ? 'تفتيش جديد' : 'New inspection'}
-            </button>
-            <button type="button" onClick={load} className="rounded border border-white/10 px-2 py-1.5 text-white/50">
-              <RefreshCw className={cn('h-3.5 w-3.5', loading && 'animate-spin')} />
-            </button>
-          </div>
-        </div>
-        <div className="mt-3">
-          <OperationalContextBanner />
-        </div>
-        {unavailable && (
-          <p className="mt-2 text-xs text-amber-300">Apply migration 00030 for inspections persistence.</p>
-        )}
-      </header>
-
-      {showForm && (
-        <div className="shrink-0 border-b border-white/10 px-5 py-3 space-y-2">
-          <input
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            placeholder="Inspection title"
-            className="w-full rounded border border-white/10 bg-[#0a0d12] px-3 py-2 text-sm"
-          />
-          <textarea
-            value={summary}
-            onChange={(e) => setSummary(e.target.value)}
-            placeholder="Scope / objective"
-            className="w-full rounded border border-white/10 bg-[#0a0d12] px-3 py-2 text-sm min-h-[60px]"
-          />
-          <input
-            value={farmId}
-            onChange={(e) => setFarmId(e.target.value)}
-            placeholder="Farm ID (optional)"
-            className="w-full rounded border border-white/10 bg-[#0a0d12] px-3 py-2 text-sm"
-          />
-          <button
-            type="button"
-            onClick={create}
-            className="rounded bg-[#07f880] px-4 py-1.5 text-sm font-medium text-black"
-          >
-            Create inspection
-          </button>
-        </div>
-      )}
-
-      <div className="flex flex-1 min-h-0">
-        <aside className="w-full max-w-sm shrink-0 border-r border-white/10 overflow-y-auto p-4 space-y-2">
-          <p className="text-[10px] uppercase tracking-widest text-white/40">
-            Active queue ({activeQueue.length})
-          </p>
-          {activeQueue.length === 0 ? (
-            <p className="text-sm text-white/40 py-8 text-center">
-              No active inspections.
-              <DashboardQueryLink href="/dashboard?module=watchtower" className="block mt-2 text-[#07f880] hover:underline">
-                Open Watchtower
-              </DashboardQueryLink>
-            </p>
-          ) : (
-            activeQueue.map((item) => (
-              <button
-                key={item.id}
-                type="button"
-                onClick={() => setSelectedId(item.id)}
-                className={cn(
-                  'w-full rounded-lg border px-3 py-3 text-left transition-colors',
-                  selectedId === item.id
-                    ? 'border-[#07f880]/30 bg-[#07f880]/10'
-                    : 'border-white/10 bg-[#0a0d12] hover:border-white/20'
-                )}
-              >
-                <div className="flex items-center justify-between gap-2">
-                  <h3 className="text-sm font-medium">{item.title}</h3>
-                  <span className="text-[10px] uppercase text-white/40">{item.priority}</span>
-                </div>
-                <p className="mt-1 text-[10px] uppercase tracking-wider text-[#07f880]/80">
-                  {STATUS_LABELS[item.status] || item.status}
-                </p>
-                {item.summary && <p className="mt-1 text-xs text-white/50 line-clamp-2">{item.summary}</p>}
-              </button>
-            ))
-          )}
-
-          {completed.length > 0 && (
+    <div className="growa h-full overflow-y-auto bg-background text-content">
+      <div className="mx-auto max-w-7xl p-6 space-y-4">
+        <PageHeader
+          eyebrow={tr('Compliance')}
+          title={tr('Field inspections')}
+          subtitle={tr('Assigned → prepare → visit → evidence → findings → verification → closure.')}
+          actions={
             <>
-              <p className="pt-4 text-[10px] uppercase tracking-widest text-white/40">
-                Closed ({completed.length})
-              </p>
-              {completed.slice(0, 5).map((item) => (
+              <Button size="sm" onClick={() => setShowForm(!showForm)} aria-expanded={showForm}>
+                <Plus strokeWidth={1.5} className="h-4 w-4" />
+                {tr('New inspection')}
+              </Button>
+              <CardAction icon={RefreshCw} label={tr('Refresh')} onClick={load} spinning={loading} />
+            </>
+          }
+          className="!mb-2"
+        />
+        <OperationalContextBanner />
+        {unavailable && <Notice tone="warning">{tr('Apply migration {migration} for inspections persistence.', { migration: '00030' })}</Notice>}
+
+        {showForm && (
+          <Card family="comando" icon={FilePlus2} title={tr('New inspection')}>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Field id="insp-title" label={tr('Title')} value={title} onChange={(e) => setTitle(e.target.value)} placeholder={tr('Inspection title')} />
+              <Field id="insp-farm" label={tr('Farm ID')} hint={tr('Optional.')} value={farmId} onChange={(e) => setFarmId(e.target.value)} placeholder={tr('Farm ID')} />
+              <Textarea id="insp-scope" className="sm:col-span-2" label={tr('Scope / objective')} value={summary} onChange={(e) => setSummary(e.target.value)} />
+              <div className="sm:col-span-2 flex justify-end gap-2">
+                <Button variant="secondary" size="sm" onClick={() => setShowForm(false)}>{tr('Cancel')}</Button>
+                <Button size="sm" onClick={create} disabled={!title.trim()}>{tr('Create inspection')}</Button>
+              </div>
+            </div>
+          </Card>
+        )}
+
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-[360px_1fr]">
+          <Card icon={ListChecks} title={tr('Active queue')} actions={<StatusTag level="progress" label={String(activeQueue.length)} />} bodyClassName="space-y-2">
+            {activeQueue.length === 0 ? (
+              <EmptyState
+                compact
+                title={tr('No active inspections')}
+                action={
+                  <DashboardQueryLink href="/dashboard?module=watchtower" className="text-[13px] text-sage-700 hover:text-ink transition-colors">
+                    {tr('Open Watchtower')}
+                  </DashboardQueryLink>
+                }
+              />
+            ) : (
+              activeQueue.map((item) => (
                 <button
                   key={item.id}
                   type="button"
                   onClick={() => setSelectedId(item.id)}
-                  className="w-full rounded-lg border border-white/10 bg-[#0a0d12]/60 px-3 py-2 text-left opacity-70"
+                  aria-pressed={selectedId === item.id}
+                  className={cn(
+                    'w-full bg-card border px-3.5 py-3 text-start transition-colors',
+                    selectedId === item.id ? 'border-sage ring-2 ring-sage/25' : 'border-line hover:border-line-strong'
+                  )}
+                  style={{ borderRadius: 'var(--radius-lg)' }}
                 >
-                  <p className="text-sm">{item.title}</p>
+                  <div className="flex items-center justify-between gap-2">
+                    <h3 className="text-[14px] text-content" style={{ fontWeight: 500 }}>{item.title}</h3>
+                    {item.priority && <StatusTag level={item.priority} label={tr(PRIORITY_LABEL[item.priority] ?? humanize(item.priority))} />}
+                  </div>
+                  <p className="mt-1 flex items-center gap-2 text-[12px] text-content-soft">
+                    <StatusDot tone="progress" size={6} />
+                    {STATUS_LABELS[item.status] ? tr(STATUS_LABELS[item.status]) : humanize(item.status)}
+                  </p>
+                  {item.summary && <p className="mt-1 text-[12px] text-content-soft line-clamp-2">{item.summary}</p>}
                 </button>
-              ))}
-            </>
-          )}
-        </aside>
+              ))
+            )}
 
-        <main className="flex-1 overflow-y-auto p-5">
-          {!selected ? (
-            <div className="flex h-full items-center justify-center text-sm text-white/40">
-              Select an inspection to manage the field workflow.
-            </div>
-          ) : (
-            <InspectionDetail
-              inspection={selected}
-              onAdvance={() => advance(selected.id)}
-              onSaveNotes={(findings, evidenceNotes) =>
-                saveNotes(selected.id, findings, evidenceNotes)
-              }
-              onOpenFarm={() => {
-                if (selected.farm_id) goToFarm(selected.farm_id, 'live-map')
-              }}
-              onOpenMap={() => {
-                if (selected.farm_id) goToFarm(selected.farm_id, 'live-map')
-              }}
-            />
-          )}
-        </main>
+            {completed.length > 0 && (
+              <>
+                <hr className="growa-dotted-rule my-3" />
+                <p className="text-[12px] text-content-soft">{tr('Closed · {count}', { count: completed.length })}</p>
+                {completed.slice(0, 5).map((item) => (
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() => setSelectedId(item.id)}
+                    className="flex w-full items-center gap-2 px-1 py-1.5 text-start text-[13px] text-content-soft hover:text-content"
+                  >
+                    <StatusDot tone="good" size={6} />
+                    {item.title}
+                  </button>
+                ))}
+              </>
+            )}
+          </Card>
+
+          <div className="bg-card border border-line p-6 min-h-[360px]" style={{ borderRadius: 'var(--radius-xl)' }}>
+            {!selected ? (
+              <EmptyState title={tr('No inspection selected')} description={tr('Select an inspection to manage the field workflow.')} />
+            ) : (
+              <InspectionDetail
+                inspection={selected}
+                onAdvance={() => advance(selected.id)}
+                onSaveNotes={(findings, evidenceNotes) =>
+                  saveNotes(selected.id, findings, evidenceNotes)
+                }
+                onOpenFarm={() => {
+                  if (selected.farm_id) goToFarm(selected.farm_id, 'live-map')
+                }}
+                onOpenMap={() => {
+                  if (selected.farm_id) goToFarm(selected.farm_id, 'live-map')
+                }}
+              />
+            )}
+          </div>
+        </div>
       </div>
     </div>
   )
@@ -314,6 +290,7 @@ function InspectionDetail({
   onOpenFarm: () => void
   onOpenMap: () => void
 }) {
+  const { tr } = useI18n()
   const [findings, setFindings] = useState(inspection.findings || '')
   const [evidenceNotes, setEvidenceNotes] = useState(inspection.evidence_notes || '')
   const currentIndex = WORKFLOW_STEPS.indexOf(inspection.status as typeof WORKFLOW_STEPS[number])
@@ -326,86 +303,64 @@ function InspectionDetail({
   return (
     <div className="space-y-5 max-w-3xl">
       <div>
-        <h2 className="text-xl font-semibold">{inspection.title}</h2>
-        {inspection.summary && <p className="mt-1 text-sm text-white/55">{inspection.summary}</p>}
+        <h2 className="text-content" style={{ fontSize: 'var(--text-heading)', fontWeight: 500, letterSpacing: 'var(--ls-heading)' }}>{inspection.title}</h2>
+        {inspection.summary && <p className="mt-1 text-[14px] text-content-soft leading-[1.45]">{inspection.summary}</p>}
       </div>
 
-      <div className="flex flex-wrap gap-1">
+      {/* Workflow as a row of squares: done = sage, current = ink with its
+          label, still to come = unlit. */}
+      <ol className="flex flex-wrap items-center gap-x-1 gap-y-2" aria-label={tr('Workflow')}>
         {WORKFLOW_STEPS.map((step, index) => {
           const active = index === currentIndex
           const complete = index < currentIndex
           return (
-            <div
-              key={step}
-              className={cn(
-                'rounded-full border px-2.5 py-1 text-[10px] uppercase tracking-wider',
-                active && 'border-[#07f880]/40 bg-[#07f880]/15 text-[#07f880]',
-                complete && 'border-white/10 bg-white/5 text-white/50',
-                !active && !complete && 'border-white/10 text-white/30'
-              )}
-            >
-              {STATUS_LABELS[step]}
-            </div>
+            <li key={step} className="flex items-center gap-1">
+              <span
+                className={cn(
+                  'inline-flex items-center gap-1.5 h-7 px-2.5 rounded-pill text-[12px]',
+                  active ? 'bg-ink text-white' : complete ? 'text-content' : 'text-stone-500'
+                )}
+                aria-current={active ? 'step' : undefined}
+              >
+                <span aria-hidden="true" className="w-1.5 h-1.5" style={{ borderRadius: 1, background: active ? 'var(--growa-cream)' : complete ? 'var(--status-good)' : 'var(--growa-stone-300)' }} />
+                {tr(STATUS_LABELS[step])}
+              </span>
+              {index < WORKFLOW_STEPS.length - 1 && <span aria-hidden="true" className="w-3 border-t border-dotted border-line-strong" />}
+            </li>
           )
         })}
-      </div>
+      </ol>
 
       <div className="flex flex-wrap gap-2">
-        {inspection.farm_id && (
-          <button
-            type="button"
-            onClick={onOpenFarm}
-            className="inline-flex items-center gap-1 rounded border border-white/10 px-3 py-1.5 text-xs text-white/70 hover:text-white"
-          >
-            <MapPin className="h-3.5 w-3.5" />
-            Open farm workspace
-          </button>
-        )}
-        <button
-          type="button"
-          onClick={onOpenMap}
-          className="inline-flex items-center gap-1 rounded border border-white/10 px-3 py-1.5 text-xs text-white/70 hover:text-white"
-        >
-          <MapPin className="h-3.5 w-3.5" />
-          National map
-        </button>
         {inspection.status !== 'closed' && (
-          <button
-            type="button"
-            onClick={onAdvance}
-            className="inline-flex items-center gap-1 rounded bg-[#07f880] px-3 py-1.5 text-xs font-medium text-black"
-          >
-            Advance workflow
-            <ArrowRight className="h-3.5 w-3.5" />
-          </button>
+          <Button size="sm" onClick={onAdvance}>
+            {tr('Advance workflow')}
+            <ArrowRight strokeWidth={1.5} className="h-4 w-4 rtl:-scale-x-100" />
+          </Button>
         )}
+        {inspection.farm_id && (
+          <Button size="sm" variant="outline" onClick={onOpenFarm}>
+            <MapPin strokeWidth={1.5} className="h-4 w-4" />
+            {tr('Open farm workspace')}
+          </Button>
+        )}
+        <Button size="sm" variant="secondary" onClick={onOpenMap}>
+          <MapPin strokeWidth={1.5} className="h-4 w-4" />
+          {tr('National map')}
+        </Button>
       </div>
 
       {(inspection.status === 'evidence' ||
         inspection.status === 'findings' ||
         inspection.status === 'verification' ||
         inspection.status === 'closed') && (
-        <div className="space-y-3 rounded-xl border border-white/10 bg-[#0a0d12] p-4">
-          <label className="block text-xs uppercase tracking-wider text-white/40">Evidence notes</label>
-          <textarea
-            value={evidenceNotes}
-            onChange={(e) => setEvidenceNotes(e.target.value)}
-            className="w-full min-h-[80px] rounded border border-white/10 bg-[#050608] px-3 py-2 text-sm"
-          />
-          <label className="block text-xs uppercase tracking-wider text-white/40">Findings</label>
-          <textarea
-            value={findings}
-            onChange={(e) => setFindings(e.target.value)}
-            className="w-full min-h-[100px] rounded border border-white/10 bg-[#050608] px-3 py-2 text-sm"
-          />
-          <button
-            type="button"
-            onClick={() => onSaveNotes(findings, evidenceNotes)}
-            className="inline-flex items-center gap-1 rounded border border-white/10 px-3 py-1.5 text-xs text-white/70 hover:text-white"
-          >
-            <CheckCircle className="h-3.5 w-3.5" />
-            Save evidence & findings
-          </button>
+        <div className="space-y-4 pt-5 border-t border-dotted border-line-strong">
+          <Textarea id="insp-evidence" label={tr('Evidence notes')} rows={3} value={evidenceNotes} onChange={(e) => setEvidenceNotes(e.target.value)} />
+          <Textarea id="insp-findings" label={tr('Findings')} rows={4} value={findings} onChange={(e) => setFindings(e.target.value)} />
+          <Button size="sm" variant="outline" onClick={() => onSaveNotes(findings, evidenceNotes)}>
+            <CheckCircle strokeWidth={1.5} className="h-4 w-4" />
+            {tr('Save evidence and findings')}
+          </Button>
         </div>
       )}
     </div>

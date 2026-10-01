@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import type { MouseEvent, ReactNode } from 'react'
+import type { AriaAttributes, MouseEvent, ReactNode } from 'react'
 
 /** Same-page query changes must push. Next.js 16 Link/replace can leave the previous module on screen. */
 export function DashboardQueryLink({
@@ -10,12 +10,15 @@ export function DashboardQueryLink({
   className,
   children,
   onClick,
+  title,
+  ...aria
 }: {
   href: string
   className?: string
   children: ReactNode
   onClick?: (event: MouseEvent<HTMLAnchorElement>) => void
-}) {
+  title?: string
+} & AriaAttributes) {
   const router = useRouter()
 
   const handleClick = (event: MouseEvent<HTMLAnchorElement>) => {
@@ -35,7 +38,7 @@ export function DashboardQueryLink({
   }
 
   return (
-    <Link href={href} scroll={false} prefetch={false} className={className} onClick={handleClick}>
+    <Link href={href} scroll={false} prefetch={false} className={className} onClick={handleClick} title={title} {...aria}>
       {children}
     </Link>
   )

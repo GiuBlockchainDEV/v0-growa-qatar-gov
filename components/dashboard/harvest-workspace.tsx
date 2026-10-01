@@ -1,5 +1,7 @@
 'use client'
 
+import { Notice } from '@/components/brand/layout'
+
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import {
@@ -53,20 +55,9 @@ import {
   formatHarvestMetricWithUnit,
   harvestMetricColumnHeader,
 } from '@/lib/harvest/metrics'
-import type {
-  HarvestAnalyticsField,
-  HarvestAnalyticsResponse,
-  HarvestFieldMetrics,
-  HarvestFieldStatsResponse,
-  HarvestMetricKey,
-  HarvestMetricSummary,
-  HarvestMode,
-  HarvestRasterResponse,
-  HarvestTaskStatus,
-  HarvestTimeseriesPoint,
-  HarvestTimeseriesResponse,
-  HarvestTrendGranularity,
-} from '@/lib/harvest/types'
+import type { HarvestAnalyticsField, HarvestAnalyticsResponse, HarvestFieldStatsResponse, HarvestMetricKey, HarvestMetricSummary, HarvestMode, HarvestRasterResponse, HarvestTaskStatus, HarvestTimeseriesPoint, HarvestTimeseriesResponse, HarvestTrendGranularity } from '@/lib/harvest/types'
+import { useConfirm } from '@/components/brand/feedback'
+import { useI18n } from '@/lib/i18n'
 
 const FIELD_KPI_METRICS: HarvestMetricKey[] = ['aeti', 'npp', 'tbp', 'bwp', 'rwd', 'wcu', 'cost']
 const MAP_METRICS: HarvestMetricKey[] = ['npp', 'aeti', 'tbp', 'bwp', 'rwd']
@@ -121,34 +112,35 @@ function HarvestTrendBars({
   metric: HarvestMetricKey
   points: HarvestTimeseriesPoint[]
 }) {
+  const { tr } = useI18n()
   const validPoints = points.filter((point) => Number.isFinite(point.value))
   const maxValue = validPoints.reduce((max, point) => Math.max(max, point.value), 0)
 
   return (
-    <div className="rounded-lg border border-border bg-card/60 p-3">
+    <div className="rounded-lg border border-line bg-card p-3">
       <div className="mb-2 flex items-center justify-between gap-2">
-        <p className="text-xs font-medium text-foreground">{title}</p>
-        <span className="text-[10px] uppercase tracking-wide text-muted-foreground">
+        <p className="text-xs font-medium text-content">{title}</p>
+        <span className="text-[11px] text-content-soft">
           {HARVEST_METRIC_META[metric].unit}
         </span>
       </div>
-      <div className="max-h-56 space-y-1.5 overflow-y-auto overscroll-contain pr-1">
+      <div className="max-h-56 space-y-1.5 overflow-y-auto overscroll-contain pe-1">
         {validPoints.map((point) => {
           const width = maxValue > 0 ? Math.max(4, (point.value / maxValue) * 100) : 4
           return (
             <div key={`${metric}-${point.period}`} className="space-y-1">
-              <div className="flex items-center justify-between text-[10px] text-muted-foreground">
-                <span className="truncate pr-2">{point.period}</span>
+              <div className="flex items-center justify-between text-[10px] text-content-soft">
+                <span className="truncate pe-2">{point.period}</span>
                 <span>{formatHarvestMetricWithUnit(point.value, metric)}</span>
               </div>
-              <div className="h-1.5 rounded-full bg-secondary/50">
-                <div className="h-1.5 rounded-full bg-primary/80" style={{ width: `${width}%` }} />
+              <div className="h-1.5 rounded-[2px] bg-stone-200">
+                <div className="h-1.5 rounded-[2px] bg-sage" style={{ width: `${width}%` }} />
               </div>
             </div>
           )
         })}
         {validPoints.length === 0 ? (
-          <p className="text-[11px] text-muted-foreground">No trend data for this metric.</p>
+          <p className="text-[11px] text-content-soft">{tr('No trend data for this metric.')}</p>
         ) : null}
       </div>
     </div>
@@ -156,6 +148,9 @@ function HarvestTrendBars({
 }
 
 export function HarvestWorkspace() {
+  const { tr } = useI18n()
+  const metricLabel = (key: HarvestMetricKey) => tr(HARVEST_METRIC_META[key].label)
+  const confirmDialog = useConfirm()
   const router = useRouter()
   const searchParams = useSearchParams()
   const watchtower = useModuleWatchtowerContext(['crop_health', 'production', 'weather'])
@@ -274,13 +269,13 @@ export function HarvestWorkspace() {
       setTimeseries(timeseriesResult.data)
       setCollectingTasks(collectingResult.data || [])
     } catch (loadError) {
-      setError(loadError instanceof Error ? loadError.message : 'Unable to load Harvest data')
+      setError(loadError instanceof Error ? loadError.message : tr('Unable to load Harvest data'))
       setAnalytics(null)
       setTimeseries(null)
     } finally {
       setNationalLoading(false)
     }
-  }, [harvestCreateActive, mode, parcelId])
+  }, [harvestCreateActive, mode, parcelId, tr])
 
   const loadCollectingTasks = useCallback(async () => {
     try {
@@ -425,7 +420,7 @@ export function HarvestWorkspace() {
       setFieldStatsError(
         statsError instanceof Error
           ? statsError.message
-          : 'Unable to load field statistics for this season.'
+          : tr('Unable to load field statistics for this season.')
       )
     } finally {
       if (requestId === fieldDetailSeqRef.current) {
@@ -439,6 +434,7 @@ export function HarvestWorkspace() {
     mode,
     patchActiveSeasonId,
     selectedPeriod,
+    tr,
     updateHarvestMapParams,
   ])
 
@@ -547,7 +543,7 @@ export function HarvestWorkspace() {
     if (mapGranularity === 'dekad' && !dekadPeriod) {
       setFieldRaster(null)
       dispatchRasterOverlay(null)
-      setFieldRasterError('Select a dekad period before loading the map layer.')
+      setFieldRasterError(tr('Select a dekad period before loading the map layer.'))
       return
     }
 
@@ -595,7 +591,7 @@ export function HarvestWorkspace() {
       setFieldRasterError(
         rasterError instanceof Error
           ? rasterError.message
-          : 'Unable to load satellite raster for this field.'
+          : tr('Unable to load satellite raster for this field.')
       )
     } finally {
       if (requestId === rasterLoadSeqRef.current) {
@@ -612,6 +608,7 @@ export function HarvestWorkspace() {
     activeMapMetric,
     latestDekadPeriod,
     selectedPeriod,
+    tr,
   ])
 
   useEffect(() => {
@@ -650,6 +647,8 @@ export function HarvestWorkspace() {
     if (collectingTasks.length === 0) return undefined
 
     const intervalId = window.setInterval(() => {
+      // Nobody is looking: skip this round instead of polling a hidden tab.
+      if (document.hidden) return
       void fetchJson<Array<{ parcel_id: string; season_id: number; task_id: string }>>(
         '/api/harvest/collecting'
       )
@@ -773,8 +772,8 @@ export function HarvestWorkspace() {
 
   const deleteSelectedField = useCallback(async () => {
     if (!activeField?.parcel_id) return
-    const confirmed = window.confirm(
-      `Delete field "${activeField.name}"? This action cannot be undone.`
+    const confirmed = await confirmDialog(
+      tr('Delete field "{name}"? This action cannot be undone.', { name: activeField.name })
     )
     if (!confirmed) return
 
@@ -785,18 +784,18 @@ export function HarvestWorkspace() {
       })
       const payload = await response.json().catch(() => ({}))
       if (!response.ok) {
-        throw new Error(typeof payload?.error === 'string' ? payload.error : 'Unable to delete field')
+        throw new Error(typeof payload?.error === 'string' ? payload.error : tr('Unable to delete field'))
       }
 
       window.dispatchEvent(new Event('harvest:fields-updated'))
       handleClearFieldSelection()
       await refreshWorkspace()
     } catch (deleteError) {
-      setError(deleteError instanceof Error ? deleteError.message : 'Unable to delete field')
+      setError(deleteError instanceof Error ? deleteError.message : tr('Unable to delete field'))
     } finally {
       setDeleteLoading(false)
     }
-  }, [activeField, handleClearFieldSelection, refreshWorkspace])
+  }, [activeField, handleClearFieldSelection, refreshWorkspace, confirmDialog, tr])
 
   const runYieldEstimate = useCallback(async () => {
     if (!activeField?.parcel_id || !activeSeasonId) return
@@ -824,13 +823,13 @@ export function HarvestWorkspace() {
         task_id: 'n/a',
         status: 'failed',
         result: {
-          message: yieldError instanceof Error ? yieldError.message : 'Yield task failed',
+          message: yieldError instanceof Error ? yieldError.message : tr('Yield task failed'),
         },
       })
     } finally {
       setYieldLoading(false)
     }
-  }, [activeField?.parcel_id, activeSeasonId, mode])
+  }, [activeField?.parcel_id, activeSeasonId, mode, tr])
 
   const updateMode = (nextMode: HarvestMode) => {
     setHarvestMode(nextMode)
@@ -839,31 +838,31 @@ export function HarvestWorkspace() {
   return (
     <IntelligenceWorkspaceRoot ref={workspaceScrollRef} layout="scroll">
       <InvestigationContextHeader
-        eyebrow="Intelligence • Satellite & Harvest"
+        eyebrow={tr('Intelligence · satellite and harvest')}
         title={
           isFieldDetailView
-            ? activeField?.name ?? (parcelId ? 'Loading field...' : 'Satellite & Harvest Intelligence')
-            : 'Satellite & Harvest Intelligence'
+            ? activeField?.name ?? (parcelId ? tr('Loading field…') : tr('Satellite and harvest intelligence'))
+            : tr('Satellite and harvest intelligence')
         }
         description={
           isFieldDetailView && activeField
-            ? `${activeField.crop} • ${formatArea(activeField.area)} • ${activeField.start_date} → ${activeField.harvest_date}`
-            : 'Satellite-driven crop health, biomass, water productivity and yield outlook connected to national signals.'
+            ? `${activeField.crop} · ${formatArea(activeField.area)} · ${activeField.start_date} → ${activeField.harvest_date}`
+            : tr('Satellite-driven crop health, biomass, water productivity and yield outlook connected to national signals.')
         }
         icon={Sprout}
         meta={[
           {
-            label: 'View',
-            value: mode === 'current' ? 'Observed' : 'Forecast',
+            label: tr('View'),
+            value: mode === 'current' ? tr('Observed') : tr('Forecast'),
             accent: true,
           },
-          { label: 'Fields', value: String(fields.length) },
+          { label: tr('Fields'), value: String(fields.length) },
           {
-            label: 'Source',
-            value: isFieldDetailView && activeField ? 'Field detail' : 'National analytics',
+            label: tr('Source'),
+            value: isFieldDetailView && activeField ? tr('Field detail') : tr('National analytics'),
           },
           {
-            label: 'Signals',
+            label: tr('Signals'),
             value: String(watchtower.signals.length),
             accent: watchtower.signals.length > 0,
           },
@@ -871,20 +870,20 @@ export function HarvestWorkspace() {
       />
 
       {usingDemoData ? (
-        <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-100">
-          Demo sample data is active. Configure Harvest API credentials on Vercel to load your real
-          fields (Hassad N, Baladna, mazrati, etc.).
-        </div>
+        <Notice tone="warning">
+          {tr('Demo sample data is active. Configure Harvest API credentials on Vercel to load your real fields (Hassad N, Baladna, mazrati, etc.).')}
+        </Notice>
       ) : null}
 
       {isFieldDetailView ? (
         <button
           type="button"
           onClick={handleClearFieldSelection}
-          className="inline-flex items-center gap-2 rounded-lg border border-border bg-card px-3 py-2 text-xs font-medium text-foreground hover:bg-secondary/40"
+          className="g-btn g-btn--secondary self-start"
+          style={{ height: 32, padding: '0 14px', fontSize: 13 }}
         >
-          <ArrowLeft className="h-3.5 w-3.5" />
-          Back to all fields
+          <ArrowLeft strokeWidth={1.5} className="h-3.5 w-3.5 rtl:-scale-x-100" />
+          {tr('Back to all fields')}
         </button>
       ) : null}
 
@@ -893,57 +892,57 @@ export function HarvestWorkspace() {
         <button
           type="button"
           onClick={() => updateMode('current')}
-          className={`rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors ${
+          className={`rounded-pill border px-3 py-1.5 text-xs font-medium transition-colors ${
             mode === 'current'
-              ? 'border-primary/40 bg-primary/15 text-primary'
-              : 'border-border bg-card text-muted-foreground hover:text-foreground'
+              ? 'border-ink bg-ink text-white'
+              : 'border-line bg-card text-content-soft hover:text-content'
           }`}
         >
-          Observed
+          {tr('Observed')}
         </button>
         <button
           type="button"
           onClick={() => updateMode('predict')}
-          className={`rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors ${
+          className={`rounded-pill border px-3 py-1.5 text-xs font-medium transition-colors ${
             mode === 'predict'
-              ? 'border-primary/40 bg-primary/15 text-primary'
-              : 'border-border bg-card text-muted-foreground hover:text-foreground'
+              ? 'border-ink bg-ink text-white'
+              : 'border-line bg-card text-content-soft hover:text-content'
           }`}
         >
-          Forecast
+          {tr('Forecast')}
         </button>
         <button
           type="button"
           onClick={() => startCreateField()}
-          className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium ${
+          className={`inline-flex items-center gap-1.5 rounded-pill border px-3 py-1.5 text-xs font-medium ${
             harvestCreateActive
-              ? 'border-primary/50 bg-primary/20 text-primary'
-              : 'border-primary/30 bg-primary/10 text-primary'
+              ? 'border-sage bg-cream text-content-accent'
+              : 'border-ink bg-ink text-white'
           }`}
         >
-          <Plus className="h-3.5 w-3.5" />
-          Create field
+          <Plus strokeWidth={1.5} className="h-3.5 w-3.5" />
+          {tr('Create field')}
         </button>
         <button
           type="button"
           onClick={() => void refreshWorkspace()}
-          className="ml-auto inline-flex items-center gap-1.5 rounded-lg border border-border bg-card px-3 py-1.5 text-xs font-medium text-foreground hover:bg-secondary/40"
+          className="ms-auto inline-flex items-center gap-1.5 rounded-pill border border-line bg-card px-3 py-1.5 text-xs font-medium text-content hover:bg-muted"
         >
-          <RefreshCw className="h-3.5 w-3.5" />
-          Refresh
+          <RefreshCw strokeWidth={1.5} className="h-3.5 w-3.5" />
+          {tr('Refresh')}
         </button>
         </div>
-        <p className="text-[11px] text-muted-foreground">
+        <p className="text-[11px] text-content-soft">
           {mode === 'current'
-            ? 'Observed shows satellite-derived values recorded to date for each field.'
-            : 'Forecast projects end-of-season values using the predict model (falls back to observed data when forecast is unavailable).'}
+            ? tr('Observed shows satellite-derived values recorded to date for each field.')
+            : tr('Forecast projects end-of-season values using the predict model (falls back to observed data when forecast is unavailable).')}
         </p>
       </div>
 
       <OperationalContextBanner />
 
       {loading && !harvestCreateActive ? (
-        <IntelligenceLoadingState message="Loading Harvest analytics..." />
+        <IntelligenceLoadingState message={tr('Loading Harvest analytics…')} />
       ) : null}
       {!loading && error && !harvestCreateActive ? <IntelligenceErrorState message={error} /> : null}
 
@@ -971,7 +970,7 @@ export function HarvestWorkspace() {
                 return (
                   <IntelligenceKpiCard
                     key={metric.key}
-                    label={meta.label}
+                    label={tr(meta.label)}
                     value={formatHarvestMetricWithUnit(metric.value, metric.key, { agg: metric.agg })}
                     icon={Icon}
                     accent={index === 0}
@@ -983,7 +982,7 @@ export function HarvestWorkspace() {
             <IntelligenceInvestigationLayout
               sectionScrollable={false}
               whatChanged={<IntelligenceWatchtowerChanges changes={watchtower.changes} loading={watchtower.loading} />}
-              mapOrTimeseries={<IntelligenceMapHint moduleLabel="harvest fields and crop-health layers" />}
+              mapOrTimeseries={<IntelligenceMapHint moduleLabel={tr('harvest fields and crop-health layers')} />}
               signals={
                 <IntelligenceWatchtowerSignals
                   signals={watchtower.signals}
@@ -1009,7 +1008,7 @@ export function HarvestWorkspace() {
           ) : null}
 
           {isFieldDetailView && !activeField ? (
-            <IntelligenceLoadingState message="Loading field details..." />
+            <IntelligenceLoadingState message={tr('Loading field details…')} />
           ) : null}
 
           <IntelligenceWorkspaceCommand variant="stacked">
@@ -1020,18 +1019,18 @@ export function HarvestWorkspace() {
               main={
             <div className="space-y-4">
               <IntelligencePanel
-                title="Field overview"
-                subtitle="KPIs, yield estimate, and field actions"
+                title={tr('Field overview')}
+                subtitle={tr('KPIs, yield estimate, and field actions')}
                 icon={Sprout}
               >
                 <div className="space-y-4">
                   <div className="grid grid-cols-2 gap-2 md:grid-cols-4 xl:grid-cols-7">
                     {FIELD_KPI_METRICS.map((key) => (
-                      <div key={key} className="rounded-lg border border-border bg-secondary/20 px-3 py-2">
-                        <p className="text-[10px] uppercase tracking-wide text-muted-foreground">
-                          {HARVEST_METRIC_META[key].label}
+                      <div key={key} className="rounded-lg border border-line bg-muted px-3 py-2">
+                        <p className="text-[11px] text-content-soft">
+                          {metricLabel(key)}
                         </p>
-                        <p className="mt-1 text-sm font-semibold text-foreground">
+                        <p className="mt-1 text-sm font-medium text-content">
                           {formatHarvestMetricWithUnit(activeField.metrics?.[key], key)}
                         </p>
                       </div>
@@ -1043,27 +1042,27 @@ export function HarvestWorkspace() {
                       type="button"
                       onClick={() => void runYieldEstimate()}
                       disabled={yieldLoading || !activeSeasonId}
-                      className="inline-flex items-center gap-2 rounded-lg border border-primary/30 bg-primary/10 px-3 py-2 text-xs font-medium text-primary disabled:cursor-not-allowed disabled:opacity-50"
+                      className="inline-flex items-center gap-2 rounded-pill border border-ink bg-ink px-3 py-2 text-xs font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
                     >
-                      {yieldLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Target className="h-3.5 w-3.5" />}
-                      Estimate yield
+                      {yieldLoading ? <Loader2 strokeWidth={1.5} className="h-3.5 w-3.5 animate-spin" /> : <Target strokeWidth={1.5} className="h-3.5 w-3.5" />}
+                      {tr('Estimate yield')}
                     </button>
                     <button
                       type="button"
                       onClick={() => void deleteSelectedField()}
                       disabled={deleteLoading}
-                      className="inline-flex items-center gap-2 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs font-medium text-red-300 disabled:cursor-not-allowed disabled:opacity-50"
+                      className="inline-flex items-center gap-2 rounded-pill border border-critical/30 bg-critical/10 px-3 py-2 text-xs font-medium text-critical disabled:cursor-not-allowed disabled:opacity-50"
                     >
-                      {deleteLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
-                      Delete field
+                      {deleteLoading ? <Loader2 strokeWidth={1.5} className="h-3.5 w-3.5 animate-spin" /> : <Trash2 strokeWidth={1.5} className="h-3.5 w-3.5" />}
+                      {tr('Delete field')}
                     </button>
                   </div>
 
                   {yieldTask ? (
-                    <div className="rounded-lg border border-border bg-card/70 px-3 py-3 text-xs">
-                      <p className="font-medium text-foreground">Yield task: {yieldTask.status}</p>
+                    <div className="rounded-lg border border-line bg-card px-3 py-3 text-xs">
+                      <p className="font-medium text-content">{tr('Yield task: {status}', { status: yieldTask.status })}</p>
                       {yieldTask.result ? (
-                        <pre className="mt-2 max-h-48 overflow-auto whitespace-pre-wrap text-[11px] text-muted-foreground">
+                        <pre className="mt-2 max-h-48 overflow-auto whitespace-pre-wrap text-[11px] text-content-soft">
                           {JSON.stringify(yieldTask.result, null, 2)}
                         </pre>
                       ) : null}
@@ -1073,8 +1072,8 @@ export function HarvestWorkspace() {
               </IntelligencePanel>
 
               <IntelligencePanel
-                title="Field metric maps"
-                subtitle="Raster layers overlaid on the map at 50% opacity"
+                title={tr('Field metric maps')}
+                subtitle={tr('Raster layers overlaid on the map at 50% opacity')}
                 icon={MapIcon}
               >
                 <div className="space-y-4">
@@ -1084,13 +1083,13 @@ export function HarvestWorkspace() {
                         key={metric}
                         type="button"
                         onClick={() => selectMapMetric(metric)}
-                        className={`rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors ${
+                        className={`rounded-pill border px-3 py-1.5 text-xs font-medium transition-colors ${
                           activeMapMetric === metric
-                            ? 'border-primary/40 bg-primary/15 text-primary'
-                            : 'border-border bg-card text-muted-foreground hover:text-foreground'
+                            ? 'border-ink bg-ink text-white'
+                            : 'border-line bg-card text-content-soft hover:text-content'
                         }`}
                       >
-                        {`${HARVEST_METRIC_META[metric].label} (${HARVEST_METRIC_META[metric].unit})`}
+                        {`${metricLabel(metric)} (${HARVEST_METRIC_META[metric].unit})`}
                       </button>
                     ))}
                   </div>
@@ -1099,24 +1098,24 @@ export function HarvestWorkspace() {
                     <button
                       type="button"
                       onClick={() => selectMapGranularity('dekad')}
-                      className={`rounded-md border px-2.5 py-1 text-[11px] ${
+                      className={`rounded-pill border px-2.5 py-1 text-[11px] ${
                         mapGranularity === 'dekad'
-                          ? 'border-primary/40 bg-primary/10 text-primary'
-                          : 'border-border text-muted-foreground'
+                          ? 'border-ink bg-ink text-white'
+                          : 'border-line text-content-soft'
                       }`}
                     >
-                      Dekad map
+                      {tr('Dekad map')}
                     </button>
                     <button
                       type="button"
                       onClick={() => selectMapGranularity('season')}
-                      className={`rounded-md border px-2.5 py-1 text-[11px] ${
+                      className={`rounded-pill border px-2.5 py-1 text-[11px] ${
                         mapGranularity === 'season'
-                          ? 'border-primary/40 bg-primary/10 text-primary'
-                          : 'border-border text-muted-foreground'
+                          ? 'border-ink bg-ink text-white'
+                          : 'border-line text-content-soft'
                       }`}
                     >
-                      Season map
+                      {tr('Season map')}
                     </button>
                     {mapGranularity === 'dekad' ? (
                       <select
@@ -1132,7 +1131,7 @@ export function HarvestWorkspace() {
                             })
                           )
                         }}
-                        className="rounded-md border border-border bg-card px-2 py-1 text-[11px] text-foreground"
+                        className="rounded-md border border-line bg-card px-2 py-1 text-[11px] text-content"
                       >
                         {(fieldStats?.periods || []).map((period) => (
                           <option key={period.value} value={period.value}>
@@ -1144,37 +1143,34 @@ export function HarvestWorkspace() {
                   </div>
 
                   {activeCollectingTask ? (
-                    <p className="text-sm text-amber-300">
-                      Geospatial data collection is still in progress for this field. Satellite layers
-                      will appear after the task completes.
+                    <p className="text-sm text-warning-strong">
+                      {tr('Geospatial data collection is still in progress for this field. Satellite layers will appear after the task completes.')}
                     </p>
                   ) : null}
 
                   {fieldStatsError ? (
-                    <p className="text-sm text-amber-300">{fieldStatsError}</p>
+                    <p className="text-sm text-warning-strong">{fieldStatsError}</p>
                   ) : null}
 
                   {fieldRasterLoading || fieldDetailLoading ? (
-                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                      Loading raster layer on map...
+                    <div className="flex items-center gap-2 text-sm text-content-soft">
+                      <Loader2 strokeWidth={1.5} className="h-4 w-4 animate-spin" />
+                      {tr('Loading raster layer on map…')}
                     </div>
                   ) : fieldRaster ? (
-                    <div className="space-y-3 rounded-xl border border-primary/20 bg-primary/5 px-3 py-3">
-                      <p className="text-xs text-foreground">
-                        <span className="font-medium">
-                          {HARVEST_METRIC_META[fieldRaster.metric].label} (
-                          {HARVEST_METRIC_META[fieldRaster.metric].unit})
-                        </span>{' '}
-                        is active on the satellite map at 50% opacity.
+                    <div className="space-y-3 rounded-xl border border-sage-300 bg-cream-50 px-3 py-3">
+                      <p className="text-xs text-content">
+                        {tr('{layer} is active on the satellite map at 50% opacity.', {
+                          layer: `${metricLabel(fieldRaster.metric)} (${HARVEST_METRIC_META[fieldRaster.metric].unit})`,
+                        })}
                       </p>
-                      <div className="flex flex-wrap items-center gap-3 text-[11px] text-muted-foreground">
-                        <span>Range: {fieldRaster.vmin} – {fieldRaster.vmax} {fieldRaster.unit}</span>
+                      <div className="flex flex-wrap items-center gap-3 text-[11px] text-content-soft">
+                        <span>{tr('Range: {min} – {max} {unit}', { min: fieldRaster.vmin, max: fieldRaster.vmax, unit: fieldRaster.unit })}</span>
                         <div className="flex flex-wrap items-center gap-2">
                           {fieldRaster.legend.map((item) => (
                             <span key={item.label} className="inline-flex items-center gap-1">
                               <span
-                                className="inline-block h-2.5 w-2.5 rounded-full"
+                                className="inline-block h-2.5 w-2.5 rounded-[1px]"
                                 style={{ backgroundColor: item.color }}
                               />
                               {item.label}
@@ -1184,20 +1180,20 @@ export function HarvestWorkspace() {
                       </div>
                     </div>
                   ) : (
-                    <p className="text-sm text-muted-foreground">
+                    <p className="text-sm text-content-soft">
                       {fieldRasterError ||
-                        'No satellite raster available for this field and metric. Try season map or another metric.'}
+                        tr('No satellite raster available for this field and metric. Try season map or another metric.')}
                     </p>
                   )}
                 </div>
               </IntelligencePanel>
 
               <IntelligencePanel
-                title="Field trends"
+                title={tr('Field trends')}
                 subtitle={
                   trendGranularity === 'dekad'
-                    ? 'Amount added in each dekad for this field'
-                    : 'Running total of those dekads across the season'
+                    ? tr('Amount added in each dekad for this field')
+                    : tr('Running total of those dekads across the season')
                 }
                 icon={TrendingUp}
               >
@@ -1206,24 +1202,24 @@ export function HarvestWorkspace() {
                     <button
                       type="button"
                       onClick={() => setTrendGranularity('dekad')}
-                      className={`rounded-md border px-2.5 py-1 text-[11px] ${
+                      className={`rounded-pill border px-2.5 py-1 text-[11px] ${
                         trendGranularity === 'dekad'
-                          ? 'border-primary/40 bg-primary/10 text-primary'
-                          : 'border-border text-muted-foreground'
+                          ? 'border-ink bg-ink text-white'
+                          : 'border-line text-content-soft'
                       }`}
                     >
-                      Dekad trends
+                      {tr('Dekad trends')}
                     </button>
                     <button
                       type="button"
                       onClick={() => setTrendGranularity('season')}
-                      className={`rounded-md border px-2.5 py-1 text-[11px] ${
+                      className={`rounded-pill border px-2.5 py-1 text-[11px] ${
                         trendGranularity === 'season'
-                          ? 'border-primary/40 bg-primary/10 text-primary'
-                          : 'border-border text-muted-foreground'
+                          ? 'border-ink bg-ink text-white'
+                          : 'border-line text-content-soft'
                       }`}
                     >
-                      Season trend
+                      {tr('Season trend')}
                     </button>
                   </div>
 
@@ -1231,7 +1227,7 @@ export function HarvestWorkspace() {
                     {TREND_METRICS.map((metric) => (
                       <HarvestTrendBars
                         key={`${trendGranularity}-${metric}`}
-                        title={`${HARVEST_METRIC_META[metric].label} (${HARVEST_METRIC_META[metric].unit})`}
+                        title={`${metricLabel(metric)} (${HARVEST_METRIC_META[metric].unit})`}
                         metric={metric}
                         points={fieldTrendSeries[metric] || []}
                       />
@@ -1244,20 +1240,20 @@ export function HarvestWorkspace() {
               insights={
                 <div className="space-y-4">
                   <IntelligencePanel
-                    title="Field signals"
-                    subtitle="Quick read on the active field"
+                    title={tr('Field signals')}
+                    subtitle={tr('Quick read on the active field')}
                     icon={Activity}
                   >
-                    <div className="space-y-3 text-xs text-muted-foreground">
+                    <div className="space-y-3 text-xs text-content-soft">
                       <p>
-                        <span className="font-medium text-foreground">{activeField.name}</span> •{' '}
-                        {activeField.crop} • {formatArea(activeField.area)}
+                        <span className="font-medium text-content">{activeField.name}</span> ·{' '}
+                        {activeField.crop} · {formatArea(activeField.area)}
                       </p>
                       <div className="grid grid-cols-2 gap-2">
                         {FIELD_KPI_METRICS.slice(0, 4).map((key) => (
-                          <div key={key} className="rounded-lg border border-border bg-secondary/20 px-2.5 py-2">
-                            <p className="text-[10px] uppercase tracking-wide">{HARVEST_METRIC_META[key].shortLabel}</p>
-                            <p className="mt-1 text-sm font-semibold text-foreground">
+                          <div key={key} className="rounded-lg border border-line bg-muted px-2.5 py-2">
+                            <p className="text-[11px] ">{tr(HARVEST_METRIC_META[key].shortLabel)}</p>
+                            <p className="mt-1 text-sm font-medium text-content">
                               {formatHarvestMetricWithUnit(activeField.metrics?.[key], key)}
                             </p>
                           </div>
@@ -1265,14 +1261,18 @@ export function HarvestWorkspace() {
                       </div>
                       {fieldRaster ? (
                         <p>
-                          Active map layer: {HARVEST_METRIC_META[fieldRaster.metric].label} (
-                          {fieldRaster.vmin}–{fieldRaster.vmax} {fieldRaster.unit})
+                          {tr('Active map layer: {layer} ({min}–{max} {unit})', {
+                            layer: metricLabel(fieldRaster.metric),
+                            min: fieldRaster.vmin,
+                            max: fieldRaster.vmax,
+                            unit: fieldRaster.unit,
+                          })}
                         </p>
                       ) : (
-                        <p>No satellite raster loaded yet. Select a metric to enable map analysis.</p>
+                        <p>{tr('No satellite raster loaded yet. Select a metric to enable map analysis.')}</p>
                       )}
                       {activeCollectingTask ? (
-                        <p className="text-amber-300">Geospatial collection still in progress.</p>
+                        <p className="text-warning-strong">{tr('Geospatial collection still in progress.')}</p>
                       ) : null}
                     </div>
                   </IntelligencePanel>
@@ -1310,31 +1310,31 @@ export function HarvestWorkspace() {
             variant="stacked"
             main={
             <IntelligencePanel
-              title="Open-field registry"
+              title={tr('Open-field registry')}
               subtitle={
                 mode === 'current'
-                  ? 'Observed AETI, TBP, and BWP per field'
-                  : 'Forecast AETI, TBP, and BWP per field'
+                  ? tr('Observed AETI, TBP, and BWP per field')
+                  : tr('Forecast AETI, TBP, and BWP per field')
               }
               icon={Leaf}
             >
               <IntelligenceDataTable>
                 <IntelligenceTableHead>
                   <tr>
-                    <th className="px-3 py-2.5 font-medium">Field</th>
-                    <th className="px-3 py-2.5 font-medium">Crop</th>
-                    <th className="px-3 py-2.5 font-medium">Area</th>
-                    <th className="px-3 py-2.5 font-medium">{harvestMetricColumnHeader('aeti')}</th>
-                    <th className="px-3 py-2.5 font-medium">{harvestMetricColumnHeader('tbp')}</th>
-                    <th className="px-3 py-2.5 font-medium">{harvestMetricColumnHeader('bwp')}</th>
-                    <th className="px-3 py-2.5 font-medium">Harvest</th>
+                    <th className="px-3 py-2.5">{tr('Field')}</th>
+                    <th className="px-3 py-2.5">{tr('Crop')}</th>
+                    <th className="px-3 py-2.5">{tr('Area')}</th>
+                    <th className="px-3 py-2.5">{harvestMetricColumnHeader('aeti')}</th>
+                    <th className="px-3 py-2.5">{harvestMetricColumnHeader('tbp')}</th>
+                    <th className="px-3 py-2.5">{harvestMetricColumnHeader('bwp')}</th>
+                    <th className="px-3 py-2.5">{tr('Harvest')}</th>
                   </tr>
                 </IntelligenceTableHead>
                 <IntelligenceTableBody>
                   {fields.length === 0 ? (
                     <tr>
-                      <td colSpan={7} className="px-3 py-6 text-center text-sm text-muted-foreground">
-                        No Harvest fields available for the selected mode.
+                      <td colSpan={7} className="px-3 py-6 text-center text-sm text-content-soft">
+                        {tr('No Harvest fields available for the selected mode.')}
                       </td>
                     </tr>
                   ) : (
@@ -1350,40 +1350,40 @@ export function HarvestWorkspace() {
                             selectField(field)
                           }
                         }}
-                        className={`cursor-pointer text-sm transition-colors hover:bg-primary/10 ${
+                        className={`cursor-pointer text-sm transition-colors hover:bg-cream-100 ${
                           parcelId === field.parcel_id
-                            ? 'bg-primary/10'
+                            ? 'bg-cream-100'
                             : index % 2 === 0
-                              ? 'bg-card/60'
-                              : 'bg-secondary/20'
+                              ? 'bg-card'
+                              : 'bg-muted'
                         }`}
                       >
-                        <td className="px-3 py-2 font-medium text-foreground">
+                        <td className="px-3 py-2 font-medium text-content">
                           <DashboardQueryLink
                             href={getFieldDetailHref(field)}
-                            className="hover:text-primary hover:underline"
+                            className="hover:text-content-accent hover:underline"
                             onClick={(event) => event.stopPropagation()}
                           >
                             {field.name}
                           </DashboardQueryLink>
                           {collectingTasks.some((entry) => entry.parcel_id === field.parcel_id) ? (
-                            <span className="ml-2 rounded-full bg-amber-500/15 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-amber-300">
-                              Collecting
+                            <span className="ms-2 rounded-pill border border-warning-line bg-warning-soft px-2 py-0.5 text-[11px] text-warning-strong">
+                              {tr('Collecting')}
                             </span>
                           ) : null}
                         </td>
-                        <td className="px-3 py-2 text-muted-foreground">{field.crop}</td>
-                        <td className="px-3 py-2 text-muted-foreground">{formatArea(field.area)}</td>
-                        <td className="px-3 py-2 text-muted-foreground">
+                        <td className="px-3 py-2 text-content-soft">{field.crop}</td>
+                        <td className="px-3 py-2 text-content-soft">{formatArea(field.area)}</td>
+                        <td className="px-3 py-2 text-content-soft">
                           {formatHarvestMetricWithUnit(field.metrics?.aeti, 'aeti')}
                         </td>
-                        <td className="px-3 py-2 text-muted-foreground">
+                        <td className="px-3 py-2 text-content-soft">
                           {formatHarvestMetricWithUnit(field.metrics?.tbp, 'tbp')}
                         </td>
-                        <td className="px-3 py-2 text-muted-foreground">
+                        <td className="px-3 py-2 text-content-soft">
                           {formatHarvestMetricWithUnit(field.metrics?.bwp, 'bwp')}
                         </td>
-                        <td className="px-3 py-2 text-muted-foreground">{field.harvest_date}</td>
+                        <td className="px-3 py-2 text-content-soft">{field.harvest_date}</td>
                       </tr>
                     ))
                   )}
@@ -1394,8 +1394,8 @@ export function HarvestWorkspace() {
             insights={
               <>
                 <IntelligencePanel
-                  title="Water consumption trend"
-                  subtitle="National dekad AETI series"
+                  title={tr('Water consumption trend')}
+                  subtitle={tr('National dekad AETI series')}
                   icon={Droplets}
                   scrollable
                 >
@@ -1405,13 +1405,13 @@ export function HarvestWorkspace() {
                         maxTimeseriesValue > 0 ? Math.max(4, (point.value / maxTimeseriesValue) * 100) : 4
                       return (
                         <div key={point.period} className="space-y-1">
-                          <div className="flex items-center justify-between text-[11px] text-muted-foreground">
+                          <div className="flex items-center justify-between text-[11px] text-content-soft">
                             <span>{point.period}</span>
                             <span>{formatHarvestMetricWithUnit(point.value, 'aeti')}</span>
                           </div>
-                          <div className="h-2 rounded-full bg-secondary/50">
+                          <div className="h-2 rounded-[2px] bg-stone-200">
                             <div
-                              className="h-2 rounded-full bg-sky-400/80"
+                              className="h-2 rounded-[2px] bg-ink"
                               style={{ width: `${width}%` }}
                             />
                           </div>
@@ -1419,30 +1419,30 @@ export function HarvestWorkspace() {
                       )
                     })}
                     {timeseriesPoints.length === 0 ? (
-                      <p className="text-sm text-muted-foreground">No timeseries data available.</p>
+                      <p className="text-sm text-content-soft">{tr('No timeseries data available.')}</p>
                     ) : null}
                   </div>
                 </IntelligencePanel>
 
                 <IntelligencePanel
-                  title="Portfolio signals"
-                  subtitle="Outliers and collection status"
+                  title={tr('Portfolio signals')}
+                  subtitle={tr('Outliers and collection status')}
                   icon={Target}
                   scrollable
                 >
-                  <div className="space-y-2 text-xs text-muted-foreground">
+                  <div className="space-y-2 text-xs text-content-soft">
                     <p>
-                      <span className="font-medium text-foreground">Collecting:</span>{' '}
+                      <span className="font-medium text-content">{tr('Collecting:')}</span>{' '}
                       {collectingTasks.length > 0
                         ? collectingTasks
                             .map((task) => fields.find((field) => field.parcel_id === task.parcel_id)?.name)
                             .filter(Boolean)
                             .join(', ')
-                        : 'none'}
+                        : tr('none')}
                     </p>
                     <p>
-                      <span className="font-medium text-foreground">Mode:</span>{' '}
-                      {mode === 'current' ? 'Observed satellite values' : 'Forecast end-of-season values'}
+                      <span className="font-medium text-content">{tr('Mode:')}</span>{' '}
+                      {mode === 'current' ? tr('Observed satellite values') : tr('Forecast end-of-season values')}
                     </p>
                   </div>
                 </IntelligencePanel>

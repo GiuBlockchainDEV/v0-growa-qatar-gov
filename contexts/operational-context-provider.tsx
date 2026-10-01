@@ -57,8 +57,8 @@ const OperationalContextReact = createContext<OperationalContextValue | null>(nu
 function parseMapLayers(params: URLSearchParams): string[] {
   const raw = params.get('mapLayer') || params.get('mapLayers')
   if (!raw) {
-    const module = params.get('module')
-    if (module === 'watchtower' || module === 'national-overview' || !module) {
+    const moduleKey = params.get('module')
+    if (moduleKey === 'watchtower' || moduleKey === 'national-overview' || !moduleKey) {
       return ['fields', 'production', 'harvest-forecast', 'crop-health', 'intelligence-signals']
     }
     return ['farms', 'intelligence-signals']

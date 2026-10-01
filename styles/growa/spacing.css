@@ -1,0 +1,17 @@
+:root{
+  /* 4px base. The deck's layouts sit on a wide-gutter 12-column grid. */
+  --space-0:0px;--space-1:4px;--space-2:8px;--space-3:12px;--space-4:16px;
+  --space-5:20px;--space-6:24px;--space-7:32px;--space-8:40px;--space-9:48px;
+  --space-10:64px;--space-11:80px;--space-12:104px;--space-13:136px;--space-14:180px;
+
+  --gutter-page:clamp(20px,5vw,72px); /* @kind spacing */
+  --measure-prose:58ch; /* @kind spacing */
+  --measure-narrow:42ch; /* @kind spacing */
+  --container-max:1440px;
+  --grid-columns:12; /* @kind other */
+  --grid-gap:var(--space-6);
+
+  /* Design-element grid: the square data-point lattice. */
+  --dot-step:36px;
+  --dot-size:3px;
+}

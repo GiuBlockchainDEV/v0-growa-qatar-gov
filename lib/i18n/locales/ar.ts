@@ -8,7 +8,7 @@
 
 const ar: Record<string, string> = {
   // Common
-  'common.loading': 'جاري التحميل...',
+  'common.loading': 'جاري التحميل…',
   'common.error': 'حدث خطأ',
   'common.retry': 'إعادة المحاولة',
   'common.cancel': 'إلغاء',
@@ -26,6 +26,7 @@ const ar: Record<string, string> = {
   'common.previous': 'السابق',
   'common.submit': 'إرسال',
   'common.or': 'أو',
+  'common.confirm_title': 'هل أنت متأكد؟',
 
   // App
   'app.name': 'جروا قطر',
@@ -48,7 +49,7 @@ const ar: Record<string, string> = {
   // Watchtower
   'watchtower.title': 'برج المراقبة الزراعي القطري',
   'watchtower.subtitle': 'الوعي الوطني بالوضع والذكاء التشغيلي',
-  'watchtower.loading': 'جاري تحميل برج المراقبة...',
+  'watchtower.loading': 'جاري تحميل برج المراقبة…',
   'watchtower.refresh': 'تحديث',
   'watchtower.last_refresh': 'آخر تحديث',
   'watchtower.data_coverage': 'تغطية البيانات',
@@ -169,7 +170,7 @@ const ar: Record<string, string> = {
   'operations.actions': 'الإجراءات',
   'operations.save': 'حفظ',
   'operations.cancel': 'إلغاء',
-  'operations.deleting': 'جاري الحذف...',
+  'operations.deleting': 'جاري الحذف…',
   'operations.confirm_delete': 'هل أنت متأكد؟',
 }
 

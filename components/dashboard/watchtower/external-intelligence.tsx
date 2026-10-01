@@ -3,6 +3,8 @@
 import { useEffect, useState } from 'react'
 import { DashboardQueryLink } from '@/components/dashboard/dashboard-query-link'
 import { Globe, ArrowRight } from 'lucide-react'
+import { Card } from '@/components/brand/layout'
+import { useI18n } from '@/lib/i18n'
 
 interface FeedItem {
   id: string
@@ -13,6 +15,7 @@ interface FeedItem {
 }
 
 export function ExternalIntelligencePanel() {
+  const { tr } = useI18n()
   const [items, setItems] = useState<FeedItem[]>([])
   const [loading, setLoading] = useState(true)
 
@@ -36,35 +39,32 @@ export function ExternalIntelligencePanel() {
   }, [])
 
   return (
-    <div className="rounded-lg border border-white/10 bg-[#0a0d12] p-4">
-      <div className="flex items-center justify-between mb-2">
-        <div className="flex items-center gap-1.5">
-          <Globe className="h-3.5 w-3.5 text-white/40" />
-          <h3 className="text-xs font-semibold uppercase tracking-wider text-white/50">External intelligence</h3>
-        </div>
-        <DashboardQueryLink href="/dashboard?module=rss-feed" className="text-[10px] text-white/40 hover:text-[#07f880]">
-          All feeds →
-        </DashboardQueryLink>
-      </div>
-
+    <Card
+      icon={Globe}
+      title={tr('External intelligence')}
+    >
       {loading ? (
         <div className="space-y-2">
           {[1, 2].map((i) => (
-            <div key={i} className="h-8 bg-white/5 rounded animate-pulse" />
+            <div key={i} className="h-9 bg-muted rounded-md animate-pulse" />
           ))}
         </div>
       ) : items.length === 0 ? (
-        <p className="text-[11px] text-white/40">No relevant external feeds available.</p>
+        <p className="text-[13px] text-content-soft">{tr('No relevant external feeds available.')}</p>
       ) : (
-        <div className="space-y-2">
+        <ul className="divide-y divide-dotted divide-line-strong -my-1">
           {items.map((item) => (
-            <div key={item.id} className="rounded border border-white/5 px-2 py-1.5">
-              <p className="text-[11px] text-white/75 line-clamp-2 leading-snug">{item.title}</p>
-              <p className="text-[9px] text-white/35 mt-0.5">{item.source} · {item.category}</p>
-            </div>
+            <li key={item.id} className="py-2.5">
+              <p className="text-[13px] text-content line-clamp-2 leading-snug">{item.title}</p>
+              <p className="text-[11px] text-content-soft mt-1">{item.source} · {tr(item.category.charAt(0).toUpperCase() + item.category.slice(1))}</p>
+            </li>
           ))}
-        </div>
+        </ul>
       )}
-    </div>
+      <DashboardQueryLink href="/dashboard?module=rss-feed" className="inline-flex items-center gap-1 text-[12px] text-sage-700 hover:text-ink transition-colors">
+        {tr('All feeds')}
+        <ArrowRight strokeWidth={1.5} className="h-3.5 w-3.5 rtl:-scale-x-100" />
+      </DashboardQueryLink>
+    </Card>
   )
 }

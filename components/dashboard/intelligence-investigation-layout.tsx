@@ -4,6 +4,9 @@ import type { LucideIcon } from 'lucide-react'
 import { DashboardQueryLink } from '@/components/dashboard/dashboard-query-link'
 import type { ReactNode } from 'react'
 import { cn } from '@/lib/utils'
+import { CardHeader, PageHeader } from '@/components/brand/layout'
+import { StatusDot } from '@/components/brand/ui'
+import { useI18n } from '@/lib/i18n'
 
 interface IntelligenceInvestigationLayoutProps {
   contextHeader?: ReactNode
@@ -18,6 +21,8 @@ interface IntelligenceInvestigationLayoutProps {
   actions?: ReactNode
   className?: string
   sectionScrollable?: boolean
+  /** The primary analysis is the module's main work surface: full row, no inner scroll. */
+  wideAnalysis?: boolean
 }
 
 export function IntelligenceInvestigationLayout({
@@ -33,36 +38,58 @@ export function IntelligenceInvestigationLayout({
   actions,
   className,
   sectionScrollable = true,
+  wideAnalysis = false,
 }: IntelligenceInvestigationLayoutProps) {
+  const { tr } = useI18n()
   const sections = [
-    { key: 'context', label: 'Context', content: contextHeader },
-    { key: 'condition', label: 'Current condition', content: currentCondition },
-    { key: 'changed', label: 'What changed', content: whatChanged },
-    { key: 'analysis', label: 'Primary analysis', content: primaryAnalysis },
-    { key: 'map', label: 'Map / timeseries', content: mapOrTimeseries },
-    { key: 'entities', label: 'Affected entities', content: affectedEntities },
-    { key: 'signals', label: 'Signals', content: signals },
-    { key: 'forecast', label: 'Forecast', content: forecast },
-    { key: 'ai', label: 'AI analysis', content: aiAnalysis },
-    { key: 'actions', label: 'Available actions', content: actions },
+    { key: 'context', label: tr('Context'), content: contextHeader },
+    { key: 'condition', label: tr('Current condition'), content: currentCondition },
+    { key: 'changed', label: tr('What changed'), content: whatChanged },
+    { key: 'analysis', label: tr('Primary analysis'), content: primaryAnalysis },
+    { key: 'map', label: tr('Map / timeseries'), content: mapOrTimeseries },
+    { key: 'entities', label: tr('Affected entities'), content: affectedEntities },
+    { key: 'signals', label: tr('Signals'), content: signals },
+    { key: 'forecast', label: tr('Forecast'), content: forecast },
+    { key: 'ai', label: tr('AI analysis'), content: aiAnalysis },
+    { key: 'actions', label: tr('Available actions'), content: actions },
   ].filter((section) => section.content)
 
   return (
-    <div className={cn('grid grid-cols-1 gap-3 lg:grid-cols-2', className)}>
-      {sections.map((section) => (
+    <div className={cn('grid grid-cols-1 gap-4 lg:grid-cols-2', className)}>
+      {sections.map((section) =>
+        /* The assistant is already an AI-family card: wrapped in a section it
+           became a card inside a card, and the chat scrolled inside a 300px
+           box. It now takes the full row, at a height a conversation needs. */
+        section.key === 'ai' ? (
+          <div key={section.key} className="flex min-h-[460px] flex-col lg:col-span-2 [&>*]:flex-1">
+            {section.content}
+          </div>
+        ) : (
         <InvestigationSection
           key={section.key}
           title={section.label}
-          scrollable={sectionScrollable && section.key !== 'actions' && section.key !== 'context'}
-          className={section.key === 'actions' || section.key === 'context' ? 'lg:col-span-2' : undefined}
+          scrollable={
+            sectionScrollable &&
+            section.key !== 'actions' &&
+            section.key !== 'context' &&
+            !(wideAnalysis && section.key === 'analysis')
+          }
+          className={
+            section.key === 'actions' || section.key === 'context' || (wideAnalysis && section.key === 'analysis')
+              ? 'lg:col-span-2'
+              : undefined
+          }
         >
           {section.content}
         </InvestigationSection>
-      ))}
+        )
+      )}
     </div>
   )
 }
 
+/* A section is a monitoring card: white, dotted header rule. `priority`
+   no longer tints the whole card amber; it adds the status square. */
 export function InvestigationSection({
   title,
   children,
@@ -80,21 +107,20 @@ export function InvestigationSection({
 }) {
   return (
     <section
-      className={cn(
-        'flex min-h-0 flex-col rounded-xl border',
-        priority === 'high'
-          ? 'border-amber-500/25 bg-amber-500/[0.04]'
-          : 'border-white/10 bg-[#0a0d12]/80',
-        compact ? 'p-3' : 'p-4',
-        className
-      )}
+      data-famiglia="monitoraggio"
+      className={cn('growa flex min-h-0 flex-col bg-card border border-line overflow-hidden', className)}
+      style={{ borderRadius: 'var(--radius-xl)' }}
     >
-      <h2 className="shrink-0 text-[10px] font-bold uppercase tracking-widest text-white/45">{title}</h2>
+      <CardHeader
+        title={title}
+        actions={priority === 'high' ? <StatusDot tone="warning" size={7} /> : null}
+      />
       <div
         className={cn(
-          compact ? 'mt-2' : 'mt-3',
+          'g-card-corpo',
+          compact ? 'p-3' : 'p-4',
           scrollable &&
-            'min-h-[120px] max-h-[min(260px,32vh)] overflow-y-auto overscroll-contain pr-1 [-webkit-overflow-scrolling:touch]'
+            'min-h-[120px] max-h-[min(300px,36vh)] overflow-y-auto overscroll-contain [-webkit-overflow-scrolling:touch]'
         )}
       >
         {children}
@@ -107,7 +133,6 @@ export function InvestigationContextHeader({
   eyebrow,
   title,
   description,
-  icon: Icon,
   meta = [],
 }: {
   eyebrow: string
@@ -117,32 +142,27 @@ export function InvestigationContextHeader({
   meta?: Array<{ label: string; value: string; accent?: boolean }>
 }) {
   return (
-    <div className="flex flex-wrap items-start justify-between gap-4">
-      <div className="max-w-2xl">
-        <p className="text-[10px] uppercase tracking-widest text-[#07f880]/80">{eyebrow}</p>
-        <h1 className="mt-1 flex items-center gap-2 text-xl font-semibold text-white">
-          {Icon ? <Icon className="h-5 w-5 text-[#07f880]" /> : null}
-          {title}
-        </h1>
-        {description ? <p className="mt-1 text-sm text-white/55">{description}</p> : null}
-      </div>
-      {meta.length > 0 ? (
-        <div className="grid grid-cols-2 gap-2 text-xs sm:min-w-[220px]">
-          {meta.map((item) => (
-            <div
-              key={item.label}
-              className={cn(
-                'rounded-lg border px-3 py-2',
-                item.accent ? 'border-[#07f880]/30 bg-[#07f880]/10 text-[#07f880]' : 'border-white/10 bg-white/[0.03] text-white/80'
-              )}
-            >
-              <p className="text-[9px] uppercase tracking-wider opacity-70">{item.label}</p>
-              <p className="mt-0.5 font-medium">{item.value}</p>
-            </div>
-          ))}
-        </div>
-      ) : null}
-    </div>
+    <PageHeader
+      eyebrow={eyebrow}
+      title={title}
+      subtitle={description}
+      className="!mb-2"
+      actions={
+        meta.length > 0 ? (
+          <dl className="flex flex-wrap gap-2">
+            {meta.map((item) => (
+              <div key={item.label} className="bg-card border border-line px-3 py-2 min-w-[96px]" style={{ borderRadius: 'var(--radius-lg)' }}>
+                <dt className="flex items-center gap-1.5 text-[11px] text-content-soft">
+                  {item.accent && <StatusDot tone="good" size={6} />}
+                  {item.label}
+                </dt>
+                <dd className="mt-0.5 text-[14px] text-content" style={{ fontWeight: 500 }}>{item.value}</dd>
+              </div>
+            ))}
+          </dl>
+        ) : null
+      }
+    />
   )
 }
 
@@ -150,6 +170,7 @@ export function InvestigationActionBar({ children }: { children: ReactNode }) {
   return <div className="flex flex-wrap gap-2">{children}</div>
 }
 
+/* Commands are pills: primary ink, the others outline / secondary. */
 export function InvestigationActionButton({
   children,
   onClick,
@@ -162,23 +183,22 @@ export function InvestigationActionButton({
   href?: string
 }) {
   const className = cn(
-    'inline-flex items-center gap-1.5 rounded px-3 py-1.5 text-xs font-medium transition-colors',
-    variant === 'primary' && 'bg-[#07f880] text-black hover:bg-[#07f880]/90',
-    variant === 'ghost' && 'border border-white/10 text-white/70 hover:text-white hover:border-white/20',
-    variant === 'default' && 'bg-white/10 text-white hover:bg-white/15'
+    'g-btn',
+    variant === 'primary' ? 'g-btn--primary' : variant === 'ghost' ? 'g-btn--outline' : 'g-btn--secondary'
   )
+  const style = { height: 32, padding: '0 14px', fontSize: 13 }
 
   if (href) {
     return (
       <DashboardQueryLink href={href} className={className}>
-        {children}
+        <span className="inline-flex items-center gap-2" style={style}>{children}</span>
       </DashboardQueryLink>
     )
   }
 
   return (
-    <button type="button" onClick={onClick} className={className}>
-      {children}
+    <button type="button" onClick={onClick} className={className} style={style}>
+      <span className="inline-flex items-center gap-2">{children}</span>
     </button>
   )
 }

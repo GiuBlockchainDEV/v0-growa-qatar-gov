@@ -1,4 +1,4 @@
-import { requireHarvestAccess, harvestErrorResponse } from '@/lib/harvest/auth'
+import { requireHarvestAccess } from '@/lib/harvest/auth'
 import { harvestGetMapTileUrl } from '@/lib/harvest/client'
 import { harvestJsonResponse, resolveHarvestPayload } from '@/lib/harvest/resolve'
 
