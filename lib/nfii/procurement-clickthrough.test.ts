@@ -1,0 +1,46 @@
+import {describe,expect,it} from 'vitest'
+import {readFileSync} from 'node:fs'
+import {join} from 'node:path'
+const read=(p:string)=>readFileSync(join(process.cwd(),p),'utf8')
+const journey=read('components/dashboard/nfii-ops/procurement-journey.tsx')
+const workspace=read('components/dashboard/nfii-ops/operations-workspace.tsx')
+const panel=read('components/dashboard/nfii-ops/procurement-record-panel.tsx')
+const action=read('app/api/nfii/operations/action/route.ts')
+const migration=read('supabase/migrations/00041_nfii_operational_supply_chain.sql')
+describe('Clickable procurement supplier to contract to order and approval workflow',()=>{
+  it('all four summary cards open their real ledger and correct status',()=>{
+    expect(journey).toContain("target:'suppliers' as ProcurementTab,status:'approved'")
+    expect(journey).toContain("target:'contracts' as ProcurementTab,status:'approved'")
+    expect(journey).toContain("target:'orders' as ProcurementTab,status:'approved'")
+    expect(journey).toContain("target:'approvals' as ProcurementTab,status:'pending'")
+    expect(workspace).toContain('onNavigateStatus={(tab,status)=>')
+    expect(workspace).toContain('setRecordStatus(status)')
+  })
+  it('makes record IDs clickable and shows linked source and downstream records',()=>{
+    expect(workspace).toContain('openProcurementRecord(activeView as ProcurementRecordView,row.id)')
+    expect(workspace).toContain('<ProcurementRecordPanel')
+    expect(panel).toContain("onOpen('suppliers',supplier.id)")
+    expect(panel).toContain("onOpen('contracts',contract.id)")
+    expect(panel).toContain('onCreateContract(record)')
+    expect(panel).toContain('onCreateOrder(record)')
+    expect(panel).toContain("onGoToLogistics()")
+  })
+  it('discloses price per kg and contract order quantity value',()=>{
+    expect(panel).toContain('unitQarKg')
+    expect(panel).toContain('totalValueQar')
+    expect(panel).toContain('remainingTonnes')
+    expect(panel).toContain('pendingTonnes')
+    expect(panel).toContain('faceValueQar')
+    expect(panel).toContain("position.current")
+  })
+  it('retains real create and review endpoints with independent human sign off',()=>{
+    expect(workspace).toContain("fetch('/api/nfii/operations'")
+    expect(workspace).toContain("fetch('/api/nfii/operations/action'")
+    expect(workspace).toContain("approvalReadiness(s,row,today).ready")
+    expect(workspace).toContain("approvalTarget(s,row)")
+    expect(action).toContain("requireCapability(permission,organizationId)")
+    expect(migration).toContain("v_review.submitted_by=p_actor")
+    expect(panel).toContain('isPreview')
+    expect(panel).not.toMatch(/\.insert\(|\.update\(|\.upsert\(/)
+  })
+})

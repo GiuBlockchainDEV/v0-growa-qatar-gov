@@ -11,6 +11,8 @@ import { usePermissions } from '@/hooks/use-permissions'
 import { useTeamManagement, type TeamMember } from '@/hooks/use-team-management'
 import { useConfirm } from '@/components/brand/feedback'
 import { useAuth } from '@/hooks/use-auth'
+import { usePlatformCapabilities } from '@/hooks/use-platform-capabilities'
+import { organizationTypesForCreator } from '@/lib/auth/organization-types'
 import { humanize } from '@/components/brand/status'
 import { SETTINGS_TABS, type AssignableRole, type OrganizationType, type SettingsTab } from './settings-model'
 
@@ -66,6 +68,7 @@ export function useSettings() {
   const supabase = createClient()
   const { locale, setLocale, tr } = useI18n()
   const { organization } = useOrganization()
+  const { isPlatformAdmin } = usePlatformCapabilities()
   const { getUserRole } = usePermissions()
   const { getTeamMembers, addMemberByEmail, updateMemberRole, removeMember } = useTeamManagement()
 
@@ -316,20 +319,29 @@ export function useSettings() {
   const handleInvite = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!organization?.id || !inviteEmail.trim()) return
-
     setSaving(true)
     setError(null)
-    setMessage(null)
-    const result = await addMemberByEmail(organization.id, inviteEmail.trim(), inviteRole)
-    if (!result.success) {
-      setError(result.error || tr('Unable to add member. Ensure the user has already registered.'))
-    } else {
-      setMessage(tr('Member added successfully.'))
+    try {
+      const res = await fetch('/api/invitations', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          organizationId: organization.id,
+          email: inviteEmail.trim(),
+          role: inviteRole,
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        setError(data.error ?? tr('Unable to add member. Ensure the user has already registered.'))
+        return
+      }
+      setMessage(tr('Invitation sent.'))
       setInviteEmail('')
-      setInviteRole('member')
       await refreshMembers()
+    } finally {
+      setSaving(false)
     }
-    setSaving(false)
   }
 
   const handleSavePreferences = async () => {
@@ -748,6 +760,11 @@ export function useSettings() {
           government_master: tr('Government master'),
         } as Record<string, string>)[value] ?? humanize(value)
       : tr('Unknown')
+  const createOrganizationTypeOptions = useMemo(
+    () => organizationTypesForCreator(isPlatformAdmin),
+    [isPlatformAdmin]
+  )
+
   const dateLocale = locale === 'ar' ? 'ar-QA' : 'en-GB'
   const initials =
     [firstName, lastName].filter(Boolean).map((part) => part.trim()[0]?.toUpperCase()).join('') ||
@@ -764,6 +781,7 @@ export function useSettings() {
     createOrgName,
     createOrgSlug,
     createOrgType,
+    createOrganizationTypeOptions,
     currentRole,
     dateLocale,
     error,

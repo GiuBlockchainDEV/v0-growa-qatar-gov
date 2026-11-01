@@ -7,6 +7,7 @@ import { useI18n } from '@/lib/i18n'
 import { PlatformSidebar } from '@/components/platform/platform-sidebar'
 import { DashboardHeader } from '@/components/dashboard/header'
 import { RoleNavigationProvider, useSharedRoleNavigation } from '@/contexts/role-navigation-context'
+import { ActiveOrganizationProvider } from '@/contexts/active-organization-context'
 import { OperationalContextProvider } from '@/contexts/operational-context-provider'
 import { LatticeLoader } from '@/components/brand/ui'
 import {
@@ -203,11 +204,13 @@ function DashboardShell({
   children: React.ReactNode
 }) {
   return (
-    <RoleNavigationProvider>
-      <OperationalContextProvider>
-        <DashboardShellContent>{children}</DashboardShellContent>
-      </OperationalContextProvider>
-    </RoleNavigationProvider>
+    <ActiveOrganizationProvider>
+      <RoleNavigationProvider>
+        <OperationalContextProvider>
+          <DashboardShellContent>{children}</DashboardShellContent>
+        </OperationalContextProvider>
+      </RoleNavigationProvider>
+    </ActiveOrganizationProvider>
   )
 }
 

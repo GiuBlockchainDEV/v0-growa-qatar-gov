@@ -1,5 +1,4 @@
 import { createClient } from '@/lib/supabase/server'
-import { createClient as createSupabaseAdminClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
 
 export async function GET(request: Request) {
@@ -28,22 +27,10 @@ export async function GET(request: Request) {
     })
   }
 
-  const supabaseUrl =
-    process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL || 'https://qczaynvalytoqesfwdue.supabase.co'
-  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
-  const searchClient = serviceRoleKey
-    ? createSupabaseAdminClient(supabaseUrl, serviceRoleKey, {
-        auth: {
-          autoRefreshToken: false,
-          persistSession: false,
-        },
-      })
-    : supabase
+  const searchClient = supabase
 
   if (debugSearch) {
-    console.info('[farms-api] using search client', {
-      mode: serviceRoleKey ? 'service-role' : 'session',
-    })
+    console.info('[farms-api] using search client', { mode: 'session-rls' })
   }
 
   const farmId = searchParams.get('id')?.trim()

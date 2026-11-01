@@ -1,12 +1,21 @@
 import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
+import { requirePermission } from '@/lib/auth/authorization-service'
 
 export const dynamic = 'force-dynamic'
 
 export async function GET(request: Request) {
+  const authz = await requirePermission('intelligence.view')
+  if (!authz.context) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: authz.status })
+  }
+  if (!authz.allowed) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  }
+
   const supabase = await createClient()
-  const { data: { user }, error: authError } = await supabase.auth.getUser()
-  if (authError || !user) {
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 

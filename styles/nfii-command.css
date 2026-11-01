@@ -1,0 +1,178 @@
+/*
+ * NFII supply-chain layout primitives.
+ * This is NOT a second theme: every color, surface and interaction resolves
+ * through the same Growa tokens used by the rest of the platform.
+ * The global brand tokens are defined in styles/growa/colors.css.
+ */
+.nfii-command-scope {
+  color: var(--text-primary);
+  background: var(--growa-stone-50);
+  color-scheme: light;
+}
+
+.nfii-command-scope .nfii-panel {
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  background: var(--surface-card);
+}
+
+.nfii-command-scope .nfii-subpanel {
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--surface-muted);
+}
+
+.nfii-command-scope .nfii-label {
+  color: var(--text-secondary);
+  font-size: var(--text-micro);
+  font-weight: var(--fw-demibold);
+  letter-spacing: var(--ls-eyebrow);
+  text-transform: uppercase;
+}
+
+.nfii-command-scope .nfii-input {
+  min-height: 44px;
+  width: 100%;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+  background: var(--surface-card);
+  color: var(--text-primary);
+  padding: 9px 13px;
+  font-size: var(--text-body-sm);
+  outline: none;
+}
+
+.nfii-command-scope .nfii-input:focus-visible,
+.nfii-command-scope button:focus-visible,
+.nfii-command-scope a:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+.nfii-command-scope .nfii-input:disabled,
+.nfii-command-scope button:disabled {
+  opacity: .5;
+  cursor: not-allowed;
+}
+
+/* The Growa brand uses pills for buttons, tags and navigation. */
+.nfii-command-scope .nfii-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 40px;
+  border: 1px solid var(--growa-ink);
+  border-radius: var(--radius-pill);
+  background: var(--growa-ink);
+  color: var(--growa-white);
+  padding: 8px 16px;
+  font-size: var(--text-body-sm);
+  font-weight: var(--fw-medium);
+  cursor: pointer;
+  transition: transform .15s var(--ease-brand), background-color .15s var(--ease-brand);
+}
+
+.nfii-command-scope .nfii-button:hover:not(:disabled) {
+  background: var(--growa-ink-800);
+}
+
+.nfii-command-scope .nfii-button:active:not(:disabled) {
+  transform: scale(.985);
+}
+
+.nfii-command-scope .nfii-button-secondary {
+  border-color: var(--border-default);
+  background: var(--surface-card);
+  color: var(--text-primary);
+}
+
+.nfii-command-scope .nfii-button-secondary:hover:not(:disabled) {
+  background: var(--growa-cream-100);
+  border-color: var(--border-accent);
+}
+
+.nfii-command-scope .nfii-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--text-body-sm);
+}
+
+.nfii-command-scope .nfii-table th {
+  padding: 12px 14px;
+  background: var(--surface-muted);
+  border-bottom: 1px solid var(--border-subtle);
+  text-align: start;
+  color: var(--text-secondary);
+  font-size: var(--text-micro);
+  font-weight: var(--fw-demibold);
+  letter-spacing: var(--ls-eyebrow);
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.nfii-command-scope .nfii-table td {
+  padding: 13px 14px;
+  border-bottom: 1px solid var(--border-subtle);
+  color: var(--text-primary);
+  vertical-align: middle;
+}
+
+.nfii-command-scope .nfii-table tbody tr:hover {
+  background: var(--growa-cream-50);
+}
+
+.nfii-command-scope .nfii-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.nfii-command-scope .nfii-rail-link {
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-pill);
+  color: var(--text-primary);
+  background: var(--surface-card);
+  padding: 9px 14px;
+  font-size: var(--text-body-sm);
+  font-weight: var(--fw-medium);
+  text-decoration: none;
+}
+
+.nfii-command-scope .nfii-rail-link:hover {
+  background: var(--growa-cream-50);
+  border-color: var(--border-accent);
+  color: var(--text-primary);
+}
+
+.nfii-command-scope .nfii-rail-link[data-active='true'] {
+  color: var(--growa-ink);
+  border-color: var(--growa-sage);
+  background: var(--growa-cream-100);
+}
+
+.nfii-command-scope .nfii-kpi {
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  background: var(--surface-card);
+  padding: 16px;
+}
+
+.nfii-command-scope .nfii-empty {
+  border: 1px dashed var(--border-default);
+  border-radius: var(--radius-lg);
+  padding: 20px;
+  color: var(--text-secondary);
+  font-size: var(--text-body-sm);
+  line-height: 1.7;
+}
+
+.nfii-command-scope .nfii-focus {
+  color: var(--text-accent);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nfii-command-scope *,
+  .nfii-command-scope *::before,
+  .nfii-command-scope *::after {
+    transition: none !important;
+  }
+}

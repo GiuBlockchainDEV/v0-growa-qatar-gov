@@ -49,6 +49,27 @@ export const COMMODITY_CATALOG: CommodityDefinition[] = [
     cropAliases: ['barley', 'شعير'],
     category: 'grain',
   },
+  {
+    id: 'milk',
+    name: 'Milk',
+    nameAr: 'حليب',
+    cropAliases: ['milk', 'حليب'],
+    category: 'livestock',
+  },
+  {
+    id: 'rice',
+    name: 'Rice',
+    nameAr: 'أرز',
+    cropAliases: ['rice', 'أرز'],
+    category: 'grain',
+  },
+  {
+    id: 'wheat',
+    name: 'Wheat',
+    nameAr: 'قمح',
+    cropAliases: ['wheat', 'قمح'],
+    category: 'grain',
+  },
 ]
 
 export function resolveCommodity(idOrName: string | null | undefined): CommodityDefinition | null {

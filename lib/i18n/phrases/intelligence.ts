@@ -290,4 +290,11 @@ export const INTELLIGENCE_AR: Record<string, string> = {
   Harvest: 'الحصاد',
   Analytics: 'التحليلات',
   'Limited production data for this farm': 'بيانات إنتاج محدودة لهذه المزرعة',
+  'Estimated farm production': 'الإنتاج الزراعي التقديري',
+  'See supply and demand balance above': 'راجع ميزان العرض والطلب أعلاه',
+  'National climate exposure: {value} heat risk index': 'التعرض المناخي الوطني: مؤشر مخاطر الحرارة {value}',
+  'Legacy national coverage (all commodities)': 'التغطية الوطنية السابقة (جميع السلع)',
+  'National contract volume (all commodities)': 'حجم التعاقدات الوطني (جميع السلع)',
+  'National at-risk deliveries (all commodities)': 'الشحنات الوطنية المعرضة للخطر (جميع السلع)',
+  'Commodity imports': 'واردات السلعة',
 }

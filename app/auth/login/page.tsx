@@ -67,7 +67,7 @@ export default function Page() {
             onChange={(e) => setPassword(e.target.value)}
           />
           <div className="mt-2 flex justify-end">
-            <Link href="/auth/error" className="text-[12px] text-sage-700 hover:text-ink transition-colors">
+            <Link href="/auth/forgot-password" className="text-[12px] text-sage-700 hover:text-ink transition-colors">
               {tr('Forgot password?')}
             </Link>
           </div>

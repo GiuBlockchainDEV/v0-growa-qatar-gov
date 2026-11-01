@@ -1,120 +1,106 @@
 'use client'
 
-/*
- * Resolves who the user is for navigation purposes — the effective role and,
- * for ministry roles, the ministry profile — and hands back the menu built
- * by the registry (`lib/navigation/registry.ts`).
- *
- * It used to build a second, permission-filtered menu that no screen showed
- * (layer visibility, permissions and org type fetched on every mount, plus a
- * `role_navigation` table fallback and `ensure*` patches). The rail has been
- * driven by the registry all along; that dead path is gone.
- *
- * Use it through `useSharedRoleNavigation()` (one instance per dashboard).
- */
-
 import { useEffect, useMemo, useState } from 'react'
-import { createClient } from '@/lib/supabase/client'
 import { useAuth } from '@/hooks/use-auth'
-import { useOrganization } from '@/hooks/use-organization'
-import { usePermissions } from '@/hooks/use-permissions'
+import { useActiveOrganizationOptional } from '@/contexts/active-organization-context'
+import { usePlatformCapabilities } from '@/hooks/use-platform-capabilities'
 import {
   buildNavigation,
   ministryProfileForRole,
   type MinistryRoleProfile,
 } from '@/lib/navigation/registry'
+import { filterNavByPermissions } from '@/lib/navigation/admin-nav-filter'
 
 interface RoleState {
   effectiveRole: string | null
   roleProfile: MinistryRoleProfile | null
 }
 
-/** Growa staff may be "viewing as" another role through the effective-role RPC. */
-async function resolveImpersonatedRole(userId: string): Promise<{ impersonating: boolean; role: string | null }> {
-  const supabase = createClient()
-  const { data, error } = await supabase.rpc('get_effective_role', { user_id: userId })
-  // Disambiguate overloaded RPC signatures in mixed database states.
-  const fallback =
-    error?.code === 'PGRST202' || error?.code === 'PGRST203' ? (await supabase.rpc('get_effective_role')).data : null
-  let row = (data?.[0] || fallback?.[0] || null) as { is_impersonating?: boolean; role_name?: string } | null
-
-  if (!row?.is_impersonating) {
-    const { data: state } = await supabase
-      .from('user_impersonation_state')
-      .select('role_name, is_impersonating')
-      .eq('user_id', userId)
-      .maybeSingle()
-    if (state?.is_impersonating) row = { is_impersonating: true, role_name: state.role_name }
-  }
-
-  return { impersonating: Boolean(row?.is_impersonating), role: row?.role_name ?? null }
-}
-
 export function useRoleNavigation() {
   const { user } = useAuth()
-  const { organization } = useOrganization()
-  const { getUserRole } = usePermissions()
+  const activeOrg = useActiveOrganizationOptional()
+  const { isPlatformAdmin, rolePreviewActive, previewRole } = usePlatformCapabilities()
   const [role, setRole] = useState<RoleState>({ effectiveRole: null, roleProfile: null })
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    let cancelled = false
-
-    async function resolveRole(): Promise<RoleState> {
-      if (!user) return { effectiveRole: null, roleProfile: null }
-
-      // Organisation role is the baseline.
-      let currentRole: string | null = organization?.id ? await getUserRole(organization.id) : null
-
-      // growa.ai staff: the RPC role only while impersonating; otherwise the
-      // minimal "normal user" menu, whatever their membership says.
-      if (user.email?.endsWith('@growa.ai')) {
-        const impersonation = await resolveImpersonatedRole(user.id)
-        if (!impersonation.impersonating) return { effectiveRole: 'normal_user', roleProfile: null }
-        if (impersonation.role) currentRole = impersonation.role
-      }
-
-      // Metadata role is accepted only when the user belongs to an organisation.
-      if (!currentRole && organization?.id) {
-        const metadataRole = user.user_metadata?.role || user.app_metadata?.role
-        currentRole = typeof metadataRole === 'string' ? metadataRole : null
-      }
-
-      return { effectiveRole: currentRole, roleProfile: ministryProfileForRole(currentRole) }
+    if (!user) {
+      setRole({ effectiveRole: null, roleProfile: null })
+      setIsLoading(false)
+      return
     }
 
-    setIsLoading(true)
-    resolveRole()
-      .then((next) => {
-        if (cancelled) return
+    let cancelled = false
+
+    try {
+      let effectiveRole: string | null = null
+
+      if (isPlatformAdmin && rolePreviewActive && previewRole) {
+        effectiveRole = previewRole
+      } else if (isPlatformAdmin && !rolePreviewActive) {
+        effectiveRole = 'normal_user'
+      } else if (activeOrg?.effectiveOrgRole) {
+        effectiveRole = activeOrg.effectiveOrgRole
+      } else if (activeOrg?.requiresOrganizationSelection) {
+        effectiveRole = 'viewer'
+      }
+
+      const next = {
+        effectiveRole,
+        roleProfile: ministryProfileForRole(effectiveRole),
+      }
+      if (!cancelled) {
         setRole(next)
         setError(null)
-      })
-      .catch((err) => {
-        if (cancelled) return
-        console.error('[navigation] role resolution failed:', err)
+        setIsLoading(false)
+      }
+    } catch (err) {
+      if (!cancelled) {
         setError(err instanceof Error ? err.message : 'Failed to resolve role')
         setRole({ effectiveRole: null, roleProfile: null })
-      })
-      .finally(() => {
-        if (!cancelled) setIsLoading(false)
-      })
+        setIsLoading(false)
+      }
+    }
 
     return () => {
       cancelled = true
     }
-  }, [user, organization?.id, getUserRole])
+  }, [
+    user,
+    activeOrg?.effectiveOrgRole,
+    activeOrg?.requiresOrganizationSelection,
+    isPlatformAdmin,
+    rolePreviewActive,
+    previewRole,
+  ])
 
   return useMemo(() => {
-    const navigation = buildNavigation(role.effectiveRole, role.roleProfile)
+    const base = buildNavigation(role.effectiveRole, role.roleProfile)
+    const hasPermission = activeOrg?.hasPermission ?? (() => false)
+    const filteredItems = filterNavByPermissions(base.items, hasPermission, {
+      isPlatformStaff: Boolean(activeOrg?.platformStaffTier),
+    })
+    const grouped = base.areas
+      .map((area) => ({
+        area,
+        items: filteredItems.filter((item) => item.area === area.id),
+      }))
+      .filter((g) => g.items.length > 0)
+
+    const navigation = {
+      ...base,
+      items: filteredItems,
+      grouped,
+    }
+
     return {
       ...role,
       navigation,
       landingPage: navigation.landing,
-      isLoading,
+      isLoading: isLoading || Boolean(activeOrg?.loading),
       error,
       isMinistryWorkspace: role.roleProfile !== null,
     }
-  }, [role, isLoading, error])
+  }, [role, isLoading, activeOrg?.loading, activeOrg?.hasPermission, activeOrg?.platformStaffTier, error])
 }

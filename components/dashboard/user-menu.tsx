@@ -2,6 +2,8 @@
 
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/hooks/use-auth'
+import { useActiveOrganizationOptional } from '@/contexts/active-organization-context'
+import { roleDisplayName } from '@/lib/auth/role-registry'
 import { useI18n } from '@/lib/i18n'
 import { useState } from 'react'
 import { LogOut, Settings, User, ChevronDown, Shield } from 'lucide-react'
@@ -23,8 +25,12 @@ function Avatar({ size, initial }: { size: 32 | 40; initial: string }) {
 export function UserMenu() {
   const [isOpen, setIsOpen] = useState(false)
   const { user, logout } = useAuth()
+  const activeOrg = useActiveOrganizationOptional()
   const router = useRouter()
   const { tr } = useI18n()
+  const roleLabel = activeOrg?.effectiveOrgRole
+    ? roleDisplayName(activeOrg.effectiveOrgRole)
+    : tr('Operator')
 
   const handleLogout = async () => {
     try {
@@ -58,7 +64,7 @@ export function UserMenu() {
             {username}
           </span>
           <span className="text-[11px] text-content-soft leading-tight">
-            {tr('Operator')}
+            {roleLabel}
           </span>
         </div>
         <ChevronDown strokeWidth={1.5} className="h-4 w-4 text-content-soft hidden sm:block" />
@@ -91,14 +97,27 @@ export function UserMenu() {
             <button
               role="menuitem"
               onClick={() => {
-                router.push('/dashboard/settings?tab=profile')
+                router.push('/dashboard/account')
                 setIsOpen(false)
               }}
               className="w-full flex items-center gap-3 rounded-pill px-3 h-10 text-[14px] hover:bg-stone-100 transition-colors text-content"
             >
               <User strokeWidth={1.5} className="h-4 w-4 text-content-soft" />
-              {tr('Profile')}
+              {tr('My profile')}
             </button>
+            {activeOrg?.hasPermission('users.view') && (
+              <button
+                role="menuitem"
+                onClick={() => {
+                  router.push('/dashboard/team')
+                  setIsOpen(false)
+                }}
+                className="w-full flex items-center gap-3 rounded-pill px-3 h-10 text-[14px] hover:bg-stone-100 transition-colors text-content"
+              >
+                <Shield strokeWidth={1.5} className="h-4 w-4 text-content-soft" />
+                {tr('Users & roles')}
+              </button>
+            )}
             <button
               role="menuitem"
               onClick={() => {

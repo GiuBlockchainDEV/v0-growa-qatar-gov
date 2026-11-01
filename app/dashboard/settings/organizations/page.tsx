@@ -5,7 +5,10 @@ import { useI18n } from '@/lib/i18n'
 import { useGovernance, SHARED_LAYERS } from '@/hooks/use-governance'
 import { usePermissions } from '@/hooks/use-permissions'
 import { useOrganization } from '@/hooks/use-organization'
+import Link from 'next/link'
 import { Building2, Layers, Shield, ShoppingCart, DollarSign, Wrench, ChevronRight } from 'lucide-react'
+import { useActiveOrganizationOptional } from '@/contexts/active-organization-context'
+import { Button } from '@/components/brand/ui'
 import { Card, LoadingState, Notice, PageBody, PageHeader, Tile } from '@/components/brand/layout'
 import { StatusTag } from '@/components/brand/status'
 
@@ -23,6 +26,8 @@ export default function OrganizationsPage() {
   const { getTopLevelOrganizations } = useGovernance()
   const { getUserOrgType } = usePermissions()
   const { organization } = useOrganization()
+  const activeOrg = useActiveOrganizationOptional()
+  const canProvision = activeOrg?.hasPermission('platform.organizations.provision') ?? false
   
   const [organizations, setOrganizations] = useState<Organization[]>([])
   const [userOrgType, setUserOrgType] = useState<string | null>(null)
@@ -99,6 +104,13 @@ export default function OrganizationsPage() {
           eyebrow={tr('Settings')}
           title={tr('Organisations')}
           subtitle={canViewAllOrgs ? tr('Manage all organisations in the Growa Qatar ecosystem.') : tr('Your organisation details.')}
+          actions={
+            canProvision ? (
+              <Link href="/dashboard/settings?tab=organization">
+                <Button variant="outline">{tr('Create organisation')}</Button>
+              </Link>
+            ) : null
+          }
         />
 
         <div className="space-y-4">
@@ -131,9 +143,13 @@ export default function OrganizationsPage() {
                     <div className="flex items-center gap-2">
                       <StatusTag level={ORG_LEVEL[org.type] || 'unknown'} label={getOrgTypeLabel(org.type)} size="md" />
                       {canViewAllOrgs && (
-                        <button aria-label={tr('Open {name}', { name: org.name })} className="w-8 h-8 inline-flex items-center justify-center text-content-soft hover:text-content hover:bg-stone-100 rounded-pill transition-colors">
+                        <Link
+                          href={`/dashboard/organizations/${org.id}`}
+                          aria-label={tr('Open {name}', { name: org.name })}
+                          className="w-8 h-8 inline-flex items-center justify-center text-content-soft hover:text-content hover:bg-stone-100 rounded-pill transition-colors"
+                        >
                           <ChevronRight strokeWidth={1.5} className="h-4 w-4 rtl:-scale-x-100" />
-                        </button>
+                        </Link>
                       )}
                     </div>
                   </div>

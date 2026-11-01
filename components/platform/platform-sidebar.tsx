@@ -51,6 +51,11 @@ export function PlatformSidebar({
     if (item.key === 'supply-overview' && pathname.startsWith('/dashboard/supply-overview')) return true
     if (item.path.startsWith('/dashboard/settings') && pathname.startsWith(item.path)) return true
     if (item.path === '/dashboard/team' && pathname.startsWith('/dashboard/team')) return true
+    if (item.path === '/dashboard/account' && pathname.startsWith('/dashboard/account')) return true
+    if (item.path === '/dashboard/invitations' && pathname.startsWith('/dashboard/invitations')) return true
+    if (item.path === '/dashboard/access' && pathname.startsWith('/dashboard/access')) return true
+    if (item.path === '/dashboard/audit' && pathname.startsWith('/dashboard/audit')) return true
+    if (item.path.startsWith('/dashboard/users') && pathname.startsWith('/dashboard/users')) return item.key === 'users-roles'
     if (activeModule) {
       if (item.key === activeModule) return true
       if (

@@ -4,13 +4,19 @@ import { useEffect, useState } from 'react'
 import { DashboardQueryLink } from '@/components/dashboard/dashboard-query-link'
 import { Bell } from 'lucide-react'
 import { useI18n } from '@/lib/i18n'
-import { useOrganization } from '@/hooks/use-organization'
+import { useActiveOrganization } from '@/contexts/active-organization-context'
 import { useSharedRoleNavigation } from '@/contexts/role-navigation-context'
 import { useOperationalContextOptional } from '@/contexts/operational-context-provider'
 
 export function PlatformShellControls() {
   const { tr } = useI18n()
-  const { organization } = useOrganization()
+  const {
+    activeOrganization: organization,
+    organizations,
+    activeOrganizationId,
+    switchOrganization,
+    requiresOrganizationSelection,
+  } = useActiveOrganization()
   const { effectiveRole, roleProfile } = useSharedRoleNavigation()
   const opCtx = useOperationalContextOptional()
   const [alertCount, setAlertCount] = useState(0)
@@ -46,9 +52,33 @@ export function PlatformShellControls() {
           {tr('Organisation')}
         </p>
         {/* A lone dash read as a loading glitch: say it plainly. */}
-        <p className={`text-[13px] truncate leading-tight ${organization?.name ? 'text-content' : 'text-content-soft'}`} style={{ fontWeight: organization?.name ? 500 : 400 }}>
-          {organization?.name || tr('Not assigned')}
-        </p>
+        {organizations.length > 1 ? (
+          <select
+            aria-label={tr('Active organisation')}
+            className="mt-0.5 max-w-full truncate rounded-md border border-line bg-card px-2 py-1 text-[13px] text-content"
+            value={activeOrganizationId || ''}
+            onChange={(e) => {
+              const next = e.target.value
+              if (next) void switchOrganization(next)
+            }}
+          >
+            {!activeOrganizationId && (
+              <option value="">{requiresOrganizationSelection ? tr('Select organisation') : tr('Not assigned')}</option>
+            )}
+            {organizations.map((org) => (
+              <option key={org.id} value={org.id}>
+                {org.name}
+              </option>
+            ))}
+          </select>
+        ) : (
+          <p
+            className={`text-[13px] truncate leading-tight ${organization?.name ? 'text-content' : 'text-content-soft'}`}
+            style={{ fontWeight: organization?.name ? 500 : 400 }}
+          >
+            {organization?.name || tr('Not assigned')}
+          </p>
+        )}
       </div>
 
       <div className="border-s border-dotted border-line-strong ps-4 min-w-0 max-w-[140px]">

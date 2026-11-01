@@ -1,0 +1,3 @@
+-- Supabase SQL editor: paste and run the contents of
+-- supabase/migrations/00034_role_definitions_safe_rebuild.sql
+-- (renames legacy role_definitions, creates canonical table, seeds roles)

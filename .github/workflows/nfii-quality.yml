@@ -1,0 +1,52 @@
+name: NFII code quality
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: nfii-quality-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint-test-build:
+    name: TypeScript, tests and production build
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Install locked dependencies
+        run: npm ci
+      - name: Lint
+        run: npm run lint
+      - name: Unit tests
+        run: npm test
+      - name: TypeScript
+        run: npx tsc --noEmit
+      - name: Production build
+        run: npm run build
+      - name: Verify logistics ocean-grid serverless tracing
+        run: |
+          node - <<'NODE'
+          const fs=require('node:fs')
+          const path='.next/server/app/api/nfii/logistics/corridors/route.js.nft.json'
+          if(!fs.existsSync(path)) {
+            console.error('Missing logistics API output trace:',path)
+            process.exit(1)
+          }
+          const trace=JSON.parse(fs.readFileSync(path,'utf8'))
+          const grid=(trace.files||[]).find(p=>p.endsWith('ocean-grid.bin.gz'))
+          if(!grid){
+            console.error('Ocean grid missing from logistics serverless bundle')
+            process.exit(1)
+          }
+          console.log('Ocean grid traced for deployment:',grid)
+          NODE

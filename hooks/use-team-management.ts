@@ -95,95 +95,45 @@ export function useTeamManagement() {
     [supabase]
   )
 
-  const updateMemberRole = useCallback(
-    async (
-      organizationId: string,
-      memberId: string,
-      newRole: string
-    ) => {
-      const { error } = await supabase
-        .from('user_organization_members')
-        .update({ role: newRole })
-        .eq('id', memberId)
-        .eq('organization_id', organizationId)
+  const updateMemberRole = useCallback(async (organizationId: string, memberId: string, newRole: string) => {
+    const res = await fetch(`/api/memberships/${memberId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ organizationId, role: newRole }),
+    })
+    if (!res.ok) {
+      console.error('[team] role update failed:', await res.text())
+      return false
+    }
+    return true
+  }, [])
 
-      if (error) {
-        console.error('[team] role update failed:', error)
-        return false
-      }
-      return true
-    },
-    [supabase]
-  )
+  const addMemberByEmail = useCallback(async (organizationId: string, email: string, role: string) => {
+    const res = await fetch('/api/invitations', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ organizationId, email, role }),
+    })
+    const data = (await res.json()) as { error?: string }
+    if (!res.ok) {
+      return { success: false as const, error: data.error ?? 'Invitation failed' }
+    }
+    return { success: true as const }
+  }, [])
 
-  const addMemberByEmail = useCallback(
-    async (organizationId: string, email: string, role: string) => {
-      const normalizedEmail = email.trim().toLowerCase()
-      if (!normalizedEmail) {
-        return { success: false, error: 'Email is required' }
-      }
+  const removeMember = useCallback(async (organizationId: string, memberId: string) => {
+    const res = await fetch(
+      `/api/memberships/${encodeURIComponent(memberId)}?organizationId=${encodeURIComponent(organizationId)}`,
+      { method: 'DELETE' }
+    )
+    if (!res.ok) {
+      console.error('[team] member removal failed:', await res.text())
+      return false
+    }
+    return true
+  }, [])
 
-      const { data: profile, error: profileError } = await supabase
-        .from('profiles')
-        .select('id')
-        .eq('email', normalizedEmail)
-        .single()
-
-      if (profileError || !profile?.id) {
-        return {
-          success: false,
-          error:
-            'User not found. Ask the user to sign up first, then add them to this organization.',
-        }
-      }
-
-      const { error: insertError } = await supabase
-        .from('user_organization_members')
-        .insert({
-          user_id: profile.id,
-          organization_id: organizationId,
-          role,
-        })
-
-      if (insertError) {
-        if (insertError.code === '23505') {
-          return { success: false, error: 'User is already a member of this organization.' }
-        }
-        return { success: false, error: insertError.message }
-      }
-
-      return { success: true as const }
-    },
-    [supabase]
-  )
-
-  const removeMember = useCallback(
-    async (organizationId: string, memberId: string) => {
-      const { error } = await supabase
-        .from('user_organization_members')
-        .delete()
-        .eq('id', memberId)
-        .eq('organization_id', organizationId)
-
-      if (error) {
-        console.error('[team] member removal failed:', error)
-        return false
-      }
-      return true
-    },
-    [supabase]
-  )
-
-  const inviteMember = useCallback(
-    async (organizationId: string, email: string, role: string = 'viewer') => {
-      const result = await addMemberByEmail(organizationId, email, role)
-      if (!result.success) {
-        console.error('[team] invite failed:', result.error)
-      }
-      return result.success
-    },
-    [addMemberByEmail]
-  )
+  const inviteMember = addMemberByEmail
 
   return {
     getTeamMembers,

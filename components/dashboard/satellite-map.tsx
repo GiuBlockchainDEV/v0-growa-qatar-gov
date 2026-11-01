@@ -6,7 +6,7 @@ import type { Layer, LeafletMouseEvent } from 'leaflet'
 
 type LeafletModule = typeof import('leaflet')
 import { createHarvestRasterLayer } from '@/components/dashboard/harvest-raster-layer'
-import { useAuth } from '@/hooks/use-auth'
+import { usePlatformCapabilities } from '@/hooks/use-platform-capabilities'
 import { useOrganization } from '@/hooks/use-organization'
 import type { IntelligenceSignal } from '@/lib/domain/types'
 import { MAP_COLORS, resolvePolygonColor, SIGNAL_SEVERITY_COLORS } from '@/lib/watchtower/map-layer-colors'
@@ -196,7 +196,6 @@ export function SatelliteMap({
     : ''
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const harvestRasterOverlay = useMemo(() => harvestRasterOverlayProp, [rasterKey])
-  const { user } = useAuth()
   const { organization } = useOrganization()
 
   const layerVisibility = useMemo(
@@ -285,7 +284,7 @@ export function SatelliteMap({
     .toString()
     .toLowerCase()
   const isFarmCompanyContext = organizationType === 'farm_company'
-  const isGrowaAdmin = Boolean(user?.email?.toLowerCase().endsWith('@growa.ai'))
+  const { isPlatformAdmin: isGrowaAdmin } = usePlatformCapabilities()
 
   const cropNameByNormalized = useMemo(() => {
     const map = new Map<string, string>()

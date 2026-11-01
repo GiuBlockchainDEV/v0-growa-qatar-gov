@@ -1,0 +1,564 @@
+{
+  "data_classification": "SYNTHETIC, SANDBOX ONLY",
+  "scenario": "NFII fictional Doha-based food trader / distributor, rolling 180 days",
+  "source_basis": [
+    {
+      "dataset": "2025 Qatar fresh dairy and vegetables",
+      "url": "https://qna.org.qa/en/news/news-bulletins-details?date=15%2F10%2F2026&id=0083-qatar-targets-sustainable-food-production-as-self-sufficiency-reaches-99-for-fresh-poultry-and-dairy"
+    },
+    {
+      "dataset": "2024 Qatar rice imports HS1006 (214,290 t)",
+      "url": "https://wits.worldbank.org/trade/comtrade/en/country/QAT/year/2024/tradeflow/Imports/partner/ALL/product/1006"
+    },
+    {
+      "dataset": "2024 Qatar barley imports HS1003 (271,564 t)",
+      "url": "https://wits.worldbank.org/trade/comtrade/en/country/QAT/year/2024/tradeflow/Imports/partner/ALL/product/1003"
+    },
+    {
+      "dataset": "2024 Qatar wheat imports HS1001 (103,340 t)",
+      "url": "https://wits.worldbank.org/trade/comtrade/en/country/ALL/year/2024/tradeflow/Imports/partner/WLD/product/1001"
+    }
+  ],
+  "counts": {
+    "suppliers": 10,
+    "contracts": 11,
+    "purchase_orders": 10,
+    "shipments": 10,
+    "warehouses": 3,
+    "reserve_lots": 5,
+    "reserve_releases": 4,
+    "stock_snapshots": 9,
+    "food_flows": 576,
+    "food_coverage": 36
+  },
+  "suppliers": [
+    {
+      "code": "VEG-QA-01",
+      "name": "SIMULATED | Qatar Protected Crops Network",
+      "country": "QA",
+      "review": "approved"
+    },
+    {
+      "code": "DAIRY-QA-01",
+      "name": "SIMULATED | Doha Dairy Distribution",
+      "country": "QA",
+      "review": "approved"
+    },
+    {
+      "code": "RICE-IN-01",
+      "name": "SIMULATED | South Asia Rice Procurement",
+      "country": "IN",
+      "review": "approved"
+    },
+    {
+      "code": "RICE-PK-01",
+      "name": "SIMULATED | Indus Grain Export Trading",
+      "country": "PK",
+      "review": "approved"
+    },
+    {
+      "code": "WHEAT-AU-01",
+      "name": "SIMULATED | Australian Cereal Exchange",
+      "country": "AU",
+      "review": "approved"
+    },
+    {
+      "code": "BARLEY-DE-01",
+      "name": "SIMULATED | Northern Europe Feed Grains",
+      "country": "DE",
+      "review": "approved"
+    },
+    {
+      "code": "PEPPER-TR-01",
+      "name": "SIMULATED | Anatolia Fresh Trade",
+      "country": "TR",
+      "review": "approved"
+    },
+    {
+      "code": "DATES-OM-01",
+      "name": "SIMULATED | Oman Date Supply Partners",
+      "country": "OM",
+      "review": "approved"
+    },
+    {
+      "code": "RICE-VN-02",
+      "name": "SIMULATED | Mekong Rice Supply Co",
+      "country": "VN",
+      "review": "approved"
+    },
+    {
+      "code": "VEG-QA-02",
+      "name": "SIMULATED | Al Shamal Hydroponic Trading",
+      "country": "QA",
+      "review": "pending"
+    }
+  ],
+  "contracts": [
+    {
+      "ref": "RICE-IN",
+      "supplier": "RICE-IN-01",
+      "commodity": "rice",
+      "quantity": 500,
+      "price": 3800,
+      "review": "approved"
+    },
+    {
+      "ref": "RICE-PK",
+      "supplier": "RICE-PK-01",
+      "commodity": "rice",
+      "quantity": 200,
+      "price": 3450,
+      "review": "approved"
+    },
+    {
+      "ref": "WHEAT-AU",
+      "supplier": "WHEAT-AU-01",
+      "commodity": "wheat",
+      "quantity": 600,
+      "price": 1550,
+      "review": "approved"
+    },
+    {
+      "ref": "BARLEY-DE",
+      "supplier": "BARLEY-DE-01",
+      "commodity": "barley",
+      "quantity": 450,
+      "price": 1450,
+      "review": "approved"
+    },
+    {
+      "ref": "TOMATO-QA",
+      "supplier": "VEG-QA-01",
+      "commodity": "tomato",
+      "quantity": 135,
+      "price": 4250,
+      "review": "approved"
+    },
+    {
+      "ref": "CUCUMBER-QA",
+      "supplier": "VEG-QA-01",
+      "commodity": "cucumber",
+      "quantity": 150,
+      "price": 3650,
+      "review": "approved"
+    },
+    {
+      "ref": "PEPPER-TR",
+      "supplier": "PEPPER-TR-01",
+      "commodity": "pepper",
+      "quantity": 75,
+      "price": 6500,
+      "review": "approved"
+    },
+    {
+      "ref": "LETTUCE-QA",
+      "supplier": "VEG-QA-01",
+      "commodity": "lettuce",
+      "quantity": 85,
+      "price": 5150,
+      "review": "approved"
+    },
+    {
+      "ref": "MILK-QA",
+      "supplier": "DAIRY-QA-01",
+      "commodity": "milk",
+      "quantity": 800,
+      "price": 4800,
+      "review": "approved"
+    },
+    {
+      "ref": "DATES-OM",
+      "supplier": "DATES-OM-01",
+      "commodity": "date",
+      "quantity": 100,
+      "price": 4700,
+      "review": "approved"
+    },
+    {
+      "ref": "RICE-VN-BACKUP",
+      "supplier": "RICE-VN-02",
+      "commodity": "rice",
+      "quantity": 90,
+      "price": 3550,
+      "review": "pending"
+    }
+  ],
+  "orders": [
+    {
+      "ref": "RICE-IN",
+      "contract": "RICE-IN",
+      "quantity": 300,
+      "review": "approved"
+    },
+    {
+      "ref": "RICE-PK",
+      "contract": "RICE-PK",
+      "quantity": 130,
+      "review": "approved"
+    },
+    {
+      "ref": "WHEAT-AU",
+      "contract": "WHEAT-AU",
+      "quantity": 360,
+      "review": "approved"
+    },
+    {
+      "ref": "BARLEY-DE",
+      "contract": "BARLEY-DE",
+      "quantity": 270,
+      "review": "approved"
+    },
+    {
+      "ref": "TOMATO-QA",
+      "contract": "TOMATO-QA",
+      "quantity": 95,
+      "review": "approved"
+    },
+    {
+      "ref": "CUCUMBER-QA",
+      "contract": "CUCUMBER-QA",
+      "quantity": 105,
+      "review": "approved"
+    },
+    {
+      "ref": "PEPPER-TR",
+      "contract": "PEPPER-TR",
+      "quantity": 55,
+      "review": "approved"
+    },
+    {
+      "ref": "LETTUCE-QA",
+      "contract": "LETTUCE-QA",
+      "quantity": 65,
+      "review": "approved"
+    },
+    {
+      "ref": "MILK-QA",
+      "contract": "MILK-QA",
+      "quantity": 550,
+      "review": "approved"
+    },
+    {
+      "ref": "DATES-OM",
+      "contract": "DATES-OM",
+      "quantity": 70,
+      "review": "approved"
+    }
+  ],
+  "shipments": [
+    {
+      "ref": "RICE-IN",
+      "order": "RICE-IN",
+      "quantity": 250,
+      "origin": "Nhava Sheva / Mumbai, India",
+      "destination": "Hamad Port, Qatar",
+      "eta": -1,
+      "status": "delivered"
+    },
+    {
+      "ref": "RICE-PK",
+      "order": "RICE-PK",
+      "quantity": 110,
+      "origin": "Karachi Port, Pakistan",
+      "destination": "Hamad Port, Qatar",
+      "eta": 9,
+      "status": "planned"
+    },
+    {
+      "ref": "WHEAT-AU",
+      "order": "WHEAT-AU",
+      "quantity": 300,
+      "origin": "Fremantle, Australia",
+      "destination": "Hamad Port, Qatar",
+      "eta": 14,
+      "status": "in_transit"
+    },
+    {
+      "ref": "BARLEY-DE",
+      "order": "BARLEY-DE",
+      "quantity": 220,
+      "origin": "Hamburg Port, Germany",
+      "destination": "Hamad Port, Qatar",
+      "eta": -2,
+      "status": "delivered"
+    },
+    {
+      "ref": "TOMATO-QA",
+      "order": "TOMATO-QA",
+      "quantity": 75,
+      "origin": "Al Khor protected farms, Qatar",
+      "destination": "Doha fresh produce hub, Qatar",
+      "eta": -1,
+      "status": "delivered"
+    },
+    {
+      "ref": "CUCUMBER-QA",
+      "order": "CUCUMBER-QA",
+      "quantity": 85,
+      "origin": "Al Shamal farms, Qatar",
+      "destination": "Doha fresh produce hub, Qatar",
+      "eta": 4,
+      "status": "planned"
+    },
+    {
+      "ref": "PEPPER-TR",
+      "order": "PEPPER-TR",
+      "quantity": 50,
+      "origin": "Mersin Port, Turkey",
+      "destination": "Hamad Port, Qatar",
+      "eta": -2,
+      "status": "delayed"
+    },
+    {
+      "ref": "LETTUCE-QA",
+      "order": "LETTUCE-QA",
+      "quantity": 50,
+      "origin": "Al Khor hydroponics, Qatar",
+      "destination": "Doha chilled distribution, Qatar",
+      "eta": -1,
+      "status": "delivered"
+    },
+    {
+      "ref": "MILK-QA",
+      "order": "MILK-QA",
+      "quantity": 450,
+      "origin": "Umm Salal cold chain, Qatar",
+      "destination": "Doha dairy distribution, Qatar",
+      "eta": 1,
+      "status": "in_transit"
+    },
+    {
+      "ref": "DATES-OM",
+      "order": "DATES-OM",
+      "quantity": 60,
+      "origin": "Nizwa consolidated foods, Oman",
+      "destination": "Doha distribution, Qatar",
+      "eta": 11,
+      "status": "planned"
+    }
+  ],
+  "warehouses": [
+    {
+      "code": "DOHA-DRY",
+      "name": "SIMULATED | Doha Dry Goods Depot",
+      "location": "Doha Industrial Area, Qatar"
+    },
+    {
+      "code": "MESAIEED-CHILL",
+      "name": "SIMULATED | Mesaieed Chilled Warehouse",
+      "location": "Mesaieed Logistics District, Qatar"
+    },
+    {
+      "code": "ALKHOR-COLD",
+      "name": "SIMULATED | Al Khor Perishables Store",
+      "location": "Al Khor, Qatar"
+    }
+  ],
+  "lots": [
+    {
+      "ref": "RICE-A",
+      "warehouse": "DOHA-DRY",
+      "shipment": "RICE-IN",
+      "quantity": 130,
+      "expiryDays": 360
+    },
+    {
+      "ref": "RICE-B",
+      "warehouse": "DOHA-DRY",
+      "shipment": "RICE-IN",
+      "quantity": 95,
+      "expiryDays": 365
+    },
+    {
+      "ref": "BARLEY-A",
+      "warehouse": "DOHA-DRY",
+      "shipment": "BARLEY-DE",
+      "quantity": 200,
+      "expiryDays": 260
+    },
+    {
+      "ref": "TOMATO-A",
+      "warehouse": "MESAIEED-CHILL",
+      "shipment": "TOMATO-QA",
+      "quantity": 68,
+      "expiryDays": 11
+    },
+    {
+      "ref": "LETTUCE-A",
+      "warehouse": "ALKHOR-COLD",
+      "shipment": "LETTUCE-QA",
+      "quantity": 46,
+      "expiryDays": 7
+    }
+  ],
+  "releases": [
+    {
+      "ref": "RICE-EMERGENCY",
+      "lot": "RICE-A",
+      "quantity": 35,
+      "purpose": "SIMULATION ONLY: dry food reserve release to Doha distribution operators",
+      "review": "executed"
+    },
+    {
+      "ref": "RICE-REPLENISH",
+      "lot": "RICE-B",
+      "quantity": 20,
+      "purpose": "SIMULATION ONLY: contingency allocation held pending dispatch",
+      "review": "approved"
+    },
+    {
+      "ref": "BARLEY-FEED",
+      "lot": "BARLEY-A",
+      "quantity": 30,
+      "purpose": "SIMULATION ONLY: livestock feed resilience contingency assessment",
+      "review": "pending"
+    },
+    {
+      "ref": "LETTUCE-FEFO",
+      "lot": "LETTUCE-A",
+      "quantity": 10,
+      "purpose": "SIMULATION ONLY: FEFO release to refrigerated local distribution",
+      "review": "executed"
+    }
+  ],
+  "commodity_daily_assumptions_tonnes": [
+    {
+      "commodity": "tomato",
+      "opening": 45,
+      "domestic_production": 2.1,
+      "confirmed_import": 1.3,
+      "consumption": 4.0,
+      "loss": 0.12
+    },
+    {
+      "commodity": "cucumber",
+      "opening": 70,
+      "domestic_production": 2.5,
+      "confirmed_import": 0.8,
+      "consumption": 3.0,
+      "loss": 0.1
+    },
+    {
+      "commodity": "pepper",
+      "opening": 25,
+      "domestic_production": 0.25,
+      "confirmed_import": 1.5,
+      "consumption": 1.7,
+      "loss": 0.06
+    },
+    {
+      "commodity": "lettuce",
+      "opening": 20,
+      "domestic_production": 1.3,
+      "confirmed_import": 0.25,
+      "consumption": 1.6,
+      "loss": 0.07
+    },
+    {
+      "commodity": "date",
+      "opening": 105,
+      "domestic_production": 0.3,
+      "confirmed_import": 0.4,
+      "consumption": 0.9,
+      "loss": 0.02
+    },
+    {
+      "commodity": "barley",
+      "opening": 350,
+      "domestic_production": 0.05,
+      "confirmed_import": 9.0,
+      "consumption": 10.0,
+      "loss": 0.08
+    },
+    {
+      "commodity": "milk",
+      "opening": 35,
+      "domestic_production": 12.0,
+      "confirmed_import": 0.15,
+      "consumption": 12.3,
+      "loss": 0.2
+    },
+    {
+      "commodity": "rice",
+      "opening": 320,
+      "domestic_production": 0,
+      "confirmed_import": 7.0,
+      "consumption": 9.0,
+      "loss": 0.06
+    },
+    {
+      "commodity": "wheat",
+      "opening": 250,
+      "domestic_production": 0,
+      "confirmed_import": 4.5,
+      "consumption": 4.8,
+      "loss": 0.05
+    }
+  ],
+  "food_flow_schedule": [
+    {
+      "offset": 0,
+      "span": 1
+    },
+    {
+      "offset": 1,
+      "span": 1
+    },
+    {
+      "offset": 2,
+      "span": 1
+    },
+    {
+      "offset": 3,
+      "span": 1
+    },
+    {
+      "offset": 4,
+      "span": 1
+    },
+    {
+      "offset": 5,
+      "span": 1
+    },
+    {
+      "offset": 6,
+      "span": 1
+    },
+    {
+      "offset": 7,
+      "span": 7
+    },
+    {
+      "offset": 14,
+      "span": 7
+    },
+    {
+      "offset": 21,
+      "span": 7
+    },
+    {
+      "offset": 28,
+      "span": 2
+    },
+    {
+      "offset": 30,
+      "span": 30
+    },
+    {
+      "offset": 60,
+      "span": 30
+    },
+    {
+      "offset": 90,
+      "span": 30
+    },
+    {
+      "offset": 120,
+      "span": 30
+    },
+    {
+      "offset": 150,
+      "span": 30
+    }
+  ]
+}

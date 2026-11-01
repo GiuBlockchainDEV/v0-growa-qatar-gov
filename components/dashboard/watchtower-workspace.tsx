@@ -1,216 +1,140 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
-import { useSearchParams } from 'next/navigation'
-import { RefreshCw } from 'lucide-react'
-import type { WatchtowerSummary, IntelligenceSignal } from '@/lib/domain/types'
-import { useOperationalContext } from '@/contexts/operational-context-provider'
+import Link from 'next/link'
+import { useEffect, useState } from 'react'
+import {
+  ArrowUpRight, Bot, Building2, FlaskConical, Network, ShieldCheck, Wheat,
+} from 'lucide-react'
 import { useI18n } from '@/lib/i18n'
-import { SignalCard } from '@/components/dashboard/watchtower/signal-card'
-import { WatchtowerChangesPanel } from '@/components/dashboard/watchtower/changes-panel'
-import { WatchtowerProductionSnapshot } from '@/components/dashboard/watchtower/production-snapshot'
-import { NationalMapPanel } from '@/components/dashboard/watchtower/national-map-panel'
-import { GrowaIntelligencePanel } from '@/components/dashboard/growa-intelligence-panel'
-import { WatchtowerContextDeck } from '@/components/dashboard/watchtower/context-deck'
-import { buildWatchtowerGrowaContext } from '@/lib/ai/build-watchtower-growa-context'
-import { buildDashboardMapProps } from '@/lib/dashboard/map-navigation'
-import { partitionSignalsByPriority } from '@/lib/watchtower/signal-priority'
+import { useOrganization } from '@/hooks/use-organization'
+import { WatchtowerFoodCommandCenter } from '@/components/dashboard/watchtower/food-command-center'
+import { WatchtowerScenarioRoom } from '@/components/dashboard/watchtower/scenario-room'
+import { WatchtowerOperationsPulse } from '@/components/dashboard/watchtower/operations-pulse'
+import { WatchtowerAgentOperationsRoom } from '@/components/dashboard/watchtower/agent-operations-room'
+import { PageHeader } from '@/components/brand/layout'
 
-import { useToast } from '@/components/brand/feedback'
-import { Card, CardAction, ErrorState, LoadingState, Notice, PageHeader } from '@/components/brand/layout'
-import { Tag } from '@/components/brand/ui'
-import { History, SignalHigh } from 'lucide-react'
-import { sharedFetch } from '@/lib/client/shared-fetch'
-
+/**
+ * NFII 2.0 Food Resilience Operating Picture.
+ *
+ * Information architecture is informed by the user's ICPS reference:
+ * situation awareness -> purchasing triage -> supply network -> simulation.
+ * All actual operational numbers remain sourced from reviewed organization data.
+ * Missing external feeds are labelled not integrated, not assigned mock values.
+ */
 export function WatchtowerWorkspace() {
-  const showToast = useToast()
-  const { t, tr, locale } = useI18n()
-  const searchParams = useSearchParams()
-  const { timeframe, selectedSignalId, context } = useOperationalContext()
-  const mapProps = buildDashboardMapProps(searchParams)
+  const { locale } = useI18n()
+  const { organization } = useOrganization()
+  const ar = locale === 'ar'
+  const tx = (english: string, arabic: string) => ar ? arabic : english
 
-  const [summary, setSummary] = useState<WatchtowerSummary | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-  const [refreshing, setRefreshing] = useState(false)
-  const [partialErrors, setPartialErrors] = useState<string[]>([])
-
-  const loadSummary = useCallback(async (showRefresh = false) => {
-    try {
-      if (showRefresh) setRefreshing(true)
-      else setLoading(true)
-      setError(null)
-      setPartialErrors([])
-
-      const response = await sharedFetch(`/api/watchtower/summary?timeframe=${timeframe}`, { force: showRefresh })
-      const payload = await response.json()
-
-      if (!response.ok) throw new Error(payload.error || 'Failed to load watchtower data')
-
-      setSummary(payload as WatchtowerSummary)
-      if (payload.sourceStatus) {
-        const degraded = (payload.sourceStatus as WatchtowerSummary['sourceStatus'])
-          .filter((s) => s.health !== 'healthy')
-          .map((s) => `${s.source}: ${s.health}`)
-        if (degraded.length) setPartialErrors(degraded)
-      }
-    } catch (loadError) {
-      setError(loadError instanceof Error ? loadError.message : 'Failed to load watchtower')
-    } finally {
-      setLoading(false)
-      setRefreshing(false)
+  type Section = 'food' | 'operations' | 'scenarios' | 'agents'
+  const [activeSection, setActiveSection] = useState<Section>('food')
+  useEffect(() => {
+    function syncSectionFromHash() {
+      const hash = window.location.hash
+      if (hash === '#watchtower-operations') setActiveSection('operations')
+      else if (hash === '#watchtower-scenarios') setActiveSection('scenarios')
+      else if (hash === '#watchtower-agents') setActiveSection('agents')
+      else if (hash === '#watchtower-response' || hash === '#watchtower-food')
+        setActiveSection('food')
     }
-  }, [timeframe])
+    syncSectionFromHash()
+    window.addEventListener('hashchange', syncSectionFromHash)
+    return () => window.removeEventListener('hashchange', syncSectionFromHash)
+  }, [])
 
-  useEffect(() => { loadSummary() }, [loadSummary])
-
-  const handleCreateAlert = async (signal: IntelligenceSignal) => {
-    try {
-      const res = await fetch('/api/alerts', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          sourceSignalId: signal.id,
-          title: signal.title,
-          summary: signal.summary,
-          severity: signal.severity,
-          alertType: signal.type,
-          farmIds: signal.farmIds || [],
-          parcelIds: signal.parcelIds || [],
-          pointIds: signal.pointIds || [],
-        }),
-      })
-      const payload = await res.json()
-      if (!res.ok) throw new Error(payload.error || tr('Failed to create alert'))
-      showToast(t('watchtower.alert_created'), 'success')
-    } catch (e) {
-      showToast(e instanceof Error ? e.message : tr('Failed to create alert'), 'error')
-    }
+  function selectSection(section: Section) {
+    setActiveSection(section)
+    const hash = section === 'food' ? '#watchtower-food'
+      : section === 'operations' ? '#watchtower-operations'
+      : section === 'agents' ? '#watchtower-agents' : '#watchtower-scenarios'
+    window.history.replaceState(null, '', hash)
   }
 
-  const actionableChanges = useMemo(
-    () =>
-      summary?.changes.filter(
-        (change) => change.significance === 'high' || change.significance === 'medium'
-      ).slice(0, 4) ?? [],
-    [summary?.changes]
-  )
+  const sections = [
+    { id: 'food' as const, name: tx('Food situation & risk', 'الوضع الغذائي والمخاطر'), icon: Wheat },
+    { id: 'operations' as const, name: tx('Supply operations', 'عمليات الإمداد'), icon: Network },
+    { id: 'scenarios' as const, name: tx('Scenario room', 'غرفة السيناريوهات'), icon: FlaskConical },
+    { id: 'agents' as const, name: tx('Agent operations', 'عمليات الوكلاء'), icon: Bot },
+  ] as const
 
-  if (loading && !summary) {
-    return (
-      <div className="growa flex h-full items-center justify-center bg-background">
-        <LoadingState label={t('watchtower.loading')} />
-      </div>
-    )
-  }
-
-  if (error && !summary) {
-    return (
-      <div className="growa flex h-full items-center justify-center bg-background p-8">
-        <ErrorState message={error} onRetry={() => loadSummary()} retryLabel={t('common.retry')} className="max-w-sm w-full" />
-      </div>
-    )
-  }
-
-  if (!summary) return null
-
-  const growaContext = buildWatchtowerGrowaContext(summary)
-  const selectedParcelId = context.parcelId || searchParams.get('parcelId')
-  const { priority: prioritySignals, routine: routineSignals } = partitionSignalsByPriority(summary.signals)
-  const visibleSignals = [...prioritySignals, ...routineSignals].slice(0, 6)
-
-  const refreshedAt = new Date(summary.generatedAt).toLocaleString(locale === 'ar' ? 'ar-QA' : 'en-GB', {
-    hour: '2-digit',
-    minute: '2-digit',
-    day: 'numeric',
-    month: 'short',
-  })
-
-  /* Same page grammar as the SaaS: stone-50 page, a Light display title
-     with the square, white cards with a header per family. The map and the
-     signals sit side by side; the AI briefing is the ink (AI) card. */
   return (
-    <div className="growa h-full overflow-y-auto bg-background text-content">
-      <div className="mx-auto max-w-[1600px] p-6 space-y-4">
-        <PageHeader
-          eyebrow={tr('National watchtower')}
-          title={t('watchtower.title')}
-          subtitle={
-            <>
-              {t('watchtower.last_refresh')}: {refreshedAt}
-            </>
-          }
-          actions={
-            <>
-              {summary.isDemo && <Tag variant="muted">{t('watchtower.demo_mode')}</Tag>}
-              <CardAction icon={RefreshCw} label={t('watchtower.refresh')} onClick={() => loadSummary(true)} disabled={refreshing} spinning={refreshing} />
-            </>
-          }
-          className="!mb-2"
-        />
-
-        {partialErrors.length > 0 && (
-          <Notice tone="warning" title={t('watchtower.partial_degradation')}>
-            {partialErrors.join(' · ')}
-          </Notice>
-        )}
-
-        <WatchtowerProductionSnapshot
-          production={summary.production}
-          supply={summary.supply}
-          climate={summary.climate}
-        />
-
-        <div className="grid grid-cols-1 gap-4 xl:grid-cols-[1fr_340px]">
-          <div className="min-h-[520px]">
-            <NationalMapPanel
-              summary={summary}
-              locale={locale}
-              targetFarmId={mapProps.targetFarmId}
-              targetPointId={mapProps.targetPointId}
-              targetFocusToken={mapProps.targetFocusToken}
-              targetZoom={mapProps.targetZoom}
-              targetCropFilter={mapProps.targetCropFilter}
-              selectedParcelId={selectedParcelId}
-            />
-          </div>
-
-          <Card
-            icon={SignalHigh}
-            title={t('watchtower.priority_signals')}
-            actions={<Tag variant="outline-ink" size="sm">{visibleSignals.length}</Tag>}
-            className="relative z-20 max-h-[720px]"
-            bodyClassName="overflow-y-auto"
-          >
-            {visibleSignals.length === 0 ? (
-              <p className="text-[13px] text-content-soft">{t('watchtower.no_signals')}</p>
-            ) : (
-              visibleSignals.map((signal) => (
-                <SignalCard
-                  key={signal.id}
-                  signal={signal}
-                  selected={selectedSignalId === signal.id}
-                  onCreateAlert={handleCreateAlert}
-                  emphasized={prioritySignals.some((entry) => entry.id === signal.id)}
-                  compact={!prioritySignals.some((entry) => entry.id === signal.id)}
-                />
-              ))
+    <main className="growa nfii-command-scope h-full overflow-y-auto bg-background text-content">
+      <div className="mx-auto max-w-[1600px] space-y-4 p-4 pb-12 sm:p-6">
+        <header className="space-y-3">
+          <PageHeader
+            eyebrow={tx('Food security intelligence', 'معلومات الأمن الغذائي')}
+            title={tx('Food Security Watchtower', 'برج مراقبة الأمن الغذائي')}
+            subtitle={tx(
+              'Explore food balance, supply operations, scenarios and a read-only specialist-agent rehearsal. Verified and illustrative inputs remain clearly separated.',
+              'استكشف الميزان الغذائي وعمليات الإمداد والسيناريوهات ومحاكاة الوكلاء المتخصصين. تُفصل المدخلات الموثقة عن التوضيحية بوضوح.'
             )}
-          </Card>
-        </div>
+            actions={
+              <div className="flex flex-col items-start gap-1 text-[12px] md:items-end">
+                <span className="inline-flex items-center gap-2 font-medium text-content">
+                  <Building2 className="h-4 w-4 text-sage-700" aria-hidden="true" />
+                  {organization?.name ?? tx('No organization selected', 'لم تُحدد المؤسسة')}
+                </span>
+                <span className="text-[11px] text-content-soft">
+                  {tx('Organization data · Not national totals', 'بيانات المؤسسة · ليست إجماليات وطنية')}
+                </span>
+              </div>
+            }
+            className="!mb-1"
+          />
+          <nav aria-label={tx('Food security sections', 'أقسام الأمن الغذائي')}
+            className="nfii-panel flex flex-wrap items-center gap-2 px-3 py-3">
+            {sections.map((section) => {
+              const Icon = section.icon
+              return (
+                <button
+                  key={section.id}
+                  type="button"
+                  data-active={activeSection === section.id}
+                  aria-pressed={activeSection === section.id}
+                  onClick={() => selectSection(section.id)}
+                  className="nfii-rail-link inline-flex items-center gap-2"
+                >
+                  <Icon className="h-4 w-4" strokeWidth={1.6} aria-hidden="true" />
+                  {section.name}
+                </button>
+              )
+            })}
+            <span aria-hidden="true" className="mx-1 hidden h-5 border-s border-line lg:inline-block" />
+            {[
+              {href:'/dashboard/procurement',label:tx('Procurement','المشتريات')},
+              {href:'/dashboard/logistics',label:tx('Logistics','الخدمات اللوجستية')},
+              {href:'/dashboard/reserves',label:tx('Reserves','الاحتياطيات')},
+            ].map(item=>(
+              <Link key={item.href} href={item.href}
+                className="nfii-rail-link inline-flex items-center gap-1.5">
+                {item.label}
+                <ArrowUpRight className="h-3.5 w-3.5 rtl:-scale-x-100" aria-hidden="true"/>
+              </Link>
+            ))}
+            <Link href="/dashboard?module=commodities"
+              className="ms-auto inline-flex items-center gap-1.5 px-3 py-2 text-[12px] font-medium text-sage-700 hover:underline">
+              {tx('Commodity intelligence', 'تحليل السلع')}
+              <ArrowUpRight className="h-4 w-4 rtl:-scale-x-100" aria-hidden="true"/>
+            </Link>
+          </nav>
+        </header>
 
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-          <Card icon={History} title={t('watchtower.what_changed')}>
-            <WatchtowerChangesPanel changes={actionableChanges} />
-          </Card>
-          {/* The assistant is itself an AI-family card (ink header). */}
-          <div className="min-h-[420px]" aria-label={t('watchtower.ai_briefing')}>
-            <GrowaIntelligencePanel module="watchtower" context={growaContext} />
-          </div>
-        </div>
+        {activeSection === 'food' && <WatchtowerFoodCommandCenter />}
+        {activeSection === 'operations' && <WatchtowerOperationsPulse />}
+        {activeSection === 'scenarios' && <WatchtowerScenarioRoom />}
+        {activeSection === 'agents' && <WatchtowerAgentOperationsRoom />}
 
-        <WatchtowerContextDeck summary={summary} />
+        <footer className="flex flex-wrap items-start gap-2 border-t border-dotted border-line pt-3 text-[11px] text-content-soft">
+          <ShieldCheck className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+          <p className="max-w-[115ch]">
+            {tx(
+              'Decision support only. Source review is not certification by Qatar authorities. Procurement, ports, warehouses and agency-level network feeds must be connected and authorized before they can inform operational execution. Simulation does not change live records.',
+              'لدعم القرار فقط. مراجعة المصدر ليست اعتماداً من الجهات القطرية. يجب ربط مصادر المشتريات والموانئ والمستودعات والجهات المعنية والتحقق من صلاحياتها قبل أي تنفيذ. لا تغير المحاكاة السجلات الفعلية.'
+            )}
+          </p>
+        </footer>
       </div>
-    </div>
+    </main>
   )
 }

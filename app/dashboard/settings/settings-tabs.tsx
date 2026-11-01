@@ -7,7 +7,7 @@ import { Bell, Building2, Globe2, Mail, Save, ShieldCheck, UserPlus, UserRound, 
 import { Card, Notice } from '@/components/brand/layout'
 import { Button, Field, SegmentedToggle, Select, Switch } from '@/components/brand/ui'
 import { StatusTag, humanize } from '@/components/brand/status'
-import { ORGANIZATION_TYPE_OPTIONS, ROLE_OPTIONS, type AssignableRole, type OrganizationType } from './settings-model'
+import { ROLE_OPTIONS, type AssignableRole, type OrganizationType } from './settings-model'
 import type { SettingsState } from './use-settings'
 
 export function ProfileTab({ s }: { s: SettingsState }) {
@@ -122,7 +122,7 @@ export function PreferencesTab({ s }: { s: SettingsState }) {
 }
 
 export function OrganizationTab({ s }: { s: SettingsState }) {
-  const { availableFarms, availableOrganizations, canManageUsers, createOrgDescription, createOrgName, createOrgSlug, createOrgType, dateLocale, farmNameById, handleCreateOrganization, handleDeleteInviteRequest, handleInvite, handleInviteRequest, handleRemove, handleRoleChange, hasPendingInviteRequest, inviteEmail, inviteRequestFarmId, inviteRequestMessage, inviteRequestOrgId, inviteRequiresFarmSelection, inviteRole, isCreatingOrganization, isDeletingRequest, members, orgTypeLabel, organization, organizationNameById, roleLabel, saving, selectedInviteOrganization, sentInviteRequests, setCreateOrgDescription, setCreateOrgName, setCreateOrgSlug, setCreateOrgType, setInviteEmail, setInviteRequestFarmId, setInviteRequestMessage, setInviteRequestOrgId, setInviteRole, tr } = s
+  const { availableFarms, availableOrganizations, canManageUsers, createOrgDescription, createOrgName, createOrgSlug, createOrgType, createOrganizationTypeOptions, dateLocale, farmNameById, handleCreateOrganization, handleDeleteInviteRequest, handleInvite, handleInviteRequest, handleRemove, handleRoleChange, hasPendingInviteRequest, inviteEmail, inviteRequestFarmId, inviteRequestMessage, inviteRequestOrgId, inviteRequiresFarmSelection, inviteRole, isCreatingOrganization, isDeletingRequest, members, orgTypeLabel, organization, organizationNameById, roleLabel, saving, selectedInviteOrganization, sentInviteRequests, setCreateOrgDescription, setCreateOrgName, setCreateOrgSlug, setCreateOrgType, setInviteEmail, setInviteRequestFarmId, setInviteRequestMessage, setInviteRequestOrgId, setInviteRole, tr } = s
   return (
           <div className="space-y-4">
             <Card
@@ -253,7 +253,7 @@ export function OrganizationTab({ s }: { s: SettingsState }) {
                       value={createOrgType}
                       onChange={(e) => setCreateOrgType(e.target.value as OrganizationType)}
                     >
-                      {ORGANIZATION_TYPE_OPTIONS.map((option) => (
+                      {createOrganizationTypeOptions.map((option) => (
                         <option key={option.value} value={option.value}>
                           {orgTypeLabel(option.value)}
                         </option>
