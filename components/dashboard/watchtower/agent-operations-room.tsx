@@ -79,11 +79,11 @@ export function WatchtowerAgentOperationsRoom() {
       </div>
       <p className="mt-3 text-[11px] text-content-soft">
         {hasVerifiedBalance?tx(
-          'Reviewed organization source data available. Agent analysis remains a read-only rehearsal, not an executed decision.',
-          'بيانات مؤسسة مُراجعة متاحة. تحليل الوكلاء يبقى للقراءة فقط وليس قراراً منفذاً.'
+          'Organization commodity balance loaded. Agent coordination is read-only until a human approves execution.',
+          'تم تحميل ميزان السلعة للمؤسسة. تنسيق الوكلاء للقراءة فقط حتى موافقة بشرية على التنفيذ.'
         ):tx(
-          'No complete reviewed balance is available. Agent recommendations are withheld until source evidence is complete.',
-          'لا يوجد ميزان مُراجع مكتمل؛ لا تُعرض توصيات الوكلاء حتى اكتمال المصادر.'
+          'Commodity balance is still loading or incomplete for this horizon.',
+          'ميزان السلعة ما زال قيد التحميل أو غير مكتمل لهذه الفترة.'
         )}
         {foodError&&<span className="mt-1 block text-warning-strong">{foodError}</span>}
       </p>
