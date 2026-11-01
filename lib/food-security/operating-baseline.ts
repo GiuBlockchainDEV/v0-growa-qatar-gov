@@ -1,5 +1,9 @@
 import qatarPlanning from '@/supabase/seeds/qatar-2026-sandbox/03_dataset_preview.json'
-import { addFoodDays, type FoodBalanceInput } from '@/lib/food-security/balance'
+import {
+  addFoodDays,
+  type FoodBalanceFlow,
+  type FoodBalanceInput,
+} from '@/lib/food-security/balance'
 import { COMMODITY_CATALOG } from '@/lib/platform/commodity-catalog'
 import { calculateFoodBalance } from '@/lib/food-security/balance'
 import { buildFoodPosture, type FoodPosture } from '@/lib/watchtower/food-posture'
@@ -26,7 +30,7 @@ export function buildOperatingFoodBalanceInput(
     throw new Error('Unknown commodity ' + commodityId)
   }
   const root = sourceRoot(commodityId)
-  const flows: FoodBalanceInput['flows'] = []
+  const flows: FoodBalanceFlow[] = []
   for (let offset = 0; offset < days; offset += 1) {
     for (const flowType of FLOW_TYPES) {
       let multiplier = 1
