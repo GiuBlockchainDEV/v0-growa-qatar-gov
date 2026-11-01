@@ -31,6 +31,7 @@ import type { WatchtowerTimeframe } from '@/lib/domain/types'
 import { parseWatchtowerTimeframe } from '@/lib/domain/timeframes'
 import { clearOperationalOverlayParams } from '@/lib/dashboard/context-navigation'
 import { resolveDashboardHref } from '@/lib/dashboard/dashboard-navigation'
+import { parseDashboardMapLayers } from '@/lib/dashboard/parse-map-layers'
 
 interface OperationalContextValue {
   context: OperationalContext
@@ -54,22 +55,12 @@ interface OperationalContextValue {
 
 const OperationalContextReact = createContext<OperationalContextValue | null>(null)
 
-function parseMapLayers(params: URLSearchParams): string[] {
-  const raw = params.get('mapLayer') || params.get('mapLayers')
-  if (!raw) {
-    const moduleKey = params.get('module')
-    if (moduleKey === 'watchtower' || moduleKey === 'national-overview' || !moduleKey) {
-      return ['fields', 'production', 'harvest-forecast', 'crop-health', 'intelligence-signals']
-    }
-    return ['farms', 'intelligence-signals']
-  }
-  return raw.split(',').map((s) => s.trim()).filter(Boolean)
-}
-
 export function OperationalContextProvider({ children }: { children: ReactNode }) {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const [activeMapLayers, setActiveMapLayers] = useState<string[]>(() => parseMapLayers(searchParams))
+  const [activeMapLayers, setActiveMapLayers] = useState<string[]>(() =>
+    parseDashboardMapLayers(searchParams)
+  )
 
   const context = useMemo(() => parseOperationalContext(searchParams), [searchParams])
   const timeframe = parseWatchtowerTimeframe(
@@ -78,7 +69,7 @@ export function OperationalContextProvider({ children }: { children: ReactNode }
   const selectedSignalId = searchParams.get('signalId')
 
   useEffect(() => {
-    setActiveMapLayers(parseMapLayers(searchParams))
+    setActiveMapLayers(parseDashboardMapLayers(searchParams))
   }, [searchParams])
 
   const navigateToUrl = useCallback(

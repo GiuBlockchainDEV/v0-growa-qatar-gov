@@ -59,6 +59,10 @@ import {
   getScoreTextColor,
   normalizeExternalLink,
 } from '@/components/dashboard/map/map-model'
+import {
+  resolveFarmDisplayName,
+  resolveFarmMapCoordinates,
+} from '@/lib/operations/farm-map-coordinates'
 
 const QATAR_CENTER = { lat: 25.3548, lng: 51.1839 }
 const DEFAULT_ZOOM = 10
@@ -202,6 +206,7 @@ export function SatelliteMap({
     () => (activeMapLayers ? resolveMapLayerVisibility(activeMapLayers) : null),
     [activeMapLayers]
   )
+  const farmsLayerEnabled = layerVisibility ? layerVisibility.showFarms : true
 
   const mapRef = useRef<HTMLDivElement>(null)
   const mapInstanceRef = useRef<MapController | null>(null)
@@ -472,7 +477,7 @@ export function SatelliteMap({
       label: point.label,
       type: point.pointType,
     }))
-    if (!layerVisibility?.showFarms) return custom
+    if (!farmsLayerEnabled) return custom
     const merged = [...custom]
     const seen = new Set(custom.map((entry) => entry.id))
     for (const marker of nationalFarmMarkers) {
@@ -482,10 +487,10 @@ export function SatelliteMap({
       }
     }
     return merged
-  }, [customPoints, layerVisibility?.showFarms, nationalFarmMarkers])
+  }, [customPoints, farmsLayerEnabled, nationalFarmMarkers])
 
   useEffect(() => {
-    if (!layerVisibility?.showFarms) {
+    if (!farmsLayerEnabled) {
       setNationalFarmMarkers([])
       return
     }
@@ -498,17 +503,18 @@ export function SatelliteMap({
         if (!response.ok || cancelled || !Array.isArray(payload)) return
         const markers = payload
           .map((row: Record<string, unknown>) => {
-            const lat = Number(row.gps_latitude ?? row.gpsLatitude)
-            const lng = Number(row.gps_longitude ?? row.gpsLongitude)
-            if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null
             const id = typeof row.id === 'string' ? row.id : ''
             if (!id) return null
-            const label =
-              (typeof row.name_en === 'string' && row.name_en.trim()) ||
-              (typeof row.name === 'string' && row.name.trim()) ||
-              (typeof row.name_ar === 'string' && row.name_ar.trim()) ||
-              `Farm ${id.slice(0, 8)}`
-            return { id, lat, lng, label, type: 'farm' as MapPointType }
+            const coordinates = resolveFarmMapCoordinates(row)
+            if (!coordinates) return null
+            const label = resolveFarmDisplayName(row, id)
+            return {
+              id,
+              lat: coordinates.lat,
+              lng: coordinates.lng,
+              label,
+              type: 'farm' as MapPointType,
+            }
           })
           .filter((marker): marker is MapMarker => Boolean(marker))
         if (!cancelled) setNationalFarmMarkers(markers)
@@ -521,7 +527,7 @@ export function SatelliteMap({
     return () => {
       cancelled = true
     }
-  }, [layerVisibility?.showFarms])
+  }, [farmsLayerEnabled])
 
   useEffect(() => {
     if (!layerVisibility?.showIntelligenceSignals) {
@@ -947,16 +953,16 @@ export function SatelliteMap({
         })
         if (!response.ok || cancelled) return
         const row = (await response.json()) as Record<string, unknown>
-        const lat = Number(row.gps_latitude ?? row.gpsLatitude ?? row.lat)
-        const lng = Number(row.gps_longitude ?? row.gpsLongitude ?? row.lng)
-        if (!Number.isFinite(lat) || !Number.isFinite(lng)) return
-        const label =
-          (typeof row.name_en === 'string' && row.name_en.trim()) ||
-          (typeof row.name === 'string' && row.name.trim()) ||
-          (typeof row.name_ar === 'string' && row.name_ar.trim()) ||
-          `Farm ${targetFarmId.slice(0, 8)}`
+        const coordinates = resolveFarmMapCoordinates(row)
+        if (!coordinates) return
+        const label = resolveFarmDisplayName(row, targetFarmId)
         if (!cancelled) {
-          setOperationsFarmTarget({ id: targetFarmId, label, lat, lng })
+          setOperationsFarmTarget({
+            id: targetFarmId,
+            label,
+            lat: coordinates.lat,
+            lng: coordinates.lng,
+          })
         }
       } catch {
         if (!cancelled) setOperationsFarmTarget(null)
@@ -1354,8 +1360,6 @@ export function SatelliteMap({
     }
 
     markerInstancesRef.current.forEach((marker) => marker.remove?.())
-    const farmsLayerEnabled = layerVisibility ? layerVisibility.showFarms : true
-
     if (!layerVisibility) {
       if (weatherGridPoints.length > 0 || harvestFields.length > 0 || hideMarkersForCropFocus) {
         markerInstancesRef.current = []
