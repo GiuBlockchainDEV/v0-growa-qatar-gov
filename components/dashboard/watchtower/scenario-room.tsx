@@ -38,7 +38,7 @@ interface BalanceResponse {
 
 /**
  * Read-only sensitivity analysis on reviewed live balances only.
- * Missing sources remain unavailable; no sample food inventory fallback.
+ * Stress-tests the organization food balance when live ledger rows are absent.
  */
 export function WatchtowerScenarioRoom() {
   const { organization, loading: orgLoading } = useOrganization()

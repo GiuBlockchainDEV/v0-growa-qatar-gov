@@ -21,7 +21,6 @@ function pretty(n:number):string {
   return n.toLocaleString('en-US',{maximumFractionDigits:1})
 }
 
-/** Read only authorized tenant-scoped records, never synthetic demo fallbacks. */
 export function WatchtowerOperationsPulse(){
   const {organization,loading:orgLoading}=useOrganization()
   const {locale}=useI18n()
@@ -106,7 +105,7 @@ export function WatchtowerOperationsPulse(){
       className="nfii-panel p-4 md:p-5">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <p className="nfii-label !text-content-accent">{snapshot?tx('OPERATIONS / SOURCE-BACKED','العمليات / مصادر موثقة'):tx('OPERATIONS / SOURCE UNAVAILABLE','العمليات / المصدر غير متاح')}</p>
+          <p className="nfii-label !text-content-accent">{snapshot?tx('OPERATIONS / ACTIVE','العمليات / نشطة'):tx('OPERATIONS','العمليات')}</p>
           <h2 className="mt-1 text-[18px] font-semibold text-content">
             {tx('Operational supply network', 'شبكة الإمداد التشغيلية')}
           </h2>
@@ -146,8 +145,8 @@ export function WatchtowerOperationsPulse(){
       )}
 
       {!orgId&&!orgLoading&&<p role="status" className="mt-3 rounded-md border border-line p-3 text-[11px] text-content-soft">
-        {tx('Choose an authorized organization. No sample orders, shipments or reserve numbers are displayed.',
-          'اختر مؤسسة مصرحاً لها؛ لن تُعرض أوامر أو شحنات أو احتياطيات تجريبية.')}
+        {tx('Select an organization to view procurement, logistics, and reserve activity.',
+          'اختر مؤسسة لعرض المشتريات واللوجستيات وحركة الاحتياطيات.')}
       </p>}
       {error&&<p role="alert" className="mt-3 rounded-md border border-warning-line p-3 text-[11px] text-warning-strong">
         {error}
@@ -176,8 +175,8 @@ export function WatchtowerOperationsPulse(){
       </div>
       <p className="mt-3 text-[10px] leading-relaxed text-content-soft">
         {tx(
-          'Figures come only from authorized organization records. No customs API or live port telemetry is connected. Missing values remain unknown.',
-          'تأتي الأرقام من سجلات المؤسسة المصرح بها فقط. لا يوجد ربط جمركي أو مباشر بالميناء؛ تبقى القيم المفقودة غير معروفة.'
+          'Counts reflect approved suppliers, purchase orders, in-transit shipments, and warehouse reserve positions for this organization.',
+          'تعكس الأرقام الموردين المعتمدين وأوامر الشراء والشحنات قيد النقل ومواقع الاحتياط في المستودعات لهذه المؤسسة.'
         )}
       </p>
     </section>

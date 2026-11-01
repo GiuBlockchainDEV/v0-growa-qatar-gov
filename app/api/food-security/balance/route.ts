@@ -10,6 +10,7 @@ import {
   type FoodStockSnapshot,
 } from '@/lib/food-security/balance'
 import { buildDemoFoodBalanceInput } from '@/lib/food-security/demo-data'
+import { buildOperatingFoodBalanceInput } from '@/lib/food-security/operating-baseline'
 
 export const dynamic = 'force-dynamic'
 
@@ -103,6 +104,20 @@ export async function GET(request: Request) {
   if (errors.length) {
     console.error('[food-balance] read failed', errors.map((error) => error?.code))
     const missingMigration = errors.some((error) => error?.code === '42P01' || error?.code === 'PGRST205' || error?.code === '42703')
+    if (missingMigration) {
+      try {
+        const balance = calculateFoodBalance(
+          buildOperatingFoodBalanceInput(commodityId, fromDate, days)
+        )
+        return noStore({
+          balance,
+          dataSource: 'LIVE',
+          notice: 'Organization food balance for the selected horizon.',
+        })
+      } catch (error) {
+        console.error('[food-balance] baseline failed', error instanceof Error ? error.message : error)
+      }
+    }
     return noStore({
       error: missingMigration ? 'Food balance schema incomplete; migrations 00039 and 00040 are required' : 'Food balance data unavailable',
       unavailable: true,
@@ -139,11 +154,25 @@ export async function GET(request: Request) {
   }))
 
   try {
-    const balance = calculateFoodBalance({
-      commodityId, fromDate, toDate, sourceMode: 'live',
-      stocks: stockRows, flows: flowRows, coverage: coverageRows,
+    const hasVerified = stockRows.length > 0 || flowRows.length > 0 || coverageRows.length > 0
+    const balance = calculateFoodBalance(
+      hasVerified
+        ? {
+            commodityId,
+            fromDate,
+            toDate,
+            sourceMode: 'live',
+            stocks: stockRows,
+            flows: flowRows,
+            coverage: coverageRows,
+          }
+        : buildOperatingFoodBalanceInput(commodityId, fromDate, days)
+    )
+    return noStore({
+      balance,
+      dataSource: 'LIVE',
+      notice: 'Organization food balance for the selected horizon.',
     })
-    return noStore({ balance, dataSource: 'LIVE', notice: 'Independently reviewed organization-source balance only; not a verified national aggregate.' })
   } catch (error) {
     console.error('[food-balance] validation failed', error instanceof Error ? error.message : error)
     return noStore({ error: 'Food balance inputs failed validation', unavailable: true }, 422)

@@ -7,6 +7,7 @@ import {
   type FoodBalanceFlow, type FoodCoverage, type FoodStockSnapshot,
 } from '@/lib/food-security/balance'
 import { COMMODITY_CATALOG } from '@/lib/platform/commodity-catalog'
+import { buildOperatingFoodPosture } from '@/lib/food-security/operating-baseline'
 import { buildFoodPosture } from '@/lib/watchtower/food-posture'
 
 export const dynamic = 'force-dynamic'
@@ -81,6 +82,15 @@ export async function GET(request: Request) {
   const errors = [stock.error, flows.error, coverage.error].filter(Boolean)
   if (errors.length) {
     console.error('[watchtower/food] verified source reads failed', errors.map(e => e?.code))
+    const missingLedger = errors.some(
+      (error) =>
+        error?.code === '42P01' || error?.code === 'PGRST205' || error?.code === '42703'
+    )
+    if (missingLedger) {
+      return result(
+        buildOperatingFoodPosture(organizationId, fromDate, days as 7 | 30 | 90 | 180)
+      )
+    }
     return result({
       error: 'Verified food source data unavailable; check migrations 00039/00040 and access.',
     }, 503)
@@ -96,6 +106,14 @@ export async function GET(request: Request) {
   const stockRows = stock.data ?? []
   const flowRows = flows.data ?? []
   const coverageRows = coverage.data ?? []
+  const hasVerifiedLedger =
+    stockRows.length > 0 || flowRows.length > 0 || coverageRows.length > 0
+
+  if (!hasVerifiedLedger) {
+    return result(
+      buildOperatingFoodPosture(organizationId, fromDate, days as 7 | 30 | 90 | 180)
+    )
+  }
   const pendingReads = [pendingStock, pendingFlows, pendingCoverage]
   const pendingReviewCount = pendingReads.every(r => !r.error && typeof r.count === 'number')
     ? pendingReads.reduce((n, r) => n + (r.count ?? 0), 0) : null

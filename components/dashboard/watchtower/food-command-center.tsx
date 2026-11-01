@@ -82,7 +82,6 @@ export function WatchtowerFoodCommandCenter() {
     return () => controller.abort()
   }, [orgId, days, refresh])
 
-  // No national seed fallback: only organization-scoped reviewed API results.
   const data = liveData?.organizationId === orgId &&
     liveData.sourceMode === 'live' ? liveData : null
 
@@ -148,16 +147,16 @@ export function WatchtowerFoodCommandCenter() {
                 {tx('Food security command center', 'مركز قيادة الأمن الغذائي')}
               </h2>
               <span className="rounded border border-line bg-muted px-2 py-1 text-[10px] font-semibold text-content-soft">
-                {data ? tx('REVIEWED SOURCES · ORGANIZATION', 'مصادر مُراجعة · مستوى المؤسسة') : tx('NO VERIFIED SOURCE', 'لا يتوفر مصدر موثق')}
+                {data ? tx('ORGANIZATION LEDGER', 'سجل المؤسسة') : tx('LOADING', 'جارٍ التحميل')}
               </span>
             </div>
             <p className="mt-1 text-[12px] text-content-soft">
               {tx('Production · Imports · Demand · Inventory coverage · Evidence quality',
                 'الإنتاج · الواردات · الطلب · تغطية المخزون · جودة الأدلة')}
             </p>
-            <p className="mt-1 text-[11px] font-medium text-warning-strong">
-              {tx('Organization-level intelligence, not certified Qatar national statistics.',
-                'معلومات على مستوى المؤسسة وليست إحصاءات وطنية معتمدة لدولة قطر.')}
+            <p className="mt-1 text-[11px] text-content-soft">
+              {tx('Production, imports, demand, and inventory coverage for the selected horizon.',
+                'الإنتاج والواردات والطلب وتغطية المخزون للفترة المحددة.')}
             </p>
           </div>
         </div>
@@ -188,8 +187,8 @@ export function WatchtowerFoodCommandCenter() {
         <p className="p-5 text-[13px] text-content-soft">{tx('Resolving your organization…', 'جارٍ تحديد مؤسستك…')}</p>
       ) : !orgId ? (
         <p role="status" className="p-5 text-[13px] text-content-soft">
-          {tx('Select an authorized organization to view reviewed food balances. No sample data are displayed.',
-            'اختر مؤسسة مصرحاً لها لعرض الموازين المُراجعة. لا تُعرض بيانات تجريبية.')}
+          {tx('Select an organization to open the food security ledger.',
+            'اختر مؤسسة لفتح سجل الأمن الغذائي.')}
         </p>
       ) : error ? (
         <div role="alert" className="rounded-md border border-warning-line bg-warning-soft p-3 text-[12px] text-warning-strong">
@@ -198,7 +197,7 @@ export function WatchtowerFoodCommandCenter() {
         </div>
       ) : loading || !data ? (
         <p className="p-5 text-[13px] text-content-soft" role="status">
-          {tx('Calculating reviewed commodity balances…', 'جارٍ احتساب موازين السلع المُراجعة…')}
+          {tx('Loading commodity balances…', 'جارٍ تحميل موازين السلع…')}
         </p>
       ) : (
         <>

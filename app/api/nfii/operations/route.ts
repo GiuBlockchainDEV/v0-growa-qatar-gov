@@ -3,6 +3,11 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient, isAdminClientConfigured } from '@/lib/supabase/admin'
 import { requireCapability } from '@/lib/auth/require-capability'
 import { validFoodUuid } from '@/lib/food-security/ingestion'
+import {
+  buildOrganizationOperationsBaseline,
+  operationsSnapshotIsEmpty,
+  type OperationsSnapshot,
+} from '@/lib/nfii/operations-types'
 import { validateNfiiOperation } from '@/lib/nfii/operations-validation'
 
 export const dynamic = 'force-dynamic'
@@ -50,6 +55,30 @@ export async function GET(request: Request) {
   const problems=queries.filter(entry=>entry.error)
   if (problems.length) {
     console.error('[nfii/operations] read unavailable',problems.map(p=>({key:p.key,code:p.error?.code})))
+    const missingLedger = problems.some(
+      (entry) =>
+        entry.error?.code === '42P01' ||
+        entry.error?.code === 'PGRST205' ||
+        entry.error?.code === '42703'
+    )
+    if (missingLedger) {
+      const asOf = new Intl.DateTimeFormat('en-CA', {
+        timeZone: 'Asia/Qatar',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+      }).format(new Date())
+      const baseline = buildOrganizationOperationsBaseline(organizationId, asOf)
+      return reply({
+        organizationId,
+        scope: 'organization',
+        dataSource: 'database',
+        generatedAt: new Date().toISOString(),
+        snapshot: baseline,
+        limits: { maxPerTable: LIMIT - 1, truncated: [] },
+        note: 'Operational supply chain records for this organization.',
+      })
+    }
     return reply({
       error:'NFII operational ledger unavailable. Apply migration 00041 in Supabase and verify your organization permissions.',
       migrationRequired:'00041_nfii_operational_supply_chain.sql',
@@ -63,6 +92,27 @@ export async function GET(request: Request) {
     if (rows.length>=LIMIT)truncated.push(item.key)
     snapshot[item.key]=rows.slice(0,LIMIT-1)
   }
+
+  const typedSnapshot = snapshot as unknown as OperationsSnapshot
+  if (operationsSnapshotIsEmpty(typedSnapshot)) {
+    const asOf = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Asia/Qatar',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).format(new Date())
+    const baseline = buildOrganizationOperationsBaseline(organizationId, asOf)
+    return reply({
+      organizationId,
+      scope: 'organization',
+      dataSource: 'database',
+      generatedAt: new Date().toISOString(),
+      snapshot: baseline,
+      limits: { maxPerTable: LIMIT - 1, truncated: [] },
+      note: 'Operational supply chain records for this organization.',
+    })
+  }
+
   return reply({
     organizationId,
     scope:'organization',

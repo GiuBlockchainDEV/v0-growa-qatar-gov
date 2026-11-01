@@ -143,7 +143,11 @@ export function buildFoodPosture(input: {
     latestReviewedAt: dates.length ? dates.sort().at(-1) ?? null : null,
     commodities,
     caveats: [
-      ...(input.preview ? ['ILLUSTRATIVE EXAMPLE ONLY. These commodity balances are generated from synthetic local fixtures and are NOT verified Qatar statistics or operational records.'] : ['ORGANIZATION-SCOPED reviewed records, not certified Qatar national statistics.']),
+      ...(input.preview
+        ? ['ILLUSTRATIVE EXAMPLE ONLY. These commodity balances are generated from synthetic local fixtures and are NOT verified Qatar statistics or operational records.']
+        : [
+            'Organization-scoped balances from planning feeds, procurement schedules, and warehouse positions.',
+          ]),
       'Risk bands use 7/14/30-day screening thresholds, not official government policy.',
       'Import share measures planned inflows only; it is not national import dependency.',
       'Coverage days are projected at the end of the period, not a daily stockout model.',

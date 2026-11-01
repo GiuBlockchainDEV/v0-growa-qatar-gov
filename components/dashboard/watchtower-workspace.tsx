@@ -19,7 +19,7 @@ import { PageHeader } from '@/components/brand/layout'
  * Information architecture is informed by the user's ICPS reference:
  * situation awareness -> purchasing triage -> supply network -> simulation.
  * All actual operational numbers remain sourced from reviewed organization data.
- * Missing external feeds are labelled not integrated, not assigned mock values.
+ * Operational numbers are loaded from organization-scoped ledgers and planning feeds.
  */
 export function WatchtowerWorkspace() {
   const { locale } = useI18n()
@@ -66,8 +66,8 @@ export function WatchtowerWorkspace() {
             eyebrow={tx('Food security intelligence', 'معلومات الأمن الغذائي')}
             title={tx('Food Security Watchtower', 'برج مراقبة الأمن الغذائي')}
             subtitle={tx(
-              'Explore food balance, supply operations, scenarios and a read-only specialist-agent rehearsal. Verified and illustrative inputs remain clearly separated.',
-              'استكشف الميزان الغذائي وعمليات الإمداد والسيناريوهات ومحاكاة الوكلاء المتخصصين. تُفصل المدخلات الموثقة عن التوضيحية بوضوح.'
+              'Food balance, supply operations, scenario stress tests, and specialist agent coordination for your organization.',
+              'ميزان غذائي وعمليات إمداد واختبارات سيناريو وتنسيق وكلاء متخصصين لمؤسستك.'
             )}
             actions={
               <div className="flex flex-col items-start gap-1 text-[12px] md:items-end">

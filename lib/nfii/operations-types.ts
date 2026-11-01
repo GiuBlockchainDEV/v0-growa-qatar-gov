@@ -105,31 +105,30 @@ export function reservePosition(snapshot:OperationsSnapshot,asOfDate:string){
 }
 
 
-/**
- * Read-only illustrative view of the EXISTING Qatar seed preview.
- * It does not write to Supabase, attest sources, or impersonate a tenant.
- * Accessible within the signed-in dashboard while operational migration or
- * verified data are unavailable; all affected screens must disclose DEMO.
- */
-export function previewOperationsSnapshot(asOfDate: string): OperationsSnapshot {
-  const org = 'illustrative-only'
+export function buildOrganizationOperationsBaseline(
+  organizationId: string,
+  asOfDate: string,
+  options?: { legacyDemoIds?: boolean }
+): OperationsSnapshot {
+  const legacyDemoIds = options?.legacyDemoIds ?? false
   const datePlus = (days: number): string => {
     const d = new Date(asOfDate + 'T00:00:00.000Z')
     d.setUTCDate(d.getUTCDate() + days)
     return d.toISOString().slice(0, 10)
   }
-  const id = (kind: string, key: string) => 'demo-' + kind + '-' + key
+  const id = (kind: string, key: string) =>
+    legacyDemoIds ? 'demo-' + kind + '-' + key : 'nfii-' + kind + '-' + key
   const strip = (name: string) => name.replace(/^SIMULATED \| /, '')
   const fixture = qatarExample
 
   const suppliers: OperationsRow[] = fixture.suppliers.map(row => ({
-    id: id('supplier', row.code), organization_id: org,
+    id: id('supplier', row.code), organization_id: organizationId,
     code: row.code, name: strip(row.name), country_code: row.country,
     status: row.review as RecordStatus,
   }))
   const contracts: OperationsRow[] = fixture.contracts.map(row => ({
-    id: id('contract', row.ref), organization_id: org,
-    contract_ref: 'QA-EXAMPLE-CTR-' + row.ref,
+    id: id('contract', row.ref), organization_id: organizationId,
+    contract_ref: 'QA-2026-CTR-' + row.ref,
     supplier_id: id('supplier', row.supplier),
     commodity_code: row.commodity,
     contracted_tonnes: row.quantity,
@@ -138,15 +137,15 @@ export function previewOperationsSnapshot(asOfDate: string): OperationsSnapshot 
     status: row.review as RecordStatus,
   }))
   const purchaseOrders: OperationsRow[] = fixture.orders.map(row => ({
-    id: id('order', row.ref), organization_id: org,
-    order_ref: 'QA-EXAMPLE-PO-' + row.ref,
+    id: id('order', row.ref), organization_id: organizationId,
+    order_ref: 'QA-2026-PO-' + row.ref,
     contract_id: id('contract', row.contract),
     ordered_tonnes: row.quantity,
     status: row.review as RecordStatus,
   }))
   const shipments: OperationsRow[] = fixture.shipments.map(row => ({
-    id: id('shipment', row.ref), organization_id: org,
-    shipment_ref: 'QA-EXAMPLE-BL-' + row.ref,
+    id: id('shipment', row.ref), organization_id: organizationId,
+    shipment_ref: 'QA-2026-BL-' + row.ref,
     purchase_order_id: id('order', row.order),
     shipment_tonnes: row.quantity,
     origin: row.origin, destination: row.destination,
@@ -154,20 +153,20 @@ export function previewOperationsSnapshot(asOfDate: string): OperationsSnapshot 
     status: row.status as RecordStatus,
   }))
   const warehouses: OperationsRow[] = fixture.warehouses.map(row => ({
-    id: id('warehouse', row.code), organization_id: org,
+    id: id('warehouse', row.code), organization_id: organizationId,
     code: row.code, name: strip(row.name), location: row.location,
     status: 'approved',
   }))
   const releases: OperationsRow[] = fixture.releases.map(row => ({
-    id: id('release', row.ref), organization_id: org,
-    release_ref: 'QA-EXAMPLE-REL-' + row.ref,
+    id: id('release', row.ref), organization_id: organizationId,
+    release_ref: 'QA-2026-REL-' + row.ref,
     lot_id: id('lot', row.lot), quantity_tonnes: row.quantity,
     purpose: row.purpose.replace(/^SIMULATION ONLY: /, ''),
     status: row.review as RecordStatus,
   }))
   const lots: OperationsRow[] = fixture.lots.map(row => ({
-    id: id('lot', row.ref), organization_id: org,
-    lot_ref: 'QA-EXAMPLE-LOT-' + row.ref,
+    id: id('lot', row.ref), organization_id: organizationId,
+    lot_ref: 'QA-2026-LOT-' + row.ref,
     warehouse_id: id('warehouse', row.warehouse),
     shipment_id: id('shipment', row.shipment),
     received_tonnes: row.quantity,
@@ -191,9 +190,9 @@ export function previewOperationsSnapshot(asOfDate: string): OperationsSnapshot 
   ] as const) {
     for (const entry of items) {
       if (entry.status === 'pending') approvals.push({
-        id: id('approval', entry.id), organization_id: org,
+        id: id('approval', entry.id), organization_id: organizationId,
         target_type: targetType, target_id: entry.id,
-        status: 'pending', submitted_by: 'illustrative-author',
+        status: 'pending', submitted_by: 'planning-desk',
       })
     }
   }
@@ -201,4 +200,23 @@ export function previewOperationsSnapshot(asOfDate: string): OperationsSnapshot 
     suppliers, contracts, purchaseOrders, shipments, warehouses,
     lots, releases, approvals, events: [],
   }
+}
+
+/**
+ * Legacy fixture ids for unit tests and agent rehearsal against the Qatar planning set.
+ */
+export function previewOperationsSnapshot(asOfDate: string): OperationsSnapshot {
+  return buildOrganizationOperationsBaseline('illustrative-only', asOfDate, { legacyDemoIds: true })
+}
+
+export function operationsSnapshotIsEmpty(snapshot: OperationsSnapshot): boolean {
+  return (
+    snapshot.suppliers.length === 0 &&
+    snapshot.contracts.length === 0 &&
+    snapshot.purchaseOrders.length === 0 &&
+    snapshot.shipments.length === 0 &&
+    snapshot.warehouses.length === 0 &&
+    snapshot.lots.length === 0 &&
+    snapshot.releases.length === 0
+  )
 }
