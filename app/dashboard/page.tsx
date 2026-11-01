@@ -398,6 +398,7 @@ export default function DashboardPage() {
         targetZoom={targetZoom}
         targetCropFilter={targetCropFilter}
         activeMapLayers={opCtx?.activeMapLayers}
+        alwaysShowRegisteredFarms
       />
     )
   }

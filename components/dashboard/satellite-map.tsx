@@ -154,6 +154,7 @@ export function SatelliteMap({
   onHarvestFieldRingsChange: onHarvestFieldRingsChangeProp,
   onHarvestFieldVerticesChange: onHarvestFieldVerticesChangeProp,
   activeMapLayers,
+  alwaysShowRegisteredFarms = false,
 }: SatelliteMapProps) {
   const { tr } = useI18n()
   const showToast = useToast()
@@ -206,7 +207,8 @@ export function SatelliteMap({
     () => (activeMapLayers ? resolveMapLayerVisibility(activeMapLayers) : null),
     [activeMapLayers]
   )
-  const farmsLayerEnabled = layerVisibility ? layerVisibility.showFarms : true
+  const farmsLayerEnabled =
+    alwaysShowRegisteredFarms || (layerVisibility ? layerVisibility.showFarms : true)
 
   const mapRef = useRef<HTMLDivElement>(null)
   const mapInstanceRef = useRef<MapController | null>(null)
@@ -342,11 +344,6 @@ export function SatelliteMap({
   }, [])
 
   useEffect(() => {
-    if (!isGrowaAdmin) {
-      setCustomPoints([])
-      setIsAddPointMode(false)
-      return
-    }
     let cancelled = false
     async function loadCustomPoints() {
       const dbPoints = await loadCustomPointsFromDb()
@@ -358,7 +355,12 @@ export function SatelliteMap({
     return () => {
       cancelled = true
     }
-  }, [isGrowaAdmin, loadCustomPointsFromDb])
+  }, [loadCustomPointsFromDb])
+
+  useEffect(() => {
+    if (isGrowaAdmin) return
+    setIsAddPointMode(false)
+  }, [isGrowaAdmin])
 
   useEffect(() => {
     if (!isGrowaAdmin) {
@@ -386,19 +388,6 @@ export function SatelliteMap({
   }, [isGrowaAdmin])
 
   useEffect(() => {
-    if (!isGrowaAdmin) {
-      setPointPolygons({})
-      setFarmCropInsightsByPoint({})
-      setIsInsightsModalOpen(false)
-      setInsightsModalPointId(null)
-      setIsInsightsModalLoading(false)
-      setInsightsModalError(null)
-      setActivePointId(null)
-      setPolygonDrawPointId(null)
-      setDraftPolygon([])
-      resetDraftMetadata()
-      return
-    }
     let cancelled = false
     async function loadPolygons() {
       try {
@@ -432,6 +421,19 @@ export function SatelliteMap({
     return () => {
       cancelled = true
     }
+  }, [])
+
+  useEffect(() => {
+    if (isGrowaAdmin) return
+    setFarmCropInsightsByPoint({})
+    setIsInsightsModalOpen(false)
+    setInsightsModalPointId(null)
+    setIsInsightsModalLoading(false)
+    setInsightsModalError(null)
+    setActivePointId(null)
+    setPolygonDrawPointId(null)
+    setDraftPolygon([])
+    resetDraftMetadata()
   }, [isGrowaAdmin, resetDraftMetadata])
 
   useEffect(() => {
@@ -1415,6 +1417,8 @@ export function SatelliteMap({
     pointScoreStatsById,
     weatherGridPoints,
     harvestFields,
+    alwaysShowRegisteredFarms,
+    farmsLayerEnabled,
     layerVisibility,
     tr,
   ])

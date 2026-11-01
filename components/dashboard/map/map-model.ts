@@ -87,6 +87,8 @@ export interface SatelliteMapProps {
   onHarvestFieldRingsChange?: (rings: PolygonVertex[][]) => void
   onHarvestFieldVerticesChange?: (vertices: PolygonVertex[]) => void
   activeMapLayers?: string[]
+  /** Live map surfaces always show registered org farms, regardless of layer toggles. */
+  alwaysShowRegisteredFarms?: boolean
 }
 
 /** The Leaflet map instance (Leaflet's own type). */
