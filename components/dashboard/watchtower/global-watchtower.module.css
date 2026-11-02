@@ -328,3 +328,33 @@
 @media (prefers-reduced-motion: reduce) {
   .shell * { animation: none !important; transition: none !important; }
 }
+
+
+/* Global food-production screening overlays use map-native translucent zones.
+ * These are NOT measured crop-damage footprints or quoted price impacts. */
+.productionRiskSwatch{
+  display:inline-block;
+  width:19px;
+  height:12px;
+  border:1.5px solid #B4533B;
+  background:rgba(180,83,59,.2);
+  border-radius:3px;
+  vertical-align:middle;
+  margin-inline-end:4px;
+}
+.riskZoneHeading{
+  padding:12px;
+  border-radius:var(--radius-md);
+  background:var(--growa-cream-50);
+  border:1px solid var(--border-subtle);
+  margin-bottom:12px;
+}
+.riskZoneHeading h2{margin:10px 0 4px}
+.riskZoneHeading p{font-size:12px;color:var(--growa-stone-600)}
+.riskSubtitle{
+  margin-top:16px;
+  margin-bottom:4px;
+  font-size:12px;
+  font-weight:600;
+  color:var(--growa-ink);
+}

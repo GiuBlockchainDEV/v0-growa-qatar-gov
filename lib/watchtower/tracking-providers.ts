@@ -87,7 +87,7 @@ async function vessels(): Promise<Batch<TrackingAsset>> {
     return { items, source: meta }
   } catch { return { items: [], source: { ...meta, detail: 'AIS provider unavailable, oversized response or missing LiveData entitlement. Vessel positions unknown.' } } }
 }
-async function hazards(): Promise<Batch<MapAlert>> {
+export async function hazards(): Promise<Batch<MapAlert>> {
   const meta = source('gdacs', 'GDACS', 'https://www.gdacs.org/', 'Recent reported red/orange hazards, not confirmed supply disruption. Returned geolocated events capped at 120; not a complete hazard inventory.')
   try {
     const now = Date.now(), url = new URL('https://www.gdacs.org/gdacsapi/api/events/geteventlist/SEARCH')

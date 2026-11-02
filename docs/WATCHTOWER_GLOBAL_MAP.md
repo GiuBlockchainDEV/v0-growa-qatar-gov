@@ -287,3 +287,51 @@ without claiming that the aircraft stays on the same dated flight indefinitely.
 The current implementation prioritizes initial responsiveness and transparency;
 it does not guarantee all source endpoints can be reached from Vercel or that
 all tracked flights will have an identifiable itinerary.
+
+
+## Semi-transparent global food production risk zones
+
+The Watchtower map has an independently fetched, authenticated layer:
+`GET /api/watchtower/production-risks`. It renders semi-transparent high
+(red-ochre) and elevated (amber) geographic screening regions beneath aircraft
+and vessel overlays, on the interactive Esri World Imagery basemap.
+
+Source observations: recent red/orange GDACS hazard points already ingested by
+the existing Watchtower server. Supported categories are drought, flood,
+tropical storm, wildfire, volcano and earthquake. Only event evidence actually
+returned by GDACS enters the response. Up to 18 recent events are screened per
+cycle and server results cached for 20 minutes. No fabricated historical
+incidents, countries or crop losses are inserted.
+
+Boundaries: source event points are queried against Esri World Administrative
+Divisions first-level administrative region polygons. A matching ADM1 region
+is colored for **screening only**. It is explicitly NOT the reported hazard's
+verified footprint or a claim that the whole region's farmland was damaged.
+Where Esri cannot resolve an admissible shape, the map shows an event-centered
+**approximate screening radius** with dashed border rather than pretending to
+have an official polygon. This proxy has no verified relationship to area of
+impact. Esri data copyright and licensing restrictions apply: Esri/Garmin
+World Administrative Divisions is an administrative reference, not a GDACS
+disaster extent product. Map labels retain the source event and timing.
+
+Clicking a zone opens a readable panel with source, timestamp, severity,
+risk driver, possible crop / farm exposure and qualitative pathways by which
+the shock may influence irrigation, supply, handling, transport and
+replacement sourcing costs. **No percentage crop losses or QAR price
+increases are invented**. Exposure to imports and final costs requires
+verified crops, producer locations and supplier shares. A blank zone does not
+mean safe production.
+
+The zone layer is on by default, with on/off and hazard-type filters.
+The effect runs independently of tracking, so slow boundaries do not delay
+aircraft positions. ESRI basemap remains fully interactive; polygons are
+below the selected aircraft and maritime tracks.
+
+Data availability boundaries:
+- GDACS is a global disaster alert, not a global crop-health index.
+- FAO ASIS drought/agricultural-stress layers, country crop production
+  calendars, port cost data and supplier-specific price observations
+  are NOT currently integrated into these polygons.
+- Some major medium-term food production risks are therefore NOT mapped
+  by this live-event layer; the panel explicitly labels the coverage.
+- Source metadata and review remain essential for decisions.

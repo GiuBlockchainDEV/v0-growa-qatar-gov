@@ -6,9 +6,10 @@ import { CHOKEPOINTS, QATAR, freshAsset, type TrackingAsset, type MapAlert, type
 import styles from './global-watchtower.module.css'
 import { getWorldFillZoom } from '@/lib/watchtower/map-viewport'
 import { makeAirGreatCircle } from '@/lib/nfii/logistics-route-geometry'
+import type {ProductionRiskZone} from '@/lib/watchtower/production-risk'
 import { captureObservedPositions, automaticRouteEvidence, worldCopyPolyline, type TrackPoint } from '@/lib/watchtower/route-geometry'
 export type GlobalTrackingMapProps = {
-  assets: TrackingAsset[]; historyAssets: TrackingAsset[]; alerts: MapAlert[]; layers: MapLayers; selectedId: string | null
+  assets: TrackingAsset[]; historyAssets: TrackingAsset[]; alerts: MapAlert[]; riskZones: ProductionRiskZone[]; layers: MapLayers; selectedId: string | null
   onSelect: (id: string) => void; now: number
   focus: { lat: number; lon: number; zoom: number; token: number } | null
 }
@@ -20,8 +21,8 @@ const ESRI_ATTRIBUTION = '&copy; <a href="https://www.esri.com/" target="_blank"
 const MARKER = { aircraft: '#EEF4C9', vessel: '#A2B78C', critical: '#A8392B', attention: '#C9A227', ink: '#111E13', cream: '#EEF4C9' }
 
 const label = (value: string) => { const node = document.createElement('span'); node.textContent = value; return node }
-export function GlobalTrackingMap({ assets, historyAssets, alerts, layers, selectedId, onSelect, focus, now }: GlobalTrackingMapProps) {
-  const host = useRef<HTMLDivElement>(null), mapRef = useRef<L.Map | null>(null), graphics = useRef<L.LayerGroup | null>(null)
+export function GlobalTrackingMap({ assets, historyAssets, alerts, riskZones, layers, selectedId, onSelect, focus, now }: GlobalTrackingMapProps) {
+  const host = useRef<HTMLDivElement>(null), mapRef = useRef<L.Map | null>(null), graphics = useRef<L.LayerGroup | null>(null), productionGraphics = useRef<L.LayerGroup | null>(null)
   const history = useRef(new Map<string, TrackPoint[]>()), select = useRef(onSelect)
   const [revision, setRevision] = useState(0), [tileError, setTileError] = useState(false)
   const [point, setPoint] = useState<{ lat: number; lon: number } | null>(null)
@@ -50,6 +51,7 @@ export function GlobalTrackingMap({ assets, historyAssets, alerts, layers, selec
     tiles.on('tileerror', () => setTileError(true)); tiles.on('tileload', () => setTileError(false))
     L.control.scale({ position: 'bottomleft', imperial: false }).addTo(map)
     L.control.zoom({ position: 'bottomleft' }).addTo(map)
+    productionGraphics.current = L.layerGroup().addTo(map)
     graphics.current = L.layerGroup().addTo(map)
     const changed = () => setRevision(n => n + 1)
     map.on('moveend zoomend', changed)
@@ -67,13 +69,58 @@ export function GlobalTrackingMap({ assets, historyAssets, alerts, layers, selec
     })
     observer.observe(host.current)
     changed()
-    return () => { observer.disconnect(); tiles.off(); map.off(); map.remove(); mapRef.current = null; graphics.current = null }
+    return () => { observer.disconnect(); tiles.off(); map.off(); map.remove(); mapRef.current = null; graphics.current = null; productionGraphics.current = null }
   }, [])
   // Record all source-observed fixes, not just visible / filtered assets.
   // No interpolated backfill: past route is limited to this browser session.
   useEffect(() => {
     captureObservedPositions(history.current, historyAssets, now)
   }, [historyAssets, now])
+  // Render large, translucent administrative screening zones UNDER aircraft
+  // routes and alert markers, never replacing the interactive Esri basemap.
+  // For GDACS points without an Esri polygon, use a clearly approximate radius.
+  useEffect(() => {
+    const map=mapRef.current,group=productionGraphics.current
+    if(!map||!group)return
+    group.clearLayers()
+    if(!layers.production)return
+    const bounded=riskZones.slice(0,50)
+    const colors={high:'#B4533B',elevated:'#D6A22C'} as const
+    for(const zone of bounded){
+      const color=colors[zone.severity]
+      const isSelected=zone.id===selectedId
+      const style:L.PathOptions={
+        color,fillColor:color,fillOpacity:isSelected?.35:.18,
+        opacity:isSelected?1:.8,weight:isSelected?2.5:1.4,
+        dashArray:zone.boundaryBasis==='approximate_point_radius'?'5 7':undefined,
+      }
+      const title=label(
+        zone.name+' · '+zone.driver.toUpperCase()+' · '+zone.severity.toUpperCase()+
+        ' | '+(zone.boundaryBasis==='esri_admin1_screening'?
+          'Administrative region screening, NOT verified event footprint':
+          'Approximate event-point screening radius, NOT verified event footprint')+
+        '. Click for production and cost exposure.',
+      )
+      let layer:L.GeoJSON | L.Circle
+      if(zone.geometry){
+        // GeoJSON geometry is [lon,lat]; geoJSON handles coordinate order.
+        const collection={
+          type:'Feature' as const,properties:{id:zone.id},
+          geometry:zone.geometry,
+        }
+        layer=L.geoJSON(collection as GeoJSON.Feature,{
+          style:()=>style,interactive:true,
+        })
+      }else if(zone.radiusKm){
+        layer=L.circle([zone.center.lat,zone.center.lon],{
+          ...style,radius:zone.radiusKm*1000,
+        })
+      }else continue
+      layer.bindTooltip(title,{sticky:true,direction:'auto',className:styles.riskTooltip})
+        .on('click',()=>select.current(zone.id))
+        .addTo(group)
+    }
+  },[riskZones,layers.production,selectedId,revision])
   useEffect(() => { if (focus) mapRef.current?.flyTo([focus.lat, focus.lon], focus.zoom, { duration: 0.7 }) }, [focus])
   useEffect(() => {
     const map = mapRef.current, group = graphics.current

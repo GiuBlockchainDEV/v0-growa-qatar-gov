@@ -22,7 +22,7 @@ export type TrackingSnapshot = {
   generatedAt: string; assets: TrackingAsset[]; alerts: MapAlert[]
   sources: TrackingSource[]; refreshSeconds: number
 }
-export type MapLayers = { aircraft: boolean; vessels: boolean; risks: boolean; gateways: boolean; trails: boolean; projections: boolean }
+export type MapLayers = { aircraft: boolean; vessels: boolean; risks: boolean; production: boolean; gateways: boolean; trails: boolean; projections: boolean }
 export const QATAR = { lat: 25.2854, lon: 51.531, label: 'Qatar / Doha' }
 /** Geographic references only, NOT live closure assertions. */
 export const CHOKEPOINTS = [

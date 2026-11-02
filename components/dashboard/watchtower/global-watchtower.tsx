@@ -6,6 +6,7 @@ import { Activity, AlertTriangle, ArrowUpRight, ChevronLeft, ExternalLink, Globe
 import { useI18n } from '@/lib/i18n'
 import { useOrganization } from '@/hooks/use-organization'
 import type { FoodPosture } from '@/lib/watchtower/food-posture'
+import type {ProductionRiskSnapshot,ProductionRiskZone,ProductionDriver} from '@/lib/watchtower/production-risk'
 import { CHOKEPOINTS, QATAR, REFRESH_SECONDS, freshAsset, separationKm, type MapAlert, type MapLayers, type TrackingAsset, type TrackingSnapshot } from '@/lib/watchtower/global-tracking'
 import type { GlobalTrackingMapProps } from './global-tracking-map'
 import { forwardCourseProjection, lastKnownCourseCue } from '@/lib/watchtower/route-geometry'
@@ -36,14 +37,16 @@ export function GlobalWatchtower() {
   const ar = locale === 'ar', tx = (en: string, arabic: string) => ar ? arabic : en
   const root = useRef<HTMLDivElement>(null), pausedRef = useRef(false)
   const [snapshot, setSnapshot] = useState<TrackingSnapshot | null>(null), [posture, setPosture] = useState<FoodPosture | null>(null)
+  const [productionRisk,setProductionRisk]=useState<ProductionRiskSnapshot|null>(null)
+  const [productionError,setProductionError]=useState('')
   const [error, setError] = useState(''), [foodError, setFoodError] = useState('')
   const [busy, setBusy] = useState(false), [refresh, setRefresh] = useState(0), [paused, setPaused] = useState(false), [now, setNow] = useState(Date.now)
   const [mobile, setMobile] = useState(false), [filtersOpen, setFiltersOpen] = useState(true), [alertsOpen, setAlertsOpen] = useState(true), [fullscreen, setFullscreen] = useState(false)
   const [query, setQuery] = useState(''), [region, setRegion] = useState<Region>('global'), [cargoOnly, setCargoOnly] = useState(true)
-  const [commodity, setCommodity] = useState('all'), [alertKind, setAlertKind] = useState('all'), [highOnly, setHighOnly] = useState(false)
+  const [commodity, setCommodity] = useState('all'), [alertKind, setAlertKind] = useState('all'), [productionKind,setProductionKind] = useState<'all'|ProductionDriver>('all'), [highOnly, setHighOnly] = useState(false)
   const [selectedId, setSelectedId] = useState<string | null>(null), [sourceId, setSourceId] = useState<string | null>(null)
   const [focus, setFocus] = useState<GlobalTrackingMapProps['focus']>(null)
-  const [layers, setLayers] = useState<MapLayers>({ aircraft: true, vessels: true, risks: true, gateways: true, trails: true, projections: true })
+  const [layers, setLayers] = useState<MapLayers>({ aircraft: true, vessels: true, risks: true, production: true, gateways: true, trails: true, projections: true })
   const orgId = organization?.id ?? null, food = posture?.organizationId === orgId ? posture : null
   useEffect(() => { pausedRef.current = paused }, [paused])
   useEffect(() => {
@@ -115,6 +118,31 @@ export function GlobalWatchtower() {
       document.removeEventListener('visibilitychange',visible)
     }
   }, [refresh])
+  // Separate feed: risk geometry does not block aircraft positions or AIS.
+  // A source failure stays visible, never silently interpreted as safety.
+  useEffect(()=>{
+    let active=true
+    const controller=new AbortController()
+    const load=async()=>{
+      if(document.hidden||!active)return
+      try{
+        const response=await fetch('/api/watchtower/production-risks',{
+          cache:'no-store',
+          signal:AbortSignal.any([controller.signal,AbortSignal.timeout(27000)]),
+        })
+        if(!response.ok)throw Error('Agricultural risk feed unavailable')
+        const data=await response.json() as ProductionRiskSnapshot
+        if(!Array.isArray(data.zones))throw Error('Invalid geographic risk response')
+        if(active){setProductionRisk(data);setProductionError('')}
+      }catch{
+        if(active&&!controller.signal.aborted)
+          setProductionError('Production risk areas temporarily unavailable. This does not mean no risk.')
+      }
+    }
+    void load()
+    const interval=setInterval(()=>{if(!pausedRef.current)void load()},20*60000)
+    return()=>{active=false;controller.abort();clearInterval(interval)}
+  },[refresh])
   useEffect(() => {
     setPosture(null); setFoodError(''); setCommodity('all')
     if (!orgId) return
@@ -159,11 +187,19 @@ export function GlobalWatchtower() {
     (!query || (a.title + ' ' + a.source).toLowerCase().includes(query.toLowerCase()))), [allAlerts, inside, alertKind, highOnly, commodity, query])
   // Internal organization risk metrics remain on the map and KPI cards, but
   // must not clutter the public Food Security & Risk alert inbox.
+  const riskZones=useMemo<ProductionRiskZone[]>(()=>(
+    productionRisk?.zones??[]).filter(zone=>
+      inside(zone.center)&&
+      (productionKind==='all'||zone.driver===productionKind)&&
+      (!highOnly||zone.severity==='high')&&
+      (!query||(zone.name+' '+zone.country+' '+zone.driver+' '+zone.eventTitles.join(' ')).toLowerCase().includes(query.toLowerCase())),
+    ),[productionRisk,inside,productionKind,highOnly,query])
   const externalRiskAlerts = useMemo(
     () => alerts.filter(alert => alert.source !== 'Organization food ledger'),
     [alerts],
   )
   const selectedAsset = snapshot?.assets.find(a => a.id === selectedId), selectedAlert = allAlerts.find(a => a.id === selectedId)
+  const selectedProductionZone=(productionRisk?.zones??[]).find(zone=>zone.id===selectedId)
   const selectedProjection = selectedAsset ? forwardCourseProjection(selectedAsset,now) : null
   const selectedCourseCue = selectedAsset ? lastKnownCourseCue(selectedAsset,now) : null
   const itineraryCount=assets.filter(a=>a.itinerary?.origin&&a.itinerary?.destination).length
@@ -197,7 +233,7 @@ export function GlobalWatchtower() {
   const nearby = selectedAsset ? allAlerts.filter(a => a.kind === 'hazard' && separationKm(a, selectedAsset) <= 350).slice(0, 3) : []
   const nearGateway = selectedAsset ? [...CHOKEPOINTS].sort((a, b) => separationKm(a, selectedAsset) - separationKm(b, selectedAsset))[0] : null
   return <div id="watchtower-map" ref={root} className={styles.shell} dir={ar ? 'rtl' : 'ltr'}>
-    <Map assets={assets} historyAssets={snapshot?.assets ?? []} alerts={alerts} layers={layers} selectedId={selectedId} onSelect={select} focus={focus} now={now} />
+    <Map assets={assets} historyAssets={snapshot?.assets ?? []} alerts={alerts} riskZones={riskZones} layers={layers} selectedId={selectedId} onSelect={select} focus={focus} now={now} />
     <header className={styles.header}>
       <div className={styles.titleRow}>
         <div><div className={styles.eyebrow}>NFII / GLOBAL OPERATING PICTURE</div>
@@ -230,13 +266,28 @@ export function GlobalWatchtower() {
       <div className="mt-2 flex gap-2"><button className={styles.smallButton} onClick={() => setView('global')}><Globe2 size={12} />Global</button><button className={styles.smallButton} onClick={() => { setView('gulf'); setFocus({ ...QATAR, zoom: 6, token: Date.now() }) }}>Qatar</button></div>
       <hr className={styles.divider} />
       {([
-        ['aircraft', Plane, 'Aircraft'], ['vessels', Ship, 'Cargo vessels'], ['risks', AlertTriangle, 'Risk reports'], ['gateways', Globe2, 'Strategic chokepoints'], ['trails', Activity, 'Origin / recorded past'], ['projections', Activity, 'Destination / estimated future'],
+        ['aircraft', Plane, 'Aircraft'], ['vessels', Ship, 'Cargo vessels'], ['risks', AlertTriangle, 'Risk reports'], ['production', Wheat, 'Food production exposure zones'], ['gateways', Globe2, 'Strategic chokepoints'], ['trails', Activity, 'Origin / recorded past'], ['projections', Activity, 'Destination / estimated future'],
       ] as const).map(([key, Icon, title]) => <button key={key} className={styles.toggle} aria-pressed={layers[key]} onClick={() => setLayers(current => ({ ...current, [key]: !current[key] }))}><span><Icon size={13} />{title}</span><i className={styles.switch} /></button>)}
       <hr className={styles.divider} />
       <button className={styles.toggle} aria-pressed={cargoOnly} onClick={() => setCargoOnly(!cargoOnly)}><span>Freight operators only</span><i className={styles.switch} /></button>
       <label className={styles.label} htmlFor="watchtower-alert-type">Alert category</label>
       <select id="watchtower-alert-type" className={styles.input} value={alertKind} onChange={e => setAlertKind(e.target.value)}><option value="all">All categories</option><option value="food">Food security</option><option value="hazard">Weather & natural hazards</option><option value="aviation">Aviation advisories</option><option value="maritime">Maritime incident reports</option></select>
       <button className={styles.toggle} aria-pressed={highOnly} onClick={() => setHighOnly(!highOnly)}><span>High signals only</span><i className={styles.switch} /></button>
+      <label className={styles.label} htmlFor="watchtower-production-risk">Production risk driver</label>
+      <select id="watchtower-production-risk" className={styles.input} value={productionKind}
+        onChange={e=>setProductionKind(e.target.value as 'all'|ProductionDriver)}>
+        <option value="all">All production hazards</option>
+        <option value="drought">Drought</option><option value="flood">Flood</option>
+        <option value="storm">Cyclones / storms</option><option value="wildfire">Wildfire</option>
+        <option value="volcano">Volcanic ash</option><option value="earthquake">Infrastructure exposure</option>
+      </select>
+      <p className={styles.hint}>
+        <strong>{riskZones.length}</strong> screening zones from reported GDACS events.
+        Regional polygons indicate administrative exposure only, NOT proven crop losses.
+        {productionRisk?.status==='unavailable'?' GDACS unavailable.':''}
+        {productionError?' '+productionError:''}
+      </p>
+
       <label className={styles.label} htmlFor="watchtower-commodity">Food commodity</label>
       <select id="watchtower-commodity" className={styles.input} value={commodity} disabled={!food} onChange={e => setCommodity(e.target.value)}><option value="all">All commodities</option>{food?.commodities.map(c => <option key={c.commodityId} value={c.commodityId}>{ar ? c.nameAr : c.name}</option>)}</select>
       <p className={styles.hint}>
@@ -260,9 +311,38 @@ export function GlobalWatchtower() {
     </aside>
     <div className={styles.feedDock} aria-label="Tracking source status">{snapshot?.sources.map(source => <button key={source.id} className={styles.feedPill} data-state={source.state} onClick={() => { setSourceId(source.id); setSelectedId(null); setAlertsOpen(true); if (mobile) setFiltersOpen(false) }}><i />{source.name}: {source.state}</button>)}</div>
     <aside className={`${styles.panel} ${styles.alertPanel} ${alertsOpen ? '' : styles.hidePanel}`} aria-label="Alerts and selected observation">
-      <div className={styles.panelTitle}><span>{selectedSource ? 'SOURCE STATUS' : selectedId ? 'OBSERVATION DETAILS' : 'FOOD SECURITY & RISK'}</span><button className={styles.iconButton} aria-label={selectedId || sourceId ? 'Back to alerts' : 'Close alert panel'} onClick={() => { if (selectedId || sourceId) { setSelectedId(null); setSourceId(null) } else setAlertsOpen(false) }}>{selectedId || sourceId ? <ChevronLeft size={12} /> : <X size={12} />}</button></div>
+      <div className={styles.panelTitle}><span>{selectedSource ? 'SOURCE STATUS' : selectedProductionZone ? 'PRODUCTION RISK EXPOSURE' : selectedId ? 'OBSERVATION DETAILS' : 'FOOD SECURITY & RISK'}</span><button className={styles.iconButton} aria-label={selectedId || sourceId ? 'Back to alerts' : 'Close alert panel'} onClick={() => { if (selectedId || sourceId) { setSelectedId(null); setSourceId(null) } else setAlertsOpen(false) }}>{selectedId || sourceId ? <ChevronLeft size={12} /> : <X size={12} />}</button></div>
       <div className={styles.scroll}>
         {selectedSource ? <div className={styles.details}><Radio size={24} /><h2>{selectedSource.name}</h2><span className={styles.severity}>{selectedSource.state}</span><p className="mt-3">{selectedSource.detail}</p><div className={styles.detailGrid}><div><span>Last checked</span><strong>{utc(selectedSource.checkedAt)}</strong></div><div><span>Latest observation</span><strong>{utc(selectedSource.latestObservationAt)}</strong></div></div><a href={selectedSource.url} target="_blank" rel="noopener noreferrer">Provider documentation <ExternalLink size={11} className="inline" /></a><p className={styles.notice}>Unavailable coverage means unknown traffic or risk, not zero. Refreshing the screen does not make an old observation live.</p></div>
+        : selectedProductionZone ? <div className={styles.details}>
+          <div className={styles.riskZoneHeading}>
+            <span className={styles.severity} data-level={selectedProductionZone.severity==='high'?'high':'attention'}>
+              {selectedProductionZone.severity==='high'?'HIGH EXPOSURE':'ELEVATED EXPOSURE'}
+            </span>
+            <h2>{selectedProductionZone.name}</h2>
+            <p>{selectedProductionZone.country??'Regional location unresolved'} ·
+              {' '}{selectedProductionZone.driver.toUpperCase()}</p>
+          </div>
+          <div className={styles.detailGrid}>
+            <div><span>Last event report</span><strong>{utc(selectedProductionZone.observedAt)}</strong></div>
+            <div><span>Source evidence</span><strong>{selectedProductionZone.evidenceCount} GDACS report(s)</strong></div>
+            <div><span>Area basis</span><strong>{selectedProductionZone.boundaryBasis==='esri_admin1_screening'?
+              'Administrative region':'Approximate point radius'}</strong></div>
+            <div><span>Price increase measured</span><strong>Not available</strong></div>
+          </div>
+          <h3 className={styles.riskSubtitle}>Possible production exposure</h3>
+          <p>{selectedProductionZone.productionExposure}</p>
+          <h3 className={styles.riskSubtitle}>Potential cost transmission</h3>
+          <p>{selectedProductionZone.costChannels}</p>
+          <p className={styles.notice}>{selectedProductionZone.scopeNote} Crop production volume,
+            affected cultivated hectares and price impact have not been verified.
+            This is a screening warning, not a loss estimate or financial forecast.</p>
+          <a target="_blank" rel="noopener noreferrer" href={selectedProductionZone.sourceUrl}>
+            View GDACS event report <ExternalLink size={12} className="inline"/>
+          </a>
+          <p className={styles.hint}>Only events identified by the current sources are mapped.
+            A missing polygon is not proof that agricultural production is safe.</p>
+        </div>
         : selectedAsset ? <div className={styles.details}>
           {selectedAsset.kind === 'aircraft' ? <Plane size={25} /> : <Ship size={25} />}<h2>{selectedAsset.label}</h2>
           <span className={styles.severity}>{freshAsset(selectedAsset, now) ? 'RECENT OBSERVATION' : 'STALE POSITION'}</span>
@@ -342,7 +422,7 @@ export function GlobalWatchtower() {
         </>}
       </div>
     </aside>
-    <div className={styles.legend}><span><Plane size={12} color="var(--growa-sage)" />Aircraft</span><span><Ship size={12} color="var(--growa-ink-600)" />Cargo vessel</span><span><AlertTriangle size={12} color="var(--warning-strong)" />Reported risk</span><span><i className={styles.routePastLine} />Observed</span><span><i className={styles.routeOriginLine} />From origin (reference)</span><span><i className={styles.routeFutureLine} />To destination (reference)</span><span>Direction guides ({layers.projections ? bearingCueCount : 0})</span><span>Grey = last known / stale</span></div>
+    <div className={styles.legend}><span><Plane size={12} color="var(--growa-sage)" />Aircraft</span><span><Ship size={12} color="var(--growa-ink-600)" />Cargo vessel</span><span><AlertTriangle size={12} color="var(--warning-strong)" />Reported risk</span><span><i className={styles.productionRiskSwatch} />Production risk areas ({layers.production?riskZones.length:0})</span><span><i className={styles.routePastLine} />Observed</span><span><i className={styles.routeOriginLine} />From origin (reference)</span><span><i className={styles.routeFutureLine} />To destination (reference)</span><span>Direction guides ({layers.projections ? bearingCueCount : 0})</span><span>Grey = last known / stale</span></div>
     <footer className={styles.footer}><span>{busy ? 'UPDATING SOURCES' : snapshot ? 'SNAPSHOT ' + utc(snapshot.generatedAt) : 'CONNECTING TO SOURCES'} / {paused ? 'PAUSED' : 'AUTO 60s'}</span><span>ESRI WORLD IMAGERY · ADSB.lol / ODbL 1.0 · AIS licensed area · No simulated traffic</span></footer>
   </div>
 }
