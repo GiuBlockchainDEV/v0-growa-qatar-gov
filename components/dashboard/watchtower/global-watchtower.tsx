@@ -263,7 +263,7 @@ export function GlobalWatchtower() {
         if(!Array.isArray(data.routes))throw Error('AIS history schema invalid')
         if(!controller.signal.aborted){
           setAISHistory(previous=>{
-            const byId=new Map(previous.map(route=>[route.id,route]))
+            const byId=new globalThis.Map(previous.map(route=>[route.id,route]))
             for(const route of data.routes)if(route.status==='observed')byId.set(route.id,route)
             return [...byId.values()].slice(-80)
           })
