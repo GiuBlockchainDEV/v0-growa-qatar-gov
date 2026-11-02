@@ -13,6 +13,9 @@ describe('NFII Watchtower navigation clarity',()=>{
   })
   it('supports deep links and keyboard-accessible active tabs',()=>{
     expect(ui).toContain("window.location.hash")
+    expect(ui).toContain("bg-card")
+    expect(ui).toContain("bg-cream-100")
+    expect(ui).not.toContain("bg-slate-700")
     expect(ui).toContain("window.addEventListener('hashchange'")
     expect(ui).toContain("aria-pressed={activeSection === section.id}")
     expect(ui).toContain("type=\"button\"")

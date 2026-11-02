@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useState } from 'react'
 import { AuthShell } from '@/components/brand/auth-shell'
+import { WATCHTOWER_DEFAULT_URL } from '@/lib/dashboard/map-navigation'
 import { Button, Field, FormMessage, LatticeLoader, PasswordField } from '@/components/brand/ui'
 
 export default function Page() {
@@ -28,7 +29,7 @@ export default function Page() {
         password,
       })
       if (error) throw error
-      router.push('/dashboard')
+      router.push(WATCHTOWER_DEFAULT_URL)
     } catch (error: unknown) {
       setError(error instanceof Error ? error.message : tr('An error occurred'))
     } finally {

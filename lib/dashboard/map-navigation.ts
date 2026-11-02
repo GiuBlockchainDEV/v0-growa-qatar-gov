@@ -1,3 +1,6 @@
+/** Canonical first screen after login and from the Watchtower navigation item. */
+export const WATCHTOWER_DEFAULT_URL = '/dashboard?module=watchtower#watchtower-map'
+
 export const DASHBOARD_MAP_SURFACE_MODULES = new Set([
   'live-map',
   'map',
@@ -49,6 +52,23 @@ export function hasDashboardDeepLinkContext(params: URLSearchParams | null) {
       params.get('timeRange') ||
       params.get('signalId')
   )
+}
+
+/**
+ * Only normalize the Watchtower landing. Preserve explicit modules, map/field
+ * deep links and Watchtower tab hashes rather than hijacking navigation.
+ */
+export function canonicalWatchtowerEntry(params: URLSearchParams, hash: string): string | null {
+  const selected = params.get('module')?.trim() || ''
+  if (selected && selected !== 'watchtower' && selected !== 'national-overview') return null
+  if (!selected && hasDashboardDeepLinkContext(params)) return null
+  if (selected === 'watchtower' && hash) return null
+
+  const target = new URLSearchParams(params.toString())
+  target.set('module', 'watchtower')
+  const tabHash = /^#watchtower-(map|food|operations|scenarios|agents|response)$/.test(hash)
+    ? hash : '#watchtower-map'
+  return '/dashboard?' + target.toString() + tabHash
 }
 
 export function hasWeatherDashboardContext(params: URLSearchParams) {

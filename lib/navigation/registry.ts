@@ -57,7 +57,7 @@ const NAV: ProductNavItem[] = [
     key: 'watchtower',
     label: 'National watchtower',
     labelAr: 'برج المراقبة الوطني',
-    path: '/dashboard?module=watchtower',
+    path: '/dashboard?module=watchtower#watchtower-map',
     icon: 'Radio',
     availability: 'live',
     area: 'watchtower',
@@ -303,7 +303,7 @@ const NAV: ProductNavItem[] = [
     key: 'ai-briefings',
     label: 'Briefings',
     labelAr: 'الإحاطات',
-    path: '/dashboard?module=watchtower',
+    path: '/dashboard?module=watchtower#watchtower-map',
     icon: 'Bot',
     availability: 'partial',
     area: 'ai_operations',
@@ -492,12 +492,12 @@ export const ROLE_NAV_KEYS: Record<PlatformRoleProfile, string[]> = {
 }
 
 const ROLE_LANDINGS: Record<PlatformRoleProfile, string> = {
-  ministry_admin: '/dashboard?module=watchtower',
-  ministry_inspector: '/dashboard?module=watchtower',
-  hassad_supply: '/dashboard?module=watchtower',
-  farm_operations: '/dashboard?module=watchtower',
-  finance: '/dashboard?module=watchtower',
-  default: '/dashboard?module=watchtower',
+  ministry_admin: '/dashboard?module=watchtower#watchtower-map',
+  ministry_inspector: '/dashboard?module=watchtower#watchtower-map',
+  hassad_supply: '/dashboard?module=watchtower#watchtower-map',
+  farm_operations: '/dashboard?module=watchtower#watchtower-map',
+  finance: '/dashboard?module=watchtower#watchtower-map',
+  default: '/dashboard?module=watchtower#watchtower-map',
 }
 
 export type ProductNavigation = ReturnType<typeof buildNavigation>

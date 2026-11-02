@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { useAuth } from '@/hooks/use-auth'
 import { useI18n } from '@/lib/i18n'
 import { Logo } from '@/components/brand/logo'
+import { WATCHTOWER_DEFAULT_URL } from '@/lib/dashboard/map-navigation'
 import { DottedDivider, Lattice, SectionTitle, StatusDot } from '@/components/brand/ui'
 
 /*
@@ -35,7 +36,7 @@ export default function Home() {
 
   useEffect(() => {
     if (!loading && user) {
-      router.push('/dashboard')
+      router.push(WATCHTOWER_DEFAULT_URL)
     }
   }, [user, loading, router])
 

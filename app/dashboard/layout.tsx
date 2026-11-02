@@ -1,28 +1,19 @@
 'use client'
 
-import { Suspense, useCallback, useEffect, useRef, useState } from 'react'
+import { Suspense, useCallback, useEffect, useState } from 'react'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { useAuth } from '@/hooks/use-auth'
 import { useI18n } from '@/lib/i18n'
 import { PlatformSidebar } from '@/components/platform/platform-sidebar'
 import { DashboardHeader } from '@/components/dashboard/header'
-import { RoleNavigationProvider, useSharedRoleNavigation } from '@/contexts/role-navigation-context'
+import { RoleNavigationProvider } from '@/contexts/role-navigation-context'
 import { ActiveOrganizationProvider } from '@/contexts/active-organization-context'
 import { OperationalContextProvider } from '@/contexts/operational-context-provider'
 import { LatticeLoader } from '@/components/brand/ui'
-import {
-  hasDashboardDeepLinkContext,
-  isDashboardMapSurfaceModule,
-  resolveDashboardPageModule,
-} from '@/lib/dashboard/map-navigation'
+import { canonicalWatchtowerEntry } from '@/lib/dashboard/map-navigation'
 
 const LAST_DASHBOARD_MODULE_KEY = 'growa:last-dashboard-module'
 const SIDEBAR_COLLAPSED_KEY = 'growa:sidebar-collapsed'
-
-function readBrowserSearchParams() {
-  if (typeof window === 'undefined') return null
-  return new URLSearchParams(window.location.search)
-}
 
 function DashboardShellContent({
   children,
@@ -34,7 +25,6 @@ function DashboardShellContent({
   const router = useRouter()
   const pathname = usePathname()
   const searchParams = useSearchParams()
-  const { landingPage, isLoading: navLoading } = useSharedRoleNavigation()
   /* Rail open (15.5rem) or icons only (5rem), as in the SaaS. The choice is
      remembered per browser; without one, narrow screens start collapsed. */
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
@@ -80,14 +70,11 @@ function DashboardShellContent({
 
   // Literal class names so Tailwind generates all of them.
   const railOffset = isPhone ? 'start-0' : sidebarCollapsed ? 'start-20' : 'start-[15.5rem]'
-  const handledReloadRedirectRef = useRef(false)
-  const lastModuleRef = useRef<string | null>(null)
 
   const moduleFromHook = searchParams.get('module')
 
   useEffect(() => {
     if (!moduleFromHook) return
-    lastModuleRef.current = moduleFromHook
     if (typeof window === 'undefined') return
     window.sessionStorage.setItem(LAST_DASHBOARD_MODULE_KEY, moduleFromHook)
   }, [moduleFromHook])
@@ -98,44 +85,15 @@ function DashboardShellContent({
     }
   }, [user, loading, router])
 
+  // Canonicalize only the landing screen; don't override an explicit module,
+  // field deep-link, or the selected Watchtower tab.
   useEffect(() => {
-    if (loading || navLoading || !user || pathname !== '/dashboard') return
-
-    const browserParams = readBrowserSearchParams()
-    const resolvedModule =
-      resolveDashboardPageModule(searchParams) ||
-      moduleFromHook ||
-      browserParams?.get('module') ||
-      lastModuleRef.current
-    const hasTargetContextInUrl = hasDashboardDeepLinkContext(browserParams)
-
-    if (!resolvedModule && !hasTargetContextInUrl && landingPage && landingPage !== '/dashboard') {
-      router.replace(landingPage)
-    }
-  }, [loading, navLoading, user, pathname, searchParams, moduleFromHook, landingPage, router])
-
-  useEffect(() => {
-    if (loading || navLoading || !user || pathname !== '/dashboard' || handledReloadRedirectRef.current) return
-    if (typeof window === 'undefined') return
-
-    const navigationEntry = performance.getEntriesByType('navigation')[0] as PerformanceNavigationTiming | undefined
-    const isReloadNavigation = navigationEntry?.type === 'reload'
-    if (!isReloadNavigation) return
-
-    const currentParams = new URLSearchParams(window.location.search)
-    const currentModule = resolveDashboardPageModule(currentParams) || currentParams.get('module')
-    const isMapSurface =
-      !currentModule || isDashboardMapSurfaceModule(currentModule)
-    if (!isMapSurface) return
-
-    if (hasDashboardDeepLinkContext(currentParams)) return
-
-    const currentCanonical = currentModule === 'watchtower'
-    if (currentCanonical) return
-
-    handledReloadRedirectRef.current = true
-    router.replace('/dashboard?module=watchtower')
-  }, [loading, navLoading, user, pathname, router])
+    if (loading || !user || pathname !== '/dashboard') return
+    const target = canonicalWatchtowerEntry(
+      new URLSearchParams(window.location.search), window.location.hash,
+    )
+    if (target) router.replace(target, { scroll: false })
+  }, [loading, user, pathname, searchParams, router])
 
   if (loading) {
     return (

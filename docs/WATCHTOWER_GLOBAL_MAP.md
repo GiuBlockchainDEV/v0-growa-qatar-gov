@@ -60,16 +60,32 @@ national aggregate. Commodity filtering applies to those signals, not manifests.
 Only real hazard points are used in the 350 km proximity panel, never approximate
 aviation or maritime anchors. Proximity is not proof of impact or a probability.
 
-## Map configuration
+## Esri interactive basemap and Growa visual identity
 
-OSM raster tiles are darkened locally, with attribution preserved and no bulk
-prefetch. For sustained production traffic, use an appropriately licensed HTTPS
-raster provider via `NEXT_PUBLIC_WATCHTOWER_TILE_URL` containing `{z}/{x}/{y}`.
-Set `NEXT_PUBLIC_WATCHTOWER_TILE_ATTRIBUTION` to its required plain-text credit;
-implement any additionally required links before using that provider. Only
-browser-safe/public tile tokens belong in NEXT_PUBLIC variables.
+The global Watchtower now uses the same Esri ArcGIS World Imagery raster tile
+service as the existing Growa satellite map:
+`https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}`.
+The map supports pan, zoom, clickable aircraft and cargo-vessel markers,
+zoom clusters, selected alert details, checkpoint overlays, route history
+from observed samples and click-to-inspect coordinates. Tiles are rendered at
+their actual colours (no CSS inversion or simulated geography). Leaflet remains
+the interaction/rendering library over Esri's imagery tile service.
 
-Policy: https://operations.osmfoundation.org/policies/tiles/
+Esri and contributing imagery sources are attributed in the visible map UI.
+Browser requests are scoped to visible tiles, without automated bulk caching.
+Review Esri's applicable licence/service terms before high-volume production.
+
+The Watchtower's header, tab navigation, filter panels, KPI cards, source pills,
+alerts and map controls follow **Growa's light-first design tokens** (white,
+warm stone, sage green, cream and ink), not the previous blue-neon Palantir
+mockup. The physical imagery remains a full-screen map backdrop.
+
+The canonical first-screen URL is
+`/dashboard?module=watchtower#watchtower-map`, including login and role
+landing routes. Explicit module deep links and other Watchtower tab hashes
+are preserved. Old `NEXT_PUBLIC_WATCHTOWER_TILE_URL` overrides are ignored
+by the Esri Watchtower component; the existing agricultural SatelliteMap is
+unchanged.
 
 ## Observation integrity
 

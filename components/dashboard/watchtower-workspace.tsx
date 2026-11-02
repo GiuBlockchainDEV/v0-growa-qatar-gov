@@ -38,11 +38,11 @@ export function WatchtowerWorkspace() {
     { id: 'agents' as const, label: tx('Agent operations', '\u0639\u0645\u0644\u064a\u0627\u062a \u0627\u0644\u0648\u0643\u0644\u0627\u0621'), icon: Bot },
   ]
   return <main className="growa nfii-command-scope flex h-full min-h-0 w-full flex-col overflow-hidden bg-background text-content">
-    <nav aria-label="Watchtower sections" className="flex shrink-0 items-center gap-1 overflow-x-auto border-b border-slate-700/60 bg-[#091522] px-3 py-1.5">
+    <nav aria-label="Watchtower sections" className="flex shrink-0 items-center gap-1 overflow-x-auto border-b border-line bg-card px-3 py-2">
       {sections.map(section => <button key={section.id} type="button" aria-pressed={section.id === activeSection} onClick={() => selectSection(section.id)}
-        className={'inline-flex min-h-8 shrink-0 items-center gap-1.5 rounded px-3 py-1.5 text-[11px] transition-colors ' + (section.id === activeSection ? 'bg-slate-700/70 text-cyan-200' : 'text-slate-400 hover:bg-slate-800 hover:text-slate-100')}><section.icon size={13} />{section.label}</button>)}
+        className={'inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-pill border px-3 py-1.5 text-[12px] font-medium transition-colors ' + (section.id === activeSection ? 'border-line-accent bg-cream-100 text-sage-700' : 'border-transparent text-content-soft hover:bg-muted hover:text-content')}><section.icon size={13} />{section.label}</button>)}
       <div className="ms-auto flex shrink-0 gap-1 ps-4">{[['/dashboard/procurement', 'Procurement'], ['/dashboard/logistics', 'Logistics'], ['/dashboard/reserves', 'Reserves'], ['/dashboard?module=commodities', 'Commodities']].map(([href, label]) =>
-        <Link key={href} href={href} className="inline-flex items-center gap-1 px-2 py-2 text-[10px] text-slate-400 hover:text-cyan-200">{label}<ArrowUpRight size={11} /></Link>)}</div>
+        <Link key={href} href={href} className="inline-flex items-center gap-1 rounded-pill px-3 py-2 text-[11px] text-content-soft transition-colors hover:bg-cream-100 hover:text-sage-700">{label}<ArrowUpRight size={11} /></Link>)}</div>
     </nav>
     {activeSection === 'map' ? <div className="min-h-0 flex-1"><GlobalWatchtower /></div> :
       <div className="min-h-0 flex-1 overflow-y-auto"><div className="mx-auto max-w-[1600px] space-y-4 p-4 pb-12 sm:p-6">

@@ -132,7 +132,7 @@ export function GlobalWatchtower() {
   }
   const nearby = selectedAsset ? allAlerts.filter(a => a.kind === 'hazard' && separationKm(a, selectedAsset) <= 350).slice(0, 3) : []
   const nearGateway = selectedAsset ? [...CHOKEPOINTS].sort((a, b) => separationKm(a, selectedAsset) - separationKm(b, selectedAsset))[0] : null
-  return <div ref={root} className={styles.shell} dir={ar ? 'rtl' : 'ltr'}>
+  return <div id="watchtower-map" ref={root} className={styles.shell} dir={ar ? 'rtl' : 'ltr'}>
     <Map assets={assets} alerts={alerts} layers={layers} selectedId={selectedId} onSelect={select} focus={focus} now={now} />
     <header className={styles.header}>
       <div className={styles.titleRow}>
@@ -214,7 +214,7 @@ export function GlobalWatchtower() {
         </>}
       </div>
     </aside>
-    <div className={styles.legend}><span><Plane size={12} color="#7dd3fc" />Aircraft</span><span><Ship size={12} color="#5eead4" />Cargo vessel</span><span><AlertTriangle size={12} color="#fbbf24" />Reported risk</span><span>Faded = stale</span></div>
-    <footer className={styles.footer}><span>{busy ? 'UPDATING SOURCES' : snapshot ? 'SNAPSHOT ' + utc(snapshot.generatedAt) : 'CONNECTING TO SOURCES'} / {paused ? 'PAUSED' : 'AUTO 60s'}</span><span>ADSB.lol / ODbL 1.0 / AIS licensed area / No simulated traffic</span></footer>
+    <div className={styles.legend}><span><Plane size={12} color="var(--growa-sage)" />Aircraft</span><span><Ship size={12} color="var(--growa-ink-600)" />Cargo vessel</span><span><AlertTriangle size={12} color="var(--warning-strong)" />Reported risk</span><span>Faded = stale</span></div>
+    <footer className={styles.footer}><span>{busy ? 'UPDATING SOURCES' : snapshot ? 'SNAPSHOT ' + utc(snapshot.generatedAt) : 'CONNECTING TO SOURCES'} / {paused ? 'PAUSED' : 'AUTO 60s'}</span><span>ESRI WORLD IMAGERY · ADSB.lol / ODbL 1.0 · AIS licensed area · No simulated traffic</span></footer>
   </div>
 }

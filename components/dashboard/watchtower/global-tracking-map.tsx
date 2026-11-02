@@ -9,12 +9,20 @@ export type GlobalTrackingMapProps = {
   onSelect: (id: string) => void; now: number
   focus: { lat: number; lon: number; zoom: number; token: number } | null
 }
+/** Same Esri World Imagery service used by the platform's main SatelliteMap. */
+export const ESRI_WORLD_IMAGERY =
+  'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'
+const ESRI_ATTRIBUTION = '&copy; <a href="https://www.esri.com/" target="_blank" rel="noopener noreferrer">Esri</a>, Maxar, Earthstar Geographics &amp; the GIS User Community'
+// Exact Growa design-system colours, matching styles/growa/colors.css.
+const MARKER = { aircraft: '#EEF4C9', vessel: '#A2B78C', critical: '#A8392B', attention: '#C9A227', ink: '#111E13', cream: '#EEF4C9' }
+
 type Observation = { lat: number; lon: number; time: string }
 const label = (value: string) => { const node = document.createElement('span'); node.textContent = value; return node }
 export function GlobalTrackingMap({ assets, alerts, layers, selectedId, onSelect, focus, now }: GlobalTrackingMapProps) {
   const host = useRef<HTMLDivElement>(null), mapRef = useRef<L.Map | null>(null), graphics = useRef<L.LayerGroup | null>(null)
   const history = useRef(new Map<string, Observation[]>()), select = useRef(onSelect)
   const [revision, setRevision] = useState(0), [tileError, setTileError] = useState(false)
+  const [point, setPoint] = useState<{ lat: number; lon: number } | null>(null)
   useEffect(() => { select.current = onSelect }, [onSelect])
   useEffect(() => {
     if (!host.current) return
@@ -22,12 +30,12 @@ export function GlobalTrackingMap({ assets, alerts, layers, selectedId, onSelect
       zoomControl: false, attributionControl: true, preferCanvas: true,
       maxBounds: [[-85, -180], [85, 180]], maxBoundsViscosity: 0.8 })
     mapRef.current = map
-    const configured = process.env.NEXT_PUBLIC_WATCHTOWER_TILE_URL
-    const custom = Boolean(configured?.startsWith('https://'))
-    const extra = label(process.env.NEXT_PUBLIC_WATCHTOWER_TILE_ATTRIBUTION ?? '').innerHTML
-    const tiles = L.tileLayer(custom ? configured! : 'https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      maxZoom: 18, noWrap: true, updateWhenIdle: true, keepBuffer: 1, className: custom ? '' : styles.darkTiles,
-      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">OpenStreetMap</a> contributors' + (extra ? ' | ' + extra : ''),
+    // Esri satellite raster basemap, with Leaflet overlays remaining fully interactive.
+    // Tiles are requested only for the visible viewport; no crawler/prefetch.
+    const tiles = L.tileLayer(ESRI_WORLD_IMAGERY, {
+      maxZoom: 19, maxNativeZoom: 19, noWrap: true,
+      updateWhenIdle: true, keepBuffer: 1,
+      attribution: ESRI_ATTRIBUTION,
     }).addTo(map)
     tiles.on('tileerror', () => setTileError(true)); tiles.on('tileload', () => setTileError(false))
     L.control.scale({ position: 'bottomleft', imperial: false }).addTo(map)
@@ -35,6 +43,7 @@ export function GlobalTrackingMap({ assets, alerts, layers, selectedId, onSelect
     graphics.current = L.layerGroup().addTo(map)
     const changed = () => setRevision(n => n + 1)
     map.on('moveend zoomend', changed)
+    map.on('click', event => setPoint({ lat: event.latlng.lat, lon: event.latlng.lng }))
     const observer = new ResizeObserver(() => map.invalidateSize({ pan: false }))
     observer.observe(host.current); changed()
     return () => { observer.disconnect(); tiles.off(); map.off(); map.remove(); mapRef.current = null; graphics.current = null }
@@ -62,7 +71,7 @@ export function GlobalTrackingMap({ assets, alerts, layers, selectedId, onSelect
       const bucket = buckets.get(key) ?? []; bucket.push(asset); buckets.set(key, bucket)
     }
     for (const bucket of buckets.values()) {
-      const asset = bucket[0], aircraft = asset.kind === 'aircraft', color = aircraft ? '#7dd3fc' : '#5eead4'
+      const asset = bucket[0], aircraft = asset.kind === 'aircraft', color = aircraft ? MARKER.aircraft : MARKER.vessel
       if (bucket.length > 1) {
         const lat = bucket.reduce((sum, a) => sum + a.lat, 0) / bucket.length, lon = bucket.reduce((sum, a) => sum + a.lon, 0) / bucket.length
         const icon = L.divIcon({ className: styles.cluster, iconSize: [34, 34], iconAnchor: [17, 17],
@@ -74,18 +83,18 @@ export function GlobalTrackingMap({ assets, alerts, layers, selectedId, onSelect
         const heading = Number.isFinite(asset.heading) ? asset.heading! : 0
         const path = aircraft ? 'M12 1L14 9L22 14V17L14 14V20L17 22V23L12 21L7 23V22L10 20V14L2 17V14L10 9Z' : 'M12 1L19 8L18 22H6L5 8Z'
         const icon = L.divIcon({ className: styles.asset, iconSize: [24, 24], iconAnchor: [12, 12],
-          html: '<svg viewBox="0 0 24 24" width="24" height="24" style="transform:rotate(' + heading + 'deg);opacity:' + (freshAsset(asset, now) ? '1' : '.4') + '"><path d="' + path + '" fill="' + color + '" stroke="' + (asset.id === selectedId ? '#ffffff' : '#08121e') + '" stroke-width="1.5"/></svg>' })
+          html: '<svg viewBox="0 0 24 24" width="24" height="24" style="transform:rotate(' + heading + 'deg);opacity:' + (freshAsset(asset, now) ? '1' : '.4') + '"><path d="' + path + '" fill="' + color + '" stroke="' + (asset.id === selectedId ? MARKER.cream : MARKER.ink) + '" stroke-width="1.5"/></svg>' })
         L.marker([asset.lat, asset.lon], { icon, title: asset.label, keyboard: true, zIndexOffset: asset.id === selectedId ? 900 : 100 })
           .bindTooltip(label(asset.label + ' / ' + asset.source + ' / ' + (freshAsset(asset, now) ? 'recent' : 'stale')))
           .on('click', () => select.current(asset.id)).addTo(group)
       }
     }
     if (layers.risks) for (const alert of alerts) {
-      const color = alert.severity === 'high' ? '#fb7185' : '#fbbf24'
+      const color = alert.severity === 'high' ? MARKER.critical : MARKER.attention
       L.circleMarker([alert.lat, alert.lon], { radius: alert.id === selectedId ? 11 : 7, color, weight: 2, fillColor: color, fillOpacity: 0.35 })
         .bindTooltip(label(alert.source + ': ' + alert.title)).on('click', () => select.current(alert.id)).addTo(group)
     }
-    if (layers.gateways) for (const point of CHOKEPOINTS) L.circleMarker([point.lat, point.lon], { radius: 5, color: '#94a3b8', weight: 1, fillOpacity: 0, dashArray: '2 2' })
+    if (layers.gateways) for (const point of CHOKEPOINTS) L.circleMarker([point.lat, point.lon], { radius: 5, color: MARKER.cream, weight: 2, fillOpacity: 0, dashArray: '2 2' })
       .bindTooltip(label(point.label + ' / geographic reference, not a closure alert')).addTo(group)
     L.marker([QATAR.lat, QATAR.lon], { interactive: false, icon: L.divIcon({ className: styles.qatar, html: '<span></span><b>QATAR</b>', iconSize: [80, 24], iconAnchor: [9, 12] }), zIndexOffset: 800 }).addTo(group)
     if (layers.trails && selectedId) {
@@ -94,9 +103,12 @@ export function GlobalTrackingMap({ assets, alerts, layers, selectedId, onSelect
         if (i > 0 && (Math.abs(p.lon - samples[i - 1].lon) > 180 || Date.parse(p.time) - Date.parse(samples[i - 1].time) > 300000)) segments.push([])
         segments[segments.length - 1].push([p.lat, p.lon])
       })
-      for (const segment of segments) if (segment.length > 1) L.polyline(segment, { color: '#a5f3fc', weight: 2, opacity: 0.8, dashArray: '4 4' }).addTo(group)
+      for (const segment of segments) if (segment.length > 1) L.polyline(segment, { color: MARKER.cream, weight: 3, opacity: 0.95, dashArray: '4 4' }).addTo(group)
     }
   }, [assets, alerts, layers, selectedId, now, revision])
-  return <><div ref={host} className={styles.map} role="region" aria-label="Interactive global air, maritime and food-security map" />
+  return <><div ref={host} className={styles.map} role="region" aria-label="Interactive Esri World Imagery global map with selectable aircraft, vessels and food-security alerts" />
+    {point && <output className={styles.coordinateReadout} aria-label="Selected map coordinates">
+      {point.lat.toFixed(5)}°, {point.lon.toFixed(5)}°
+    </output>}
     {tileError && <div className={styles.tileWarning} role="status">Basemap unavailable. Tracking data and source status remain accessible.</div>}</>
 }
