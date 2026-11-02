@@ -26,7 +26,7 @@ export function GlobalTrackingMap({ assets, alerts, layers, selectedId, onSelect
   useEffect(() => { select.current = onSelect }, [onSelect])
   useEffect(() => {
     if (!host.current) return
-    const map = L.map(host.current, { center: [22, 35], zoom: 2, minZoom: 2, maxZoom: 12,
+    const map = L.map(host.current, { center: [22, 35], zoom: 2, minZoom: 2, maxZoom: 19,
       zoomControl: false, attributionControl: true, preferCanvas: true,
       maxBounds: [[-85, -180], [85, 180]], maxBoundsViscosity: 0.8 })
     mapRef.current = map
