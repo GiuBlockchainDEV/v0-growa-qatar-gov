@@ -1,7 +1,7 @@
 /*
  * Watchtower uses the same light-first Growa design tokens as all other
- * operational dashboards. The Esri imagery remains full colour; only the
- * floating controls and alerts are styled as Growa cards.
+ * operational dashboards. The Esri political basemap highlights boundaries
+ * and named regions beneath the Growa-coloured risk, route and asset layers.
  */
 .shell {
   --wt-ink: var(--growa-ink);
@@ -20,10 +20,10 @@
   isolation: isolate;
 }
 .shell:fullscreen { width: 100vw; height: 100dvh; min-height: 0; }
-.map { position: absolute !important; inset: 0; z-index: 0; background: #e8ece4 !important; }
+.map { position: absolute !important; inset: 0; z-index: 0; background: #edf0ee !important; }
 
 /* Esri basemap: no inverted filters, artificial darkening, or neon styling. */
-.shell :global(.leaflet-container) { font-family: inherit; background: #e8ece4; }
+.shell :global(.leaflet-container) { font-family: inherit; background: #edf0ee; }
 .shell :global(.leaflet-control-attribution) {
   background: rgba(255,255,255,.95) !important;
   border: 1px solid var(--border-subtle);

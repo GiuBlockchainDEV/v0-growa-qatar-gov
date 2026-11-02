@@ -13,10 +13,18 @@ export type GlobalTrackingMapProps = {
   onSelect: (id: string) => void; now: number
   focus: { lat: number; lon: number; zoom: number; token: number } | null
 }
-/** Same Esri World Imagery service used by the platform's main SatelliteMap. */
-export const ESRI_WORLD_IMAGERY =
-  'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'
-const ESRI_ATTRIBUTION = '&copy; <a href="https://www.esri.com/" target="_blank" rel="noopener noreferrer">Esri</a>, Maxar, Earthstar Geographics &amp; the GIS User Community'
+/**
+ * ESRI political/administrative basemap for global food-security analysis.
+ * Base shows country and regional borders; the transparent Reference layer
+ * keeps country and city labels readable above the hazard polygons.
+ * The separate agricultural SatelliteMap keeps its imagery unchanged.
+ */
+export const ESRI_POLITICAL_BASE =
+  'https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}'
+export const ESRI_POLITICAL_LABELS =
+  'https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Reference/MapServer/tile/{z}/{y}/{x}'
+const ESRI_ATTRIBUTION =
+  '&copy; <a href="https://www.esri.com/" target="_blank" rel="noopener noreferrer">Esri</a>, HERE, Garmin, &copy; OpenStreetMap contributors &amp; GIS User Community'
 // Exact Growa design-system colours, matching styles/growa/colors.css.
 const MARKER = { aircraft: '#EEF4C9', vessel: '#A2B78C', critical: '#A8392B', attention: '#C9A227', ink: '#111E13', cream: '#EEF4C9' }
 
@@ -41,14 +49,26 @@ export function GlobalTrackingMap({ assets, historyAssets, alerts, riskZones, la
       worldCopyJump: true,
     })
     mapRef.current = map
-    // Esri satellite raster basemap, with Leaflet overlays remaining fully interactive.
-    // Tiles are requested only for the visible viewport; no crawler/prefetch.
-    const tiles = L.tileLayer(ESRI_WORLD_IMAGERY, {
-      maxZoom: 19, maxNativeZoom: 19, noWrap: false,
+    // Neutral political map: state boundaries, country context and labels.
+    // Independent Esri reference labels sit ABOVE translucent risk regions
+    // but BELOW aircraft/vessel markers, and never intercept pointer events.
+    // Only viewport tiles load; no offline caching or prefetched world tiles.
+    const tiles = L.tileLayer(ESRI_POLITICAL_BASE, {
+      maxZoom: 19, maxNativeZoom: 16, noWrap: false,
       updateWhenIdle: true, keepBuffer: 1,
       attribution: ESRI_ATTRIBUTION,
     }).addTo(map)
-    tiles.on('tileerror', () => setTileError(true)); tiles.on('tileload', () => setTileError(false))
+    const labelsPane = map.createPane('watchtower-political-labels')
+    labelsPane.style.zIndex = '425'
+    labelsPane.style.pointerEvents = 'none'
+    const politicalLabels = L.tileLayer(ESRI_POLITICAL_LABELS, {
+      pane: 'watchtower-political-labels',
+      maxZoom: 19, maxNativeZoom: 16, noWrap: false,
+      updateWhenIdle: true, keepBuffer: 1,
+      opacity: 1,
+    }).addTo(map)
+    tiles.on('tileerror', () => setTileError(true))
+    tiles.on('tileload', () => setTileError(false))
     L.control.scale({ position: 'bottomleft', imperial: false }).addTo(map)
     L.control.zoom({ position: 'bottomleft' }).addTo(map)
     productionGraphics.current = L.layerGroup().addTo(map)
@@ -69,7 +89,7 @@ export function GlobalTrackingMap({ assets, historyAssets, alerts, riskZones, la
     })
     observer.observe(host.current)
     changed()
-    return () => { observer.disconnect(); tiles.off(); map.off(); map.remove(); mapRef.current = null; graphics.current = null; productionGraphics.current = null }
+    return () => { observer.disconnect(); tiles.off(); politicalLabels.off(); map.off(); map.remove(); mapRef.current = null; graphics.current = null; productionGraphics.current = null }
   }, [])
   // Record all source-observed fixes, not just visible / filtered assets.
   // No interpolated backfill: past route is limited to this browser session.
@@ -300,7 +320,7 @@ export function GlobalTrackingMap({ assets, historyAssets, alerts, riskZones, la
       }
     }
   }, [assets, historyAssets, alerts, layers, selectedId, now, revision])
-  return <><div ref={host} className={styles.map} role="region" aria-label="Interactive Esri World Imagery global map with selectable aircraft, vessels and food-security alerts" />
+  return <><div ref={host} className={styles.map} role="region" aria-label="Interactive Esri political world map with country borders, regions, aircraft, vessels and food-production risk areas" />
     {point && <output className={styles.coordinateReadout} aria-label="Selected map coordinates">
       {point.lat.toFixed(5)}°, {point.lon.toFixed(5)}°
     </output>}

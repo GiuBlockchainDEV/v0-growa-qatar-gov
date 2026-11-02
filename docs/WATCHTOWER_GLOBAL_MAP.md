@@ -60,20 +60,35 @@ national aggregate. Commodity filtering applies to those signals, not manifests.
 Only real hazard points are used in the 350 km proximity panel, never approximate
 aviation or maritime anchors. Proximity is not proof of impact or a probability.
 
-## Esri interactive basemap and Growa visual identity
+## Esri political basemap and Growa visual identity
 
-The global Watchtower now uses the same Esri ArcGIS World Imagery raster tile
-service as the existing Growa satellite map:
-`https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}`.
-The map supports pan, zoom, clickable aircraft and cargo-vessel markers,
-zoom clusters, selected alert details, checkpoint overlays, route history
-from observed samples and click-to-inspect coordinates. Tiles are rendered at
-their actual colours (no CSS inversion or simulated geography). Leaflet remains
-the interaction/rendering library over Esri's imagery tile service.
+The Food Security Watchtower uses **Esri Light Gray Canvas** as a neutral,
+political and administrative world basemap. It has a country/region outline base
+and a transparent reference layer showing places and selected cities:
 
-Esri and contributing imagery sources are attributed in the visible map UI.
-Browser requests are scoped to visible tiles, without automated bulk caching.
-Review Esri's applicable licence/service terms before high-volume production.
+- Base: `https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}`
+- Labels: `https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Reference/MapServer/tile/{z}/{y}/{x}`
+
+Both are Esri raster services with worldwide coverage, and are licensed by Esri
+and its contributors. Their attribution remains visible. The optional reference
+labels are placed in a non-interactive Leaflet pane above production risk
+polygons, but below flight/vessel icons; risk and transport layers still receive
+click/hover actions. The existing Growa agricultural SatelliteMap uses its
+original satellite basemap and is unaffected.
+
+The map supports pan, zoom, clickable cargo aircraft and vessel observations,
+screen zoom clustering, source-backed route references, alerts, semi-transparent
+food-production risk zones, country context and coordinate inspection.
+The existing responsive fullscreen and world-wrap logic is unchanged.
+Requests fetch only visible tiles; no automated bulk cache or export.
+
+**Lifecycle note:** Esri announced that these legacy raster Light Gray Canvas
+services are scheduled for retirement in **December 2029**; the supported
+long-term upgrade is its vector Light Gray Canvas basemap. This implementation
+avoids introducing a new vector renderer into the existing Leaflet tracking
+stack, but the migration should be planned before retirement. Source:
+https://www.esri.com/arcgis-blog/products/arcgis-living-atlas/announcements/sunsetting-legacy-basemaps
+
 
 The Watchtower's header, tab navigation, filter panels, KPI cards, source pills,
 alerts and map controls follow **Growa's light-first design tokens** (white,
@@ -120,10 +135,10 @@ The minimum zoom also adapts when switching browser fullscreen or resizing.
 
 Leaflet is configured with `worldCopyJump: true` and the ESRI tile layer
 with `noWrap: false`; the former hard `maxBounds` clipping has been removed.
-These changes let ESRI tile images repeat across the antimeridian during
+These changes let Esri political tiles repeat across the antimeridian during
 horizontal panning instead of ending in empty grey columns. The visual
 map always fills its CSS host, beneath overlay controls and panels.
-The original ESRI data source, attribution and interactive markers remain.
+The Esri political base, label attribution and interactive markers remain.
 
 Regression tests live in `lib/watchtower/map-viewport.test.ts`.
 
@@ -294,7 +309,7 @@ all tracked flights will have an identifiable itinerary.
 The Watchtower map has an independently fetched, authenticated layer:
 `GET /api/watchtower/production-risks`. It renders semi-transparent high
 (red-ochre) and elevated (amber) geographic screening regions beneath aircraft
-and vessel overlays, on the interactive Esri World Imagery basemap.
+and vessel overlays, on the interactive Esri political basemap.
 
 Source observations: recent red/orange GDACS hazard points already ingested by
 the existing Watchtower server. Supported categories are drought, flood,
