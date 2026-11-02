@@ -7,6 +7,10 @@ export type TrackingAsset = {
   cargo: 'operator_inferred' | 'ais_cargo_class' | 'unverified'
   destination: string | null; foodCargoVerified: false
   itinerary?: import('./itinerary-sources').RouteItinerary | null
+  /** Public data-tracking.net reporting area, when provided by the source. */
+  chokepointId?: import('./data-tracking-net').ChokepointId
+  /** Distinguishes a per-ship timestamp from a dataset-level last poll. */
+  observationBasis?: 'position_report' | 'snapshot_poll'
 }
 export type MapAlert = {
   id: string; kind: 'hazard' | 'aviation' | 'maritime' | 'food'; title: string
@@ -61,7 +65,11 @@ const bearing = (v: unknown) => { const n = numeric(v); return n !== null && n >
 const speed = (v: unknown, max: number) => { const n = numeric(v); return n !== null && n >= 0 && n < max ? n : null }
 export function freshAsset(asset: TrackingAsset, now = Date.now()): boolean {
   const age = now - Date.parse(asset.observedAt)
-  return age >= -60000 && age <= (asset.kind === 'aircraft' ? 120000 : 600000)
+  // The public data-tracking.net AIS source polls roughly every 30 minutes.
+  // "Recent" here means recent relative to THAT source cadence, never live.
+  const limit=asset.source.startsWith('hormuz.data-tracking.net')
+    ? 90*60000 : asset.kind==='aircraft' ? 120000 : 600000
+  return age >= -60000 && age <= limit
 }
 export function mergeAssets(assets: readonly TrackingAsset[]): TrackingAsset[] {
   const byId = new Map<string, TrackingAsset>()

@@ -7,7 +7,8 @@ import { useI18n } from '@/lib/i18n'
 import { useOrganization } from '@/hooks/use-organization'
 import type { FoodPosture } from '@/lib/watchtower/food-posture'
 import type {ProductionRiskSnapshot,ProductionRiskZone,ProductionDriver} from '@/lib/watchtower/production-risk'
-import { CHOKEPOINTS, QATAR, REFRESH_SECONDS, freshAsset, separationKm, type MapAlert, type MapLayers, type TrackingAsset, type TrackingSnapshot } from '@/lib/watchtower/global-tracking'
+import { CHOKEPOINTS, QATAR, REFRESH_SECONDS, freshAsset, mergeAssets, separationKm, type MapAlert, type MapLayers, type TrackingAsset, type TrackingSnapshot } from '@/lib/watchtower/global-tracking'
+import {TRACKED_CHOKEPOINTS,type ChokepointId,type DataTrackingSnapshot,type ChokepointReport} from '@/lib/watchtower/data-tracking-net'
 import type { GlobalTrackingMapProps } from './global-tracking-map'
 import {mergeTrackingUpdate,mergeFlightItineraries,type RouteLookupResponse} from '@/lib/watchtower/tracking-merge'
 import styles from './global-watchtower.module.css'
@@ -38,6 +39,9 @@ export function GlobalWatchtower() {
   const [snapshot, setSnapshot] = useState<TrackingSnapshot | null>(null), [posture, setPosture] = useState<FoodPosture | null>(null)
   const [productionRisk,setProductionRisk]=useState<ProductionRiskSnapshot|null>(null)
   const [productionError,setProductionError]=useState('')
+  const [maritimeFeed,setMaritimeFeed]=useState<DataTrackingSnapshot|null>(null)
+  const [maritimeError,setMaritimeError]=useState('')
+  const [selectedChokepoint,setSelectedChokepoint]=useState<'all'|ChokepointId>('all')
   const [error, setError] = useState(''), [foodError, setFoodError] = useState('')
   const [busy, setBusy] = useState(false), [refresh, setRefresh] = useState(0), [paused, setPaused] = useState(false), [now, setNow] = useState(Date.now)
   const [mobile, setMobile] = useState(false), [filtersOpen, setFiltersOpen] = useState(true), [alertsOpen, setAlertsOpen] = useState(true), [fullscreen, setFullscreen] = useState(false)
@@ -142,6 +146,35 @@ export function GlobalWatchtower() {
     const interval=setInterval(()=>{if(!pausedRef.current)void load()},20*60000)
     return()=>{active=false;controller.abort();clearInterval(interval)}
   },[refresh])
+  // Public data-tracking.net AIS chokepoints refresh separately from aircraft,
+  // advisories and licensed VesselFinder. Do not fake unsupported coverage.
+  useEffect(()=>{
+    let active=true
+    const controller=new AbortController()
+    const load=async()=>{
+      if(!active||document.hidden||pausedRef.current)return
+      try{
+        const response=await fetch('/api/watchtower/chokepoints',{
+          cache:'no-store',
+          signal:AbortSignal.any([controller.signal,AbortSignal.timeout(27000)]),
+        })
+        if(!response.ok)throw Error('Chokepoint AIS feed unavailable')
+        const body=await response.json() as DataTrackingSnapshot
+        if(!Array.isArray(body.assets)||!Array.isArray(body.chokepoints)||
+          body.source!=='hormuz.data-tracking.net')throw Error('Invalid chokepoint AIS response')
+        if(active){setMaritimeFeed(body);setMaritimeError('')}
+      }catch{
+        if(active&&!controller.signal.aborted)
+          setMaritimeError('data-tracking.net AIS temporarily unavailable; last received snapshots may be stale.')
+      }
+    }
+    void load()
+    const timer=setInterval(()=>{void load()},25*60000)
+    const visible=()=>{if(!document.hidden)void load()}
+    document.addEventListener('visibilitychange',visible)
+    return()=>{active=false;controller.abort();clearInterval(timer)
+      document.removeEventListener('visibilitychange',visible)}
+  },[refresh])
   useEffect(() => {
     setPosture(null); setFoodError(''); setCommodity('all')
     if (!orgId) return
@@ -179,8 +212,20 @@ export function GlobalWatchtower() {
     const [south, west, north, east] = REGIONS[region].box
     return p.lat >= south && p.lat <= north && p.lon >= west && p.lon <= east
   }, [region])
-  const assets = useMemo(() => (snapshot?.assets ?? []).filter(a => inside(a) && (!cargoOnly || a.cargo !== 'unverified') &&
-    (!query || (a.label + ' ' + a.id + ' ' + (a.destination ?? '')).toLowerCase().includes(query.toLowerCase()))), [snapshot, inside, cargoOnly, query])
+  const allAssets=useMemo(()=>{
+    // Keep explicit capacity for maritime observations; otherwise the latest
+    // 2,000 aircraft fixes can crowd out 30-minute AIS cargo positions.
+    const incoming=[...(snapshot?.assets??[]),...(maritimeFeed?.assets??[])]
+    const vessels=mergeAssets(incoming.filter(asset=>asset.kind==='vessel')).slice(0,700)
+    const aircraft=mergeAssets(incoming.filter(asset=>asset.kind==='aircraft')).slice(0,1300)
+    return [...aircraft,...vessels]
+  },[snapshot,maritimeFeed])
+  const assets = useMemo(() => allAssets.filter(a =>
+    inside(a)&&
+    (selectedChokepoint==='all'||a.kind==='aircraft'||a.chokepointId===selectedChokepoint)&&
+    (!cargoOnly || a.cargo !== 'unverified') &&
+    (!query || (a.label + ' ' + a.id + ' ' + (a.destination ?? '')).toLowerCase().includes(query.toLowerCase())),
+    ), [allAssets, inside, selectedChokepoint, cargoOnly, query])
   const alerts = useMemo(() => allAlerts.filter(a => inside(a) && (alertKind === 'all' || a.kind === alertKind) &&
     (!highOnly || a.severity === 'high') && (commodity === 'all' || a.kind !== 'food' || a.id === 'food:' + commodity) &&
     (!query || (a.title + ' ' + a.source).toLowerCase().includes(query.toLowerCase()))), [allAlerts, inside, alertKind, highOnly, commodity, query])
@@ -197,14 +242,23 @@ export function GlobalWatchtower() {
     () => alerts.filter(alert => alert.source !== 'Organization food ledger'),
     [alerts],
   )
-  const selectedAsset = snapshot?.assets.find(a => a.id === selectedId), selectedAlert = allAlerts.find(a => a.id === selectedId)
+  const selectedAsset = allAssets.find(a => a.id === selectedId), selectedAlert = allAlerts.find(a => a.id === selectedId)
   const selectedProductionZone=(productionRisk?.zones??[]).find(zone=>zone.id===selectedId)
   const itineraryCount=assets.filter(a=>a.itinerary?.origin&&a.itinerary?.destination).length
   const mapReadyItineraryCount=assets.filter(a=>a.itinerary?.origin?.lat!=null&&
     a.itinerary.destination?.lat!=null&&
     (a.kind==='aircraft'||Boolean(a.itinerary.modelSeaLegs))).length
   const selectedSource = snapshot?.sources.find(s => s.id === sourceId)
-  const recentCount = (snapshot?.assets ?? []).filter(a => freshAsset(a, now)).length
+  const chokepointReport=(id:ChokepointId):ChokepointReport|undefined=>
+    maritimeFeed?.chokepoints.find(point=>point.id===id)
+  const chooseChokepoint=(id:ChokepointId)=>{
+    const area=TRACKED_CHOKEPOINTS.find(point=>point.id===id)
+    if(!area)return
+    setSelectedChokepoint(id)
+    setFocus({lat:area.lat,lon:area.lon,zoom:6,token:Date.now()})
+    if(mobile){setFiltersOpen(false);setAlertsOpen(false)}
+  }
+  const recentCount = allAssets.filter(a => freshAsset(a, now)).length
   const staleSnapshot = Boolean(snapshot && now - Date.parse(snapshot.generatedAt) > 180000)
   const staleFood = Boolean(food && now - Date.parse(food.generatedAt) > 300000)
   const airSource = snapshot?.sources.find(s => s.id === 'adsb'), seaSource = snapshot?.sources.find(s => s.id === 'ais')
@@ -220,7 +274,7 @@ export function GlobalWatchtower() {
   const nearby = selectedAsset ? allAlerts.filter(a => a.kind === 'hazard' && separationKm(a, selectedAsset) <= 350).slice(0, 3) : []
   const nearGateway = selectedAsset ? [...CHOKEPOINTS].sort((a, b) => separationKm(a, selectedAsset) - separationKm(b, selectedAsset))[0] : null
   return <div id="watchtower-map" ref={root} className={styles.shell} dir={ar ? 'rtl' : 'ltr'}>
-    <Map assets={assets} historyAssets={snapshot?.assets ?? []} alerts={alerts} riskZones={riskZones} layers={layers} selectedId={selectedId} onSelect={select} focus={focus} now={now} />
+    <Map assets={assets} historyAssets={allAssets} alerts={alerts} riskZones={riskZones} chokepoints={maritimeFeed?.chokepoints??[]} layers={layers} selectedId={selectedId} onSelect={select} onChokepointClick={chooseChokepoint} focus={focus} now={now} />
     <header className={styles.header}>
       <div className={styles.titleRow}>
         <div><div className={styles.eyebrow}>NFII / GLOBAL OPERATING PICTURE</div>
@@ -237,7 +291,7 @@ export function GlobalWatchtower() {
       </div>
       <div className={styles.stats}>{[
         { label: 'Aircraft observations', value: known(airSource?.state) ? assets.filter(a => a.kind === 'aircraft').length : null, note: cargoOnly ? 'Freight-operator candidates / sampled' : 'Six airframe samples / not all traffic', icon: Plane },
-        { label: 'Cargo vessel observations', value: known(seaSource?.state) ? assets.filter(a => a.kind === 'vessel').length : null, note: seaSource?.state === 'unconfigured' ? 'AIS subscription not connected' : 'Licensed coverage / not global totals', icon: Ship },
+        { label: 'Cargo vessel observations', value: (known(seaSource?.state)||Boolean(maritimeFeed?.chokepoints.some(point=>point.state==='partial'||point.state==='stale'))) ? assets.filter(a => a.kind === 'vessel').length : null, note: maritimeFeed ? 'data-tracking.net Hormuz/Bab · AIS sample' : seaSource?.state === 'unconfigured' ? 'Waiting for public AIS / licensed AIS unavailable' : 'AIS coverage / not global totals', icon: Ship },
         { label: 'Mapped risk reports', value: riskReadable ? externalRiskAlerts.length : null, note: 'External hazard and advisory reports', icon: AlertTriangle },
         { label: 'Food-security signals', value: food && food.assessedCount > 0 ? foodAlerts.length : null, note: staleFood ? 'Stale organization snapshot' : foodError ? 'Organization ledger unavailable' : food ? food.assessedCount + ' commodities assessed / organization' : 'Organization ledger not loaded', icon: Wheat },
       ].map(item => <div key={item.label} className={styles.stat}><label>{item.label}</label><strong>{count(item.value)}</strong><item.icon size={21} /><small>{item.note}</small></div>)}</div>
@@ -251,6 +305,47 @@ export function GlobalWatchtower() {
       <label className={styles.label} htmlFor="watchtower-region">Geographic view</label>
       <select id="watchtower-region" className={styles.input} value={region} onChange={e => setView(e.target.value as Region)}>{Object.entries(REGIONS).map(([key, value]) => <option key={key} value={key}>{value.name}</option>)}</select>
       <div className="mt-2 flex gap-2"><button className={styles.smallButton} onClick={() => setView('global')}><Globe2 size={12} />Global</button><button className={styles.smallButton} onClick={() => { setView('gulf'); setFocus({ ...QATAR, zoom: 6, token: Date.now() }) }}>Qatar</button></div>
+      <label className={styles.label} htmlFor="watchtower-chokepoint">
+        Cargo ships · maritime chokepoints
+      </label>
+      <select id="watchtower-chokepoint" className={styles.input}
+        value={selectedChokepoint}
+        onChange={e=>{
+          const next=e.target.value as 'all'|ChokepointId
+          if(next==='all'){setSelectedChokepoint('all');setView('global')}
+          else chooseChokepoint(next)
+        }}>
+        <option value="all">All monitored chokepoints</option>
+        {TRACKED_CHOKEPOINTS.map(point=><option key={point.id} value={point.id}>
+          {point.label}{point.feed?'':' · feed unavailable'}
+        </option>)}
+      </select>
+      <div className={styles.chokepointList}>
+        {TRACKED_CHOKEPOINTS.map(point=>{
+          const report=chokepointReport(point.id)
+          const status=report?.state??(point.feed?'unavailable':'not_covered')
+          return <button key={point.id} type="button" className={styles.chokepointItem}
+            aria-pressed={selectedChokepoint===point.id}
+            onClick={()=>chooseChokepoint(point.id)}>
+            <span className={styles.chokepointName}>{point.label}</span>
+            <span data-state={status} className={styles.chokepointState}>
+              {status==='not_covered'?'NO FEED':status==='stale'?'STALE':
+                status==='unavailable'?'OFFLINE':'AIS DATA'}
+            </span>
+            <small>
+              {report?.vesselCount===null||report?.vesselCount===undefined?'N/A':report.vesselCount}
+              {' '}cargo-like AIS · {report?.crossings24h??'N/A'} all-vessel 24h crossings
+            </small>
+          </button>
+        })}
+      </div>
+      <p className={styles.hint}>
+        Source: <a href="https://hormuz.data-tracking.net/api-docs" target="_blank"
+          rel="noopener noreferrer">data-tracking.net (CC BY 4.0)</a>.
+        {' '}AIS observations update around every 30 minutes, not continuously.
+        Cargo vessel type does not establish food on board.
+        {maritimeError?' '+maritimeError:''}
+      </p>
       <hr className={styles.divider} />
       {([
         ['aircraft', Plane, 'Aircraft'], ['vessels', Ship, 'Cargo vessels'], ['risks', AlertTriangle, 'Risk reports'], ['production', Wheat, 'Food production exposure zones'], ['gateways', Globe2, 'Strategic chokepoints'], ['trails', Activity, 'Origin / recorded past'], ['projections', Activity, 'Destination / estimated future'],
@@ -286,7 +381,12 @@ export function GlobalWatchtower() {
           'المسارات المرجعية ليست مسارات طيران أو إبحار مؤكدة؛ فقط الرصد الفعلي يدل على الحركة.')}
       </p>
     </aside>
-    <div className={styles.feedDock} aria-label="Tracking source status">{snapshot?.sources.map(source => <button key={source.id} className={styles.feedPill} data-state={source.state} onClick={() => { setSourceId(source.id); setSelectedId(null); setAlertsOpen(true); if (mobile) setFiltersOpen(false) }}><i />{source.name}: {source.state}</button>)}</div>
+    <div className={styles.feedDock} aria-label="Tracking source status">
+      {snapshot?.sources.map(source => <button key={source.id} className={styles.feedPill} data-state={source.state} onClick={() => { setSourceId(source.id); setSelectedId(null); setAlertsOpen(true); if (mobile) setFiltersOpen(false) }}><i />{source.name}: {source.state}</button>)}
+      {maritimeFeed?.chokepoints.filter(c=>c.id==='hormuz'||c.id==='bab_el_mandeb').map(area=>
+        <button key={area.id} type="button" className={styles.feedPill} data-state={area.state}
+          onClick={()=>chooseChokepoint(area.id)}><i />AIS {area.label}: {area.state}</button>)}
+    </div>
     <aside className={`${styles.panel} ${styles.alertPanel} ${alertsOpen ? '' : styles.hidePanel}`} aria-label="Alerts and selected observation">
       <div className={styles.panelTitle}><span>{selectedSource ? 'SOURCE STATUS' : selectedProductionZone ? 'PRODUCTION RISK EXPOSURE' : selectedId ? 'OBSERVATION DETAILS' : 'FOOD SECURITY & RISK'}</span><button className={styles.iconButton} aria-label={selectedId || sourceId ? 'Back to alerts' : 'Close alert panel'} onClick={() => { if (selectedId || sourceId) { setSelectedId(null); setSourceId(null) } else setAlertsOpen(false) }}>{selectedId || sourceId ? <ChevronLeft size={12} /> : <X size={12} />}</button></div>
       <div className={styles.scroll}>
@@ -366,6 +466,17 @@ export function GlobalWatchtower() {
             <h3>Observed track</h3>
             <p>The solid green line contains only real position updates collected while this page has been open. Origin-to-position and position-to-destination routes are shown as labelled references when provider data is available. No short heading guides or artificial forward projections are drawn.</p>
           </div>
+          {selectedAsset.chokepointId&&<div className={styles.routeDetail}>
+            <h3>Maritime chokepoint observation</h3>
+            <p>{TRACKED_CHOKEPOINTS.find(point=>point.id===selectedAsset.chokepointId)?.label}</p>
+            <p><strong>{selectedAsset.observationBasis==='position_report'?
+              'Ship-specific AIS position timestamp':'Source snapshot timestamp only'}</strong></p>
+            <p>Reported {utc(selectedAsset.observedAt)} · {age(selectedAsset.observedAt,now)}.</p>
+            <p>Provider: data-tracking.net, CC BY 4.0. AIS positions may be delayed,
+              missing or distorted. Transit and destination are not confirmed cargo shipments.</p>
+            <a href={TRACKED_CHOKEPOINTS.find(point=>point.id===selectedAsset.chokepointId)?.pageUrl??'https://hormuz.data-tracking.net/'}
+              target="_blank" rel="noopener noreferrer">Open source tracking <ExternalLink size={11} className="inline" /></a>
+          </div>}
           <p className={styles.notice}>{selectedAsset.cargo === 'ais_cargo_class' ? 'AIS class identifies a cargo vessel.' : selectedAsset.cargo === 'operator_inferred' ? 'Freight-operator callsign heuristic, not a verified cargo manifest.' : 'Aircraft type alone does not confirm a cargo flight.'} Food cargo, supplier and purchase-order linkage are unverified.</p>
           {nearGateway && separationKm(selectedAsset, nearGateway) < 600 && <p>Reference proximity: {nearGateway.label}, approximately {Math.round(separationKm(selectedAsset, nearGateway))} km. Not evidence of crossing or disruption.</p>}
           {nearby.map(alert => <button key={alert.id} className={styles.alert} onClick={() => choose(alert)}><strong>{alert.title}</strong><p>Reported point within 350 km. Proximity only, not confirmed impact.</p></button>)}
@@ -386,6 +497,6 @@ export function GlobalWatchtower() {
       </div>
     </aside>
     <div className={styles.legend}><span><Plane size={12} color="var(--growa-sage)" />Aircraft</span><span><Ship size={12} color="var(--growa-ink-600)" />Cargo vessel</span><span><AlertTriangle size={12} color="var(--warning-strong)" />Reported risk</span><span><i className={styles.productionRiskSwatch} />Production risk areas ({layers.production?riskZones.length:0})</span><span><i className={styles.routePastLine} />Observed</span><span><i className={styles.routeOriginLine} />From origin (reference)</span><span><i className={styles.routeFutureLine} />To destination (reference)</span></div>
-    <footer className={styles.footer}><span>{busy ? 'UPDATING SOURCES' : snapshot ? 'SNAPSHOT ' + utc(snapshot.generatedAt) : 'CONNECTING TO SOURCES'} / {paused ? 'PAUSED' : 'AUTO 60s'}</span><span>ESRI POLITICAL MAP · ADSB.lol / ODbL 1.0 · AIS licensed area · No simulated traffic</span></footer>
+    <footer className={styles.footer}><span>{busy ? 'UPDATING SOURCES' : snapshot ? 'SNAPSHOT ' + utc(snapshot.generatedAt) : 'CONNECTING TO SOURCES'} / {paused ? 'PAUSED' : 'AUTO 60s'}</span><span>ESRI POLITICAL MAP · ADSB.lol / ODbL 1.0 · data-tracking.net / CC BY 4.0 · No simulated traffic</span></footer>
   </div>
 }

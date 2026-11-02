@@ -367,3 +367,63 @@ independent fixes exist. These geographic routes are visible without clicking
 a vehicle. Reference itineraries are still estimates, not authenticated
 historical tracks or carrier flight plans. If provider endpoints are missing,
 the map shows the marker alone rather than a fabricated route.
+
+
+## Public cargo-vessel observations at maritime chokepoints
+
+The global Watchtower now has an authenticated, independent public AIS adapter
+for `hormuz.data-tracking.net` under:
+`GET /api/watchtower/chokepoints`.
+
+**Data provider:** https://hormuz.data-tracking.net/api-docs
+**Source license:** CC BY 4.0. Source attribution is shown in the UI.
+The source describes approximately 30-minute AIS polling. No API key is
+required. Requests are sent from the server only, with size limits, a timeout,
+and a 25-minute cache. The initial aircraft loading is never blocked.
+
+Public ship-position coverage:
+- **Strait of Hormuz**: `/api/ships`, 24-hour `/api/summary?hours=24`
+- **Bab el-Mandeb**: `/api/bab/ships`, 24-hour `/api/bab/summary?hours=24`
+- **Suez, Malacca, Panama, Gibraltar and Bosporus**: NO public ship-position
+  coverage from this provider; the selector still locates these regions,
+  explicitly labelled **NO FEED**. Further AIS sources would be needed.
+
+The dashboard focuses each chokepoint from the map and left-hand selector.
+Vessels are mapped with AIS positions, speed, course, ship name, MMSI and
+reported destination when the provider supplies those fields. It filters for
+bulk carriers, container ships, general cargo, reefer or cargo AIS categories.
+Oil tankers, passenger ships, tugs, fishing vessels and unidentified types
+are excluded from the cargo subset. This is NOT evidence of food on board.
+An unknown AIS category is not automatically counted as dry cargo.
+
+Each location keeps the real ship-specific observation timestamp when supplied.
+Otherwise it may display the **source's snapshot poll timestamp** as a
+separately labelled basis, never a fabricated ship-specific timestamp.
+No recorded timestamp means no plotted position. A source may be delayed due
+to poor AIS reception, disabled transponders, interference or maritime
+jamming, which the provider explicitly warns about in Hormuz. Stale observations
+are never silently marked "live" and the provider state remains visible.
+The UI considers <90-minute observations recent *for this 30-minute feed
+cadence* but does not claim continuous live tracking. Older values are
+visually faded and timestamped; observations older than seven days are
+rejected.
+
+The selected vessel may have observed track lines only after multiple REAL
+positions were collected while the browser was open, subject to existing
+trajectory continuity and speed checks. The public endpoints do NOT provide
+a fully recorded voyage history, the actual cargo manifest, supplier linkage,
+or confirmed plan to a destination. The module does not infer a voyage from
+the position and COG alone.
+
+24-hour chokepoint crossing numbers are sourced separately from provider
+aggregates and count **all vessel classes**, not only cargo or food vessels.
+They are not converted into a food-security risk probability. The UI reports
+unavailable coverage as N/A, NOT zero traffic. Source data may become
+unavailable independently of the existing licensed VesselFinder feed.
+
+Implementation:
+- `lib/watchtower/data-tracking-net.ts` (normalization and server cache)
+- `app/api/watchtower/chokepoints/route.ts` (authenticated server route)
+- `components/dashboard/watchtower/global-watchtower.tsx` (filters and status)
+- `components/dashboard/watchtower/global-tracking-map.tsx` (ESRI markers)
+- `lib/watchtower/data-tracking-net.test.ts` (regression tests).

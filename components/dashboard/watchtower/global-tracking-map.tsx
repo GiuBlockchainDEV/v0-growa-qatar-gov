@@ -2,15 +2,16 @@
 import { useEffect, useRef, useState } from 'react'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
-import { CHOKEPOINTS, QATAR, freshAsset, type TrackingAsset, type MapAlert, type MapLayers } from '@/lib/watchtower/global-tracking'
+import { QATAR, freshAsset, type TrackingAsset, type MapAlert, type MapLayers } from '@/lib/watchtower/global-tracking'
+import {TRACKED_CHOKEPOINTS,type ChokepointId,type ChokepointReport} from '@/lib/watchtower/data-tracking-net'
 import styles from './global-watchtower.module.css'
 import { getWorldFillZoom } from '@/lib/watchtower/map-viewport'
 import { makeAirGreatCircle } from '@/lib/nfii/logistics-route-geometry'
 import type {ProductionRiskZone} from '@/lib/watchtower/production-risk'
 import { captureObservedPositions, automaticRouteEvidence, worldCopyPolyline, type TrackPoint } from '@/lib/watchtower/route-geometry'
 export type GlobalTrackingMapProps = {
-  assets: TrackingAsset[]; historyAssets: TrackingAsset[]; alerts: MapAlert[]; riskZones: ProductionRiskZone[]; layers: MapLayers; selectedId: string | null
-  onSelect: (id: string) => void; now: number
+  assets: TrackingAsset[]; historyAssets: TrackingAsset[]; alerts: MapAlert[]; riskZones: ProductionRiskZone[]; chokepoints: ChokepointReport[]; layers: MapLayers; selectedId: string | null
+  onSelect: (id: string) => void; onChokepointClick: (id: ChokepointId) => void; now: number
   focus: { lat: number; lon: number; zoom: number; token: number } | null
 }
 /**
@@ -29,12 +30,13 @@ const ESRI_ATTRIBUTION =
 const MARKER = { aircraft: '#EEF4C9', vessel: '#A2B78C', critical: '#A8392B', attention: '#C9A227', ink: '#111E13', cream: '#EEF4C9' }
 
 const label = (value: string) => { const node = document.createElement('span'); node.textContent = value; return node }
-export function GlobalTrackingMap({ assets, historyAssets, alerts, riskZones, layers, selectedId, onSelect, focus, now }: GlobalTrackingMapProps) {
+export function GlobalTrackingMap({ assets, historyAssets, alerts, riskZones, chokepoints, layers, selectedId, onSelect, onChokepointClick, focus, now }: GlobalTrackingMapProps) {
   const host = useRef<HTMLDivElement>(null), mapRef = useRef<L.Map | null>(null), graphics = useRef<L.LayerGroup | null>(null), productionGraphics = useRef<L.LayerGroup | null>(null)
-  const history = useRef(new Map<string, TrackPoint[]>()), select = useRef(onSelect)
+  const history = useRef(new Map<string, TrackPoint[]>()), select = useRef(onSelect), selectChokepoint = useRef(onChokepointClick)
   const [revision, setRevision] = useState(0), [tileError, setTileError] = useState(false)
   const [point, setPoint] = useState<{ lat: number; lon: number } | null>(null)
   useEffect(() => { select.current = onSelect }, [onSelect])
+  useEffect(() => { selectChokepoint.current = onChokepointClick }, [onChokepointClick])
   useEffect(() => {
     if (!host.current) return
     // Cover the entire visible viewport. A fixed zoom 2 has only 1024px of
@@ -238,8 +240,24 @@ export function GlobalTrackingMap({ assets, historyAssets, alerts, riskZones, la
           className: styles.riskTooltip,
         }).on('click', () => select.current(alert.id)).addTo(group)
     }
-    if (layers.gateways) for (const point of CHOKEPOINTS) L.circleMarker([point.lat, point.lon], { radius: 5, color: MARKER.cream, weight: 2, fillOpacity: 0, dashArray: '2 2' })
-      .bindTooltip(label(point.label + ' / geographic reference, not a closure alert')).addTo(group)
+    if (layers.gateways) for(const point of TRACKED_CHOKEPOINTS){
+      const status=chokepoints.find(area=>area.id===point.id)
+      const isCovered=status?.state==='partial'||status?.state==='stale'
+      const markerColor=isCovered?'#6C8952':'#98A298'
+      const title=point.label+' / '+
+        (status?.state==='stale'?'delayed AIS feed':
+          status?.state==='partial'?'source-backed AIS coverage':
+          point.feed?'AIS feed currently unavailable':'no data-tracking.net AIS coverage')+
+        ' / '+(status?.vesselCount??'N/A')+' cargo-like AIS vessels, '+
+        (status?.crossings24h??'N/A')+' all-vessel crossings/24h. '+
+        'Source coverage is not evidence of security or route availability.'
+      L.circleMarker([point.lat,point.lon],{
+        radius:point.feed?7:5,color:markerColor,weight:2,
+        fillColor:markerColor,fillOpacity:point.feed?.32:.10,
+        dashArray:point.feed?undefined:'3 4',
+      }).bindTooltip(label(title),{className:styles.riskTooltip})
+        .on('click',()=>selectChokepoint.current(point.id)).addTo(group)
+    }
     L.marker([QATAR.lat, QATAR.lon], { interactive: false, icon: L.divIcon({ className: styles.qatar, html: '<span></span><b>QATAR</b>', iconSize: [80, 24], iconAnchor: [9, 12] }), zIndexOffset: 800 }).addTo(group)
     // Display only real observations and origin/destination reference routes.
     // No artificial 20-minute continuation or short screen-length heading
@@ -265,7 +283,7 @@ export function GlobalTrackingMap({ assets, historyAssets, alerts, riskZones, la
         }
       }
     }
-  }, [assets, historyAssets, alerts, layers, selectedId, now, revision])
+  }, [assets, historyAssets, alerts, chokepoints, layers, selectedId, now, revision])
   return <><div ref={host} className={styles.map} role="region" aria-label="Interactive Esri political world map with country borders, regions, aircraft, vessels and food-production risk areas" />
     {point && <output className={styles.coordinateReadout} aria-label="Selected map coordinates">
       {point.lat.toFixed(5)}°, {point.lon.toFixed(5)}°
