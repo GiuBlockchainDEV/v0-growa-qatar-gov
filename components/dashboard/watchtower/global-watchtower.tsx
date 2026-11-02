@@ -9,7 +9,6 @@ import type { FoodPosture } from '@/lib/watchtower/food-posture'
 import type {ProductionRiskSnapshot,ProductionRiskZone,ProductionDriver} from '@/lib/watchtower/production-risk'
 import { CHOKEPOINTS, QATAR, REFRESH_SECONDS, freshAsset, separationKm, type MapAlert, type MapLayers, type TrackingAsset, type TrackingSnapshot } from '@/lib/watchtower/global-tracking'
 import type { GlobalTrackingMapProps } from './global-tracking-map'
-import { forwardCourseProjection, lastKnownCourseCue } from '@/lib/watchtower/route-geometry'
 import {mergeTrackingUpdate,mergeFlightItineraries,type RouteLookupResponse} from '@/lib/watchtower/tracking-merge'
 import styles from './global-watchtower.module.css'
 const Map = dynamic<GlobalTrackingMapProps>(() => import('./global-tracking-map').then(m => m.GlobalTrackingMap), { ssr: false, loading: () => <div className={styles.map} aria-busy="true" /> })
@@ -200,22 +199,10 @@ export function GlobalWatchtower() {
   )
   const selectedAsset = snapshot?.assets.find(a => a.id === selectedId), selectedAlert = allAlerts.find(a => a.id === selectedId)
   const selectedProductionZone=(productionRisk?.zones??[]).find(zone=>zone.id===selectedId)
-  const selectedProjection = selectedAsset ? forwardCourseProjection(selectedAsset,now) : null
-  const selectedCourseCue = selectedAsset ? lastKnownCourseCue(selectedAsset,now) : null
   const itineraryCount=assets.filter(a=>a.itinerary?.origin&&a.itinerary?.destination).length
   const mapReadyItineraryCount=assets.filter(a=>a.itinerary?.origin?.lat!=null&&
     a.itinerary.destination?.lat!=null&&
     (a.kind==='aircraft'||Boolean(a.itinerary.modelSeaLegs))).length
-  // Auto-rendering does not depend on selecting an aircraft or vessel.
-  // This count makes missing heading/speed/freshness immediately visible.
-  const projectableCount = useMemo(
-    () => assets.filter(asset => forwardCourseProjection(asset,now) !== null).length,
-    [assets,now],
-  )
-  const bearingCueCount = useMemo(
-    () => assets.filter(asset => lastKnownCourseCue(asset,now) !== null).length,
-    [assets,now],
-  )
   const selectedSource = snapshot?.sources.find(s => s.id === sourceId)
   const recentCount = (snapshot?.assets ?? []).filter(a => freshAsset(a, now)).length
   const staleSnapshot = Boolean(snapshot && now - Date.parse(snapshot.generatedAt) > 180000)
@@ -298,16 +285,6 @@ export function GlobalWatchtower() {
         {' '}{tx('Reference itineraries are not actual flown/sailed tracks; only solid observed tracks prove movement.',
           'المسارات المرجعية ليست مسارات طيران أو إبحار مؤكدة؛ فقط الرصد الفعلي يدل على الحركة.')}
       </p>
-      <p className={styles.hint}>
-        {tx('Routes appear automatically for every eligible tracked vehicle, with no selection required.',
-          'تظهر المسارات تلقائياً لكل وسيلة نقل مؤهلة دون الحاجة إلى تحديدها.')}
-        {' '}{projectableCount} {tx('have recent motion for short forward projections.',
-          'وسائل لديها حركة حديثة للتوقع القصير.')}
-        {' '}{bearingCueCount} {tx('have last-known bearings shown as schematic screen-length guides (grey when stale).',
-          'وسائل لديها اتجاهات آخر مشاهدة تظهر كإرشادات تخطيطية وتكون رمادية عندما تصبح قديمة.')}
-        {' '}{tx('Solid green requires at least two real observations after opening this page. Dashed yellow is only an estimated course, not a confirmed flight plan or sea itinerary.',
-          'يتطلب الخط الأخضر ملاحظتين حقيقيتين على الأقل. الخط الأصفر تقدير للاتجاه فقط وليس مساراً مؤكداً.')}
-      </p>
     </aside>
     <div className={styles.feedDock} aria-label="Tracking source status">{snapshot?.sources.map(source => <button key={source.id} className={styles.feedPill} data-state={source.state} onClick={() => { setSourceId(source.id); setSelectedId(null); setAlertsOpen(true); if (mobile) setFiltersOpen(false) }}><i />{source.name}: {source.state}</button>)}</div>
     <aside className={`${styles.panel} ${styles.alertPanel} ${alertsOpen ? '' : styles.hidePanel}`} aria-label="Alerts and selected observation">
@@ -386,22 +363,8 @@ export function GlobalWatchtower() {
               for this vehicle. The aircraft callsign / vessel identifier alone does not establish a journey.</p>}
           </div>
           <div className={styles.routeDetail}>
-            <h3>Route tracking · {selectedAsset.kind === 'aircraft' ? 'aircraft' : 'cargo vessel'}</h3>
-            <p><span className={styles.routePastLine} /> <strong>Completed / observed</strong></p>
-            <p>Only distinct positions actually received by this browser since the page opened. Full historical trip and verified departure are unavailable unless a history provider is connected.</p>
-            <p><span className={styles.routeFutureLine} /> <strong>Remaining / estimated</strong></p>
-            {selectedProjection
-              ? <p>Direction-of-travel projection for the next {selectedProjection.horizonMinutes} minutes
-                ({selectedProjection.distanceKm.toFixed(1)} km), using observed speed and heading
-                as of {utc(selectedProjection.observedAt)}. This is NOT a verified planned route or destination.
-                {selectedAsset.kind === 'vessel' ? ' Sea lanes, port approaches and coastlines are not modelled.' : ' Flight plans, waypoints and airspace restrictions are not modelled.'}
-              </p>
-              : <p>Future segment unavailable: recent position, heading and speed are required.
-                The tracking feed does not provide a confirmed flight plan or navigational voyage route.
-                {selectedCourseCue && <> Last-known direction: {selectedCourseCue.headingDeg.toFixed(0)}°,
-                  observed {Math.floor(selectedCourseCue.ageSeconds / 60)} minutes ago.
-                  The grey map guide is schematic and is NOT a future geographic route.</>}
-              </p>}
+            <h3>Observed track</h3>
+            <p>The solid green line contains only real position updates collected while this page has been open. Origin-to-position and position-to-destination routes are shown as labelled references when provider data is available. No short heading guides or artificial forward projections are drawn.</p>
           </div>
           <p className={styles.notice}>{selectedAsset.cargo === 'ais_cargo_class' ? 'AIS class identifies a cargo vessel.' : selectedAsset.cargo === 'operator_inferred' ? 'Freight-operator callsign heuristic, not a verified cargo manifest.' : 'Aircraft type alone does not confirm a cargo flight.'} Food cargo, supplier and purchase-order linkage are unverified.</p>
           {nearGateway && separationKm(selectedAsset, nearGateway) < 600 && <p>Reference proximity: {nearGateway.label}, approximately {Math.round(separationKm(selectedAsset, nearGateway))} km. Not evidence of crossing or disruption.</p>}
@@ -422,7 +385,7 @@ export function GlobalWatchtower() {
         </>}
       </div>
     </aside>
-    <div className={styles.legend}><span><Plane size={12} color="var(--growa-sage)" />Aircraft</span><span><Ship size={12} color="var(--growa-ink-600)" />Cargo vessel</span><span><AlertTriangle size={12} color="var(--warning-strong)" />Reported risk</span><span><i className={styles.productionRiskSwatch} />Production risk areas ({layers.production?riskZones.length:0})</span><span><i className={styles.routePastLine} />Observed</span><span><i className={styles.routeOriginLine} />From origin (reference)</span><span><i className={styles.routeFutureLine} />To destination (reference)</span><span>Direction guides ({layers.projections ? bearingCueCount : 0})</span><span>Grey = last known / stale</span></div>
+    <div className={styles.legend}><span><Plane size={12} color="var(--growa-sage)" />Aircraft</span><span><Ship size={12} color="var(--growa-ink-600)" />Cargo vessel</span><span><AlertTriangle size={12} color="var(--warning-strong)" />Reported risk</span><span><i className={styles.productionRiskSwatch} />Production risk areas ({layers.production?riskZones.length:0})</span><span><i className={styles.routePastLine} />Observed</span><span><i className={styles.routeOriginLine} />From origin (reference)</span><span><i className={styles.routeFutureLine} />To destination (reference)</span></div>
     <footer className={styles.footer}><span>{busy ? 'UPDATING SOURCES' : snapshot ? 'SNAPSHOT ' + utc(snapshot.generatedAt) : 'CONNECTING TO SOURCES'} / {paused ? 'PAUSED' : 'AUTO 60s'}</span><span>ESRI POLITICAL MAP · ADSB.lol / ODbL 1.0 · AIS licensed area · No simulated traffic</span></footer>
   </div>
 }

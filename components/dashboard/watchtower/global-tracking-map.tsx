@@ -241,10 +241,10 @@ export function GlobalTrackingMap({ assets, historyAssets, alerts, riskZones, la
     if (layers.gateways) for (const point of CHOKEPOINTS) L.circleMarker([point.lat, point.lon], { radius: 5, color: MARKER.cream, weight: 2, fillOpacity: 0, dashArray: '2 2' })
       .bindTooltip(label(point.label + ' / geographic reference, not a closure alert')).addTo(group)
     L.marker([QATAR.lat, QATAR.lon], { interactive: false, icon: L.divIcon({ className: styles.qatar, html: '<span></span><b>QATAR</b>', iconSize: [80, 24], iconAnchor: [9, 12] }), zIndexOffset: 800 }).addTo(group)
-    // Routes are GLOBAL overlays: no selection required. Use only received
-    // observations for the solid trail, and current-course projection for
-    // the dashed forward segment. Selection only highlights a route.
-    if (layers.trails || layers.projections) {
+    // Display only real observations and origin/destination reference routes.
+    // No artificial 20-minute continuation or short screen-length heading
+    // dashes in front of aircraft and vessels. Selecting only highlights.
+    if (layers.trails) {
       const visible = assets.filter(asset =>
         (asset.kind === 'aircraft' ? layers.aircraft : layers.vessels) &&
         bounds.contains([asset.lat, asset.lon]),
@@ -253,7 +253,7 @@ export function GlobalTrackingMap({ assets, historyAssets, alerts, riskZones, la
         .sort((a, b) => Number(a.id === selectedId) - Number(b.id === selectedId))
       for (const route of routes) {
         const focused = route.id === selectedId
-        if (layers.trails) for (const segment of route.observedSegments) {
+        for (const segment of route.observedSegments) {
           const coords = worldCopyPolyline(segment, map.getCenter().lng)
           L.polyline(coords, {
             color: '#6C8952', weight: focused ? 4.5 : 2.7,
@@ -262,60 +262,6 @@ export function GlobalTrackingMap({ assets, historyAssets, alerts, riskZones, la
           }).bindTooltip(label(
             'OBSERVED / ' + segment.length + ' actual fixes captured in this browser session. Click for details.',
           )).on('click', () => select.current(route.id)).addTo(group)
-        }
-        if (layers.projections) {
-          if (route.projection) {
-            const projection = route.projection
-            const coords = worldCopyPolyline(projection.path, map.getCenter().lng)
-            L.polyline(coords, {
-              color: '#C9A227', weight: focused ? 4.5 : 2.8,
-              opacity: focused ? 1 : zoom < 5 ? 0.8 : 0.92,
-              dashArray: focused ? '7 8' : '5 8', lineCap: 'round',
-            }).bindTooltip(label(
-              'ESTIMATED / ' + projection.horizonMinutes +
-              ' min constant-course continuation. Not an actual flight plan or navigable voyage. Click for details.',
-            )).on('click', () => select.current(route.id)).addTo(group)
-            if (focused) {
-              const endpoint = coords[coords.length - 1]
-              L.circleMarker(endpoint, {
-                radius: 5, color: '#7A5E0F', weight: 2,
-                fillColor: '#C9A227', fillOpacity: 0.85,
-              }).bindTooltip(label(
-                'Estimated ' + projection.horizonMinutes + ' min endpoint; not a destination.',
-              )).addTo(group)
-            }
-          }
-          // On a world-wide map even a 20-minute course may span less than
-          // 10 pixels. Draw an independent pixel-length *orientation cue*.
-          // It is deliberately NOT georeferenced as a flight/voyage route.
-          // Gray = stale last-known bearing; pale gold = recent bearing.
-          if (route.cue) {
-            const asset = visible.find(item => item.id === route.id)
-            if (asset) {
-              const center = map.project([asset.lat, asset.lon], zoom)
-              const theta = route.cue.headingDeg * Math.PI / 180
-              const length = focused ? 65 : 38
-              const endpoint = map.unproject(L.point(
-                center.x + Math.sin(theta) * length,
-                center.y - Math.cos(theta) * length,
-              ), zoom)
-              const stale = route.cue.quality === 'stale_last_known'
-              L.polyline([[asset.lat, asset.lon], endpoint], {
-                color: stale ? '#68747A' : '#E9CA63',
-                weight: focused ? 3.4 : 2.7,
-                opacity: stale ? 0.7 : 0.9,
-                dashArray: stale ? '3 7' : '6 5',
-                lineCap: 'round',
-                interactive: true,
-              }).bindTooltip(label(
-                (stale ? 'STALE LAST-KNOWN' : 'RECENT') +
-                ' bearing guide (' + route.cue.headingDeg.toFixed(0) +
-                ' degrees, fix age ' + Math.floor(route.cue.ageSeconds / 60) +
-                ' min). Schematic screen-length orientation only. NOT a route, ' +
-                'future position, destination, or a live traffic assertion.',
-              )).on('click', () => select.current(route.id)).addTo(group)
-            }
-          }
         }
       }
     }

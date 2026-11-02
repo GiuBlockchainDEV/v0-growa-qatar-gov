@@ -350,3 +350,20 @@ Data availability boundaries:
 - Some major medium-term food production risks are therefore NOT mapped
   by this live-event layer; the panel explicitly labels the coverage.
 - Source metadata and review remain essential for decisions.
+
+
+## Map route decluttering (latest update)
+
+The Watchtower no longer draws the short pixel-length bearing/orientation
+indicators or the separate 20-minute/60-minute heading-based forward
+projections in front of aircraft and vessels. These lines were easily mistaken
+for itinerary segments and cluttered the political map. The UI legend and
+vehicle details no longer advertise them.
+
+The map now renders only the available **origin → observed position** and
+**observed position → destination** reference itineraries from source-backed
+airport or port associations and the actual observed session track once two
+independent fixes exist. These geographic routes are visible without clicking
+a vehicle. Reference itineraries are still estimates, not authenticated
+historical tracks or carrier flight plans. If provider endpoints are missing,
+the map shows the marker alone rather than a fabricated route.
