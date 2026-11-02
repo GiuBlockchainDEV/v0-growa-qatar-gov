@@ -62,7 +62,6 @@ async function loadProductionRisks():Promise<ProductionRiskSnapshot>{
     .slice(0,MAX_EVENTS)
   // Limit boundary requests, no user-defined URLs or unbounded loops.
   const zones:ProductionRiskZone[]=[]
-  let mapped=0
   for(let offset=0;offset<sourceEvents.length;offset+=4){
     const batch=sourceEvents.slice(offset,offset+4)
     const resolved=await Promise.all(batch.map(async alert=>{
@@ -72,7 +71,6 @@ async function loadProductionRisks():Promise<ProductionRiskSnapshot>{
     }))
     for(const item of resolved){
       if(item.zone)zones.push(item.zone)
-      if(item.mapped)mapped++
     }
   }
   const deduplicated=combineRiskZones(zones)

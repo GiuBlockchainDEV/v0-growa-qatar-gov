@@ -5,7 +5,7 @@ import {ArrowDownRight,ArrowUpRight,BarChart3,Check,ChevronDown,ExternalLink,
   Globe2,Info,LineChart,RefreshCw,Search,Star,TrendingUp,Wheat} from 'lucide-react'
 import {useI18n} from '@/lib/i18n'
 import {COMMODITY_CATALOG,type CommodityMarketsSnapshot,type MarketGroup,
-  type MarketInstrument,type MarketPoint} from '@/lib/watchtower/commodity-markets'
+  type MarketPoint} from '@/lib/watchtower/commodity-markets'
 import styles from './commodity-markets.module.css'
 
 type Currency='USD'|'QAR'
@@ -245,7 +245,7 @@ export function CommodityMarkets(){
           {tx('Refresh','تحديث')}</button>
       </div>
     </header>
-    <div className={styles.marketNotice}><Info size={15}/>
+    <div className={styles.marketNotice}><Info size={15}/><span className={styles.eyebrow}>{MONTHLY_SOURCE}</span>
       <span>{tx('Global IMF reference averages published monthly via FRED. Not live futures prices, exchange quotes or supplier offers. Prices are not updated every second.',
         'متوسطات شهرية مرجعية من صندوق النقد الدولي عبر FRED، وليست أسعار العقود الآجلة المباشرة أو عروض الموردين.')}</span>
     </div>

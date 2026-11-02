@@ -89,7 +89,7 @@ function rows(raw:unknown):Row[]{
     }
     if(candidate&&typeof candidate==='object'){
       const entries=Object.entries(candidate as Row)
-      if(entries.length&&entries.length<=12000&&entries.every(([k,v])=>
+      if(entries.length&&entries.length<=12000&&entries.every(([,v])=>
         v!==null&&typeof v==='object'&&!Array.isArray(v))){
         // The API may return an MMSI-indexed object whose entries omit mmsi.
         return entries.map(([key,value])=>{

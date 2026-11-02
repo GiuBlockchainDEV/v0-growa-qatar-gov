@@ -44,7 +44,7 @@ async function aircraft(types:readonly string[]=AIRFRAME_SAMPLE): Promise<Batch<
   if (process.env.WATCHTOWER_ADSB_ENABLED === 'false') return { items: [], source: { ...meta, state: 'unconfigured', detail: 'Public ADS-B feed disabled by administrator.' } }
   const results = await Promise.allSettled(types.map(async type => parseAircraft(await json('https://api.adsb.lol/v2/type/' + type, 60))))
   const good = results.filter((r): r is PromiseFulfilledResult<TrackingAsset[]> => r.status === 'fulfilled')
-  let items = mergeAssets(good.flatMap(r => r.value))
+  const items = mergeAssets(good.flatMap(r => r.value))
   meta.state = !good.length ? 'unavailable' : items.length && !items.some(a => freshAsset(a)) ? 'stale' : 'partial'
   meta.latestObservationAt = latest(items)
   if (good.length < types.length) meta.detail += ' Some queries failed. Missing observations do not mean zero traffic.'
@@ -67,7 +67,7 @@ async function vessels(): Promise<Batch<TrackingAsset>> {
         const ais=(value as {AIS?:{MMSI?:number|string}}).AIS
         if(ais?.MMSI)report.set('sea:'+String(ais.MMSI),value)
       }
-      let modeled=0,attempted=0
+      let attempted=0
       for(const asset of items){
         const rawItem=report.get(asset.id)
         if(!rawItem)continue
@@ -78,7 +78,6 @@ async function vessels(): Promise<Batch<TrackingAsset>> {
           itinerary.destination?.lat!=null
         if(canModel)attempted++
         asset.itinerary=canModel?withModeledSeaLegs(itinerary,asset):itinerary
-        if(asset.itinerary.modelSeaLegs)modeled++
       }
       meta.detail+=' Last-port and destination metadata depend on subscribed VOYAGE data; modeled sea paths are not actual vessel voyages.'
     }

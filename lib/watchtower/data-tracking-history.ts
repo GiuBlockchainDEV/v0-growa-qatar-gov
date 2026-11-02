@@ -3,7 +3,6 @@
  * History is provider-observed AIS fixes, never great-circle interpolation.
  */
 import {coordinate,epoch,separationKm,type TrackingAsset} from './global-tracking'
-import type {ChokepointId} from './data-tracking-net'
 export type AISPoint={lat:number;lon:number;time:string}
 export type AISRoute={
   id:string
