@@ -254,6 +254,7 @@ export function GlobalWatchtower() {
   const chooseChokepoint=(id:ChokepointId)=>{
     const area=TRACKED_CHOKEPOINTS.find(point=>point.id===id)
     if(!area)return
+    setRegion('global')
     setSelectedChokepoint(id)
     setFocus({lat:area.lat,lon:area.lon,zoom:6,token:Date.now()})
     if(mobile){setFiltersOpen(false);setAlertsOpen(false)}
