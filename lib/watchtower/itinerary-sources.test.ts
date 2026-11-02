@@ -1,5 +1,5 @@
 import {describe,expect,it} from 'vitest'
-import {applyFlightRouteLookups,flightLookupInput,knownPort,vesselReportedItinerary} from './itinerary-sources'
+import {adsbdbItinerary,applyFlightRouteLookups,flightLookupInput,knownPort,vesselReportedItinerary} from './itinerary-sources'
 import type {TrackingAsset} from './global-tracking'
 const air:TrackingAsset={
   id:'air:abc123',kind:'aircraft',label:'FDX5038',lat:36,lon:-87,
@@ -52,6 +52,20 @@ describe('provider-attributed origin and destination',()=>{
     expect(route.destination?.lat).toBeNull()
     expect(knownPort('NOT A PORT')).toBeNull()
     expect(vesselReportedItinerary({AIS:{DESTINATION:''}})).toBeNull()
+  })
+  it('uses ADSBdb second-provider airports only when actual coordinates are returned',()=>{
+    const itinerary=adsbdbItinerary({response:{flightroute:{
+      origin:{name:'Memphis International',iata_code:'MEM',latitude:35.04,longitude:-89.97,country_iso_name:'US'},
+      destination:{name:'Paris Charles de Gaulle',iata_code:'CDG',latitude:49.01,longitude:2.55,country_iso_name:'FR'},
+    }}})!
+    expect(itinerary.origin?.code).toBe('MEM')
+    expect(itinerary.destination?.code).toBe('CDG')
+    expect(itinerary.source).toBe('adsbdb_callsign')
+    expect(itinerary.confidence).toBe('lookup_unverified')
+    expect(adsbdbItinerary({response:{flightroute:{
+      origin:{name:'Unknown',iata_code:'AAA'},
+      destination:{name:'Other',iata_code:'BBB'},
+    }}})).toBeNull()
   })
   it('batches freight callsigns and removes duplicates',()=>{
     const inputs=flightLookupInput([air,{...air,id:'air:bbbbb2'},{

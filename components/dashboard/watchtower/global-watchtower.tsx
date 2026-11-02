@@ -9,6 +9,7 @@ import type { FoodPosture } from '@/lib/watchtower/food-posture'
 import { CHOKEPOINTS, QATAR, REFRESH_SECONDS, freshAsset, separationKm, type MapAlert, type MapLayers, type TrackingAsset, type TrackingSnapshot } from '@/lib/watchtower/global-tracking'
 import type { GlobalTrackingMapProps } from './global-tracking-map'
 import { forwardCourseProjection, lastKnownCourseCue } from '@/lib/watchtower/route-geometry'
+import {mergeTrackingUpdate,mergeFlightItineraries,type RouteLookupResponse} from '@/lib/watchtower/tracking-merge'
 import styles from './global-watchtower.module.css'
 const Map = dynamic<GlobalTrackingMapProps>(() => import('./global-tracking-map').then(m => m.GlobalTrackingMap), { ssr: false, loading: () => <div className={styles.map} aria-busy="true" /> })
 const REGIONS = {
@@ -54,25 +55,65 @@ export function GlobalWatchtower() {
     return () => { clearInterval(clock); media.removeEventListener('change', resize); document.removeEventListener('fullscreenchange', screen) }
   }, [])
   useEffect(() => {
-    let active = true, running = false
-    const controller = new AbortController()
-    const load = async () => {
-      if (running || document.hidden || !active) return
-      running = true; setBusy(true)
-      try {
-        const response = await fetch('/api/watchtower/tracking', { cache: 'no-store', signal: AbortSignal.any([controller.signal, AbortSignal.timeout(28000)]) })
-        const body = await response.json() as TrackingSnapshot & { error?: string }
-        if (!response.ok) throw Error(body.error ?? 'Tracking request failed')
-        if (!Array.isArray(body.assets) || !Array.isArray(body.alerts) || !Array.isArray(body.sources)) throw Error('Unexpected tracking response')
-        if (active) { setSnapshot(body); setNow(Date.now()); setError('') }
-      } catch (reason) { if (active && !controller.signal.aborted) setError(reason instanceof Error ? reason.message : 'Tracking unavailable') }
-      finally { running = false; if (active) setBusy(false) }
+    let active=true,running=false
+    const controller=new AbortController()
+    const request=async(stage:'quick'|'full')=>{
+      const response=await fetch('/api/watchtower/tracking?stage='+stage,{
+        cache:'no-store',
+        signal:AbortSignal.any([controller.signal,AbortSignal.timeout(stage==='quick'?11500:28000)]),
+      })
+      const body=await response.json() as TrackingSnapshot & {error?:string}
+      if(!response.ok)throw Error(body.error??'Tracking request failed')
+      if(!Array.isArray(body.assets)||!Array.isArray(body.alerts)||!Array.isArray(body.sources))
+        throw Error('Unexpected tracking response')
+      if(active){
+        setSnapshot(previous=>mergeTrackingUpdate(previous,body,stage))
+        setNow(Date.now())
+        setError('')
+      }
+      return body
+    }
+    const enrich=async()=>{
+      try{
+        const response=await fetch('/api/watchtower/routes',{
+          cache:'no-store',signal:AbortSignal.any([controller.signal,AbortSignal.timeout(12500)]),
+        })
+        if(!response.ok)return
+        const result=await response.json() as RouteLookupResponse
+        if(active&&result&&typeof result.routes==='object')
+          setSnapshot(previous=>mergeFlightItineraries(previous,result))
+      }catch{ /* never delay or hide aircraft because an itinerary provider failed */ }
+    }
+    const load=async()=>{
+      if(running||document.hidden||!active)return
+      running=true;setBusy(true)
+      // Fast plane positions, full hazard/maritime feed and route enrichment
+      // run independently. None blocks another category from rendering.
+      const quick=request('quick')
+      const full=request('full')
+      try{
+        await quick
+        if(active){setBusy(false);void enrich()}
+      }catch(reason){
+        if(active&&!controller.signal.aborted)
+          setError(reason instanceof Error?reason.message:'Aircraft feed unavailable')
+      }
+      // Full feed may still be working. It never blocks the first plane render.
+      try{await full}catch(reason){
+        if(active&&!controller.signal.aborted)
+          setError(reason instanceof Error?reason.message:'Supplemental tracking unavailable')
+      }
+      running=false
+      if(active)setBusy(false)
     }
     void load()
-    const timer = setInterval(() => { if (!pausedRef.current) void load() }, REFRESH_SECONDS * 1000)
-    const visible = () => { if (!document.hidden && !pausedRef.current) void load() }
-    document.addEventListener('visibilitychange', visible)
-    return () => { active = false; controller.abort(); clearInterval(timer); document.removeEventListener('visibilitychange', visible) }
+    const timer=setInterval(()=>{if(!pausedRef.current)void load()},REFRESH_SECONDS*1000)
+    const visible=()=>{if(!document.hidden&&!pausedRef.current)void load()}
+    document.addEventListener('visibilitychange',visible)
+    return()=>{
+      active=false;controller.abort();clearInterval(timer)
+      document.removeEventListener('visibilitychange',visible)
+    }
   }, [refresh])
   useEffect(() => {
     setPosture(null); setFoodError(''); setCommodity('all')

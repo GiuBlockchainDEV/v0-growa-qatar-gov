@@ -249,3 +249,41 @@ The provider's lookup and coverage may be incomplete. Batching is capped;
 failure never removes basic position observations. Tests cover parsing of
 plausible/unverified routes, callsign matching, port lookup, incomplete
 voyage data, and labeling.
+
+
+## Fast aircraft loading and fallback origin/destination sources (November 2026)
+
+The previous Watchtower waited for six independent ADS-B aircraft-type
+requests, a callsign route batch, GDACS, EASA, UKMTO and AIS before delivering
+any positions. That made the map feel stalled when any source was slow.
+
+The authenticated tracking endpoint now supports `?stage=quick` (four priority
+cargo-capable airframe samples, no alerts, no route lookups) and a separately
+cached `?stage=full` (the two remaining types plus AIS and global advisories).
+The client launches both stages and displays quick positions as soon as the
+first completes; it merges full sources/alerts without discarding any
+previously observed aircraft. Neither stage waits for origin-destination.
+
+A separate authenticated `/api/watchtower/routes` endpoint performs one
+bounded ADSB.lol batch lookup after the first aircraft observations are ready.
+Only priority cargo-operator callsigns with no usable airport pair may fall
+back to the ADSBdb `/v0/callsign/{callsign}` API. That fallback is limited to
+eight aircraft, up to four concurrent requests with individual short timeouts;
+positive lookups cache 30 minutes and negatives five minutes. Caches and
+responses are bounded, and reused callsigns are matched with aircraft hex and
+current callsign before attaching itinerary metadata.
+
+ADSBdb provides airport coordinates for some callsigns but is not a dated
+active-flight record. Neither ADSBdb nor ADSB.lol guarantees route coverage,
+and both can return stale or reused callsign mappings. The UI only renders
+origin/destination geometry when a provider returned both airport coordinates;
+otherwise it says unavailable instead of assigning an airport by direction.
+Actual aircraft waypoints and historical flown traces still require a
+flight-plan and history provider. VesselFinder LiveData / VOYAGE remains
+required for last port and declared destination of cargo vessels.
+
+The UI preserves route enrichment across successive position-only refreshes,
+without claiming that the aircraft stays on the same dated flight indefinitely.
+The current implementation prioritizes initial responsiveness and transparency;
+it does not guarantee all source endpoints can be reached from Vercel or that
+all tracked flights will have an identifiable itinerary.

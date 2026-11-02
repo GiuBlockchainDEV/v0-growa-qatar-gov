@@ -1,12 +1,14 @@
 import { fetchAviationThreat, fetchMaritimeThreat } from '@/lib/nfii/logistics-security'
 import { getExportHub } from '@/lib/nfii/logistics-lanes'
-import {applyFlightRouteLookups,flightLookupInput,vesselReportedItinerary} from './itinerary-sources'
+import {adsbdbItinerary,applyFlightRouteLookups,flightLookupInput,vesselReportedItinerary,type RouteItinerary} from './itinerary-sources'
 import {withModeledSeaLegs} from './itinerary-sea'
 import { mergeAssets, parseAircraft, parseVessels, parseGlobalHazards, freshAsset, REFRESH_SECONDS,
   type TrackingAsset, type MapAlert, type TrackingSource, type TrackingSnapshot } from './global-tracking'
 
 // Global samples, NOT all flights. Passenger variants are not confirmed cargo.
 const AIRFRAME_SAMPLE = ['B744', 'B748', 'B77L', 'B763', 'B752', 'A306'] as const
+const FAST_AIRFRAME_SAMPLE = ['B77L', 'B763', 'B744', 'B748'] as const
+const ADDITIONAL_AIRFRAME_SAMPLE = ['B752', 'A306'] as const
 type Batch<T> = { items: T[]; source: TrackingSource }
 async function json(url: string, revalidate: number, maxBytes = 3000000): Promise<unknown> {
   const response = await fetch(url, { headers: { Accept: 'application/json' }, signal: AbortSignal.timeout(7500), next: { revalidate } })
@@ -36,35 +38,16 @@ async function jsonResponseLimited(response:Response,maxBytes:number):Promise<un
   if(data.length>maxBytes)throw Error('Route lookup oversized')
   return JSON.parse(data) as unknown
 }
-async function aircraft(): Promise<Batch<TrackingAsset>> {
+async function aircraft(types:readonly string[]=AIRFRAME_SAMPLE): Promise<Batch<TrackingAsset>> {
   const meta = source('adsb', 'ADSB.lol', 'https://api.adsb.lol/docs',
-    'Six global airframe samples, not all aircraft. Receiver coverage varies. Cargo operator inferred from callsign; no manifest. ODbL 1.0.')
+    'Selected global cargo-capable airframe types, not all aircraft. Receiver coverage varies. Cargo operator inferred from callsign; no manifest. ODbL 1.0.')
   if (process.env.WATCHTOWER_ADSB_ENABLED === 'false') return { items: [], source: { ...meta, state: 'unconfigured', detail: 'Public ADS-B feed disabled by administrator.' } }
-  const results = await Promise.allSettled(AIRFRAME_SAMPLE.map(async type => parseAircraft(await json('https://api.adsb.lol/v2/type/' + type, 60))))
+  const results = await Promise.allSettled(types.map(async type => parseAircraft(await json('https://api.adsb.lol/v2/type/' + type, 60))))
   const good = results.filter((r): r is PromiseFulfilledResult<TrackingAsset[]> => r.status === 'fulfilled')
   let items = mergeAssets(good.flatMap(r => r.value))
-  // One bounded POST per observation refresh, never one request per plane.
-  // Missing route lookups do not hide source-observed aircraft.
-  const input=flightLookupInput(items,90)
-  if(input.length){
-    try{
-      const reply=await fetch('https://api.adsb.lol/api/0/routeset',{
-        method:'POST',headers:{'Content-Type':'application/json',Accept:'application/json'},
-        body:JSON.stringify({planes:input}),signal:AbortSignal.timeout(6500),
-        next:{revalidate:180},
-      })
-      if(reply.ok){
-        const parsed=await jsonResponseLimited(reply,1000000)
-        const mapped=applyFlightRouteLookups(items,parsed)
-        items=mapped.results
-        meta.detail+=' Airport-pair lookup coverage: '+mapped.matches+'/'+input.length+
-          ' (plausible '+mapped.plausible+'). Airport-pair lookup is NOT a verified flight plan.'
-      }else meta.detail+=' Airport route lookup unavailable; no origins/destinations inferred.'
-    }catch{meta.detail+=' Airport route lookup failed; positions remain available.'}
-  }
   meta.state = !good.length ? 'unavailable' : items.length && !items.some(a => freshAsset(a)) ? 'stale' : 'partial'
   meta.latestObservationAt = latest(items)
-  if (good.length < AIRFRAME_SAMPLE.length) meta.detail += ' Some queries failed. Missing observations do not mean zero traffic.'
+  if (good.length < types.length) meta.detail += ' Some queries failed. Missing observations do not mean zero traffic.'
   return { items, source: meta }
 }
 async function vessels(): Promise<Batch<TrackingAsset>> {
@@ -144,19 +127,133 @@ async function maritime(): Promise<Batch<MapAlert>> {
   meta.detail += ' AIS summary: ' + result.state + '; incident feed: ' + result.incidentsState + '.'
   return { items, source: meta }
 }
+/**
+ * Route lookups must NEVER block ADS-B position delivery. Bounded cache
+ * includes positive and negative results, avoiding six expensive route checks
+ * on every 60-second refresh.
+ */
+type CachedRoute={itinerary:RouteItinerary|null;expires:number}
+const routeCache=new Map<string,CachedRoute>()
+let routePending:Promise<import('./tracking-merge').RouteLookupResponse>|null=null
+async function routeBatch(air:TrackingAsset[]){
+  const input=flightLookupInput(air,65)
+  if(!input.length)return {matches:new Map<string,RouteItinerary>(),checked:0}
+  const pairs=new Map<string,RouteItinerary>()
+  try{
+    const reply=await fetch('https://api.adsb.lol/api/0/routeset',{
+      method:'POST',headers:{'Content-Type':'application/json',Accept:'application/json'},
+      body:JSON.stringify({planes:input}),signal:AbortSignal.timeout(2500),
+      cache:'no-store',
+    })
+    if(reply.ok){
+      const result=applyFlightRouteLookups(air,await jsonResponseLimited(reply,1000000))
+      for(const a of result.results)if(a.itinerary?.origin&&a.itinerary.destination)
+        pairs.set(a.label.trim().toUpperCase(),a.itinerary)
+    }
+  }catch{ /* fallback below; positions never wait */ }
+  return {matches:pairs,checked:input.length}
+}
+export async function getFlightRouteLookups():Promise<import('./tracking-merge').RouteLookupResponse>{
+  if(routePending)return routePending
+  routePending=(async()=>{
+    const quick=await getTrackingSnapshot('quick')
+    const flights=quick.assets.filter(a=>a.kind==='aircraft')
+      .sort((a,b)=>Number(b.cargo==='operator_inferred')-Number(a.cargo==='operator_inferred'))
+    const active=flights.slice(0,65)
+    const at=Date.now()
+    const missing=active.filter(a=>!routeCache.has(a.label.trim().toUpperCase())||
+      routeCache.get(a.label.trim().toUpperCase())!.expires<=at)
+    if(missing.length){
+      const batch=await routeBatch(missing)
+      for(const a of missing){
+        const key=a.label.trim().toUpperCase()
+        const itinerary=batch.matches.get(key)??null
+        routeCache.set(key,{itinerary,expires:at+(itinerary?30*60000:5*60000)})
+      }
+      // ADSBdb fallback only for a handful of unmatched priority cargo callsigns.
+      // Four concurrent calls max, each capped at 1.8s.
+      const unmatched=missing.filter(a=>a.cargo==='operator_inferred'&&
+        !routeCache.get(a.label.trim().toUpperCase())?.itinerary).slice(0,8)
+      for(let offset=0;offset<unmatched.length;offset+=4){
+        await Promise.allSettled(unmatched.slice(offset,offset+4).map(async asset=>{
+          const key=asset.label.trim().toUpperCase()
+          if(!/^[A-Z0-9]{3,10}$/.test(key))return
+          try{
+            const response=await fetch('https://api.adsbdb.com/v0/callsign/'+
+              encodeURIComponent(key),{
+              headers:{Accept:'application/json'},signal:AbortSignal.timeout(1800),
+              cache:'no-store',
+            })
+            if(!response.ok)return
+            const itinerary=adsbdbItinerary(await jsonResponseLimited(response,150000))
+            if(itinerary)routeCache.set(key,{itinerary,expires:at+30*60000})
+          }catch{ /* no asserted route on missing provider evidence */ }
+        }))
+      }
+    }
+    // Keep cache bounded; stale reused callsigns are never tied permanently
+    // to a particular plane, and client still rechecks ICAO + callsign.
+    for(const [key,value] of routeCache)if(value.expires<=at)routeCache.delete(key)
+    while(routeCache.size>300)routeCache.delete(routeCache.keys().next().value!)
+    const routes:import('./tracking-merge').RouteLookupResponse['routes']={}
+    for(const asset of active){
+      const cached=routeCache.get(asset.label.trim().toUpperCase())
+      if(cached?.itinerary)routes[asset.id]={
+        callsign:asset.label,itinerary:cached.itinerary,
+      }
+    }
+    return {
+      checkedAt:new Date().toISOString(),routes,
+      checked:active.length,matched:Object.keys(routes).length,
+      status:Object.keys(routes).length?'partial' as const:'no_matches' as const,
+      sourceNote:'ADSB.lol batch and limited ADSBdb fallback; callsign associations are not authenticated flight plans.',
+    }
+  })()
+  try{return await routePending}finally{routePending=null}
+}
 // Public observations only: no organization ledger, user tokens or secrets in cache.
-let cached: { expires: number; snapshot: TrackingSnapshot } | null = null
-let pending: Promise<TrackingSnapshot> | null = null
-export async function getTrackingSnapshot(): Promise<TrackingSnapshot> {
-  if (cached && cached.expires > Date.now()) return cached.snapshot
-  if (pending) return pending
-  pending = (async () => {
-    const [air, sea, hazard, aviation, marine] = await Promise.all([aircraft(), vessels(), hazards(), advisories(), maritime()])
-    const snapshot: TrackingSnapshot = { generatedAt: new Date().toISOString(), refreshSeconds: REFRESH_SECONDS,
-      assets: [...air.items, ...sea.items], alerts: [...hazard.items, ...aviation.items, ...marine.items],
-      sources: [air.source, sea.source, hazard.source, aviation.source, marine.source] }
-    cached = { expires: Date.now() + 55000, snapshot }
+const snapshots=new Map<'quick'|'full',{expires:number;snapshot:TrackingSnapshot}>()
+const pendingByStage=new Map<'quick'|'full',Promise<TrackingSnapshot>>()
+export async function getTrackingSnapshot(stage:'quick'|'full'='full'):Promise<TrackingSnapshot>{
+  const cached=snapshots.get(stage)
+  if(cached&&cached.expires>Date.now())return cached.snapshot
+  const pending=pendingByStage.get(stage)
+  if(pending)return pending
+  const request=(async()=>{
+    if(stage==='quick'){
+      // Fast lane: flights only. No risk feeds, AIS processing or airport lookup.
+      const air=await aircraft(FAST_AIRFRAME_SAMPLE)
+      const snapshot:TrackingSnapshot={
+        generatedAt:new Date().toISOString(),refreshSeconds:REFRESH_SECONDS,
+        assets:air.items,alerts:[],sources:[air.source],
+      }
+      snapshots.set('quick',{expires:Date.now()+55000,snapshot})
+      return snapshot
+    }
+    const [air,extra,sea,hazard,aviation,marine]=await Promise.all([
+      // The UI already received four priority airframes on the quick path.
+      // Two additional types enrich the full snapshot without delaying it.
+      getTrackingSnapshot('quick'),aircraft(ADDITIONAL_AIRFRAME_SAMPLE),
+      vessels(),hazards(),advisories(),maritime(),
+    ])
+    const allAircraft=mergeAssets([...air.assets,...extra.items])
+    const fullAirSource=air.sources[0]
+    const airSource={...fullAirSource,
+      state:allAircraft.length && !allAircraft.some(asset=>freshAsset(asset))
+        ?'stale' as const:'partial' as const,
+      detail:fullAirSource.detail+' Additional airframe samples: '+
+        extra.source.state+'. Origins/destinations are fetched independently.',
+      latestObservationAt:latest(allAircraft),
+    }
+    const snapshot:TrackingSnapshot={
+      generatedAt:new Date().toISOString(),refreshSeconds:REFRESH_SECONDS,
+      assets:[...allAircraft,...sea.items],
+      alerts:[...hazard.items,...aviation.items,...marine.items],
+      sources:[airSource,sea.source,hazard.source,aviation.source,marine.source],
+    }
+    snapshots.set('full',{expires:Date.now()+55000,snapshot})
     return snapshot
   })()
-  try { return await pending } finally { pending = null }
+  pendingByStage.set(stage,request)
+  try{return await request}finally{pendingByStage.delete(stage)}
 }

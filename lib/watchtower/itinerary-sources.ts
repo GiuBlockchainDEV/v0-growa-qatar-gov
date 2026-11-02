@@ -21,7 +21,7 @@ export type RouteItinerary={
   destination:RouteEndpoint|null
   departureAt:string|null
   etaAt:string|null
-  source:'adsb_lol_routeset'|'vesselfinder_ais_voyage'
+  source:'adsb_lol_routeset'|'adsbdb_callsign'|'vesselfinder_ais_voyage'
   sourceUrl:string
   confidence:'lookup_plausible'|'lookup_unverified'|'crew_reported'
   description:string
@@ -133,6 +133,28 @@ export function applyFlightRouteLookups(
     return {...asset,itinerary}
   })
   return {results,matches,plausible}
+}
+/** Independent ADSBdb origin/destination lookup, never an authenticated flight plan. */
+export function adsbdbItinerary(raw:unknown):RouteItinerary|null{
+  const response=obj(obj(raw).response),flight=obj(response.flightroute)
+  if(!Object.keys(flight).length)return null
+  const rawOrigin=obj(flight.origin),rawDestination=obj(flight.destination)
+  const airportFrom=(v:Dict):RouteEndpoint|null=>{
+    const lat=coord(v.latitude??v.lat,85),lon=coord(v.longitude??v.lon,180)
+    const code=upper(v.iata_code??v.icao_code,8)
+    const name=safe(v.name,110)
+    if(lat===null||lon===null||(!name&&!code))return null
+    return {name:name||code,code:code||null,country:upper(v.country_iso_name,8)||null,lat,lon}
+  }
+  const origin=airportFrom(rawOrigin),destination=airportFrom(rawDestination)
+  if(!origin||!destination||(origin.lat===destination.lat&&origin.lon===destination.lon))return null
+  return {
+    origin,destination,departureAt:null,etaAt:null,
+    source:'adsbdb_callsign',sourceUrl:'https://www.adsbdb.com/',
+    confidence:'lookup_unverified',
+    description:'ADSBdb callsign association. Not a dated flight plan or verified active leg. '+
+      'Coordinates identify airports only; origin-to-position and position-to-destination lines are model references.',
+  }
 }
 /** Per-snapshot batch input, bounded and deduplicated for courteous API use. */
 export function flightLookupInput(assets:readonly TrackingAsset[],limit=140){
