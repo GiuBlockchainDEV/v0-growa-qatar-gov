@@ -1,5 +1,5 @@
 import {describe,expect,it} from 'vitest'
-import {automaticRouteEvidence,captureObservedPositions,destinationPoint,forwardCourseProjection,observedRoute,
+import {automaticRouteEvidence,captureObservedPositions,destinationPoint,forwardCourseProjection,lastKnownCourseCue,observedRoute,
   worldCopyPolyline} from './route-geometry'
 import type {TrackingAsset} from './global-tracking'
 const now=Date.parse('2026-11-02T08:00:00Z')
@@ -64,6 +64,21 @@ describe('observed vs projected tracking routes',()=>{
     expect(projected[1][1]).toBeGreaterThan(180)
     const shifted=worldCopyPolyline([{lat:0,lon:179.9},p],-180)
     expect(shifted[0][1]).toBeCloseTo(-180.1,2)
+  })
+  it('retains short schematic bearing cues for stale but valid source observations',()=>{
+    const stale=asset({observedAt:new Date(now-5*60000).toISOString()})
+    expect(forwardCourseProjection(stale,now)).toBeNull()
+    const cue=lastKnownCourseCue(stale,now)
+    expect(cue).toMatchObject({quality:'stale_last_known',headingDeg:90,ageSeconds:300})
+    const routes=automaticRouteEvidence([stale],new Map(),now)
+    expect(routes).toHaveLength(1)
+    expect(routes[0].projection).toBeNull()
+    expect(routes[0].cue?.quality).toBe('stale_last_known')
+    expect(lastKnownCourseCue(asset(),now)?.quality).toBe('recent')
+    expect(lastKnownCourseCue(asset({heading:null}),now)).toBeNull()
+    expect(lastKnownCourseCue(asset({speedKnots:null}),now)).toBeNull()
+    expect(lastKnownCourseCue(asset({speedKnots:0}),now)).toBeNull()
+    expect(lastKnownCourseCue(asset({observedAt:new Date(now-16*60000).toISOString()}),now)).toBeNull()
   })
   it('caps in-browser history and ignores stale/out-of-order samples',()=>{
     const history=new Map()

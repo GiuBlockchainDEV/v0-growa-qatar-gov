@@ -190,3 +190,26 @@ selected vehicle is only highlighted and gains an endpoint marker; selection
 is not necessary to display its lines. The legend counts currently eligible
 forward projections. Filters for mode, region and route layer still apply.
 AIS vessels remain unavailable when the licensed feed is not connected.
+
+
+## Last-known direction guides for stale ADS-B and AIS samples
+
+ADSB.lol may return aircraft whose latest valid observation is older than the
+120-second live-freshness window. These cannot honestly receive a forward
+position forecast, and a single observation cannot be turned into an
+historically completed trail. Previously such assets drew no line at all.
+
+The Watchtower now draws an independent **screen-length direction indicator**
+for each valid observed heading/speed, including slightly stale positions. It
+uses 38 screen pixels (65 for the selected vehicle), not a fabricated route
+length in kilometers. Recent direction cues are pale gold; stale observations
+are grey and are identified in their hover tooltip and the observation panel.
+These cues are NOT a planned route, historical path, current vehicle movement,
+confirmed closure or predicted destination. Stale cues expire at 15 minutes
+for air and 30 minutes for AIS, matching the existing ingestion limits.
+
+Verified historical tracks require a licensed trace/history API. The solid
+green route still requires two independently observed fixes during the session.
+The short gold geographical forecast remains limited to genuinely fresh
+positions (2 minutes air / 10 minutes AIS). This explicitly separates
+**observation**, **short projection**, and **schematic last-known bearing**.

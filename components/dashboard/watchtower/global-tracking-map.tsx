@@ -137,27 +137,58 @@ export function GlobalTrackingMap({ assets, historyAssets, alerts, layers, selec
             'OBSERVED / ' + segment.length + ' actual fixes captured in this browser session. Click for details.',
           )).on('click', () => select.current(route.id)).addTo(group)
         }
-        if (layers.projections && route.projection) {
-          const projection = route.projection
-          const coords = worldCopyPolyline(projection.path, map.getCenter().lng)
-          L.polyline(coords, {
-            color: '#C9A227', weight: focused ? 4.5 : 2.8,
-            opacity: focused ? 1 : zoom < 5 ? 0.8 : 0.92,
-            dashArray: focused ? '7 8' : '5 8', lineCap: 'round',
-          }).bindTooltip(label(
-            'ESTIMATED / ' + projection.horizonMinutes +
-            ' min constant-course continuation. Not an actual flight plan or navigable voyage. Click for details.',
-          )).on('click', () => select.current(route.id)).addTo(group)
-          // Endpoints only on selection: an all-asset endpoint cloud would
-          // swamp the basemap, while all eligible route lines remain visible.
-          if (focused) {
-            const endpoint = coords[coords.length - 1]
-            L.circleMarker(endpoint, {
-              radius: 5, color: '#7A5E0F', weight: 2,
-              fillColor: '#C9A227', fillOpacity: 0.85,
+        if (layers.projections) {
+          if (route.projection) {
+            const projection = route.projection
+            const coords = worldCopyPolyline(projection.path, map.getCenter().lng)
+            L.polyline(coords, {
+              color: '#C9A227', weight: focused ? 4.5 : 2.8,
+              opacity: focused ? 1 : zoom < 5 ? 0.8 : 0.92,
+              dashArray: focused ? '7 8' : '5 8', lineCap: 'round',
             }).bindTooltip(label(
-              'Estimated ' + projection.horizonMinutes + ' min endpoint; not a destination.',
-            )).addTo(group)
+              'ESTIMATED / ' + projection.horizonMinutes +
+              ' min constant-course continuation. Not an actual flight plan or navigable voyage. Click for details.',
+            )).on('click', () => select.current(route.id)).addTo(group)
+            if (focused) {
+              const endpoint = coords[coords.length - 1]
+              L.circleMarker(endpoint, {
+                radius: 5, color: '#7A5E0F', weight: 2,
+                fillColor: '#C9A227', fillOpacity: 0.85,
+              }).bindTooltip(label(
+                'Estimated ' + projection.horizonMinutes + ' min endpoint; not a destination.',
+              )).addTo(group)
+            }
+          }
+          // On a world-wide map even a 20-minute course may span less than
+          // 10 pixels. Draw an independent pixel-length *orientation cue*.
+          // It is deliberately NOT georeferenced as a flight/voyage route.
+          // Gray = stale last-known bearing; pale gold = recent bearing.
+          if (route.cue) {
+            const asset = visible.find(item => item.id === route.id)
+            if (asset) {
+              const center = map.project([asset.lat, asset.lon], zoom)
+              const theta = route.cue.headingDeg * Math.PI / 180
+              const length = focused ? 65 : 38
+              const endpoint = map.unproject(L.point(
+                center.x + Math.sin(theta) * length,
+                center.y - Math.cos(theta) * length,
+              ), zoom)
+              const stale = route.cue.quality === 'stale_last_known'
+              L.polyline([[asset.lat, asset.lon], endpoint], {
+                color: stale ? '#68747A' : '#E9CA63',
+                weight: focused ? 3.4 : 2.7,
+                opacity: stale ? 0.7 : 0.9,
+                dashArray: stale ? '3 7' : '6 5',
+                lineCap: 'round',
+                interactive: true,
+              }).bindTooltip(label(
+                (stale ? 'STALE LAST-KNOWN' : 'RECENT') +
+                ' bearing guide (' + route.cue.headingDeg.toFixed(0) +
+                ' degrees, fix age ' + Math.floor(route.cue.ageSeconds / 60) +
+                ' min). Schematic screen-length orientation only. NOT a route, ' +
+                'future position, destination, or a live traffic assertion.',
+              )).on('click', () => select.current(route.id)).addTo(group)
+            }
           }
         }
       }

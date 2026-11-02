@@ -162,6 +162,37 @@ export function worldCopyPolyline(points:readonly GeoPoint[],mapCenterLon:number
 }
 
 /**
+ * Last-known direction cue for a map. This is NEVER a track, route or
+ * future-position forecast. It can be shown when the ADS-B/AIS observation is
+ * no longer recent, but only inside the provider ingestion age window.
+ */
+export type CourseCue={
+  headingDeg:number
+  ageSeconds:number
+  quality:'recent'|'stale_last_known'
+  observedAt:string
+}
+export function lastKnownCourseCue(asset:TrackingAsset, now=Date.now()):CourseCue|null{
+  const observed=Date.parse(asset.observedAt)
+  const heading=asset.heading, speed=asset.speedKnots
+  const maxAgeMs=asset.kind==='aircraft'?15*60000:30*60000
+  if(!Number.isFinite(observed)||observed>now+60000||
+    now-observed>maxAgeMs||heading===null||speed===null||
+    !Number.isFinite(heading)||!Number.isFinite(speed)||
+    heading<0||heading>=360||
+    speed<(asset.kind==='aircraft'?40:1)||
+    speed>(asset.kind==='aircraft'?1000:55)||
+    !Number.isFinite(asset.lat)||!Number.isFinite(asset.lon)||
+    Math.abs(asset.lat)>85||Math.abs(asset.lon)>180)return null
+  return {
+    headingDeg:heading,
+    ageSeconds:Math.max(0,Math.floor((now-observed)/1000)),
+    quality:freshAsset(asset,now)?'recent':'stale_last_known',
+    observedAt:asset.observedAt,
+  }
+}
+
+/**
  * Route geometry to show AUTOMATICALLY for every tracked asset in the current
  * viewport. Selection is intentionally not an input: it only changes styling.
  * One initial observation can yield an honest forward projection; past tracks
@@ -172,6 +203,7 @@ export type AutomaticRouteEvidence = {
   kind: TrackingAsset['kind']
   observedSegments: TrackPoint[][]
   projection: CourseProjection | null
+  cue: CourseCue | null
 }
 export function automaticRouteEvidence(
   assets: readonly TrackingAsset[],
@@ -183,8 +215,9 @@ export function automaticRouteEvidence(
     const observed = observedRoute(history.get(asset.id) ?? [], asset.kind)
     const observedSegments = observed.segments.filter(segment => segment.length >= 2)
     const projection = forwardCourseProjection(asset, now)
-    if (observedSegments.length || projection) routes.push({
-      id: asset.id, kind: asset.kind, observedSegments, projection,
+    const cue = lastKnownCourseCue(asset, now)
+    if (observedSegments.length || projection || cue) routes.push({
+      id: asset.id, kind: asset.kind, observedSegments, projection, cue,
     })
   }
   return routes
