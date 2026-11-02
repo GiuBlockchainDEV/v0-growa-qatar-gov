@@ -66,7 +66,7 @@ export function canonicalWatchtowerEntry(params: URLSearchParams, hash: string):
 
   const target = new URLSearchParams(params.toString())
   target.set('module', 'watchtower')
-  const tabHash = /^#watchtower-(map|food|operations|scenarios|agents|response)$/.test(hash)
+  const tabHash = /^#watchtower-(map|markets|food|operations|scenarios|agents|response)$/.test(hash)
     ? hash : '#watchtower-map'
   return '/dashboard?' + target.toString() + tabHash
 }

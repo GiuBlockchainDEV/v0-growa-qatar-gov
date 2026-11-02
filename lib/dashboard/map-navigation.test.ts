@@ -33,6 +33,8 @@ describe('canonical Watchtower landing URL', () => {
     expect(canonicalWatchtowerEntry(new URLSearchParams('module=live-map'), '')).toBeNull()
     expect(canonicalWatchtowerEntry(new URLSearchParams('parcelId=plot-1'), '')).toBeNull()
     expect(canonicalWatchtowerEntry(new URLSearchParams('module=watchtower'), '#watchtower-scenarios')).toBeNull()
+    expect(canonicalWatchtowerEntry(new URLSearchParams('module=watchtower'), '#watchtower-markets')).toBeNull()
+    expect(canonicalWatchtowerEntry(new URLSearchParams(), '#watchtower-markets')).toBe('/dashboard?module=watchtower#watchtower-markets')
     expect(canonicalWatchtowerEntry(new URLSearchParams(), '#watchtower-operations')).toBe('/dashboard?module=watchtower#watchtower-operations')
   })
 })

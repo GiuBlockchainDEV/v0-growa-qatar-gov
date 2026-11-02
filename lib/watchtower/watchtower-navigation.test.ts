@@ -6,6 +6,9 @@ const ui=readFileSync(join(process.cwd(),'components/dashboard/watchtower-worksp
 
 describe('NFII Watchtower navigation clarity',()=>{
   it('shows one primary analysis panel at a time',()=>{
+    expect(ui).toContain("activeSection === 'markets' && <CommodityMarkets />")
+    expect(ui.indexOf("id: 'markets'")).toBeLessThan(ui.indexOf("id: 'food'"))
+    expect(ui).toContain("'#watchtower-markets'")
     expect(ui).toContain("activeSection === 'food' && <WatchtowerFoodCommandCenter />")
     expect(ui).toContain("activeSection === 'operations' && <WatchtowerOperationsPulse />")
     expect(ui).toContain("activeSection === 'scenarios' && <WatchtowerScenarioRoom />")
