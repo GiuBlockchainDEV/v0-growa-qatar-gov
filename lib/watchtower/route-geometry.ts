@@ -129,10 +129,13 @@ export function forwardCourseProjection(asset:TrackingAsset,now=Date.now()):
     asset.speedKnots>(asset.kind==='aircraft'?1000:55)||
     !Number.isFinite(asset.lat)||!Number.isFinite(asset.lon)||
     Math.abs(asset.lat)>85||Math.abs(asset.lon)>180)return null
+  // Preserve TypeScript's non-null narrowing across the Array.from callback.
+  // Asset properties can be mutable, but this checked primitive cannot.
+  const headingDeg: number = asset.heading
   const minutes=HORIZON_MINUTES[asset.kind],distanceKm=asset.speedKnots*1.852*minutes/60
   const intervals=20
   const path=Array.from({length:intervals+1},(_,index)=>
-    destinationPoint(asset,asset.heading,distanceKm*index/intervals))
+    destinationPoint(asset,headingDeg,distanceKm*index/intervals))
   return {path,horizonMinutes:minutes,distanceKm:Math.round(distanceKm*10)/10,
     observedAt:asset.observedAt,
     projectedUntil:new Date(Date.parse(asset.observedAt)+minutes*60000).toISOString(),
