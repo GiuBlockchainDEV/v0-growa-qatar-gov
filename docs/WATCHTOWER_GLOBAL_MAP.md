@@ -427,3 +427,39 @@ Implementation:
 - `components/dashboard/watchtower/global-watchtower.tsx` (filters and status)
 - `components/dashboard/watchtower/global-tracking-map.tsx` (ESRI markers)
 - `lib/watchtower/data-tracking-net.test.ts` (regression tests).
+
+
+## Cargo-vessel visibility and real 7-day AIS trails: recovery update
+
+The old provider adapter silently omitted vessels if a row lacked its own
+timestamp, even when data-tracking.net's /api/summary had a valid last_poll.
+It also supported only a narrow set of /api/ships response shapes. The adapter
+now handles common wrapped/mapped row collections, additional position and
+classification field names, and preserves the distinction between ship-specific
+fix time and provider snapshot time.
+
+**Staleness is explicit:** accepted past positions may be as old as 30 days,
+but the map marks old positions as faded and displays their true observation
+date. A data feed can be unavailable or delayed; neither presence nor absence
+of a stale fix establishes current vessel position. The left panel includes
+provider row counts and accepted cargo counts for debugging. A position with
+no reliable ship fix or provider poll time is not plotted.
+
+**Real observed routes from provider histories:** the authenticated
+`/api/watchtower/chokepoint-tracks` endpoint obtains
+`/api/ship/history?mmsi=...&hours=168` for Hormuz and
+`/api/bab/ship/history?mmsi=...&hours=168` for Bab el-Mandeb, up to 16
+vessels in the default overview, and supports an additional trace request
+when one of those vessels is selected. This is independent of the fast AIS
+position feed and limited with timeouts, cache, user authentication and
+response-size limits. Upstream responses are strictly validated. Only timed
+observations are rendered; gaps over four hours and impossible jumps are
+separated rather than connected. The map does **not** invent ship trajectories,
+planned voyages or food cargo.
+
+If the public upstream feed or trace API does not actually return usable
+observations, the correct state is **unavailable / stale**, not zero risk or a
+manufactured route. Live provider results were inaccessible for independent
+end-to-end testing in the implementation environment. The code and build can
+be verified but runtime ship coverage must be checked with real upstream
+responses in the production environment.

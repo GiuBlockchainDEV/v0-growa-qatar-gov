@@ -32,6 +32,10 @@ export type ChokepointReport={
   label:string
   state:ChokepointState
   vesselCount:number|null
+  /** Raw rows in provider /ships response, before applying cargo filters. */
+  providerRows?:number|null
+  /** Cargo-class rows that have coordinates, before age validation. */
+  usableCargoRows?:number|null
   freshObservedCount:number|null
   crossings24h:number|null
   lastPoll:string|null
@@ -65,14 +69,35 @@ const date=(raw:unknown):string|null=>{
 function rows(raw:unknown):Row[]{
   const root=obj(raw),data=obj(root.data)
   const candidates=[raw,root.ships,root.vessels,root.results,root.positions,
-    data.ships,data.vessels,data.results,data.positions]
+    root.items,root.records,root.current,root.data,
+    data.ships,data.vessels,data.results,data.positions,data.items,data.records]
   for(const candidate of candidates){
-    if(Array.isArray(candidate))return candidate.slice(0,12000).map(obj)
-    // Some API versions expose a dictionary keyed by MMSI.
+    if(Array.isArray(candidate)){
+      if(candidate.length&&Array.isArray(candidate[0])){
+        // Accept a header-labelled tabular representation only, never guess
+        // positional indexes of anonymous arrays.
+        const heading=candidate[0] as unknown[]
+        if(heading.every(k=>typeof k==='string')&&heading.includes('mmsi')&&
+          heading.some(k=>['lat','latitude'].includes(String(k).toLowerCase()))){
+          return candidate.slice(1,12001).filter(Array.isArray).map(v=>
+            Object.fromEntries((v as unknown[]).slice(0,heading.length)
+              .map((value,i)=>[String(heading[i]),value])))
+        }
+        return []
+      }
+      return candidate.slice(0,12000).map(obj)
+    }
     if(candidate&&typeof candidate==='object'){
-      const values=Object.values(candidate as Row)
-      if(values.length&&values.length<=12000&&values.every(v=>v&&typeof v==='object'))
-        return values.map(obj)
+      const entries=Object.entries(candidate as Row)
+      if(entries.length&&entries.length<=12000&&entries.every(([k,v])=>
+        v!==null&&typeof v==='object'&&!Array.isArray(v))){
+        // The API may return an MMSI-indexed object whose entries omit mmsi.
+        return entries.map(([key,value])=>{
+          const item=obj(value)
+          return {...item,mmsi:item.mmsi??item.MMSI??
+            (/^[1-9]\\d{8}$/.test(key)?key:undefined)}
+        })
+      }
     }
   }
   return []
@@ -85,29 +110,31 @@ function timestamp(raw:unknown):string|null{
 export function dryCargoCategory(raw:unknown):boolean{
   const r=obj(raw)
   const fields=[r.ship_type,r.vessel_type,r.category,r.type,r.ship_category,
-    r.shiptype,r.shipType,r.vessel_category,r.type_name]
+    r.shiptype,r.shipType,r.vessel_category,r.type_name,
+    r.category_name,r.ship_type_name,r.vessel_type_name,r.type_text,r.ship_class]
   const code=fields.map(num).find(n=>n!==null&&n>=0&&n<100)
   const categories=fields.map(v=>string(v,80)).filter(Boolean).join(' ').toLowerCase()
   if(/tanker|oil|chemical|lng|lpg|fishing|tug|passenger|yacht|cruise|offshore|pilot|dredg/.test(categories))
     return false
   if(code!==undefined&&code!==null&&code>=70&&code<80)return true
-  return /container|bulk|general cargo|cargo|reefer|refrigerated|ro.ro|roll.on|freight|vehicle.carrier|multipurpose|multi.purpose|livestock carrier/.test(categories)
+  return /container|bulk|dry.cargo|dry.bulk|general cargo|cargo|reefer|refrigerated|ro.ro|roll.on|freight|vehicle.carrier|multipurpose|multi.purpose|livestock carrier/.test(categories)
 }
-const maxSnapshotAge=7*86400000
-export function parseDataTrackingShips(raw:unknown,id:'hormuz'|'bab_el_mandeb',now=Date.now()):{
+const maxSnapshotAge=30*86400000
+export function parseDataTrackingShips(raw:unknown,id:'hormuz'|'bab_el_mandeb',now=Date.now(),
+  pollFallback:unknown=null):{
   assets:TrackingAsset[]
   lastPoll:string|null
   totalRows:number
   timestamped:number
+  usableCargoRows:number
 }{
-  const root=obj(raw),data=obj(root.data)
-  const poll=timestamp(raw)
+  const poll=timestamp(raw)??date(pollFallback)
   const sourceName='hormuz.data-tracking.net AIS'
   const site=id==='hormuz'
     ?'https://hormuz.data-tracking.net/live-map'
     :'https://hormuz.data-tracking.net/bab-el-mandeb'
   const values=rows(raw)
-  let timestamped=0
+  let timestamped=0,usableCargoRows=0
   const parsed:TrackingAsset[]=[]
   for(const value of values){
     const pos=obj(value.position),ais=obj(value.AIS)
@@ -115,11 +142,14 @@ export function parseDataTrackingShips(raw:unknown,id:'hormuz'|'bab_el_mandeb',n
     if(!dryCargoCategory(row))continue
     const mmsi=String(row.mmsi??row.MMSI??row.mmsi_number??'').trim()
     if(!/^[1-9]\d{8}$/.test(mmsi))continue
-    const point=coordinate(row.lat??row.latitude??row.LATITUDE??pos.lat??pos.latitude,
-      row.lon??row.lng??row.longitude??row.LONGITUDE??pos.lon??pos.lng??pos.longitude)
+    const point=coordinate(row.lat??row.latitude??row.LATITUDE??row.position_lat??pos.lat??pos.latitude,
+      row.lon??row.lng??row.longitude??row.LONGITUDE??row.position_lon??pos.lon??pos.lng??pos.longitude)
     if(!point)continue
+    usableCargoRows++
     const perShip=date(row.timestamp??row.last_seen??row.last_seen_at??
-      row.last_position_at??row.position_time??row.updated_at??row.time??pos.timestamp)
+      row.last_position_at??row.position_time??row.updated_at??row.time??
+      row.last_position_time??row.last_seen_utc??row.received_at??
+      pos.timestamp??pos.time??pos.last_seen)
     const observedAt=perShip??poll
     if(!observedAt)continue
     const age=now-Date.parse(observedAt)
@@ -144,8 +174,8 @@ export function parseDataTrackingShips(raw:unknown,id:'hormuz'|'bab_el_mandeb',n
       chokepointId:id,observationBasis:perShip?'position_report':'snapshot_poll',
     })
   }
-  return {assets:mergeAssets(parsed).slice(0,950),lastPoll:poll,
-    totalRows:values.length,timestamped}
+  return {assets:mergeAssets(parsed).slice(0,1600),lastPoll:poll,
+    totalRows:values.length,timestamped,usableCargoRows}
 }
 export function parseCrossingCount(raw:unknown):number|null{
   const root=obj(raw),data=obj(root.data),summary=obj(root.summary)
@@ -162,10 +192,10 @@ export function parseCrossingCount(raw:unknown):number|null{
 const origin='https://hormuz.data-tracking.net'
 const SOURCE_NOTICE=
   'AIS-derived snapshots, not a continuous global live feed. Some ships are absent due to receiver coverage, AIS-off, spoofing or jamming. Vessel category is not a cargo manifest. Counts of all-vessel crossings are not food shipments.'
-async function getJson(path:string,limitBytes=3500000):Promise<unknown>{
+async function getJson(path:string,limitBytes=12000000):Promise<unknown>{
   const response=await fetch(origin+path,{
     headers:{Accept:'application/json'},
-    signal:AbortSignal.timeout(8500),
+    signal:AbortSignal.timeout(12500),
     next:{revalidate:1500},
   })
   if(!response.ok||!response.body)throw Error('Data-tracking provider unavailable')
@@ -202,9 +232,12 @@ async function fetchArea(spec:typeof supported[number],now:number):Promise<{
     checkedAt,sourceUrl:cfg.pageUrl,
     detail:'AIS ship-position endpoint unavailable. Any crossing aggregate is separate and may also be stale. '+SOURCE_NOTICE,
   }}
-  const parsed=parseDataTrackingShips(ships.value,spec.id,now)
+  // /api/ships may omit last_poll and individual ship fix timestamps.
+  // Fall back to the independently reported /api/summary poll, clearly
+  // tagging those fixes as snapshot estimates rather than ship reports.
+  const summaryPoll=summary.status==='fulfilled'?timestamp(summary.value):null
+  const parsed=parseDataTrackingShips(ships.value,spec.id,now,summaryPoll)
   const lastPoll=parsed.lastPoll
-  const pollAge=lastPoll?now-Date.parse(lastPoll):null
   const latestShip=parsed.assets.reduce<string|null>((acc,a)=>
     !acc||a.observedAt>acc?a.observedAt:acc,null)
   const evidenceDate=lastPoll??latestShip
@@ -214,11 +247,14 @@ async function fetchArea(spec:typeof supported[number],now:number):Promise<{
   const report:ChokepointReport={
     id:spec.id,label:cfg.label,
     state:stale?'stale':'partial',
-    vesselCount:parsed.assets.length,freshObservedCount:freshCount,
+    vesselCount:parsed.assets.length,providerRows:parsed.totalRows,
+    usableCargoRows:parsed.usableCargoRows,freshObservedCount:freshCount,
     crossings24h:summary.status==='fulfilled'?parseCrossingCount(summary.value):null,
     lastPoll:evidenceDate,checkedAt,sourceUrl:cfg.pageUrl,
     detail:(stale?'SOURCE DELAYED / data is NOT live. ':'AIS provider snapshot. ')+
-      'Cargo-like vessel types only; '+parsed.timestamped+'/'+parsed.assets.length+
+      'Cargo-like vessel types only; received '+parsed.totalRows+
+      ' raw rows, '+parsed.usableCargoRows+' cargo-type rows with coordinates, '+
+      parsed.timestamped+'/'+parsed.assets.length+
       ' accepted cargo vessels have their own observation timestamp. '+
       '24h crossing statistics include all vessel classes; not a cargo-specific count. '+SOURCE_NOTICE,
   }

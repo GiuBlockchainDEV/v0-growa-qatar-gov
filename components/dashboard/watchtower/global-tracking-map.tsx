@@ -4,13 +4,14 @@ import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import { QATAR, freshAsset, type TrackingAsset, type MapAlert, type MapLayers } from '@/lib/watchtower/global-tracking'
 import {TRACKED_CHOKEPOINTS,type ChokepointId,type ChokepointReport} from '@/lib/watchtower/data-tracking-net'
+import type {AISRoute} from '@/lib/watchtower/data-tracking-history'
 import styles from './global-watchtower.module.css'
 import { getWorldFillZoom } from '@/lib/watchtower/map-viewport'
 import { makeAirGreatCircle } from '@/lib/nfii/logistics-route-geometry'
 import type {ProductionRiskZone} from '@/lib/watchtower/production-risk'
 import { captureObservedPositions, automaticRouteEvidence, worldCopyPolyline, type TrackPoint } from '@/lib/watchtower/route-geometry'
 export type GlobalTrackingMapProps = {
-  assets: TrackingAsset[]; historyAssets: TrackingAsset[]; alerts: MapAlert[]; riskZones: ProductionRiskZone[]; chokepoints: ChokepointReport[]; layers: MapLayers; selectedId: string | null
+  assets: TrackingAsset[]; historyAssets: TrackingAsset[]; alerts: MapAlert[]; riskZones: ProductionRiskZone[]; chokepoints: ChokepointReport[]; aisRoutes: AISRoute[]; layers: MapLayers; selectedId: string | null
   onSelect: (id: string) => void; onChokepointClick: (id: ChokepointId) => void; now: number
   focus: { lat: number; lon: number; zoom: number; token: number } | null
 }
@@ -30,7 +31,7 @@ const ESRI_ATTRIBUTION =
 const MARKER = { aircraft: '#EEF4C9', vessel: '#A2B78C', critical: '#A8392B', attention: '#C9A227', ink: '#111E13', cream: '#EEF4C9' }
 
 const label = (value: string) => { const node = document.createElement('span'); node.textContent = value; return node }
-export function GlobalTrackingMap({ assets, historyAssets, alerts, riskZones, chokepoints, layers, selectedId, onSelect, onChokepointClick, focus, now }: GlobalTrackingMapProps) {
+export function GlobalTrackingMap({ assets, historyAssets, alerts, riskZones, chokepoints, aisRoutes, layers, selectedId, onSelect, onChokepointClick, focus, now }: GlobalTrackingMapProps) {
   const host = useRef<HTMLDivElement>(null), mapRef = useRef<L.Map | null>(null), graphics = useRef<L.LayerGroup | null>(null), productionGraphics = useRef<L.LayerGroup | null>(null)
   const history = useRef(new Map<string, TrackPoint[]>()), select = useRef(onSelect), selectChokepoint = useRef(onChokepointClick)
   const [revision, setRevision] = useState(0), [tileError, setTileError] = useState(false)
@@ -232,6 +233,26 @@ export function GlobalTrackingMap({ assets, historyAssets, alerts, riskZones, ch
         }
       }
     }
+    // Historical AIS from source observations, not the few points accumulated
+    // since page open. Broken AIS gaps remain BROKEN, never interpolated.
+    if(layers.trails&&layers.vessels){
+      const visibleShips=new Set(assets.filter(a=>a.kind==='vessel').map(a=>a.id))
+      for(const route of aisRoutes){
+        if(route.status!=='observed'||!visibleShips.has(route.id))continue
+        const highlighted=selectedId===route.id
+        for(const points of route.segments.slice(0,15)){
+          if(points.length<2)continue
+          L.polyline(worldCopyPolyline(points,map.getCenter().lng),{
+            color:'#356F53',weight:highlighted?4.5:2.5,
+            opacity:highlighted?1:0.82,lineCap:'round',
+          }).bindTooltip(label('OBSERVED AIS HISTORY · '+route.mmsi+
+            ' · '+points.length+' measured positions · '+
+            points[0].time+' to '+points[points.length-1].time+
+            '. Gaps are intentionally not connected. Source: data-tracking.net.'))
+            .on('click',()=>select.current(route.id)).addTo(group)
+        }
+      }
+    }
     if (layers.risks) for (const alert of alerts) {
       const color = alert.severity === 'high' ? MARKER.critical : MARKER.attention
       L.circleMarker([alert.lat, alert.lon], { radius: alert.id === selectedId ? 11 : 7, color, weight: 2, fillColor: color, fillOpacity: 0.35 })
@@ -283,7 +304,7 @@ export function GlobalTrackingMap({ assets, historyAssets, alerts, riskZones, ch
         }
       }
     }
-  }, [assets, historyAssets, alerts, chokepoints, layers, selectedId, now, revision])
+  }, [assets, historyAssets, alerts, chokepoints, aisRoutes, layers, selectedId, now, revision])
   return <><div ref={host} className={styles.map} role="region" aria-label="Interactive Esri political world map with country borders, regions, aircraft, vessels and food-production risk areas" />
     {point && <output className={styles.coordinateReadout} aria-label="Selected map coordinates">
       {point.lat.toFixed(5)}°, {point.lon.toFixed(5)}°

@@ -9,6 +9,7 @@ import type { FoodPosture } from '@/lib/watchtower/food-posture'
 import type {ProductionRiskSnapshot,ProductionRiskZone,ProductionDriver} from '@/lib/watchtower/production-risk'
 import { CHOKEPOINTS, QATAR, REFRESH_SECONDS, freshAsset, mergeAssets, separationKm, type MapAlert, type MapLayers, type TrackingAsset, type TrackingSnapshot } from '@/lib/watchtower/global-tracking'
 import {TRACKED_CHOKEPOINTS,type ChokepointId,type DataTrackingSnapshot,type ChokepointReport} from '@/lib/watchtower/data-tracking-net'
+import type {AISRoute,HistoryOverlay} from '@/lib/watchtower/data-tracking-history'
 import type { GlobalTrackingMapProps } from './global-tracking-map'
 import {mergeTrackingUpdate,mergeFlightItineraries,type RouteLookupResponse} from '@/lib/watchtower/tracking-merge'
 import styles from './global-watchtower.module.css'
@@ -41,6 +42,8 @@ export function GlobalWatchtower() {
   const [productionError,setProductionError]=useState('')
   const [maritimeFeed,setMaritimeFeed]=useState<DataTrackingSnapshot|null>(null)
   const [maritimeError,setMaritimeError]=useState('')
+  const [aisHistory,setAISHistory]=useState<AISRoute[]>([])
+  const [aisHistoryStatus,setAISHistoryStatus]=useState('')
   const [selectedChokepoint,setSelectedChokepoint]=useState<'all'|ChokepointId>('all')
   const [error, setError] = useState(''), [foodError, setFoodError] = useState('')
   const [busy, setBusy] = useState(false), [refresh, setRefresh] = useState(0), [paused, setPaused] = useState(false), [now, setNow] = useState(Date.now)
@@ -244,6 +247,57 @@ export function GlobalWatchtower() {
   )
   const selectedAsset = allAssets.find(a => a.id === selectedId), selectedAlert = allAlerts.find(a => a.id === selectedId)
   const selectedProductionZone=(productionRisk?.zones??[]).find(zone=>zone.id===selectedId)
+  // Load a bounded selection of real 7-day AIS tracks separately from ship
+  // positions. A failed trace request must never hide a vessel icon.
+  useEffect(()=>{
+    if(!maritimeFeed?.assets.length)return
+    const controller=new AbortController()
+    const load=async()=>{
+      try{
+        const response=await fetch('/api/watchtower/chokepoint-tracks',{
+          cache:'no-store',
+          signal:AbortSignal.any([controller.signal,AbortSignal.timeout(26000)]),
+        })
+        if(!response.ok)throw Error('AIS history unavailable')
+        const data=await response.json() as HistoryOverlay
+        if(!Array.isArray(data.routes))throw Error('AIS history schema invalid')
+        if(!controller.signal.aborted){
+          setAISHistory(previous=>{
+            const byId=new Map(previous.map(route=>[route.id,route]))
+            for(const route of data.routes)if(route.status==='observed')byId.set(route.id,route)
+            return [...byId.values()].slice(-80)
+          })
+          setAISHistoryStatus(data.observed+' observed tracks / '+data.checked+' ships checked')
+        }
+      }catch{
+        if(!controller.signal.aborted)
+          setAISHistoryStatus('AIS track history unavailable; positions can still be shown.')
+      }
+    }
+    void load()
+    return()=>controller.abort()
+  },[maritimeFeed?.generatedAt])
+  useEffect(()=>{
+    const asset=allAssets.find(a=>a.id===selectedId)
+    if(!asset||asset.kind!=='vessel'||!asset.chokepointId)return
+    const controller=new AbortController()
+    const load=async()=>{
+      try{
+        const response=await fetch('/api/watchtower/chokepoint-tracks?'+
+          new URLSearchParams({mmsi:asset.id.slice(4),chokepoint:asset.chokepointId}),{
+          cache:'no-store',
+          signal:AbortSignal.any([controller.signal,AbortSignal.timeout(9000)]),
+        })
+        if(!response.ok)return
+        const route=await response.json() as AISRoute
+        if(!controller.signal.aborted&&route.status==='observed')
+          setAISHistory(previous=>[...previous.filter(r=>r.id!==route.id),route].slice(-80))
+      }catch{ /* selected ship remains visible even if its trace fails */ }
+    }
+    void load()
+    return()=>controller.abort()
+  },[selectedId,allAssets])
+
   const itineraryCount=assets.filter(a=>a.itinerary?.origin&&a.itinerary?.destination).length
   const mapReadyItineraryCount=assets.filter(a=>a.itinerary?.origin?.lat!=null&&
     a.itinerary.destination?.lat!=null&&
@@ -275,7 +329,7 @@ export function GlobalWatchtower() {
   const nearby = selectedAsset ? allAlerts.filter(a => a.kind === 'hazard' && separationKm(a, selectedAsset) <= 350).slice(0, 3) : []
   const nearGateway = selectedAsset ? [...CHOKEPOINTS].sort((a, b) => separationKm(a, selectedAsset) - separationKm(b, selectedAsset))[0] : null
   return <div id="watchtower-map" ref={root} className={styles.shell} dir={ar ? 'rtl' : 'ltr'}>
-    <Map assets={assets} historyAssets={allAssets} alerts={alerts} riskZones={riskZones} chokepoints={maritimeFeed?.chokepoints??[]} layers={layers} selectedId={selectedId} onSelect={select} onChokepointClick={chooseChokepoint} focus={focus} now={now} />
+    <Map assets={assets} historyAssets={allAssets} alerts={alerts} riskZones={riskZones} chokepoints={maritimeFeed?.chokepoints??[]} aisRoutes={aisHistory} layers={layers} selectedId={selectedId} onSelect={select} onChokepointClick={chooseChokepoint} focus={focus} now={now} />
     <header className={styles.header}>
       <div className={styles.titleRow}>
         <div><div className={styles.eyebrow}>NFII / GLOBAL OPERATING PICTURE</div>
@@ -346,6 +400,7 @@ export function GlobalWatchtower() {
         {' '}AIS observations update around every 30 minutes, not continuously.
         Cargo vessel type does not establish food on board.
         {maritimeError?' '+maritimeError:''}
+        {' '}{aisHistoryStatus}
       </p>
       <hr className={styles.divider} />
       {([
@@ -473,6 +528,8 @@ export function GlobalWatchtower() {
             <p><strong>{selectedAsset.observationBasis==='position_report'?
               'Ship-specific AIS position timestamp':'Source snapshot timestamp only'}</strong></p>
             <p>Reported {utc(selectedAsset.observedAt)} · {age(selectedAsset.observedAt,now)}.</p>
+            <p>History: {aisHistory.find(route=>route.id===selectedAsset.id)?.points??'Not loaded'}
+              {' '}real AIS fixes mapped over the last 7 days. Missing tracks are not invented.</p>
             <p>Provider: data-tracking.net, CC BY 4.0. AIS positions may be delayed,
               missing or distorted. Transit and destination are not confirmed cargo shipments.</p>
             <a href={TRACKED_CHOKEPOINTS.find(point=>point.id===selectedAsset.chokepointId)?.pageUrl??'https://hormuz.data-tracking.net/'}
