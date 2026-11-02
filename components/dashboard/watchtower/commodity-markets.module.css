@@ -170,7 +170,7 @@
 .footPanel p { display:flex; align-items:flex-start; gap:7px; font-size:11px; line-height:1.6; color:var(--growa-stone-600); margin-top:10px; }
 .footPanel p svg { color:var(--growa-sage); flex:none; margin-top:2px; }
 .footer { display:flex; justify-content:space-between; flex-wrap:wrap; gap:10px; font-size:10px; color:var(--growa-stone-600); padding:8px 2px; }
-button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible {
+.shell button:focus-visible,.shell a:focus-visible,.shell input:focus-visible,.shell select:focus-visible {
   outline:2px solid var(--growa-sage) !important;
   outline-offset:2px;
 }
@@ -207,5 +207,5 @@ button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible {
 }
 @media (prefers-reduced-motion:reduce) {
   .tickerSkeleton { animation:none; }
-  * { transition:none !important; }
+  .shell * { transition:none !important; }
 }
