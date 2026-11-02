@@ -1,5 +1,7 @@
 import { fetchAviationThreat, fetchMaritimeThreat } from '@/lib/nfii/logistics-security'
 import { getExportHub } from '@/lib/nfii/logistics-lanes'
+import {applyFlightRouteLookups,flightLookupInput,vesselReportedItinerary} from './itinerary-sources'
+import {withModeledSeaLegs} from './itinerary-sea'
 import { mergeAssets, parseAircraft, parseVessels, parseGlobalHazards, freshAsset, REFRESH_SECONDS,
   type TrackingAsset, type MapAlert, type TrackingSource, type TrackingSnapshot } from './global-tracking'
 
@@ -27,13 +29,39 @@ function source(id: string, name: string, url: string, detail: string): Tracking
   return { id, name, url, detail, state: 'unavailable', checkedAt: new Date().toISOString(), latestObservationAt: null }
 }
 const latest = (items: { observedAt: string | null }[]) => items.reduce<string | null>((value, row) => row.observedAt && (!value || row.observedAt > value) ? row.observedAt : value, null)
+async function jsonResponseLimited(response:Response,maxBytes:number):Promise<unknown>{
+  const contentLength=Number(response.headers.get('content-length')??0)
+  if(contentLength>maxBytes)throw Error('Route lookup oversized')
+  const data=await response.text()
+  if(data.length>maxBytes)throw Error('Route lookup oversized')
+  return JSON.parse(data) as unknown
+}
 async function aircraft(): Promise<Batch<TrackingAsset>> {
   const meta = source('adsb', 'ADSB.lol', 'https://api.adsb.lol/docs',
     'Six global airframe samples, not all aircraft. Receiver coverage varies. Cargo operator inferred from callsign; no manifest. ODbL 1.0.')
   if (process.env.WATCHTOWER_ADSB_ENABLED === 'false') return { items: [], source: { ...meta, state: 'unconfigured', detail: 'Public ADS-B feed disabled by administrator.' } }
   const results = await Promise.allSettled(AIRFRAME_SAMPLE.map(async type => parseAircraft(await json('https://api.adsb.lol/v2/type/' + type, 60))))
   const good = results.filter((r): r is PromiseFulfilledResult<TrackingAsset[]> => r.status === 'fulfilled')
-  const items = mergeAssets(good.flatMap(r => r.value))
+  let items = mergeAssets(good.flatMap(r => r.value))
+  // One bounded POST per observation refresh, never one request per plane.
+  // Missing route lookups do not hide source-observed aircraft.
+  const input=flightLookupInput(items,90)
+  if(input.length){
+    try{
+      const reply=await fetch('https://api.adsb.lol/api/0/routeset',{
+        method:'POST',headers:{'Content-Type':'application/json',Accept:'application/json'},
+        body:JSON.stringify({planes:input}),signal:AbortSignal.timeout(6500),
+        next:{revalidate:180},
+      })
+      if(reply.ok){
+        const parsed=await jsonResponseLimited(reply,1000000)
+        const mapped=applyFlightRouteLookups(items,parsed)
+        items=mapped.results
+        meta.detail+=' Airport-pair lookup coverage: '+mapped.matches+'/'+input.length+
+          ' (plausible '+mapped.plausible+'). Airport-pair lookup is NOT a verified flight plan.'
+      }else meta.detail+=' Airport route lookup unavailable; no origins/destinations inferred.'
+    }catch{meta.detail+=' Airport route lookup failed; positions remain available.'}
+  }
   meta.state = !good.length ? 'unavailable' : items.length && !items.some(a => freshAsset(a)) ? 'stale' : 'partial'
   meta.latestObservationAt = latest(items)
   if (good.length < AIRFRAME_SAMPLE.length) meta.detail += ' Some queries failed. Missing observations do not mean zero traffic.'
@@ -47,7 +75,30 @@ async function vessels(): Promise<Batch<TrackingAsset>> {
   try {
     const url = new URL('https://api.vesselfinder.com/livedata')
     url.searchParams.set('userkey', key); url.searchParams.set('format', 'json'); url.searchParams.set('interval', '30')
-    const items = parseVessels(await json(url.toString(), 60, 5000000))
+    const raw=await json(url.toString(),60,5000000)
+    const items=parseVessels(raw)
+    if(Array.isArray(raw)){
+      const report=new Map<string,unknown>()
+      for(const value of raw){
+        if(typeof value!=='object'||value===null)continue
+        const ais=(value as {AIS?:{MMSI?:number|string}}).AIS
+        if(ais?.MMSI)report.set('sea:'+String(ais.MMSI),value)
+      }
+      let modeled=0,attempted=0
+      for(const asset of items){
+        const rawItem=report.get(asset.id)
+        if(!rawItem)continue
+        const itinerary=vesselReportedItinerary(rawItem)
+        if(!itinerary)continue
+        // Land-avoiding modeled geometry costs CPU; bounded and optional.
+        const canModel=attempted<8&&itinerary.origin?.lat!=null&&
+          itinerary.destination?.lat!=null
+        if(canModel)attempted++
+        asset.itinerary=canModel?withModeledSeaLegs(itinerary,asset):itinerary
+        if(asset.itinerary.modelSeaLegs)modeled++
+      }
+      meta.detail+=' Last-port and destination metadata depend on subscribed VOYAGE data; modeled sea paths are not actual vessel voyages.'
+    }
     meta.state = items.length && !items.some(a => freshAsset(a)) ? 'stale' : 'partial'
     meta.latestObservationAt = latest(items)
     return { items, source: meta }

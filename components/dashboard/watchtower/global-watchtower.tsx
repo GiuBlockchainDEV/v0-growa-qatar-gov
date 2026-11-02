@@ -125,6 +125,10 @@ export function GlobalWatchtower() {
   const selectedAsset = snapshot?.assets.find(a => a.id === selectedId), selectedAlert = allAlerts.find(a => a.id === selectedId)
   const selectedProjection = selectedAsset ? forwardCourseProjection(selectedAsset,now) : null
   const selectedCourseCue = selectedAsset ? lastKnownCourseCue(selectedAsset,now) : null
+  const itineraryCount=assets.filter(a=>a.itinerary?.origin&&a.itinerary?.destination).length
+  const mapReadyItineraryCount=assets.filter(a=>a.itinerary?.origin?.lat!=null&&
+    a.itinerary.destination?.lat!=null&&
+    (a.kind==='aircraft'||Boolean(a.itinerary.modelSeaLegs))).length
   // Auto-rendering does not depend on selecting an aircraft or vessel.
   // This count makes missing heading/speed/freshness immediately visible.
   const projectableCount = useMemo(
@@ -185,7 +189,7 @@ export function GlobalWatchtower() {
       <div className="mt-2 flex gap-2"><button className={styles.smallButton} onClick={() => setView('global')}><Globe2 size={12} />Global</button><button className={styles.smallButton} onClick={() => { setView('gulf'); setFocus({ ...QATAR, zoom: 6, token: Date.now() }) }}>Qatar</button></div>
       <hr className={styles.divider} />
       {([
-        ['aircraft', Plane, 'Aircraft'], ['vessels', Ship, 'Cargo vessels'], ['risks', AlertTriangle, 'Risk reports'], ['gateways', Globe2, 'Strategic chokepoints'], ['trails', Activity, 'Observed routes (solid)'], ['projections', Activity, 'Estimated future (dashed)'],
+        ['aircraft', Plane, 'Aircraft'], ['vessels', Ship, 'Cargo vessels'], ['risks', AlertTriangle, 'Risk reports'], ['gateways', Globe2, 'Strategic chokepoints'], ['trails', Activity, 'Origin / recorded past'], ['projections', Activity, 'Destination / estimated future'],
       ] as const).map(([key, Icon, title]) => <button key={key} className={styles.toggle} aria-pressed={layers[key]} onClick={() => setLayers(current => ({ ...current, [key]: !current[key] }))}><span><Icon size={13} />{title}</span><i className={styles.switch} /></button>)}
       <hr className={styles.divider} />
       <button className={styles.toggle} aria-pressed={cargoOnly} onClick={() => setCargoOnly(!cargoOnly)}><span>Freight operators only</span><i className={styles.switch} /></button>
@@ -194,6 +198,14 @@ export function GlobalWatchtower() {
       <button className={styles.toggle} aria-pressed={highOnly} onClick={() => setHighOnly(!highOnly)}><span>High signals only</span><i className={styles.switch} /></button>
       <label className={styles.label} htmlFor="watchtower-commodity">Food commodity</label>
       <select id="watchtower-commodity" className={styles.input} value={commodity} disabled={!food} onChange={e => setCommodity(e.target.value)}><option value="all">All commodities</option>{food?.commodities.map(c => <option key={c.commodityId} value={c.commodityId}>{ar ? c.nameAr : c.name}</option>)}</select>
+      <p className={styles.hint}>
+        <strong>{itineraryCount}</strong> {tx('vehicles have provider-reported origin and destination,',
+          'وسائل نقل لديها نقطة انطلاق ووصول من المزود،')}
+        {' '}<strong>{mapReadyItineraryCount}</strong> {tx('have enough geocoded evidence for a reference itinerary on the map.',
+          'لديها أدلة مكانية كافية لرسم مسار مرجعي.')}
+        {' '}{tx('Reference itineraries are not actual flown/sailed tracks; only solid observed tracks prove movement.',
+          'المسارات المرجعية ليست مسارات طيران أو إبحار مؤكدة؛ فقط الرصد الفعلي يدل على الحركة.')}
+      </p>
       <p className={styles.hint}>
         {tx('Routes appear automatically for every eligible tracked vehicle, with no selection required.',
           'تظهر المسارات تلقائياً لكل وسيلة نقل مؤهلة دون الحاجة إلى تحديدها.')}
@@ -220,6 +232,38 @@ export function GlobalWatchtower() {
             [selectedAsset.kind === 'aircraft' ? 'Altitude' : 'AIS destination', selectedAsset.kind === 'aircraft' ? (selectedAsset.altitudeFt === null ? 'Unknown' : selectedAsset.altitudeFt.toLocaleString() + ' ft') : selectedAsset.destination ?? 'Not reported'],
           ].map(([title, value]) => <div key={title}><span>{title}</span><strong>{value}</strong></div>)}</div>
           <p>{selectedAsset.lat.toFixed(4)}, {selectedAsset.lon.toFixed(4)} / {utc(selectedAsset.observedAt)}</p>
+          <div className={styles.routeDetail}>
+            <h3>Origin → Destination</h3>
+            {selectedAsset.itinerary ? <>
+              <div className={styles.detailGrid}>
+                <div><span>Departure / last reported port</span>
+                  <strong>{selectedAsset.itinerary.origin?.name??'Unavailable'}</strong>
+                  <small>{selectedAsset.itinerary.origin?.code??'No verified code'}</small>
+                </div>
+                <div><span>Reported destination</span>
+                  <strong>{selectedAsset.itinerary.destination?.name??'Unavailable'}</strong>
+                  <small>{selectedAsset.itinerary.destination?.code??'No verified code'}</small>
+                </div>
+                <div><span>Departure time</span><strong>{utc(selectedAsset.itinerary.departureAt)}</strong></div>
+                <div><span>Estimated arrival</span><strong>{utc(selectedAsset.itinerary.etaAt)}</strong></div>
+              </div>
+              <p className={styles.notice}>
+                {selectedAsset.itinerary.confidence === 'lookup_plausible'?'Plausible callsign route lookup':
+                  selectedAsset.itinerary.confidence === 'lookup_unverified'?'Unverified callsign lookup':'Crew-reported AIS / last-port data'}.
+                {' '}{selectedAsset.itinerary.description}
+              </p>
+              <p>Map: dotted green = origin to latest position <strong>(reference, not proven travel)</strong>;
+                dashed amber = latest position to destination <strong>(reference, not confirmed planned routing)</strong>.
+                Solid green appears only for actual observed fixes.
+                {selectedAsset.kind==='vessel'&&!selectedAsset.itinerary.modelSeaLegs?
+                  ' A navigable maritime line is unavailable without resolved ports and an ocean-network geometry.':''}
+              </p>
+              <a href={selectedAsset.itinerary.sourceUrl} target="_blank" rel="noopener noreferrer">
+                Itinerary source <ExternalLink size={11} className="inline"/>
+              </a>
+            </> : <p>Origin and destination are not returned by the connected tracking sources
+              for this vehicle. The aircraft callsign / vessel identifier alone does not establish a journey.</p>}
+          </div>
           <div className={styles.routeDetail}>
             <h3>Route tracking · {selectedAsset.kind === 'aircraft' ? 'aircraft' : 'cargo vessel'}</h3>
             <p><span className={styles.routePastLine} /> <strong>Completed / observed</strong></p>
@@ -257,7 +301,7 @@ export function GlobalWatchtower() {
         </>}
       </div>
     </aside>
-    <div className={styles.legend}><span><Plane size={12} color="var(--growa-sage)" />Aircraft</span><span><Ship size={12} color="var(--growa-ink-600)" />Cargo vessel</span><span><AlertTriangle size={12} color="var(--warning-strong)" />Reported risk</span><span><i className={styles.routePastLine} />Observed</span><span><i className={styles.routeFutureLine} />Estimated ({layers.projections ? projectableCount : 0})</span><span>Direction guides ({layers.projections ? bearingCueCount : 0})</span><span>Grey = last known / stale</span></div>
+    <div className={styles.legend}><span><Plane size={12} color="var(--growa-sage)" />Aircraft</span><span><Ship size={12} color="var(--growa-ink-600)" />Cargo vessel</span><span><AlertTriangle size={12} color="var(--warning-strong)" />Reported risk</span><span><i className={styles.routePastLine} />Observed</span><span><i className={styles.routeOriginLine} />From origin (reference)</span><span><i className={styles.routeFutureLine} />To destination (reference)</span><span>Direction guides ({layers.projections ? bearingCueCount : 0})</span><span>Grey = last known / stale</span></div>
     <footer className={styles.footer}><span>{busy ? 'UPDATING SOURCES' : snapshot ? 'SNAPSHOT ' + utc(snapshot.generatedAt) : 'CONNECTING TO SOURCES'} / {paused ? 'PAUSED' : 'AUTO 60s'}</span><span>ESRI WORLD IMAGERY · ADSB.lol / ODbL 1.0 · AIS licensed area · No simulated traffic</span></footer>
   </div>
 }

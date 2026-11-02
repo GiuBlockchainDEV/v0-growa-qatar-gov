@@ -6,6 +6,7 @@ export type TrackingAsset = {
   observedAt: string; source: string; sourceUrl: string; type: string
   cargo: 'operator_inferred' | 'ais_cargo_class' | 'unverified'
   destination: string | null; foodCargoVerified: false
+  itinerary?: import('./itinerary-sources').RouteItinerary | null
 }
 export type MapAlert = {
   id: string; kind: 'hazard' | 'aviation' | 'maritime' | 'food'; title: string

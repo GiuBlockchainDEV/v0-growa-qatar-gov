@@ -5,6 +5,7 @@ import 'leaflet/dist/leaflet.css'
 import { CHOKEPOINTS, QATAR, freshAsset, type TrackingAsset, type MapAlert, type MapLayers } from '@/lib/watchtower/global-tracking'
 import styles from './global-watchtower.module.css'
 import { getWorldFillZoom } from '@/lib/watchtower/map-viewport'
+import { makeAirGreatCircle } from '@/lib/nfii/logistics-route-geometry'
 import { captureObservedPositions, automaticRouteEvidence, worldCopyPolyline, type TrackPoint } from '@/lib/watchtower/route-geometry'
 export type GlobalTrackingMapProps = {
   assets: TrackingAsset[]; historyAssets: TrackingAsset[]; alerts: MapAlert[]; layers: MapLayers; selectedId: string | null
@@ -102,6 +103,64 @@ export function GlobalTrackingMap({ assets, historyAssets, alerts, layers, selec
         L.marker([asset.lat, asset.lon], { icon, title: asset.label, keyboard: true, zIndexOffset: asset.id === selectedId ? 900 : 100 })
           .bindTooltip(label(asset.label + ' / ' + asset.source + ' / ' + (freshAsset(asset, now) ? 'recent' : 'stale')))
           .on('click', () => select.current(asset.id)).addTo(group)
+      }
+    }
+    // Complete airport/port PAIRS from source lookup, automatically visible.
+    // Neither origin->fix nor fix->destination is an actual observed track:
+    // these are explicitly labelled reference legs, with separate style.
+    const routeAssets=assets.filter(asset=>{
+      const i=asset.itinerary
+      return (asset.kind==='aircraft'?layers.aircraft:layers.vessels)&&
+        i?.origin?.lat!=null&&i.origin.lon!=null&&
+        i.destination?.lat!=null&&i.destination.lon!=null&&
+        bounds.contains([asset.lat,asset.lon])
+    })
+    if (layers.trails || layers.projections) {
+      const ordered=[...routeAssets].sort((a,b)=>Number(a.id===selectedId)-Number(b.id===selectedId)).slice(0,140)
+      for(const asset of ordered){
+        const i=asset.itinerary!
+        const origin=i.origin!,dest=i.destination!
+        const position={lat:asset.lat,lon:asset.lon}
+        // Flight paths: shortest geodesic via observed position, NOT official airways.
+        // Ship paths: use land-avoiding ocean geometry only, never sea straightlines.
+        const from=asset.kind==='aircraft'?
+          makeAirGreatCircle([origin.lat!,origin.lon!],[position.lat,position.lon])
+            .flat().map(([lat,lon])=>({lat,lon})):
+          i.modelSeaLegs?.completed??[]
+        const to=asset.kind==='aircraft'?
+          makeAirGreatCircle([position.lat,position.lon],[dest.lat!,dest.lon!])
+            .flat().map(([lat,lon])=>({lat,lon})):
+          i.modelSeaLegs?.remaining??[]
+        const selected=asset.id===selectedId
+        const trusted=i.confidence!=='lookup_unverified'
+        if(layers.trails&&from.length>1){
+          L.polyline(worldCopyPolyline(from,map.getCenter().lng),{
+            color:trusted?'#72967A':'#77848A',weight:selected?4:2.1,
+            opacity:selected?0.95:0.62,dashArray:'2 7',
+          }).bindTooltip(label(
+            'ORIGIN → POSITION reference, NOT an observed completed '+(asset.kind==='aircraft'?'flight':'voyage')+
+            '. '+origin.name+' to latest fix. '+i.description,
+          )).on('click',()=>select.current(asset.id)).addTo(group)
+        }
+        if(layers.projections&&to.length>1){
+          L.polyline(worldCopyPolyline(to,map.getCenter().lng),{
+            color:trusted?'#D6A22C':'#9F8E68',weight:selected?4:2.1,
+            opacity:selected?1:0.7,dashArray:'8 8',
+          }).bindTooltip(label(
+            'POSITION → DESTINATION reference, NOT a confirmed plan. '+
+            dest.name+'. '+i.description,
+          )).on('click',()=>select.current(asset.id)).addTo(group)
+        }
+        for(const [endpoint,name,tint] of [
+          [origin,'ORIGIN / '+origin.name,'#72967A'],
+          [dest,'DESTINATION / '+dest.name,'#D6A22C'],
+        ] as const){
+          L.circleMarker([endpoint.lat!,endpoint.lon!],{
+            radius:selected?7:4,color:tint,
+            fillColor:'#FFFFFF',weight:selected?3:2,fillOpacity:selected?.95:.65,
+          }).bindTooltip(label(name+' / '+i.source+' / '+i.confidence))
+            .on('click',()=>select.current(asset.id)).addTo(group)
+        }
       }
     }
     if (layers.risks) for (const alert of alerts) {

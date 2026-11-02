@@ -264,6 +264,14 @@
   margin-inline-end: 4px;
   border-top: 4px solid var(--growa-sage);
 }
+.routeOriginLine {
+  display:inline-block;
+  width:27px;
+  height:0;
+  margin-inline-end:4px;
+  vertical-align:middle;
+  border-top:3px dotted #72967A;
+}
 .routeFutureLine { border-top: 3px dashed var(--warning); }
 .cluster { border: 0; background: none; }
 .cluster span { display: flex; align-items: center; justify-content: center; height: 34px; width: 34px; border: 2px solid var(--growa-sage); border-radius: 50%; background: var(--growa-cream); color: var(--growa-ink); font-size: 12px; font-weight: 700; box-shadow: 0 2px 8px #111e1366; }

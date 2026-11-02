@@ -213,3 +213,39 @@ green route still requires two independently observed fixes during the session.
 The short gold geographical forecast remains limited to genuinely fresh
 positions (2 minutes air / 10 minutes AIS). This explicitly separates
 **observation**, **short projection**, and **schematic last-known bearing**.
+
+
+## Source-backed origin / destination route intelligence
+
+The Watchtower now enriches observed aircraft using a BOUNDED batch POST to
+the ADSB.lol `/api/0/routeset` callsign lookup endpoint. It can return
+airport-pair coordinates and an API-provided `plausible` flag. This is NOT a
+dated flight plan, proof of takeoff, or the actual flown path. Returned lookup
+pairs are mapped automatically as an origin-to-last-position dotted
+**reference leg** and a last-position-to-destination dashed **reference leg**.
+They use geodesic geometry, not airways or airspace restrictions.
+The panel shows airports, IATA/ICAO code, source and confidence. Unknown,
+multi-leg or unlocatable pairs are not drawn as complete itineraries.
+
+For subscribed VesselFinder LiveData AIS + VOYAGE responses, the platform
+displays the **last reported port of call** (NOT a proven cargo-loading
+origin), departure timestamp if provided, crew-entered AIS destination
+and ETA if available. Ports are geocoded only from documented reference
+UN/LOCODEs/known hubs. When both endpoints resolve, the backend may compute
+up to eight **modeled land-avoiding ocean-network reference paths** per
+snapshot from origin to current position and current position to destination.
+It does not claim these are captain-approved voyages, actual sailed
+tracks or current vessel schedules. If endpoints or network paths fail, names
+remain visible but no maritime reference line is invented.
+
+All itinerary overlays use a different style from actual observed
+telemetry. Solid green historical traces still require multiple observed
+fixes; dotted origin reference and dashed destination reference are
+NOT completed/planned routes verified by the carrier. Exact route and
+departure/arrival verification require a flight-status/flight-plan and
+vessel port-calls/traces provider with the appropriate entitlement.
+
+The provider's lookup and coverage may be incomplete. Batching is capped;
+failure never removes basic position observations. Tests cover parsing of
+plausible/unverified routes, callsign matching, port lookup, incomplete
+voyage data, and labeling.
