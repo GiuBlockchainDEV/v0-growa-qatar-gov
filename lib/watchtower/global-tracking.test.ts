@@ -1,0 +1,89 @@
+import { describe, expect, it } from 'vitest'
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
+import { parseAircraft, parseVessels, parseGlobalHazards, freshAsset, mergeAssets, coordinate, epoch, separationKm, QATAR, MAX_ASSETS } from './global-tracking'
+const NOW = Date.parse('2026-11-02T08:00:00Z')
+const air = (changes: Record<string, unknown> = {}) => ({ now: NOW, ac: [{ hex: 'abc123', flight: 'FDX123', t: 'B763', lat: 25, lon: 51, seen_pos: 10, alt_baro: 35000, gs: 450, track: 90, ...changes }] })
+const ship = (changes: Record<string, unknown> = {}) => [{ AIS: { MMSI: 123456789, NAME: 'TEST FIXTURE', TYPE: 70, LATITUDE: 25, LONGITUDE: 51, TIMESTAMP: '2026-11-02 07:59:00 UTC', SPEED: 12, HEADING: 511, COURSE: 25, ...changes } }]
+const hazard = (changes: Record<string, unknown> = {}) => ({ features: [{ geometry: { type: 'Point', coordinates: [51, 25] }, properties: { eventid: 123, eventtype: 'TC', alertlevel: 'red', fromdate: '2026-11-01T00:00:00Z', todate: '2026-11-02T00:00:00Z', name: 'Test cyclone fixture', ...changes } }] })
+describe('Source-backed Watchtower observations', () => {
+  it('retains observation time and ages positions instead of relabelling them live', () => {
+    const asset = parseAircraft(air(), NOW)[0]
+    expect(asset.observedAt).toBe('2026-11-02T07:59:50.000Z')
+    expect(asset.cargo).toBe('operator_inferred')
+    expect(asset.foodCargoVerified).toBe(false)
+    expect(freshAsset(asset, NOW)).toBe(true)
+    expect(freshAsset(asset, NOW + 180000)).toBe(false)
+  })
+  it('does not infer cargo from passenger variants or mixed operators', () => {
+    expect(parseAircraft(air({ flight: 'QTR123' }), NOW)[0].cargo).toBe('unverified')
+    expect(parseAircraft(air({ flight: 'KZR123' }), NOW)[0].cargo).toBe('unverified')
+  })
+  it('rejects invalid, ground, old and future aircraft observations', () => {
+    expect(parseAircraft(air({ lat: null }), NOW)).toEqual([])
+    expect(parseAircraft(air({ seen_pos: 1000 }), NOW)).toEqual([])
+    expect(parseAircraft(air({ seen_pos: null }), NOW)).toEqual([])
+    expect(parseAircraft(air({ alt_baro: 'ground' }), NOW)).toEqual([])
+    expect(() => parseAircraft({ ...air(), now: NOW + 120000 }, NOW)).toThrow()
+    expect(() => parseAircraft({ now: NOW, error: 'unavailable' }, NOW)).toThrow()
+  })
+  it('recognizes AIS cargo class without fabricating food manifests', () => {
+    const asset = parseVessels(ship(), NOW)[0]
+    expect(asset.heading).toBe(25)
+    expect(asset.cargo).toBe('ais_cargo_class')
+    expect(asset.foodCargoVerified).toBe(false)
+    expect(asset.destination).toBeNull()
+    expect(parseVessels(ship({ TYPE: 60 }), NOW)).toEqual([])
+    expect(parseVessels(ship({ TYPE: 80 }), NOW)).toEqual([])
+    expect(parseVessels(ship({ TIMESTAMP: '2026-10-01 00:00:00 UTC' }), NOW)).toEqual([])
+    expect(parseVessels(ship({ MMSI: 'bad' }), NOW)).toEqual([])
+    expect(() => parseVessels({ error: 'subscription required' }, NOW)).toThrow()
+  })
+  it('retains unknown sensor fields and uses IMO not MMSI in vessel-detail links', () => {
+    const asset = parseVessels(ship({ SPEED: 102.3, HEADING: 511, COURSE: 360, IMO: 9441271 }), NOW)[0]
+    expect(asset.speedKnots).toBeNull(); expect(asset.heading).toBeNull()
+    expect(asset.sourceUrl).toContain('/9441271')
+    expect(coordinate(null, 0)).toBeNull(); expect(coordinate('', 0)).toBeNull()
+    expect(coordinate(0, 0)).toEqual({ lat: 0, lon: 0 })
+  })
+  it('rejects old and undated hazards without asserting supply disruption', () => {
+    const alert = parseGlobalHazards(hazard(), NOW)[0]
+    expect(alert.severity).toBe('high'); expect(alert.detail).toContain('not confirmed')
+    expect(parseGlobalHazards(hazard({ fromdate: null }), NOW)).toEqual([])
+    expect(parseGlobalHazards(hazard({ fromdate: '2025-01-01', todate: '2025-01-02' }), NOW)).toEqual([])
+    expect(parseGlobalHazards(hazard({ alertlevel: 'green' }), NOW)).toEqual([])
+    expect(() => parseGlobalHazards({ error: 'unavailable' }, NOW)).toThrow()
+  })
+  it('deduplicates, caps and retains the newest observation', () => {
+    const asset = parseAircraft(air(), NOW)[0], old = { ...asset, observedAt: new Date(NOW - 60000).toISOString() }
+    expect(mergeAssets([old, asset, old])).toEqual([asset])
+    expect(mergeAssets(Array.from({ length: MAX_ASSETS + 5 }, (_, i) => ({ ...asset, id: String(i) })))).toHaveLength(MAX_ASSETS)
+  })
+  it('parses UTC and computes geographic proximity only', () => {
+    expect(epoch('2026-11-02 08:00:00 UTC')).toBe(NOW)
+    expect(epoch(NOW / 1000)).toBe(NOW); expect(epoch('bad')).toBeNull()
+    expect(separationKm(QATAR, QATAR)).toBe(0)
+    expect(separationKm(QATAR, { lat: 26.56, lon: 56.25 })).toBeGreaterThan(400)
+  })
+})
+describe('Map-first integration and data boundaries', () => {
+  const read = (path: string) => readFileSync(join(process.cwd(), path), 'utf8')
+  it('authenticates reads, rejects demo ledgers and keeps AIS secrets server-side', () => {
+    const api = read('app/api/watchtower/tracking/route.ts'), client = read('components/dashboard/watchtower/global-watchtower.tsx')
+    expect(api).toContain('supabase.auth.getUser()'); expect(api).toContain('private, no-store')
+    expect(api).not.toMatch(/\.insert\(|\.update\(|\.delete\(/)
+    expect(client).not.toContain('VESSELFINDER_API_KEY')
+    expect(client).toContain("body.scope !== 'organization'"); expect(client).toContain("body.sourceMode !== 'live'")
+    expect(client).toContain('controller.abort()'); expect(client).toContain('document.hidden')
+  })
+  it('opens the map by default and preserves every operational workspace', () => {
+    const workspace = read('components/dashboard/watchtower-workspace.tsx')
+    expect(workspace).toContain("useState<Section>('map')")
+    for (const component of ['GlobalWatchtower', 'WatchtowerFoodCommandCenter', 'WatchtowerOperationsPulse', 'WatchtowerScenarioRoom', 'WatchtowerAgentOperationsRoom']) expect(workspace).toContain('<' + component + ' />')
+  })
+  it('uses safe text and observed history, not manufactured movement', () => {
+    const map = read('components/dashboard/watchtower/global-tracking-map.tsx')
+    expect(map).toContain('node.textContent = value'); expect(map).not.toContain('Math.random')
+    expect(map).toContain('history.current'); expect(map).toContain('map.remove()')
+  })
+})
