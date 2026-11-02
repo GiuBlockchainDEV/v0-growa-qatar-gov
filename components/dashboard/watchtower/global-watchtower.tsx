@@ -124,6 +124,12 @@ export function GlobalWatchtower() {
   )
   const selectedAsset = snapshot?.assets.find(a => a.id === selectedId), selectedAlert = allAlerts.find(a => a.id === selectedId)
   const selectedProjection = selectedAsset ? forwardCourseProjection(selectedAsset,now) : null
+  // Auto-rendering does not depend on selecting an aircraft or vessel.
+  // This count makes missing heading/speed/freshness immediately visible.
+  const projectableCount = useMemo(
+    () => assets.filter(asset => forwardCourseProjection(asset,now) !== null).length,
+    [assets,now],
+  )
   const selectedSource = snapshot?.sources.find(s => s.id === sourceId)
   const recentCount = (snapshot?.assets ?? []).filter(a => freshAsset(a, now)).length
   const staleSnapshot = Boolean(snapshot && now - Date.parse(snapshot.generatedAt) > 180000)
@@ -183,7 +189,14 @@ export function GlobalWatchtower() {
       <button className={styles.toggle} aria-pressed={highOnly} onClick={() => setHighOnly(!highOnly)}><span>High signals only</span><i className={styles.switch} /></button>
       <label className={styles.label} htmlFor="watchtower-commodity">Food commodity</label>
       <select id="watchtower-commodity" className={styles.input} value={commodity} disabled={!food} onChange={e => setCommodity(e.target.value)}><option value="all">All commodities</option>{food?.commodities.map(c => <option key={c.commodityId} value={c.commodityId}>{ar ? c.nameAr : c.name}</option>)}</select>
-      <p className={styles.hint}>Commodity filters apply to organization signals, not cargo manifests. Solid lines connect actual observed fixes in this session; dashed yellow lines project constant heading/speed briefly and are NOT flight plans or navigable sea routes.</p>
+      <p className={styles.hint}>
+        {tx('Routes appear automatically for every eligible tracked vehicle, with no selection required.',
+          'تظهر المسارات تلقائياً لكل وسيلة نقل مؤهلة دون الحاجة إلى تحديدها.')}
+        {' '}{projectableCount} {tx('vehicles have a recent heading and speed for a short forward projection.',
+          'وسائل نقل لديها اتجاه وسرعة حديثان لإظهار التوقع القصير.')}
+        {' '}{tx('Solid green requires at least two real observations after opening this page. Dashed yellow is only an estimated course, not a confirmed flight plan or sea itinerary.',
+          'يتطلب الخط الأخضر ملاحظتين حقيقيتين على الأقل. الخط الأصفر تقدير للاتجاه فقط وليس مساراً مؤكداً.')}
+      </p>
     </aside>
     <div className={styles.feedDock} aria-label="Tracking source status">{snapshot?.sources.map(source => <button key={source.id} className={styles.feedPill} data-state={source.state} onClick={() => { setSourceId(source.id); setSelectedId(null); setAlertsOpen(true); if (mobile) setFiltersOpen(false) }}><i />{source.name}: {source.state}</button>)}</div>
     <aside className={`${styles.panel} ${styles.alertPanel} ${alertsOpen ? '' : styles.hidePanel}`} aria-label="Alerts and selected observation">
@@ -233,7 +246,7 @@ export function GlobalWatchtower() {
         </>}
       </div>
     </aside>
-    <div className={styles.legend}><span><Plane size={12} color="var(--growa-sage)" />Aircraft</span><span><Ship size={12} color="var(--growa-ink-600)" />Cargo vessel</span><span><AlertTriangle size={12} color="var(--warning-strong)" />Reported risk</span><span><i className={styles.routePastLine} />Observed</span><span><i className={styles.routeFutureLine} />Estimated</span><span>Faded = stale</span></div>
+    <div className={styles.legend}><span><Plane size={12} color="var(--growa-sage)" />Aircraft</span><span><Ship size={12} color="var(--growa-ink-600)" />Cargo vessel</span><span><AlertTriangle size={12} color="var(--warning-strong)" />Reported risk</span><span><i className={styles.routePastLine} />Observed</span><span><i className={styles.routeFutureLine} />Estimated ({layers.projections ? projectableCount : 0})</span><span>Faded = stale</span></div>
     <footer className={styles.footer}><span>{busy ? 'UPDATING SOURCES' : snapshot ? 'SNAPSHOT ' + utc(snapshot.generatedAt) : 'CONNECTING TO SOURCES'} / {paused ? 'PAUSED' : 'AUTO 60s'}</span><span>ESRI WORLD IMAGERY · ADSB.lol / ODbL 1.0 · AIS licensed area · No simulated traffic</span></footer>
   </div>
 }

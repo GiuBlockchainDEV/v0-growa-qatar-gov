@@ -1,5 +1,5 @@
 import {describe,expect,it} from 'vitest'
-import {captureObservedPositions,destinationPoint,forwardCourseProjection,observedRoute,
+import {automaticRouteEvidence,captureObservedPositions,destinationPoint,forwardCourseProjection,observedRoute,
   worldCopyPolyline} from './route-geometry'
 import type {TrackingAsset} from './global-tracking'
 const now=Date.parse('2026-11-02T08:00:00Z')
@@ -72,5 +72,21 @@ describe('observed vs projected tracking routes',()=>{
     captureObservedPositions(history,[asset()],now)
     captureObservedPositions(history,[asset({lat:5,observedAt:new Date(now-20000).toISOString()})],now)
     expect(history.get('air:abc123')).toHaveLength(1)
+  })
+  it('displays automatically for all eligible assets without a selection',()=>{
+    const a=asset()
+    const b=asset({id:'air:def456',lat:27,lon:55,heading:180})
+    const future=automaticRouteEvidence([a,b],new Map(),now)
+    expect(future).toHaveLength(2)
+    expect(future.every(r=>r.projection!==null)).toBe(true)
+    expect(future.every(r=>r.observedSegments.length===0)).toBe(true)
+    const history=new Map([[a.id,[
+      {lat:25,lon:50.8,time:new Date(now-70000).toISOString()},
+      {lat:25,lon:51,time:a.observedAt},
+    ]]])
+    const tracked=automaticRouteEvidence([a,b],history,now)
+    expect(tracked.find(r=>r.id===a.id)?.observedSegments).toHaveLength(1)
+    expect(tracked.find(r=>r.id===b.id)?.observedSegments).toHaveLength(0)
+    expect(automaticRouteEvidence([asset({heading:null})],new Map(),now)).toEqual([])
   })
 })

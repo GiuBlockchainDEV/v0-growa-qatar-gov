@@ -160,3 +160,32 @@ export function worldCopyPolyline(points:readonly GeoPoint[],mapCenterLon:number
   }
   return result
 }
+
+/**
+ * Route geometry to show AUTOMATICALLY for every tracked asset in the current
+ * viewport. Selection is intentionally not an input: it only changes styling.
+ * One initial observation can yield an honest forward projection; past tracks
+ * require at least two observed fixes.
+ */
+export type AutomaticRouteEvidence = {
+  id: string
+  kind: TrackingAsset['kind']
+  observedSegments: TrackPoint[][]
+  projection: CourseProjection | null
+}
+export function automaticRouteEvidence(
+  assets: readonly TrackingAsset[],
+  history: ReadonlyMap<string, TrackPoint[]>,
+  now = Date.now(),
+): AutomaticRouteEvidence[] {
+  const routes: AutomaticRouteEvidence[] = []
+  for (const asset of assets) {
+    const observed = observedRoute(history.get(asset.id) ?? [], asset.kind)
+    const observedSegments = observed.segments.filter(segment => segment.length >= 2)
+    const projection = forwardCourseProjection(asset, now)
+    if (observedSegments.length || projection) routes.push({
+      id: asset.id, kind: asset.kind, observedSegments, projection,
+    })
+  }
+  return routes
+}

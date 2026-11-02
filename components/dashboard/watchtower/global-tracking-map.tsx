@@ -5,7 +5,7 @@ import 'leaflet/dist/leaflet.css'
 import { CHOKEPOINTS, QATAR, freshAsset, type TrackingAsset, type MapAlert, type MapLayers } from '@/lib/watchtower/global-tracking'
 import styles from './global-watchtower.module.css'
 import { getWorldFillZoom } from '@/lib/watchtower/map-viewport'
-import { captureObservedPositions, observedRoute, forwardCourseProjection, worldCopyPolyline, type TrackPoint } from '@/lib/watchtower/route-geometry'
+import { captureObservedPositions, automaticRouteEvidence, worldCopyPolyline, type TrackPoint } from '@/lib/watchtower/route-geometry'
 export type GlobalTrackingMapProps = {
   assets: TrackingAsset[]; historyAssets: TrackingAsset[]; alerts: MapAlert[]; layers: MapLayers; selectedId: string | null
   onSelect: (id: string) => void; now: number
@@ -115,37 +115,49 @@ export function GlobalTrackingMap({ assets, historyAssets, alerts, layers, selec
     if (layers.gateways) for (const point of CHOKEPOINTS) L.circleMarker([point.lat, point.lon], { radius: 5, color: MARKER.cream, weight: 2, fillOpacity: 0, dashArray: '2 2' })
       .bindTooltip(label(point.label + ' / geographic reference, not a closure alert')).addTo(group)
     L.marker([QATAR.lat, QATAR.lon], { interactive: false, icon: L.divIcon({ className: styles.qatar, html: '<span></span><b>QATAR</b>', iconSize: [80, 24], iconAnchor: [9, 12] }), zIndexOffset: 800 }).addTo(group)
-    // A selected vessel/aircraft has two explicitly distinct segments:
-    // SOLID = actually observed in this browsing session.
-    // DASHED = limited constant-course projection, not a published route.
-    // Draw both without fake waypoints or coastline-crossing voyage claims.
-    if (selectedId && (layers.trails || layers.projections)) {
-      const chosen = historyAssets.find(a => a.id === selectedId)
-      if (chosen && (chosen.kind === 'aircraft' ? layers.aircraft : layers.vessels)) {
-        if (layers.trails) {
-          const record = observedRoute(history.current.get(selectedId) ?? [],chosen.kind)
-          for (const segment of record.segments) {
-            if (segment.length < 2) continue
-            const coords = worldCopyPolyline(segment, map.getCenter().lng)
-            const style = { color: '#6C8952', weight: 4, opacity: 0.95, lineCap: 'round' as const }
-            const path = L.polyline(coords,style)
-              .bindTooltip(label('OBSERVED / recorded fixes in this browser session ('+segment.length+' positions)'))
-            path.addTo(group)
-          }
+    // Routes are GLOBAL overlays: no selection required. Use only received
+    // observations for the solid trail, and current-course projection for
+    // the dashed forward segment. Selection only highlights a route.
+    if (layers.trails || layers.projections) {
+      const visible = assets.filter(asset =>
+        (asset.kind === 'aircraft' ? layers.aircraft : layers.vessels) &&
+        bounds.contains([asset.lat, asset.lon]),
+      )
+      const routes = automaticRouteEvidence(visible, history.current, now)
+        .sort((a, b) => Number(a.id === selectedId) - Number(b.id === selectedId))
+      for (const route of routes) {
+        const focused = route.id === selectedId
+        if (layers.trails) for (const segment of route.observedSegments) {
+          const coords = worldCopyPolyline(segment, map.getCenter().lng)
+          L.polyline(coords, {
+            color: '#6C8952', weight: focused ? 4.5 : 2.7,
+            opacity: focused ? 1 : zoom < 5 ? 0.78 : 0.9,
+            lineCap: 'round',
+          }).bindTooltip(label(
+            'OBSERVED / ' + segment.length + ' actual fixes captured in this browser session. Click for details.',
+          )).on('click', () => select.current(route.id)).addTo(group)
         }
-        if (layers.projections) {
-          const projection = forwardCourseProjection(chosen,now)
-          if (projection) {
-            const coords = worldCopyPolyline(projection.path,map.getCenter().lng)
-            const future = L.polyline(coords,{
-              color:'#C9A227',weight:3,opacity:.98,dashArray:'3 9',lineCap:'round',
-            }).bindTooltip(label('ESTIMATED / constant speed and course for '+
-              projection.horizonMinutes+' min. NOT a verified itinerary or navigable route.'))
-            future.addTo(group)
-            const end=coords[coords.length-1]
-            L.circleMarker(end,{radius:5,color:'#7A5E0F',weight:2,fillColor:'#C9A227',fillOpacity:.85})
-              .bindTooltip(label('Projected '+projection.horizonMinutes+' min endpoint; unverified'))
-              .addTo(group)
+        if (layers.projections && route.projection) {
+          const projection = route.projection
+          const coords = worldCopyPolyline(projection.path, map.getCenter().lng)
+          L.polyline(coords, {
+            color: '#C9A227', weight: focused ? 4.5 : 2.8,
+            opacity: focused ? 1 : zoom < 5 ? 0.8 : 0.92,
+            dashArray: focused ? '7 8' : '5 8', lineCap: 'round',
+          }).bindTooltip(label(
+            'ESTIMATED / ' + projection.horizonMinutes +
+            ' min constant-course continuation. Not an actual flight plan or navigable voyage. Click for details.',
+          )).on('click', () => select.current(route.id)).addTo(group)
+          // Endpoints only on selection: an all-asset endpoint cloud would
+          // swamp the basemap, while all eligible route lines remain visible.
+          if (focused) {
+            const endpoint = coords[coords.length - 1]
+            L.circleMarker(endpoint, {
+              radius: 5, color: '#7A5E0F', weight: 2,
+              fillColor: '#C9A227', fillOpacity: 0.85,
+            }).bindTooltip(label(
+              'Estimated ' + projection.horizonMinutes + ' min endpoint; not a destination.',
+            )).addTo(group)
           }
         }
       }

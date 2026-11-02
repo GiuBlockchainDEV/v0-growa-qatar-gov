@@ -176,3 +176,17 @@ The associated right-side detail panel is wider, uses Growa light-mode styling,
 and allows long links, identifiers, and descriptions to wrap naturally.
 These changes are presentation-only; no source event classification, locations,
 or third-party alert titles are modified.
+
+
+## Automatically visible routes (no selection)
+
+Every tracked vehicle with recent provider heading and speed now automatically
+shows a yellow dashed forward-course projection on the Esri map, even when
+nothing is selected. Solid green observed trails appear automatically once at
+least two distinct provider positions have been captured in this session.
+These are not complete historical itineraries or confirmed carrier routes.
+Long observation gaps and impossible coordinate jumps are not joined. The
+selected vehicle is only highlighted and gains an endpoint marker; selection
+is not necessary to display its lines. The legend counts currently eligible
+forward projections. Filters for mode, region and route layer still apply.
+AIS vessels remain unavailable when the licensed feed is not connected.
