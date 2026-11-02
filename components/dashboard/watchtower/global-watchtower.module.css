@@ -209,6 +209,26 @@
   font-variant-numeric: tabular-nums;
   pointer-events: none;
 }
+.routeDetail {
+  margin: 12px 0;
+  padding: 12px;
+  background: var(--growa-cream-50);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  font-size: 11px;
+}
+.routeDetail h3 { font-size: 12px; font-weight: 600; color: var(--growa-ink); margin-bottom: 8px; }
+.routeDetail p { margin-top: 7px; color: var(--growa-stone-600); line-height: 1.55; }
+.routeDetail strong { color: var(--growa-ink); font-weight: 600; }
+.routePastLine,.routeFutureLine {
+  display: inline-block;
+  vertical-align: middle;
+  width: 27px;
+  height: 0;
+  margin-inline-end: 4px;
+  border-top: 4px solid var(--growa-sage);
+}
+.routeFutureLine { border-top: 3px dashed var(--warning); }
 .cluster { border: 0; background: none; }
 .cluster span { display: flex; align-items: center; justify-content: center; height: 34px; width: 34px; border: 2px solid var(--growa-sage); border-radius: 50%; background: var(--growa-cream); color: var(--growa-ink); font-size: 12px; font-weight: 700; box-shadow: 0 2px 8px #111e1366; }
 .asset { border: 0; background: none; filter: drop-shadow(0 1px 3px #111e13aa); }

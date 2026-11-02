@@ -8,6 +8,7 @@ import { useOrganization } from '@/hooks/use-organization'
 import type { FoodPosture } from '@/lib/watchtower/food-posture'
 import { CHOKEPOINTS, QATAR, REFRESH_SECONDS, freshAsset, separationKm, type MapAlert, type MapLayers, type TrackingAsset, type TrackingSnapshot } from '@/lib/watchtower/global-tracking'
 import type { GlobalTrackingMapProps } from './global-tracking-map'
+import { forwardCourseProjection } from '@/lib/watchtower/route-geometry'
 import styles from './global-watchtower.module.css'
 const Map = dynamic<GlobalTrackingMapProps>(() => import('./global-tracking-map').then(m => m.GlobalTrackingMap), { ssr: false, loading: () => <div className={styles.map} aria-busy="true" /> })
 const REGIONS = {
@@ -41,7 +42,7 @@ export function GlobalWatchtower() {
   const [commodity, setCommodity] = useState('all'), [alertKind, setAlertKind] = useState('all'), [highOnly, setHighOnly] = useState(false)
   const [selectedId, setSelectedId] = useState<string | null>(null), [sourceId, setSourceId] = useState<string | null>(null)
   const [focus, setFocus] = useState<GlobalTrackingMapProps['focus']>(null)
-  const [layers, setLayers] = useState<MapLayers>({ aircraft: true, vessels: true, risks: true, gateways: true, trails: true })
+  const [layers, setLayers] = useState<MapLayers>({ aircraft: true, vessels: true, risks: true, gateways: true, trails: true, projections: true })
   const orgId = organization?.id ?? null, food = posture?.organizationId === orgId ? posture : null
   useEffect(() => { pausedRef.current = paused }, [paused])
   useEffect(() => {
@@ -116,6 +117,7 @@ export function GlobalWatchtower() {
     (!highOnly || a.severity === 'high') && (commodity === 'all' || a.kind !== 'food' || a.id === 'food:' + commodity) &&
     (!query || (a.title + ' ' + a.source).toLowerCase().includes(query.toLowerCase()))), [allAlerts, inside, alertKind, highOnly, commodity, query])
   const selectedAsset = snapshot?.assets.find(a => a.id === selectedId), selectedAlert = allAlerts.find(a => a.id === selectedId)
+  const selectedProjection = selectedAsset ? forwardCourseProjection(selectedAsset,now) : null
   const selectedSource = snapshot?.sources.find(s => s.id === sourceId)
   const recentCount = (snapshot?.assets ?? []).filter(a => freshAsset(a, now)).length
   const staleSnapshot = Boolean(snapshot && now - Date.parse(snapshot.generatedAt) > 180000)
@@ -133,7 +135,7 @@ export function GlobalWatchtower() {
   const nearby = selectedAsset ? allAlerts.filter(a => a.kind === 'hazard' && separationKm(a, selectedAsset) <= 350).slice(0, 3) : []
   const nearGateway = selectedAsset ? [...CHOKEPOINTS].sort((a, b) => separationKm(a, selectedAsset) - separationKm(b, selectedAsset))[0] : null
   return <div id="watchtower-map" ref={root} className={styles.shell} dir={ar ? 'rtl' : 'ltr'}>
-    <Map assets={assets} alerts={alerts} layers={layers} selectedId={selectedId} onSelect={select} focus={focus} now={now} />
+    <Map assets={assets} historyAssets={snapshot?.assets ?? []} alerts={alerts} layers={layers} selectedId={selectedId} onSelect={select} focus={focus} now={now} />
     <header className={styles.header}>
       <div className={styles.titleRow}>
         <div><div className={styles.eyebrow}>NFII / GLOBAL OPERATING PICTURE</div>
@@ -166,7 +168,7 @@ export function GlobalWatchtower() {
       <div className="mt-2 flex gap-2"><button className={styles.smallButton} onClick={() => setView('global')}><Globe2 size={12} />Global</button><button className={styles.smallButton} onClick={() => { setView('gulf'); setFocus({ ...QATAR, zoom: 6, token: Date.now() }) }}>Qatar</button></div>
       <hr className={styles.divider} />
       {([
-        ['aircraft', Plane, 'Aircraft'], ['vessels', Ship, 'Cargo vessels'], ['risks', AlertTriangle, 'Risk reports'], ['gateways', Globe2, 'Strategic chokepoints'], ['trails', Activity, 'Observed track history'],
+        ['aircraft', Plane, 'Aircraft'], ['vessels', Ship, 'Cargo vessels'], ['risks', AlertTriangle, 'Risk reports'], ['gateways', Globe2, 'Strategic chokepoints'], ['trails', Activity, 'Observed routes (solid)'], ['projections', Activity, 'Estimated future (dashed)'],
       ] as const).map(([key, Icon, title]) => <button key={key} className={styles.toggle} aria-pressed={layers[key]} onClick={() => setLayers(current => ({ ...current, [key]: !current[key] }))}><span><Icon size={13} />{title}</span><i className={styles.switch} /></button>)}
       <hr className={styles.divider} />
       <button className={styles.toggle} aria-pressed={cargoOnly} onClick={() => setCargoOnly(!cargoOnly)}><span>Freight operators only</span><i className={styles.switch} /></button>
@@ -175,7 +177,7 @@ export function GlobalWatchtower() {
       <button className={styles.toggle} aria-pressed={highOnly} onClick={() => setHighOnly(!highOnly)}><span>High signals only</span><i className={styles.switch} /></button>
       <label className={styles.label} htmlFor="watchtower-commodity">Food commodity</label>
       <select id="watchtower-commodity" className={styles.input} value={commodity} disabled={!food} onChange={e => setCommodity(e.target.value)}><option value="all">All commodities</option>{food?.commodities.map(c => <option key={c.commodityId} value={c.commodityId}>{ar ? c.nameAr : c.name}</option>)}</select>
-      <p className={styles.hint}>Commodity filtering applies to organization signals, not cargo manifests. Dashed trails connect observations received in this session.</p>
+      <p className={styles.hint}>Commodity filters apply to organization signals, not cargo manifests. Solid lines connect actual observed fixes in this session; dashed yellow lines project constant heading/speed briefly and are NOT flight plans or navigable sea routes.</p>
     </aside>
     <div className={styles.feedDock} aria-label="Tracking source status">{snapshot?.sources.map(source => <button key={source.id} className={styles.feedPill} data-state={source.state} onClick={() => { setSourceId(source.id); setSelectedId(null); setAlertsOpen(true); if (mobile) setFiltersOpen(false) }}><i />{source.name}: {source.state}</button>)}</div>
     <aside className={`${styles.panel} ${styles.alertPanel} ${alertsOpen ? '' : styles.hidePanel}`} aria-label="Alerts and selected observation">
@@ -192,6 +194,20 @@ export function GlobalWatchtower() {
             [selectedAsset.kind === 'aircraft' ? 'Altitude' : 'AIS destination', selectedAsset.kind === 'aircraft' ? (selectedAsset.altitudeFt === null ? 'Unknown' : selectedAsset.altitudeFt.toLocaleString() + ' ft') : selectedAsset.destination ?? 'Not reported'],
           ].map(([title, value]) => <div key={title}><span>{title}</span><strong>{value}</strong></div>)}</div>
           <p>{selectedAsset.lat.toFixed(4)}, {selectedAsset.lon.toFixed(4)} / {utc(selectedAsset.observedAt)}</p>
+          <div className={styles.routeDetail}>
+            <h3>Route tracking · {selectedAsset.kind === 'aircraft' ? 'aircraft' : 'cargo vessel'}</h3>
+            <p><span className={styles.routePastLine} /> <strong>Completed / observed</strong></p>
+            <p>Only distinct positions actually received by this browser since the page opened. Full historical trip and verified departure are unavailable unless a history provider is connected.</p>
+            <p><span className={styles.routeFutureLine} /> <strong>Remaining / estimated</strong></p>
+            {selectedProjection
+              ? <p>Direction-of-travel projection for the next {selectedProjection.horizonMinutes} minutes
+                ({selectedProjection.distanceKm.toFixed(1)} km), using observed speed and heading
+                as of {utc(selectedProjection.observedAt)}. This is NOT a verified planned route or destination.
+                {selectedAsset.kind === 'vessel' ? ' Sea lanes, port approaches and coastlines are not modelled.' : ' Flight plans, waypoints and airspace restrictions are not modelled.'}
+              </p>
+              : <p>Future segment unavailable: recent position, heading and speed are required.
+                The tracking feed does not provide a confirmed flight plan or navigational voyage route.</p>}
+          </div>
           <p className={styles.notice}>{selectedAsset.cargo === 'ais_cargo_class' ? 'AIS class identifies a cargo vessel.' : selectedAsset.cargo === 'operator_inferred' ? 'Freight-operator callsign heuristic, not a verified cargo manifest.' : 'Aircraft type alone does not confirm a cargo flight.'} Food cargo, supplier and purchase-order linkage are unverified.</p>
           {nearGateway && separationKm(selectedAsset, nearGateway) < 600 && <p>Reference proximity: {nearGateway.label}, approximately {Math.round(separationKm(selectedAsset, nearGateway))} km. Not evidence of crossing or disruption.</p>}
           {nearby.map(alert => <button key={alert.id} className={styles.alert} onClick={() => choose(alert)}><strong>{alert.title}</strong><p>Reported point within 350 km. Proximity only, not confirmed impact.</p></button>)}
@@ -214,7 +230,7 @@ export function GlobalWatchtower() {
         </>}
       </div>
     </aside>
-    <div className={styles.legend}><span><Plane size={12} color="var(--growa-sage)" />Aircraft</span><span><Ship size={12} color="var(--growa-ink-600)" />Cargo vessel</span><span><AlertTriangle size={12} color="var(--warning-strong)" />Reported risk</span><span>Faded = stale</span></div>
+    <div className={styles.legend}><span><Plane size={12} color="var(--growa-sage)" />Aircraft</span><span><Ship size={12} color="var(--growa-ink-600)" />Cargo vessel</span><span><AlertTriangle size={12} color="var(--warning-strong)" />Reported risk</span><span><i className={styles.routePastLine} />Observed</span><span><i className={styles.routeFutureLine} />Estimated</span><span>Faded = stale</span></div>
     <footer className={styles.footer}><span>{busy ? 'UPDATING SOURCES' : snapshot ? 'SNAPSHOT ' + utc(snapshot.generatedAt) : 'CONNECTING TO SOURCES'} / {paused ? 'PAUSED' : 'AUTO 60s'}</span><span>ESRI WORLD IMAGERY · ADSB.lol / ODbL 1.0 · AIS licensed area · No simulated traffic</span></footer>
   </div>
 }

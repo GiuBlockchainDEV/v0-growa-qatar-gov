@@ -5,8 +5,9 @@ import 'leaflet/dist/leaflet.css'
 import { CHOKEPOINTS, QATAR, freshAsset, type TrackingAsset, type MapAlert, type MapLayers } from '@/lib/watchtower/global-tracking'
 import styles from './global-watchtower.module.css'
 import { getWorldFillZoom } from '@/lib/watchtower/map-viewport'
+import { captureObservedPositions, observedRoute, forwardCourseProjection, worldCopyPolyline, type TrackPoint } from '@/lib/watchtower/route-geometry'
 export type GlobalTrackingMapProps = {
-  assets: TrackingAsset[]; alerts: MapAlert[]; layers: MapLayers; selectedId: string | null
+  assets: TrackingAsset[]; historyAssets: TrackingAsset[]; alerts: MapAlert[]; layers: MapLayers; selectedId: string | null
   onSelect: (id: string) => void; now: number
   focus: { lat: number; lon: number; zoom: number; token: number } | null
 }
@@ -17,11 +18,10 @@ const ESRI_ATTRIBUTION = '&copy; <a href="https://www.esri.com/" target="_blank"
 // Exact Growa design-system colours, matching styles/growa/colors.css.
 const MARKER = { aircraft: '#EEF4C9', vessel: '#A2B78C', critical: '#A8392B', attention: '#C9A227', ink: '#111E13', cream: '#EEF4C9' }
 
-type Observation = { lat: number; lon: number; time: string }
 const label = (value: string) => { const node = document.createElement('span'); node.textContent = value; return node }
-export function GlobalTrackingMap({ assets, alerts, layers, selectedId, onSelect, focus, now }: GlobalTrackingMapProps) {
+export function GlobalTrackingMap({ assets, historyAssets, alerts, layers, selectedId, onSelect, focus, now }: GlobalTrackingMapProps) {
   const host = useRef<HTMLDivElement>(null), mapRef = useRef<L.Map | null>(null), graphics = useRef<L.LayerGroup | null>(null)
-  const history = useRef(new Map<string, Observation[]>()), select = useRef(onSelect)
+  const history = useRef(new Map<string, TrackPoint[]>()), select = useRef(onSelect)
   const [revision, setRevision] = useState(0), [tileError, setTileError] = useState(false)
   const [point, setPoint] = useState<{ lat: number; lon: number } | null>(null)
   useEffect(() => { select.current = onSelect }, [onSelect])
@@ -68,16 +68,11 @@ export function GlobalTrackingMap({ assets, alerts, layers, selectedId, onSelect
     changed()
     return () => { observer.disconnect(); tiles.off(); map.off(); map.remove(); mapRef.current = null; graphics.current = null }
   }, [])
+  // Record all source-observed fixes, not just visible / filtered assets.
+  // No interpolated backfill: past route is limited to this browser session.
   useEffect(() => {
-    const store = history.current
-    for (const asset of assets) {
-      const samples = store.get(asset.id) ?? []
-      if (!samples.length || samples[samples.length - 1].time < asset.observedAt) samples.push({ lat: asset.lat, lon: asset.lon, time: asset.observedAt })
-      store.set(asset.id, samples.filter(p => now - Date.parse(p.time) <= 900000).slice(-15))
-    }
-    for (const [id, samples] of store) if (!samples.length || now - Date.parse(samples[samples.length - 1].time) > 900000) store.delete(id)
-    while (store.size > 4000) store.delete(store.keys().next().value!)
-  }, [assets, now])
+    captureObservedPositions(history.current, historyAssets, now)
+  }, [historyAssets, now])
   useEffect(() => { if (focus) mapRef.current?.flyTo([focus.lat, focus.lon], focus.zoom, { duration: 0.7 }) }, [focus])
   useEffect(() => {
     const map = mapRef.current, group = graphics.current
@@ -117,15 +112,42 @@ export function GlobalTrackingMap({ assets, alerts, layers, selectedId, onSelect
     if (layers.gateways) for (const point of CHOKEPOINTS) L.circleMarker([point.lat, point.lon], { radius: 5, color: MARKER.cream, weight: 2, fillOpacity: 0, dashArray: '2 2' })
       .bindTooltip(label(point.label + ' / geographic reference, not a closure alert')).addTo(group)
     L.marker([QATAR.lat, QATAR.lon], { interactive: false, icon: L.divIcon({ className: styles.qatar, html: '<span></span><b>QATAR</b>', iconSize: [80, 24], iconAnchor: [9, 12] }), zIndexOffset: 800 }).addTo(group)
-    if (layers.trails && selectedId) {
-      const samples = history.current.get(selectedId) ?? [], segments: L.LatLngExpression[][] = [[]]
-      samples.forEach((p, i) => {
-        if (i > 0 && (Math.abs(p.lon - samples[i - 1].lon) > 180 || Date.parse(p.time) - Date.parse(samples[i - 1].time) > 300000)) segments.push([])
-        segments[segments.length - 1].push([p.lat, p.lon])
-      })
-      for (const segment of segments) if (segment.length > 1) L.polyline(segment, { color: MARKER.cream, weight: 3, opacity: 0.95, dashArray: '4 4' }).addTo(group)
+    // A selected vessel/aircraft has two explicitly distinct segments:
+    // SOLID = actually observed in this browsing session.
+    // DASHED = limited constant-course projection, not a published route.
+    // Draw both without fake waypoints or coastline-crossing voyage claims.
+    if (selectedId && (layers.trails || layers.projections)) {
+      const chosen = historyAssets.find(a => a.id === selectedId)
+      if (chosen && (chosen.kind === 'aircraft' ? layers.aircraft : layers.vessels)) {
+        if (layers.trails) {
+          const record = observedRoute(history.current.get(selectedId) ?? [],chosen.kind)
+          for (const segment of record.segments) {
+            if (segment.length < 2) continue
+            const coords = worldCopyPolyline(segment, map.getCenter().lng)
+            const style = { color: '#6C8952', weight: 4, opacity: 0.95, lineCap: 'round' as const }
+            const path = L.polyline(coords,style)
+              .bindTooltip(label('OBSERVED / recorded fixes in this browser session ('+segment.length+' positions)'))
+            path.addTo(group)
+          }
+        }
+        if (layers.projections) {
+          const projection = forwardCourseProjection(chosen,now)
+          if (projection) {
+            const coords = worldCopyPolyline(projection.path,map.getCenter().lng)
+            const future = L.polyline(coords,{
+              color:'#C9A227',weight:3,opacity:.98,dashArray:'3 9',lineCap:'round',
+            }).bindTooltip(label('ESTIMATED / constant speed and course for '+
+              projection.horizonMinutes+' min. NOT a verified itinerary or navigable route.'))
+            future.addTo(group)
+            const end=coords[coords.length-1]
+            L.circleMarker(end,{radius:5,color:'#7A5E0F',weight:2,fillColor:'#C9A227',fillOpacity:.85})
+              .bindTooltip(label('Projected '+projection.horizonMinutes+' min endpoint; unverified'))
+              .addTo(group)
+          }
+        }
+      }
     }
-  }, [assets, alerts, layers, selectedId, now, revision])
+  }, [assets, historyAssets, alerts, layers, selectedId, now, revision])
   return <><div ref={host} className={styles.map} role="region" aria-label="Interactive Esri World Imagery global map with selectable aircraft, vessels and food-security alerts" />
     {point && <output className={styles.coordinateReadout} aria-label="Selected map coordinates">
       {point.lat.toFixed(5)}°, {point.lon.toFixed(5)}°

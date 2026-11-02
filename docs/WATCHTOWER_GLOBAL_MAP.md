@@ -126,3 +126,36 @@ map always fills its CSS host, beneath overlay controls and panels.
 The original ESRI data source, attribution and interactive markers remain.
 
 Regression tests live in `lib/watchtower/map-viewport.test.ts`.
+
+
+## Selected-aircraft / vessel route visualization
+
+Click a tracked aircraft or vessel to render **two clearly distinguished
+route segments** above the interactive ESRI basemap:
+
+- **Solid Growa-sage line / Completed – observed**: real chronological
+  ADS-B or AIS fixes received during the browser session, at the provider's
+  reported observation times. Discontinuities due to long observation gaps,
+  impossible jumps or missing readings are kept separate. The display does not
+  claim the complete voyage or departure history from one or two fixes.
+- **Dashed ochre line / Remaining – estimated**: a limited geodesic
+  continuation of the latest reported speed and heading, not a provider flight
+  plan or a ship's navigational route. Aircraft horizon is at most 20 minutes;
+  vessel horizon is at most 60 minutes. The line disappears when the observation
+  is stale, the heading or speed is missing, or the vehicle is nearly stopped.
+  A projected endpoint is visibly marked, but is **NOT a destination**.
+
+Two independent map-layer toggles control observed route and estimated future
+segment. Only the selected aircraft/vessel receives lines to prevent global
+clutter. The route details state the horizon, estimated distance, source time
+and planning limitations. Tracking signals and cargo contents remain unverified
+unless an actual plan/history provider supplies appropriate evidence.
+
+Browser history is bounded per asset (3h aircraft / 12h vessel) and uses only
+samples observed since page load. It is **not** a provider-supplied archive and
+does not survive browser reload. Moving an asset's marker does not simulate
+position or generate route fixes.
+
+Pure route geometry and history constraints are tested in
+`lib/watchtower/route-geometry.test.ts`. In particular, antimeridian segments
+are kept on a continuous world copy so no artificial whole-world line appears.
