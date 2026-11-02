@@ -9,7 +9,7 @@ describe('NFII Watchtower scope regression', () => {
   it('keeps the command room focused on food security and scenarios', () => {
     expect(workspace).toContain('<WatchtowerFoodCommandCenter />')
     expect(workspace).toContain('<WatchtowerScenarioRoom />')
-    expect(read('components/dashboard/watchtower/global-watchtower.tsx')).toContain('Food Security Watchtower')
+    expect(readFileSync(join(process.cwd(), 'components/dashboard/watchtower/global-watchtower.tsx'), 'utf8')).toContain('Food Security Watchtower')
   })
 
   it.each([

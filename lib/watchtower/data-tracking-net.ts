@@ -93,13 +93,13 @@ function rows(raw:unknown):Row[]{
     if(candidate&&typeof candidate==='object'){
       const entries=Object.entries(candidate as Row)
       if(entries.length&&entries.length<=12000&&
-        entries.every(([key,v])=>/^[1-9]\\d{8}$/.test(key)&&
+        entries.every(([key,v])=>/^[1-9]\d{8}$/.test(key)&&
           v!==null&&typeof v==='object'&&!Array.isArray(v))){
         // The API may return an MMSI-indexed object whose entries omit mmsi.
         return entries.map(([key,value])=>{
           const item=obj(value)
           return {...item,mmsi:item.mmsi??item.MMSI??
-            (/^[1-9]\\d{8}$/.test(key)?key:undefined)}
+            (/^[1-9]\d{8}$/.test(key)?key:undefined)}
         })
       }
     }
