@@ -20,7 +20,7 @@ describe('NFII Watchtower navigation clarity',()=>{
     expect(ui).toContain("bg-cream-100")
     expect(ui).not.toContain("bg-slate-700")
     expect(ui).toContain("window.addEventListener('hashchange'")
-    expect(ui).toContain("aria-pressed={activeSection === section.id}")
+    expect(ui).toContain("aria-pressed={section.id === activeSection}")
     expect(ui).toContain("type=\"button\"")
   })
   it('does not reintroduce legacy field or fake national map summaries',()=>{

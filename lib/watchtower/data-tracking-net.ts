@@ -68,9 +68,12 @@ const date=(raw:unknown):string|null=>{
 }
 function rows(raw:unknown):Row[]{
   const root=obj(raw),data=obj(root.data)
-  const candidates=[raw,root.ships,root.vessels,root.results,root.positions,
-    root.items,root.records,root.current,root.data,
-    data.ships,data.vessels,data.results,data.positions,data.items,data.records]
+  // Wrapped APIs often return {ships:{MMSI:{...}}}. Never interpret the
+  // outer object as an MMSI dictionary before inspecting its children.
+  const candidates=[root.ships,root.vessels,root.results,root.positions,
+    root.items,root.records,root.current,
+    data.ships,data.vessels,data.results,data.positions,data.items,data.records,
+    root.data,raw]
   for(const candidate of candidates){
     if(Array.isArray(candidate)){
       if(candidate.length&&Array.isArray(candidate[0])){
@@ -89,8 +92,9 @@ function rows(raw:unknown):Row[]{
     }
     if(candidate&&typeof candidate==='object'){
       const entries=Object.entries(candidate as Row)
-      if(entries.length&&entries.length<=12000&&entries.every(([,v])=>
-        v!==null&&typeof v==='object'&&!Array.isArray(v))){
+      if(entries.length&&entries.length<=12000&&
+        entries.every(([key,v])=>/^[1-9]\\d{8}$/.test(key)&&
+          v!==null&&typeof v==='object'&&!Array.isArray(v))){
         // The API may return an MMSI-indexed object whose entries omit mmsi.
         return entries.map(([key,value])=>{
           const item=obj(value)

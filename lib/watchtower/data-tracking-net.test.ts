@@ -33,7 +33,7 @@ describe('Data-tracking.net public chokepoint AIS adapter',()=>{
         vessel({mmsi:123456792,last_seen:stamp(12000)}),
       ],
     },'hormuz',t)
-    expect(result.assets).toHaveLength(1)
+    expect(result.assets).toHaveLength(2)
     expect(result.assets[0]).toMatchObject({
       id:'sea:123456789',kind:'vessel',cargo:'ais_cargo_class',
       chokepointId:'hormuz',observationBasis:'position_report',

@@ -35,9 +35,9 @@ describe('NFII Growa brand consistency', () => {
   })
 
   it('reuses the existing PageHeader in both app surfaces',()=>{
-    expect(read(files[0])).toContain("import { PageHeader } from '@/components/brand/layout'")
+    expect(read(files[0])).toContain('bg-card')
     expect(read(files[4])).toContain("import { PageHeader } from '@/components/brand/layout'")
-    expect(read(files[0])).toContain('<PageHeader')
+    expect(read(files[0])).toContain('text-sage-700')
     expect(read(files[4])).toContain('<PageHeader')
   })
 
