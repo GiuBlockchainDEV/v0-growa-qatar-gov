@@ -159,3 +159,20 @@ position or generate route fixes.
 Pure route geometry and history constraints are tested in
 `lib/watchtower/route-geometry.test.ts`. In particular, antimeridian segments
 are kept on a continuous world copy so no artificial whole-world line appears.
+
+
+## Watchtower alert list separation and readable map details
+
+The floating **Food Security & Risk** inbox now renders only external,
+source-backed advisories / hazard reports. Organization food ledger entries are
+excluded from the inbox, while the organization's commodity KPI and map layer
+remain available in their original roles. The 'Mapped risk reports' number
+reflects the filtered external reports and is not inflated by internal ledger
+records. Alert source failures remain visible through the provider status chips.
+
+Leaflet alert tooltips have responsive minimum and maximum dimensions and
+normal text wrapping. They must not shrink into narrow vertical ribbons.
+The associated right-side detail panel is wider, uses Growa light-mode styling,
+and allows long links, identifiers, and descriptions to wrap naturally.
+These changes are presentation-only; no source event classification, locations,
+or third-party alert titles are modified.

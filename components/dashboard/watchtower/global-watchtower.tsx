@@ -116,6 +116,12 @@ export function GlobalWatchtower() {
   const alerts = useMemo(() => allAlerts.filter(a => inside(a) && (alertKind === 'all' || a.kind === alertKind) &&
     (!highOnly || a.severity === 'high') && (commodity === 'all' || a.kind !== 'food' || a.id === 'food:' + commodity) &&
     (!query || (a.title + ' ' + a.source).toLowerCase().includes(query.toLowerCase()))), [allAlerts, inside, alertKind, highOnly, commodity, query])
+  // Internal organization risk metrics remain on the map and KPI cards, but
+  // must not clutter the public Food Security & Risk alert inbox.
+  const externalRiskAlerts = useMemo(
+    () => alerts.filter(alert => alert.source !== 'Organization food ledger'),
+    [alerts],
+  )
   const selectedAsset = snapshot?.assets.find(a => a.id === selectedId), selectedAlert = allAlerts.find(a => a.id === selectedId)
   const selectedProjection = selectedAsset ? forwardCourseProjection(selectedAsset,now) : null
   const selectedSource = snapshot?.sources.find(s => s.id === sourceId)
@@ -124,7 +130,7 @@ export function GlobalWatchtower() {
   const staleFood = Boolean(food && now - Date.parse(food.generatedAt) > 300000)
   const airSource = snapshot?.sources.find(s => s.id === 'adsb'), seaSource = snapshot?.sources.find(s => s.id === 'ais')
   const known = (state: string | undefined) => state === 'partial' || state === 'available' || state === 'stale'
-  const riskReadable = Boolean(food?.assessedCount || snapshot?.sources.some(s => ['gdacs', 'easa', 'hormuz'].includes(s.id) && known(s.state)))
+  const riskReadable = Boolean(snapshot?.sources.some(s => ['gdacs', 'easa', 'hormuz'].includes(s.id) && known(s.state)))
   const select = useCallback((id: string) => { setSelectedId(id); setSourceId(null); setAlertsOpen(true); if (mobile) setFiltersOpen(false) }, [mobile])
   const choose = (item: TrackingAsset | MapAlert) => { select(item.id); setFocus({ lat: item.lat, lon: item.lon, zoom: 5, token: Date.now() }) }
   const setView = (key: Region) => { setRegion(key); setFocus({ ...REGIONS[key], token: Date.now() }) }
@@ -153,8 +159,8 @@ export function GlobalWatchtower() {
       <div className={styles.stats}>{[
         { label: 'Aircraft observations', value: known(airSource?.state) ? assets.filter(a => a.kind === 'aircraft').length : null, note: cargoOnly ? 'Freight-operator candidates / sampled' : 'Six airframe samples / not all traffic', icon: Plane },
         { label: 'Cargo vessel observations', value: known(seaSource?.state) ? assets.filter(a => a.kind === 'vessel').length : null, note: seaSource?.state === 'unconfigured' ? 'AIS subscription not connected' : 'Licensed coverage / not global totals', icon: Ship },
-        { label: 'Mapped risk reports', value: riskReadable ? alerts.length : null, note: 'Reported hazards & screening signals', icon: AlertTriangle },
-        { label: 'Food-security signals', value: food && food.assessedCount > 0 ? foodAlerts.length : null, note: staleFood ? 'Stale organization snapshot' : food ? food.assessedCount + ' commodities assessed / organization' : 'Organization ledger not loaded', icon: Wheat },
+        { label: 'Mapped risk reports', value: riskReadable ? externalRiskAlerts.length : null, note: 'External hazard and advisory reports', icon: AlertTriangle },
+        { label: 'Food-security signals', value: food && food.assessedCount > 0 ? foodAlerts.length : null, note: staleFood ? 'Stale organization snapshot' : foodError ? 'Organization ledger unavailable' : food ? food.assessedCount + ' commodities assessed / organization' : 'Organization ledger not loaded', icon: Wheat },
       ].map(item => <div key={item.label} className={styles.stat}><label>{item.label}</label><strong>{count(item.value)}</strong><item.icon size={21} /><small>{item.note}</small></div>)}</div>
     </header>
     {error && <div className={styles.statusError} role="alert">{error}</div>}
@@ -220,13 +226,10 @@ export function GlobalWatchtower() {
           <p className={styles.hint}>Operational impact requires a matching supplier, commodity and shipment. No disruption probability or automatic rerouting is asserted.</p>
           <Link className={styles.smallButton} href="/dashboard/logistics">Compare logistics <ArrowUpRight size={12} /></Link>
         </div> : selectedId ? <p className={styles.empty}>This observation is no longer in the current feed. Return to alerts or search for another asset.</p> : <>
-          <p className={styles.hint}>{organization?.name ?? 'No organization selected'} / 30-day food outlook. Public hazards are context, not confirmed supply disruptions.</p>
-          {foodError && <p className={styles.notice}>{foodError}</p>}
-          {staleFood && <p className={styles.notice}>Food ledger snapshot is stale. Review source dates before acting.</p>}
-          {!orgId && <p className={styles.notice}>Select an organization to load its reviewed food-security signals.</p>}
+          <p className={styles.hint}>Source-backed aviation, maritime and natural-hazard reports. Organization food ledger records are excluded from this alert list. Reports do not confirm disruption to food shipments.</p>
           {(staleSnapshot || paused) && <p className={styles.notice}>{paused ? 'Automatic updates paused. Positions will age.' : 'Tracking snapshot is stale. Source availability may have changed.'}</p>}
-          <div className="mt-3">{alerts.map(alert => <button key={alert.id} className={styles.alert} onClick={() => choose(alert)}><div className={styles.alertHead}><span className={styles.severity} data-level={alert.severity}>{alert.severity}</span><small>{alert.source}</small></div><strong>{alert.title}</strong><p>{alert.kind === 'food' ? 'Organization-level signal' : alert.kind === 'aviation' ? 'Advisory / not a verified closure' : alert.kind === 'maritime' ? 'Regional report / position approximate' : 'Reported hazard / impact unverified'}</p></button>)}</div>
-          {!alerts.length && <p className={styles.empty}>{busy ? 'Loading source-backed observations...' : 'No matching mapped reports in this response. Missing feeds are not evidence that a corridor is safe.'}</p>}
+          <div className="mt-3">{externalRiskAlerts.map(alert => <button key={alert.id} className={styles.alert} onClick={() => choose(alert)}><div className={styles.alertHead}><span className={styles.severity} data-level={alert.severity}>{alert.severity}</span><small>{alert.source}</small></div><strong>{alert.title}</strong><p>{alert.kind === 'food' ? 'Organization-level signal' : alert.kind === 'aviation' ? 'Advisory / not a verified closure' : alert.kind === 'maritime' ? 'Regional report / position approximate' : 'Reported hazard / impact unverified'}</p></button>)}</div>
+          {!externalRiskAlerts.length && <p className={styles.empty}>{busy ? 'Loading source-backed observations...' : 'No matching mapped reports in this response. Missing feeds are not evidence that a corridor is safe.'}</p>}
         </>}
       </div>
     </aside>

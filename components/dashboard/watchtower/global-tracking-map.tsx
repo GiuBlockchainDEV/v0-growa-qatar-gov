@@ -107,7 +107,10 @@ export function GlobalTrackingMap({ assets, historyAssets, alerts, layers, selec
     if (layers.risks) for (const alert of alerts) {
       const color = alert.severity === 'high' ? MARKER.critical : MARKER.attention
       L.circleMarker([alert.lat, alert.lon], { radius: alert.id === selectedId ? 11 : 7, color, weight: 2, fillColor: color, fillOpacity: 0.35 })
-        .bindTooltip(label(alert.source + ': ' + alert.title)).on('click', () => select.current(alert.id)).addTo(group)
+        .bindTooltip(label(alert.source + ': ' + alert.title), {
+          direction: 'auto', opacity: 0.98,
+          className: styles.riskTooltip,
+        }).on('click', () => select.current(alert.id)).addTo(group)
     }
     if (layers.gateways) for (const point of CHOKEPOINTS) L.circleMarker([point.lat, point.lon], { radius: 5, color: MARKER.cream, weight: 2, fillOpacity: 0, dashArray: '2 2' })
       .bindTooltip(label(point.label + ' / geographic reference, not a closure alert')).addTo(group)
