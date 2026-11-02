@@ -107,3 +107,22 @@ classification, deduplication, source boundaries and map-first integration.
 Run `npm test -- lib/watchtower/global-tracking.test.ts`, `npx tsc --noEmit` and
 `npm run build` in the complete project. Verify real provider connectivity and
 AIS entitlement in the deployed environment.
+
+
+## Full viewport imagery on large and ultrawide displays
+
+The initial ESRI overview zoom is now calculated from the actual Watchtower
+map container size with `getWorldFillZoom`. It is the smallest 0.1-step
+Web-Mercator zoom whose tile world is at least as large as the viewport in
+both dimensions. A 1736px-wide screen typically starts near zoom 2.8
+instead of the old fixed zoom 2, eliminating uncovered grey side panels.
+The minimum zoom also adapts when switching browser fullscreen or resizing.
+
+Leaflet is configured with `worldCopyJump: true` and the ESRI tile layer
+with `noWrap: false`; the former hard `maxBounds` clipping has been removed.
+These changes let ESRI tile images repeat across the antimeridian during
+horizontal panning instead of ending in empty grey columns. The visual
+map always fills its CSS host, beneath overlay controls and panels.
+The original ESRI data source, attribution and interactive markers remain.
+
+Regression tests live in `lib/watchtower/map-viewport.test.ts`.

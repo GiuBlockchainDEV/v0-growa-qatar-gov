@@ -4,6 +4,7 @@ import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import { CHOKEPOINTS, QATAR, freshAsset, type TrackingAsset, type MapAlert, type MapLayers } from '@/lib/watchtower/global-tracking'
 import styles from './global-watchtower.module.css'
+import { getWorldFillZoom } from '@/lib/watchtower/map-viewport'
 export type GlobalTrackingMapProps = {
   assets: TrackingAsset[]; alerts: MapAlert[]; layers: MapLayers; selectedId: string | null
   onSelect: (id: string) => void; now: number
@@ -26,14 +27,22 @@ export function GlobalTrackingMap({ assets, alerts, layers, selectedId, onSelect
   useEffect(() => { select.current = onSelect }, [onSelect])
   useEffect(() => {
     if (!host.current) return
-    const map = L.map(host.current, { center: [22, 35], zoom: 2, minZoom: 2, maxZoom: 19,
+    // Cover the entire visible viewport. A fixed zoom 2 has only 1024px of
+    // unwrapped world imagery, leaving large gray margins on wide displays.
+    const initialFloor = getWorldFillZoom(host.current.clientWidth, host.current.clientHeight)
+    let currentFloor = initialFloor
+    const map = L.map(host.current, {
+      center: [12, 20], zoom: initialFloor, minZoom: initialFloor, maxZoom: 19,
+      zoomSnap: 0.1, zoomDelta: 0.5,
       zoomControl: false, attributionControl: true, preferCanvas: true,
-      maxBounds: [[-85, -180], [85, 180]], maxBoundsViscosity: 0.8 })
+      // Do not clip the world to +/-180 degrees: ESRI is tiled globally.
+      worldCopyJump: true,
+    })
     mapRef.current = map
     // Esri satellite raster basemap, with Leaflet overlays remaining fully interactive.
     // Tiles are requested only for the visible viewport; no crawler/prefetch.
     const tiles = L.tileLayer(ESRI_WORLD_IMAGERY, {
-      maxZoom: 19, maxNativeZoom: 19, noWrap: true,
+      maxZoom: 19, maxNativeZoom: 19, noWrap: false,
       updateWhenIdle: true, keepBuffer: 1,
       attribution: ESRI_ATTRIBUTION,
     }).addTo(map)
@@ -44,8 +53,19 @@ export function GlobalTrackingMap({ assets, alerts, layers, selectedId, onSelect
     const changed = () => setRevision(n => n + 1)
     map.on('moveend zoomend', changed)
     map.on('click', event => setPoint({ lat: event.latlng.lat, lon: event.latlng.lng }))
-    const observer = new ResizeObserver(() => map.invalidateSize({ pan: false }))
-    observer.observe(host.current); changed()
+    const observer = new ResizeObserver(() => {
+      if (!host.current) return
+      const nextFloor = getWorldFillZoom(host.current.clientWidth, host.current.clientHeight)
+      const wasGlobalOverview = Math.abs(map.getZoom() - currentFloor) <= 0.11
+      if (nextFloor !== currentFloor) {
+        currentFloor = nextFloor
+        map.setMinZoom(nextFloor)
+        if (wasGlobalOverview) map.setZoom(nextFloor, { animate: false })
+      }
+      map.invalidateSize({ pan: false })
+    })
+    observer.observe(host.current)
+    changed()
     return () => { observer.disconnect(); tiles.off(); map.off(); map.remove(); mapRef.current = null; graphics.current = null }
   }, [])
   useEffect(() => {
