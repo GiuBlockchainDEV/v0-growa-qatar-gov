@@ -280,11 +280,13 @@ export function GlobalWatchtower() {
   useEffect(()=>{
     const asset=allAssets.find(a=>a.id===selectedId)
     if(!asset||asset.kind!=='vessel'||!asset.chokepointId)return
+    // Keep a narrowed primitive across the async closure for strict TS checks.
+    const chokepoint:ChokepointId=asset.chokepointId
     const controller=new AbortController()
     const load=async()=>{
       try{
         const response=await fetch('/api/watchtower/chokepoint-tracks?'+
-          new URLSearchParams({mmsi:asset.id.slice(4),chokepoint:asset.chokepointId}),{
+          new URLSearchParams({mmsi:asset.id.slice(4),chokepoint}),{
           cache:'no-store',
           signal:AbortSignal.any([controller.signal,AbortSignal.timeout(9000)]),
         })
