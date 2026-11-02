@@ -9,6 +9,8 @@ import type {GeoLine} from './logistics-route-geometry'
 import type {HazardCoverage} from './logistics-hazards'
 import {assessExposure,type ExposureAssessment} from './logistics-risk'
 import type {SecurityIntelligence} from './logistics-security'
+import {estimateFreightCost,type FreightCostEstimate} from './logistics-cost-estimator'
+import type {FreightEstimate} from './logistics-freight-benchmark'
 
 export type Mode='sea'|'air'|'road'
 export type CorridorEvidence='carrier_route_geometry'|'geographic_proxy'
@@ -17,7 +19,7 @@ export type RouteInputs={commodity:string;country:string;tonnes:number;limitDays
   seaDistances:Record<string,{km:number;durationDays:number|null;routeUrl:string;geometry?:GeoLine|null;calculationSource?:'local_ocean_network'}>|null;
   lpi:number|null;lpiYear:number|null;waves:number|null;weatherAgeHours:number|null;
   roadDistanceKm?:number|null;roadDriveHours?:number|null;hazards?:HazardCoverage|null;
-  security?:SecurityIntelligence|null}
+  security?:SecurityIntelligence|null;freightBenchmark?:FreightEstimate|null}
 export type ScreenedRoute={
   id:string;country:string;commodity:string;mode:Mode;via:string|null;
   from:string;to:string;originCode:string;destinationCode:string;
@@ -26,7 +28,7 @@ export type ScreenedRoute={
   reeferRequired:boolean;storageNote:string;
   rateQarPerTonne:number|null;freightTotalQar:number|null;freightQarKg:number|null;
   exposure:ExposureAssessment;
-  costSource:'user_supplied_rate'|'no_rate';riskScore:number|null;
+  costSource:'user_supplied_rate'|'no_rate';costEstimate:FreightCostEstimate|null;riskScore:number|null;
   riskBand:'reported_alert'|'no_nearby_reported_alert'|'unavailable';riskDrivers:string[];
   riskMethod:string;quality:'route_api'|'model_only';
   evidence:CorridorEvidence;sourceUrl:string|null;
@@ -66,6 +68,15 @@ export function buildScreenedRoutes(inputs:RouteInputs):ScreenedRoute[]{
     const days=route.mode==='sea'?(observed?.durationDays??null):airDays
     const rate=inputs.rates[route.mode]
     const safeRate=rate!==null&&Number.isFinite(rate)&&rate>0&&rate<MAX?rate:null
+    const costEstimate=estimateFreightCost({
+      routeId:route.id,mode:route.mode,distanceKm:distance,
+      distanceType:documentedDistance?'observed_sea_route':
+        realRoad?'observed_road_drive_geometry':
+        route.mode==='road'?'geometric_estimate':'straight_line_lower_bound',
+      tonnes,coldChain:spec.coldChain,via:route.via,
+      enteredRateQarPerTonne:safeRate,
+      marketplaceEstimate:inputs.freightBenchmark??null,
+    })
     const riskDrivers:string[]=[]
     const coverage=inputs.hazards
     const recent=coverage?.state==='available'?coverage.alerts:[]
@@ -132,7 +143,7 @@ export function buildScreenedRoutes(inputs:RouteInputs):ScreenedRoute[]{
       rateQarPerTonne:safeRate,
       freightTotalQar:safeRate===null?null:round(safeRate*tonnes,2),
       freightQarKg:safeRate===null?null:round(safeRate/1000,3),
-      costSource:safeRate===null?'no_rate':'user_supplied_rate',
+      costSource:safeRate===null?'no_rate':'user_supplied_rate',costEstimate,
       riskScore:exposure.index,riskBand,exposure,
       riskDrivers,riskMethod:'Source-backed 0–100 exposure INDEX, not a statistical probability of delay, attack or closure',
       quality:documentedDistance||realRoad?'route_api':'model_only',
@@ -180,7 +191,7 @@ export const LOGISTICS_DATA_RULES=[
   'Air days are a geodesic planning estimate at 750 km/h + 24h handling + 6h buffer, not a scheduled carrier ETA.',
   'The 0–100 security exposure index is not a percentage probability; unavailable evidence stays N/A.',
   'When no SeaRoutes response exists, a locally computed ocean-grid route may be shown at 14-knot assumed vessel speed; not a live service.',
-  'Cost values only from user-provided freight rate per tonne; do not imply spot quotes.',
+  'QAR ranges prioritize entered rates, then a Freightos direct dry-container benchmark, otherwise a distance/weight model. Modeled coefficients are not carrier tariffs.',
   'GDACS alerts near origin/Qatar are endpoint hazard observations, not route disruption estimates.',
   'LPI is a historical national benchmark, not a current shipment risk probability.',
   'Wave height is sampled at the departure port; not entire-route storm intelligence.',

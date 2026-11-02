@@ -229,3 +229,41 @@ scenarios receive structural 25 points only when AIS/incident data is
 available, supplemented by observed AIS traffic decline and reported incidents.
 Gulf-internal reference ports do not automatically cross Hormuz. Nearby
 GDACS alerts add context. All scores are capped at 100, otherwise N/A.
+
+
+## Automatic QAR freight cost estimates (2026-11-02)
+
+The comparison now calculates a labelled min-max budget for each route, in both
+**QAR/shipment** and **QAR/kg**. These figures are planning information and do not
+assert that a service, vessel, flight, border opening or carrier quote exists.
+
+Pricing priority: (1) positive manually entered carrier/forwarder rate in QAR/t;
+(2) Freightos public non-binding benchmark, direct dry sea FCL only for 1-22 t;
+(3) transparent mode-specific planning model. No benchmark is applied to
+refrigerated cargo unless the source is explicitly applicable. Freightos USD
+benchmarks use the documented 3.64 QAR/USD conversion.
+
+The model, implemented in `lib/nfii/logistics-cost-estimator.ts`, calculates:
+
+- **Sea:** dry container 22 t or reefer 17 t assumed capacity. Linehaul per
+  container: 2,300 + 0.70 QAR/km (lower) up to 4,900 + 1.50 QAR/km (upper);
+  handling 1,600-3,600 QAR/container; extra refrigerated and transfer allowances.
+- **Air:** 4.20 + 0.72 QAR/kg/1,000 km (lower), up to
+  8.30 + 1.65 QAR/kg/1,000 km (upper); handling and cooling separately.
+- **Road:** 24 t per dry truck or 18 t per reefer truck; linehaul per truck
+  900 + 2.80 QAR/km to 1,800 + 6.20 QAR/km; handling, border and cold-chain
+  allowances listed separately.
+- **Missing sea geometry:** broad 1.25-2.4 times geodesic proxy for budgeting
+  only. It is not a navigable distance and is not a live shipping rate.
+
+**All model coefficients are synthetic planning assumptions, not actual
+observed tariff data.** Freight charges, handling allowances, cooling and
+transfer/border budgets are itemized in the route detail. Cargo dimensions
+and packaging are unavailable, so vehicle/container counts are weight-only.
+Air chargeable volumetric weight and real cargo capacity remain unverified.
+Import duty, taxes, insurance, storage, demurrage, spoilage and actual
+door-to-door drayage are not included or verified.
+
+The cost cards are ranked by midpoint of the modeled/benchmarked ranges, not
+by the cheapest confirmed carrier offer. Risk and feasibility remain
+independent. Always obtain an actual forwarder quotation before procurement.

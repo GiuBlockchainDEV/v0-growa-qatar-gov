@@ -157,7 +157,8 @@ export function LogisticsCorridorIntelligence({
   const chosen=data?.routes.find(r=>r.id===selected)
   const maxTime=Math.max(...(data?.routes.map(r=>r.estimatedDays??0)??[]),1)
   const quoted=data?.routes.filter(r=>r.freightTotalQar!==null)??[]
-  const maxCost=Math.max(...quoted.map(r=>r.freightQarKg??0),.001)
+  const priced=data?.routes.filter(r=>r.costEstimate!==null)??[]
+  const maxCost=Math.max(...priced.map(r=>r.costEstimate?.maxQarKg??0),.001)
 
   return <section aria-label={tx('Food import corridor intelligence','تحليل مسارات استيراد الأغذية')}
     className="nfii-panel space-y-4 p-4 md:p-5">
@@ -265,8 +266,8 @@ export function LogisticsCorridorIntelligence({
           {tx('Optional carrier / forwarder rates · QAR per tonne','أسعار الشحن الاختيارية بالريال للطن')}
         </h3>
         <p className="text-[10px] text-content-soft">
-          {tx('Leave blank until you have quotes; no fictional freight prices will be shown.',
-            'اتركها فارغة إذا لم تتوفر عروض نقل حقيقية.')}
+          {tx('Optional carrier rate overrides. Leave blank for a labelled budget range per route: marketplace evidence where available, otherwise explicit planning assumptions.',
+            'أسعار الناقل اختيارية. عند تركها فارغة سيظهر نطاق تقديري لكل مسار ومصدر السعر.')}
         </p>
         <div className="mt-2 grid grid-cols-3 gap-2">
           {([
@@ -407,6 +408,45 @@ export function LogisticsCorridorIntelligence({
             'تقدير سوقي غير ملزم لحاوية جافة فقط ولا يشمل التخليص والرسوم والتأمين والتبريد.')}
         </p>
       </div>}
+      <div className="rounded-lg border border-line-accent bg-background p-3 md:p-4">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h3 className="text-[14px] font-semibold text-content">
+              {tx('Freight budget to Qatar · QAR per shipment','ميزانية الشحن إلى قطر · ريال لكل شحنة')}
+            </h3>
+            <p className="mt-1 text-[11px] text-content-soft">
+              {tx('Indicative min-max ranges, not confirmed carrier prices. Select a route for its source, breakdown and exclusions.',
+                'نطاقات تقديرية وليست أسعاراً مؤكدة. اختر المسار لمعرفة التفاصيل والمصدر.')}
+            </p>
+          </div>
+          <span className="rounded-md border border-line px-2 py-1 text-[11px] text-content-soft">
+            {priced.length}/{data.routes.length} {tx('priced routes','مسارات مسعّرة')}
+          </span>
+        </div>
+        <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+          {priced.slice().sort((a,b)=>
+            (a.costEstimate!.minQar+a.costEstimate!.maxQar)-
+            (b.costEstimate!.minQar+b.costEstimate!.maxQar)).slice(0,3)
+            .map(route=><button key={route.id} type="button"
+              onClick={()=>setSelected(route.id)}
+              className="rounded-md border border-line bg-card p-3 text-left hover:border-sage-600">
+              <span className="block text-[11px] font-semibold capitalize text-content">
+                {route.mode}{route.via?' · '+route.via:''}
+              </span>
+              <strong className="mt-1 block text-[18px] tabular-nums text-content">
+                {format(route.costEstimate!.minQar,0)} –
+                {' '}{format(route.costEstimate!.maxQar,0)} QAR
+              </strong>
+              <span className="mt-1 block text-[11px] text-content-soft">
+                {format(route.costEstimate!.minQarKg,3)} –
+                {' '}{format(route.costEstimate!.maxQarKg,3)} QAR/kg
+              </span>
+              <span className="mt-2 block text-[10px] text-content-soft">
+                {route.costEstimate!.sourceLabel}
+              </span>
+            </button>)}
+        </div>
+      </div>
       <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
         {[
           {label:tx('Corridor scenarios','سيناريوهات الطرق'),value:String(data.routes.length)},
@@ -548,30 +588,48 @@ export function LogisticsCorridorIntelligence({
       </div>
       <div className="rounded-md border border-line p-3">
         <h3 className="text-[12px] font-semibold text-content">
-          {tx('Quoted freight costs · QAR/kg','تكاليف الشحن المقدمة · ريال/كغ')}
+          {tx('Estimated freight cost · QAR/kg','التكلفة التقديرية للشحن · ريال/كغ')}
         </h3>
-        {quoted.length?<div className="mt-3 space-y-2">
-          {quoted.map(route=><div key={route.id}
-            className="grid grid-cols-[115px_1fr_70px] items-center gap-2">
-            <span className="truncate text-[11px]">{route.mode} {route.via?'via '+route.via.split(' ')[0]:''}</span>
-            <div className="h-3 rounded-full bg-muted"><div
-              className="h-full rounded-full bg-sage-600"
-              style={{width:(route.freightQarKg??0)/maxCost*100+'%'}}/></div>
-            <span className="text-right text-[11px] tabular-nums">{format(route.freightQarKg,3)}</span>
+        <p className="mt-1 text-[11px] text-content-soft">
+          {tx('Range per route, with the price evidence distinguished from a model assumption.',
+            'نطاق التكلفة لكل مسار مع توضيح المصدر أو الافتراض.')}
+        </p>
+        <div className="mt-3 space-y-3">
+          {priced.map(route=><div key={route.id} className="space-y-1">
+            <div className="grid grid-cols-[100px_1fr_125px] items-center gap-2">
+              <span className="truncate text-[11px] capitalize">
+                {route.mode}{route.via?' via '+route.via.split(' ')[0]:''}
+              </span>
+              <div className="h-3 overflow-hidden rounded-full bg-muted">
+                <div className="h-full rounded-full bg-sage-600"
+                  style={{width:route.costEstimate!.maxQarKg/maxCost*100+'%'}}/>
+              </div>
+              <span className="text-right text-[11px] tabular-nums">
+                {format(route.costEstimate!.minQarKg,3)} –
+                {' '}{format(route.costEstimate!.maxQarKg,3)}
+              </span>
+            </div>
+            <p className="ps-[108px] text-[10px] text-content-soft">
+              {route.costEstimate!.sourceLabel}
+              {' · '}{format(route.costEstimate!.minQar,0)} –
+              {' '}{format(route.costEstimate!.maxQar,0)} QAR
+            </p>
           </div>)}
-        </div>:<p className="mt-2 text-[11px] text-content-soft">
-          {tx('No actual freight quote entered. QAR/kg remains N/A rather than an invented price.',
-            'لا يوجد عرض سعر شحن مدخل. لا يتم إنشاء أسعار غير حقيقية.')}
-        </p>}
+          {!priced.length&&<p className="text-[11px] text-content-soft">
+            {tx('No usable evidence for a budget range.','لا توجد بيانات كافية لحساب التكلفة.')}
+          </p>}
+        </div>
       </div>
       <div className="overflow-x-auto rounded-lg border border-line">
-        <table className="w-full min-w-[740px] text-left text-[11px]">
+        <table className="w-full min-w-[980px] text-left text-[11px]">
           <thead className="bg-muted/30"><tr>
             <th className="p-2">{tx('Corridor','المسار')}</th>
             <th className="p-2">{tx('Method','الوسيلة')}</th>
             <th className="p-2 text-right">{tx('Distance km','المسافة كم')}</th>
             <th className="p-2 text-right">{tx('Days','الأيام')}</th>
-            <th className="p-2 text-right">{tx('QAR/kg','ريال/كغ')}</th>
+            <th className="p-2 text-right">{tx('QAR/kg range','نطاق ريال/كغ')}</th>
+            <th className="p-2 text-right">{tx('Total QAR','إجمالي ريال')}</th>
+            <th className="p-2">{tx('Cost source','مصدر السعر')}</th>
             <th className="p-2 text-right">{tx('Risk','المخاطر')}</th>
             <th className="p-2">{tx('Evidence','الدليل')}</th>
             <th className="p-2">{tx('Inspect','تفاصيل')}</th>
@@ -581,7 +639,11 @@ export function LogisticsCorridorIntelligence({
             <td className="p-2 capitalize">{route.mode}{route.via?' via hub':''}</td>
             <td className="p-2 text-right tabular-nums">{route.distanceType==='straight_line_lower_bound'?(route.mode==='sea'?'N/A':'≥'+format(route.distanceKm,0)):format(route.distanceKm,0)}</td>
             <td className="p-2 text-right tabular-nums">{format(route.estimatedDays)}</td>
-            <td className="p-2 text-right tabular-nums">{format(route.freightQarKg,3)}</td>
+            <td className="p-2 text-right tabular-nums">{route.costEstimate?
+              format(route.costEstimate.minQarKg,3)+'–'+format(route.costEstimate.maxQarKg,3):'N/A'}</td>
+            <td className="p-2 text-right tabular-nums">{route.costEstimate?
+              format(route.costEstimate.minQar,0)+'–'+format(route.costEstimate.maxQar,0):'N/A'}</td>
+            <td className="p-2 text-content-soft">{route.costEstimate?.sourceLabel??'N/A'}</td>
             <td className="p-2 text-right">{route.exposure.index===null?'N/A':route.exposure.index+'/100'} · {route.exposure.label.replaceAll('_',' ')}</td>
             <td className="p-2">{route.quality==='route_api'?
               route.sourceUrl?.includes('arcnautical')?'Ocean network estimate':'Routing API evidence':'Unverified itinerary'}</td>
@@ -603,15 +665,54 @@ export function LogisticsCorridorIntelligence({
             {tx('Unverified transport itinerary','مسار نقل غير مؤكد')}
           </span>}
         </p>
-        <p className="mt-2 text-[12px] text-content">
-          {tx('If quoted, freight for this shipment:','تكلفة النقل إن وجد عرض سعر:')}
-          {' '}{chosen.freightTotalQar===null?'N/A':
-            format(chosen.freightTotalQar,2)+' QAR'}
-        </p>
-        <p className="mt-1 text-[11px] text-content-soft">
-          {tx('Includes only the entered carrier rate. Excludes duties, inland drayage, cold storage, demurrage, insurance and spoilage.',
-            'يشمل سعر الناقل المدخل فقط، لا الرسوم أو التأمين أو التخزين أو التلف.')}
-        </p>
+        {chosen.costEstimate&&<div className="mt-3 space-y-3 rounded-md border border-line bg-card p-3">
+          <div className="flex flex-wrap justify-between gap-2">
+            <div>
+              <p className="text-[10px] text-content-soft">
+                {tx('Whole shipment freight budget','ميزانية شحن الشحنة كاملة')}
+              </p>
+              <strong className="block text-[18px] tabular-nums text-content">
+                {format(chosen.costEstimate.minQar,0)} –
+                {' '}{format(chosen.costEstimate.maxQar,0)} QAR
+              </strong>
+              <span className="text-[11px] text-content-soft">
+                {format(chosen.costEstimate.minQarKg,3)} –
+                {' '}{format(chosen.costEstimate.maxQarKg,3)} QAR/kg
+              </span>
+            </div>
+            <div className="text-[11px] text-content-soft">
+              <p className="font-semibold text-content">{chosen.costEstimate.sourceLabel}</p>
+              <p>{chosen.costEstimate.units??'N/A'} · {chosen.costEstimate.unitLabel}</p>
+              {chosen.costEstimate.observedAt&&<p>
+                {tx('Benchmark checked','تم فحص السعر المرجعي')}:
+                {' '}{chosen.costEstimate.observedAt.slice(0,10)}
+              </p>}
+            </div>
+          </div>
+          <div className="grid gap-2 sm:grid-cols-2">
+            {([
+              [tx('Main freight','الشحن الأساسي'),chosen.costEstimate.breakdown.linehaul],
+              [tx('Handling allowance','بدل المناولة'),chosen.costEstimate.breakdown.handling],
+              [tx('Cooling allowance','بدل التبريد'),chosen.costEstimate.breakdown.coldChain],
+              [tx('Transfer / border allowance','بدل التحويل أو الحدود'),chosen.costEstimate.breakdown.transferAndBorder],
+            ] as const).map(([label,range])=><div key={label}
+              className="flex items-center justify-between gap-2 border-b border-line py-1 text-[11px]">
+              <span className="text-content-soft">{label}</span>
+              <strong className="tabular-nums text-content">
+                {format(range.minQar,0)}–{format(range.maxQar,0)} QAR
+              </strong>
+            </div>)}
+          </div>
+          <ul className="space-y-1">
+            {chosen.costEstimate.assumptions.map(note=><li key={note}
+              className="text-[10px] text-content-soft">• {note}</li>)}
+          </ul>
+          {chosen.costEstimate.sourceUrl&&<a href={chosen.costEstimate.sourceUrl}
+            target="_blank" rel="noopener noreferrer"
+            className="inline-flex items-center gap-1 text-[11px] text-sage-700 underline">
+            {tx('Pricing source','مصدر السعر')} <ExternalLink className="h-3 w-3"/>
+          </a>}
+        </div>}
         <ul className="mt-3 space-y-1">
           {chosen.riskDrivers.map(message=><li key={message}
             className="flex gap-2 text-[11px] text-content-soft">

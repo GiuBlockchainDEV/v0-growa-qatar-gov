@@ -65,7 +65,7 @@ export async function GET(request:Request){
     collectSecurityIntelligence(),
   ])
   const screened=buildScreenedRoutes({
-    ...parsed,rates,seaDistances:evidence.seaRoutes,
+    ...parsed,rates,freightBenchmark:freight.estimate,seaDistances:evidence.seaRoutes,
     lpi:evidence.lpi,lpiYear:evidence.lpiYear,
     waves:evidence.waves,weatherAgeHours:evidence.weatherAgeHours,
     roadDistanceKm:evidence.roadRoute?.distanceKm??null,
@@ -103,7 +103,7 @@ export async function GET(request:Request){
     sources:evidence.refs,
     dataWarnings:evidence.messages,
     riskDisclaimer:'The 0–100 security exposure index is weighted screening, NOT percentage probability of delay, incident or closure. EASA advisories are not NOTAMs; AIS may undercount during jamming. Missing provider evidence returns N/A.',
-    pricesDisclaimer:'Freightos marketplace may supply non-binding dry-container reference ranges. Mode-specific route prices are calculated only from manually entered carrier rates; no reefer costs are inferred.',
+    pricesDisclaimer:'QAR figures are planning estimates, NOT carrier quotes. Each route labels user-entered rates, Freightos public dry FCL benchmarks or model estimates. Cold-chain and border allowances are model assumptions, not supplier charges. Customs duties, taxes, insurance and unverified pickup/delivery are excluded.',
     scheduleDisclaimer:'No confirmed port call, airline booking, border service or verified real shipment tracking without carrier systems.',
     modelLimitations:LOGISTICS_DATA_RULES,
     generatedAt:new Date().toISOString(),
