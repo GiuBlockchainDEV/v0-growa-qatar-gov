@@ -8,7 +8,7 @@ import { useOrganization } from '@/hooks/use-organization'
 import type { FoodPosture } from '@/lib/watchtower/food-posture'
 import type {ProductionRiskSnapshot,ProductionRiskZone} from '@/lib/watchtower/production-risk'
 import { CHOKEPOINTS, QATAR, REFRESH_SECONDS, freshAsset, mergeAssets, separationKm, type MapAlert, type MapLayers, type TrackingAsset, type TrackingSnapshot } from '@/lib/watchtower/global-tracking'
-import {TRACKED_CHOKEPOINTS,type ChokepointId,type DataTrackingSnapshot,type ChokepointReport} from '@/lib/watchtower/data-tracking-net'
+import {TRACKED_CHOKEPOINTS,type ChokepointId,type DataTrackingSnapshot} from '@/lib/watchtower/data-tracking-net'
 import type {AISRoute,HistoryOverlay} from '@/lib/watchtower/data-tracking-history'
 import {MONITORED_MARITIME_PORTS,type GccRadarSnapshot} from '@/lib/watchtower/myshiptracking-gcc-shared'
 import type {HormuzNowFeed} from '@/lib/watchtower/hormuz-now'
@@ -46,7 +46,7 @@ export function GlobalWatchtower() {
   const root = useRef<HTMLDivElement>(null), pausedRef = useRef(false)
   const [snapshot, setSnapshot] = useState<TrackingSnapshot | null>(null), [posture, setPosture] = useState<FoodPosture | null>(null)
   const [productionRisk,setProductionRisk]=useState<ProductionRiskSnapshot|null>(null)
-  const [productionError,setProductionError]=useState('')
+  const [,setProductionError]=useState('')
   const [maritimeFeed,setMaritimeFeed]=useState<DataTrackingSnapshot|null>(null)
   const [openSea,setOpenSea]=useState<HormuzNowFeed|null>(null)
   const [openSeaError,setOpenSeaError]=useState('')
