@@ -24,7 +24,7 @@ describe('Open Waters AIS adapter for waters outside the Persian Gulf',()=>{
       feature(123456789,17,40),feature(234567890,12,48,8,80,0),
       feature(345678901,16,62,4,75,14,'base'),
       feature(456789012,18,56,160),
-      feature(567890123,18,91),
+      feature(567890123,18,191),
     ],attribution:{aishub:'Credit AISHub contributors, aishub.net'}},now)
     expect(result.assets).toHaveLength(2)
     expect(result.assets[0].cargo).toBe('ais_cargo_class')
