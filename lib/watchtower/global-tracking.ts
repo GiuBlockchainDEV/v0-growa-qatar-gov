@@ -9,7 +9,7 @@ export type TrackingAsset = {
   itinerary?: import('./itinerary-sources').RouteItinerary | null
   /** Public data-tracking.net reporting area, when provided by the source. */
   chokepointId?: import('./data-tracking-net').ChokepointId
-  hubId?: import('./myshiptracking-gcc').GccHubId
+  hubId?: import('./myshiptracking-gcc-shared').GccHubId
   /** Distinguishes a per-ship timestamp from a dataset-level last poll. */
   observationBasis?: 'position_report' | 'snapshot_poll'
 }

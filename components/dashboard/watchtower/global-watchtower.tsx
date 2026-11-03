@@ -10,7 +10,7 @@ import type {ProductionRiskSnapshot,ProductionRiskZone,ProductionDriver} from '@
 import { CHOKEPOINTS, QATAR, REFRESH_SECONDS, freshAsset, mergeAssets, separationKm, type MapAlert, type MapLayers, type TrackingAsset, type TrackingSnapshot } from '@/lib/watchtower/global-tracking'
 import {TRACKED_CHOKEPOINTS,type ChokepointId,type DataTrackingSnapshot,type ChokepointReport} from '@/lib/watchtower/data-tracking-net'
 import type {AISRoute,HistoryOverlay} from '@/lib/watchtower/data-tracking-history'
-import {GCC_PORTS,type GccHubId,type GccRadarSnapshot} from '@/lib/watchtower/myshiptracking-gcc'
+import {GCC_PORTS,type GccHubId,type GccRadarSnapshot} from '@/lib/watchtower/myshiptracking-gcc-shared'
 import type { GlobalTrackingMapProps } from './global-tracking-map'
 import {mergeTrackingUpdate,mergeFlightItineraries,type RouteLookupResponse} from '@/lib/watchtower/tracking-merge'
 import styles from './global-watchtower.module.css'
