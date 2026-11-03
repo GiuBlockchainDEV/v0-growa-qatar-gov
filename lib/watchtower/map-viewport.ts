@@ -28,6 +28,6 @@ export function getWorldFillZoom(width: number, height: number): number {
  * an assertion of live AIS reception throughout these waters.
  */
 export const REGIONAL_WATCHTOWER_VIEW={
-  lat:22.5,lon:50,zoom:4.5,
-  box:[9,31,36,68] as readonly [number,number,number,number],
+  lat:24.5,lon:50.5,zoom:4.1,
+  box:[7,25,42,80] as readonly [number,number,number,number],
 } as const

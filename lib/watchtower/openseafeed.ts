@@ -4,7 +4,7 @@
  * The provider is young; empty/failed snapshots are never treated as zero traffic.
  * Vessel coordinates and timestamps are source-reported, not simulations.
  */
-import {coordinate,mergeAssets,type TrackingAsset} from './global-tracking'
+import {coordinate,type TrackingAsset} from './global-tracking'
 
 type Row=Record<string,unknown>
 const obj=(value:unknown):Row=>value!==null&&typeof value==='object'&&!Array.isArray(value)?value as Row:{}
@@ -14,7 +14,7 @@ const num=(value:unknown):number|null=>{
 }
 const label=(value:unknown,length=90):string=>
   typeof value==='string'?value.replace(/[<>]/g,'').trim().slice(0,length):''
-const isRegional=(a:{lat:number;lon:number})=>a.lat>=9&&a.lat<=36&&a.lon>=31&&a.lon<=68
+const isRegional=(a:{lat:number;lon:number})=>a.lat>=7&&a.lat<=42&&a.lon>=25&&a.lon<=80
 export type OpenSeaFeedSnapshot={
   source:'OpenSeaFeed AIS'
   state:'partial'|'stale'|'unavailable'|'unconfigured'
