@@ -685,7 +685,8 @@ export function GlobalWatchtower() {
           note:publicFood?.fao.state==='available'
             ?'FAO GIEWS · '+(publicFood.fao.edition??'published assessment')
             :'FAO GIEWS · assessment not available', icon: Wheat },
-      ].map(item => <div key={item.label} className={styles.stat}>
+      ].map(item => <div key={item.label} className={styles.stat}
+        data-signal={item.label==='Worldwide risk reports'?'risk':item.label==='Countries requiring assistance'?'assistance':'traffic'}>
         <label>{item.label}</label><strong>{count(item.value)}</strong>
         <item.icon size={21} /><small>{item.note}</small>
       </div>)}</div>
@@ -940,7 +941,7 @@ export function GlobalWatchtower() {
           <section className={styles.intelHero} aria-label="Global food security intelligence overview">
             <div className={styles.intelHeroTop}>
               <span className={styles.intelEyebrow}><Globe2 size={13}/> GLOBAL INTELLIGENCE</span>
-              <span className={styles.intelHeroLabel}><i/> WORLDWIDE</span>
+              <span className={styles.intelHeroLabel}><i/> GLOBAL COVERAGE</span>
             </div>
             <div className={styles.intelHeroTitle}>
               <div>
@@ -950,18 +951,18 @@ export function GlobalWatchtower() {
               <span className={styles.intelRadar} aria-hidden="true"><Radar size={31}/></span>
             </div>
             <div className={styles.intelMetrics}>
-              <div className={styles.intelMetric}>
+              <div className={styles.intelMetric} data-signal="assistance">
                 <strong>{publicFood?.fao.state==='available'&&publicFood.fao.countryCount!==null
                   ?publicFood.fao.countryCount.toLocaleString('en-US'):'—'}</strong>
                 <span>Countries requiring assistance</span>
                 <small>FAO GIEWS · {publicFood?.fao.edition??'assessment pending'}</small>
               </div>
-              <div className={styles.intelMetric}>
+              <div className={styles.intelMetric} data-signal="reports">
                 <strong>{riskReadable?externalRiskAlerts.length:'—'}</strong>
                 <span>Geolocated reports</span>
                 <small>GDACS / logistics</small>
               </div>
-              <div className={styles.intelMetric}>
+              <div className={styles.intelMetric} data-signal="outlooks">
                 <strong>{publicFood?.fews.state==='available'||publicFood?.fews.state==='partial'
                   ?publicFood.fews.reports.length:'—'}</strong>
                 <span>Food outlook reports</span>
@@ -983,7 +984,7 @@ export function GlobalWatchtower() {
                 title={name+' · '+(state??'loading')}>
                 <i/>{name}
               </span>)}
-            <span className={styles.intelSourceCaption}>SOURCE STATUS</span>
+            <span className={styles.intelSourceCaption}>DATA ACCESS</span>
           </div>
           <div className={styles.riskFilterRow} role="group" aria-label="Filter global risk reports">
             {([
@@ -993,6 +994,7 @@ export function GlobalWatchtower() {
               ['logistics','Logistics',Ship,logisticsSignals],
             ] as const).map(([value,label,Icon,total])=>
               <button key={value} className={styles.riskFilterButton}
+                data-category={value}
                 aria-pressed={riskPanelFilter===value}
                 onClick={()=>setRiskPanelFilter(value)}>
                 <Icon size={13}/><span>{label}</span><small>{total}</small>
@@ -1019,7 +1021,7 @@ export function GlobalWatchtower() {
               <span>{visibleFoodReports.length}</span>
             </div>}
           {showFoodInsights&&visibleFoodReports.map(report=>
-            <a key={report.id} className={styles.intelSignalCard}
+            <a key={report.id} className={styles.intelSignalCard} data-kind="report"
               href={report.url} target="_blank" rel="noopener noreferrer">
               <div className={styles.intelSignalTop}>
                 <span className={styles.intelType} data-kind="report">FEWS NET · REPORT</span>
@@ -1035,7 +1037,7 @@ export function GlobalWatchtower() {
               <span>{displayedIpc.length}</span>
             </div>}
           {showFoodInsights&&displayedIpc.map(r=>
-            <button key={r.id} className={styles.intelSignalCard}
+            <button key={r.id} className={styles.intelSignalCard} data-kind="food"
               onClick={()=>{setSelectedId(null);setSourceId(null);setSelectedIpcId(r.id);setAlertsOpen(true)}}>
               <div className={styles.intelSignalTop}>
                 <span className={styles.intelType} data-kind="food">IPC / CH · PHASE 3+</span>
