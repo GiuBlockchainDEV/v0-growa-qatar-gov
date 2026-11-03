@@ -518,10 +518,13 @@ export function GlobalWatchtower() {
     !query||(a.title+' '+a.source).toLowerCase().includes(query.toLowerCase()),
   ),[allAlerts,query])
   // Organization-level indicators do not become global food-crisis alerts.
-  const riskZones=useMemo<ProductionRiskZone[]>(()=>(
-    productionRisk?.zones??[]).filter(zone=>
-    !query||(zone.name+' '+zone.country+' '+zone.driver+' '+zone.eventTitles.join(' ')).toLowerCase().includes(query.toLowerCase())),
-  ),[productionRisk,query])
+  const riskZones=useMemo<ProductionRiskZone[]>(
+    ()=>(productionRisk?.zones??[]).filter(zone=>
+      !query||[zone.name,zone.country??'',zone.driver,...zone.eventTitles]
+        .join(' ').toLowerCase().includes(query.toLowerCase())
+    ),
+    [productionRisk,query],
+  )
   const externalRiskAlerts = useMemo(
     () => allAlerts.filter(alert=>alert.source!=='Organization food ledger'&&
       (!query||(alert.title+' '+alert.source).toLowerCase().includes(query.toLowerCase()))),
