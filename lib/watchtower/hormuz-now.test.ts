@@ -6,7 +6,7 @@ const fields=['id','name','lat','lon','speed','course','heading',
   'category','length','flag','type','destination','dwt','ageMin','commercial','side']
 const row=(id:string,lat:number,lon:number,speed:number,ageMin=5,
   category='cargo')=>[id,'TEST SHIP '+id,lat,lon,speed,140,142,
-  category,100,'QA','Bulk Carrier','HAMAD',14000,ageMin,1,1]
+  category,100,'QA',category==='cargo'?'Bulk Carrier':category==='tanker'?'Oil Tanker':'Unknown','HAMAD',14000,ageMin,1,1]
 describe('hormuz.now real regional AIS adapter',()=>{
   it('reads compact field-indexed API and retains ships regardless of cargo category',()=>{
     const result=parseHormuzNowCompact({t:now-120000,n:3,fields,rows:[
