@@ -2,18 +2,22 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
-import { AlertTriangle, ArrowUpRight, Database, RefreshCw, ShieldCheck, Wheat } from 'lucide-react'
+import {
+  Activity, AlertTriangle, ArrowUpRight, CalendarDays, ClipboardCheck,
+  Clock3, Database, RefreshCw, ShieldCheck, Wheat,
+} from 'lucide-react'
 import { useI18n } from '@/lib/i18n'
 import { useOrganization } from '@/hooks/use-organization'
 import type { FoodPosture, FoodPostureCommodity, FoodRiskBand } from '@/lib/watchtower/food-posture'
 import { WatchtowerResilienceDesk } from '@/components/dashboard/watchtower/resilience-desk'
+import styles from './food-command-center.module.css'
 
-const SCREENING_LABEL: Record<FoodRiskBand, { en: string; ar: string; css: string }> = {
-  critical: { en: 'Critical', ar: 'حرج', css: 'bg-warning-soft text-warning-strong border-warning-line' },
-  high: { en: 'High', ar: 'مرتفع', css: 'bg-warning-soft text-warning-strong border-warning-line' },
-  attention: { en: 'Attention', ar: 'يتطلب الانتباه', css: 'bg-muted text-content border-line' },
-  stable: { en: 'Assessed', ar: 'تم التقييم', css: 'bg-muted text-sage-700 border-line' },
-  unknown: { en: 'Not assessed', ar: 'غير مقيّم', css: 'bg-muted text-content-soft border-line' },
+const SCREENING_LABEL: Record<FoodRiskBand, { en: string; ar: string }> = {
+  critical: { en: 'Critical', ar: 'حرج' },
+  high: { en: 'High', ar: 'مرتفع' },
+  attention: { en: 'Attention', ar: 'يستدعي الانتباه' },
+  stable: { en: 'Assessed', ar: 'تم التقييم' },
+  unknown: { en: 'Not assessed', ar: 'غير مقيّم' },
 }
 
 const REASON: Record<FoodPostureCommodity['reason'], { en: string; ar: string }> = {
@@ -21,22 +25,30 @@ const REASON: Record<FoodPostureCommodity['reason'], { en: string; ar: string }>
   below_7_days: { en: 'Coverage below 7 days', ar: 'التغطية أقل من 7 أيام' },
   below_14_days: { en: 'Coverage below 14 days', ar: 'التغطية أقل من 14 يوماً' },
   below_30_days: { en: 'Coverage below 30 days', ar: 'التغطية أقل من 30 يوماً' },
-  assessed: { en: 'No screening alert in this horizon', ar: 'لا يوجد تنبيه في فترة التقييم' },
-  missing_evidence: { en: 'Insufficient reviewed source coverage', ar: 'تغطية المصادر المُراجعة غير كافية' },
+  assessed: { en: 'No screening threshold triggered', ar: 'لم تُفعّل أي عتبة فحص' },
+  missing_evidence: { en: 'Insufficient reviewed source coverage', ar: 'نقص في تغطية المصادر المُراجعة' },
   no_demand_baseline: { en: 'Consumption baseline unavailable', ar: 'خط أساس الاستهلاك غير متاح' },
 }
 
-function format(value: number | null | undefined, decimals = 1): string {
+function format(value: number | null | undefined, digits = 1) {
   return value === null || value === undefined || !Number.isFinite(value)
-    ? '—'
-    : value.toLocaleString('en-US', { maximumFractionDigits: decimals })
+    ? '—' : value.toLocaleString('en-US', { maximumFractionDigits: digits })
 }
 
-function scopeLink(organizationId: string | null, commodityId: string): string {
-  const params = new URLSearchParams({ module: 'commodities', commodityId })
-  if (organizationId) params.set('organizationId', organizationId)
-  return '/dashboard?' + params.toString()
+function scopeLink(organizationId: string, commodityId: string) {
+  return '/dashboard?' + new URLSearchParams({
+    module: 'commodities', commodityId, organizationId,
+  }).toString()
 }
+
+/** Visualization only. Coverage beyond 30 days is deliberately capped for the bar;
+ * the actual measured number remains visible alongside it. */
+function coverageWidth(days: number | null) {
+  return days === null || !Number.isFinite(days)
+    ? 0 : Math.max(0, Math.min(100, days / 30 * 100))
+}
+
+type BoardFilter = 'all' | 'risk' | 'gaps'
 
 export function WatchtowerFoodCommandCenter() {
   const { organization, loading: organizationLoading } = useOrganization()
@@ -44,8 +56,9 @@ export function WatchtowerFoodCommandCenter() {
   const ar = locale === 'ar'
   const tx = (en: string, arabic: string) => ar ? arabic : en
   const orgId = organization?.id ?? null
+
   const [days, setDays] = useState<7 | 30 | 90 | 180>(30)
-  const [filter, setFilter] = useState<'all' | 'risk' | 'gaps'>('all')
+  const [filter, setFilter] = useState<BoardFilter>('all')
   const [refresh, setRefresh] = useState(0)
   const [loading, setLoading] = useState(false)
   const [liveData, setLiveData] = useState<FoodPosture | null>(null)
@@ -60,13 +73,13 @@ export function WatchtowerFoodCommandCenter() {
       setLoading(true)
       try {
         const params = new URLSearchParams({ organizationId: orgId, days: String(days) })
-        const res = await fetch('/api/watchtower/food-security?' + params.toString(), {
+        const response = await fetch('/api/watchtower/food-security?' + params.toString(), {
           signal: controller.signal, cache: 'no-store',
         })
-        const payload: FoodPosture & { error?: string } = await res.json()
-        if (!res.ok) throw new Error(payload.error || 'Food security posture unavailable')
+        const payload: FoodPosture & { error?: string } = await response.json()
+        if (!response.ok) throw new Error(payload.error || 'Food security posture unavailable')
         if (payload.organizationId !== orgId || payload.scope !== 'organization' ||
-            payload.sourceMode !== 'live') {
+          payload.sourceMode !== 'live') {
           throw new Error('Food security response has an unexpected scope')
         }
         if (!controller.signal.aborted) setLiveData(payload)
@@ -82,13 +95,15 @@ export function WatchtowerFoodCommandCenter() {
     return () => controller.abort()
   }, [orgId, days, refresh])
 
-  const data = liveData?.organizationId === orgId &&
-    liveData.sourceMode === 'live' ? liveData : null
+  const data = liveData?.organizationId === orgId && liveData.sourceMode === 'live'
+    ? liveData : null
 
   const commodities = useMemo(() => {
     const rows = data?.commodities ?? []
-    if (filter === 'risk') return rows.filter(row =>
-      row.band === 'critical' || row.band === 'high' || row.band === 'attention')
+    if (filter === 'risk') {
+      return rows.filter(row => row.band === 'critical' ||
+        row.band === 'high' || row.band === 'attention')
+    }
     if (filter === 'gaps') return rows.filter(row => row.band === 'unknown')
     return rows
   }, [data, filter])
@@ -96,292 +111,400 @@ export function WatchtowerFoodCommandCenter() {
   const riskRows = data?.commodities.filter(row =>
     row.band === 'critical' || row.band === 'high' || row.band === 'attention') ?? []
   const gapRows = data?.commodities.filter(row => row.band === 'unknown') ?? []
+  const assessed = data?.assessedCount ?? 0
+  const readiness = data?.totalCommodities
+    ? Math.max(0, Math.min(100, 100 * data.assessedCount / data.totalCommodities)) : 0
   const lastReviewed = data?.latestReviewedAt
     ? new Date(data.latestReviewedAt).toLocaleString(ar ? 'ar-QA' : 'en-GB', {
       dateStyle: 'medium', timeStyle: 'short', timeZone: 'Asia/Qatar',
     }) : null
-  const assessed = data?.assessedCount ?? 0
-  const statBlocks = data ? [
-    {
-      en: 'Commodities assessed', ar: 'السلع المُقيّمة',
-      value: String(data.assessedCount) + ' / ' + String(data.totalCommodities),
-      noteEn: 'Complete reviewed coverage',
-      noteAr: 'تغطية مكتملة من مصادر مُراجعة',
-    },
-    {
-      en: 'Projected deficits', ar: 'العجز المتوقع',
-      value: assessed ? String(data.deficitCount) : '—',
-      noteEn: 'Among assessed commodities', noteAr: 'بين السلع المُقيّمة',
-    },
-    {
-      en: 'Critical / high signals', ar: 'إشارات حرجة / مرتفعة',
-      value: assessed ? String(data.criticalCount + data.highCount) : '—',
-      noteEn: 'Screening thresholds only', noteAr: 'عتبات استرشادية فقط',
-    },
-    {
-      en: 'Unknown status', ar: 'حالات غير معروفة',
-      value: String(data.unknownCount),
-      noteEn: 'No source-backed all-clear', noteAr: 'لا يمكن اعتبارها آمنة بدون بيانات',
-    },
-    {
-      en: 'Records awaiting review', ar: 'سجلات تنتظر المراجعة',
-      value: data.pendingReviewCount === null ? '—' : String(data.pendingReviewCount),
-      noteEn: 'Across this organization', noteAr: 'ضمن هذه المؤسسة',
-    },
+
+  const distribution = data ? [
+    { band: 'critical' as const, count: data.criticalCount, en: 'Critical', ar: 'حرج' },
+    { band: 'high' as const, count: data.highCount, en: 'High', ar: 'مرتفع' },
+    { band: 'attention' as const, count: data.attentionCount, en: 'Attention', ar: 'تنبيه' },
+    { band: 'stable' as const, count: data.commodities.filter(row => row.band === 'stable').length,
+      en: 'Assessed · no trigger', ar: 'مقيّم · بلا مؤشر' },
+    { band: 'unknown' as const, count: data.unknownCount, en: 'Not assessed', ar: 'غير مقيّم' },
+  ] : []
+
+  const metrics = data ? [
+    { id: 'reviewed', en: 'Reviewed balances', ar: 'الموازين المُراجعة',
+      value: format(data.assessedCount, 0) + ' / ' + format(data.totalCommodities, 0),
+      note: tx('Source-backed commodity coverage', 'تغطية السلع من مصادر مُراجعة') },
+    { id: 'deficit', en: 'Projected deficits', ar: 'العجز المتوقع',
+      value: assessed ? format(data.deficitCount, 0) : '—',
+      note: tx('Among reviewed balances', 'ضمن الموازين المُراجعة') },
+    { id: 'critical', en: 'Critical / high signals', ar: 'إشارات حرجة / مرتفعة',
+      value: assessed ? format(data.criticalCount + data.highCount, 0) : '—',
+      note: tx('Provisional screening thresholds', 'عتبات فحص أولية') },
+    { id: 'unknown', en: 'Unassessed commodities', ar: 'سلع غير مقيّمة',
+      value: format(data.unknownCount, 0),
+      note: tx('Unknown does not mean safe', 'غير معروف لا يعني آمناً') },
+    { id: 'pending', en: 'Records awaiting review', ar: 'سجلات تنتظر المراجعة',
+      value: format(data.pendingReviewCount, 0),
+      note: tx('Requires independent approval', 'تتطلب مراجعة مستقلة') },
   ] : []
 
   return (
-    <section
-      id="watchtower-food"
+    <section id="watchtower-food"
       aria-label={tx('Food security command center', 'مركز قيادة الأمن الغذائي')}
-      className="rounded-xl border border-line bg-card p-4 md:p-5 space-y-4"
-    >
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="flex items-start gap-3">
-          <span className="rounded-lg bg-muted p-2.5" aria-hidden="true">
-            <Wheat className="h-5 w-5 text-sage-700" strokeWidth={1.5} />
-          </span>
-          <div>
-            <div className="flex flex-wrap items-center gap-2">
-              <h2 className="text-[18px] font-medium text-content">
-                {tx('Food security command center', 'مركز قيادة الأمن الغذائي')}
-              </h2>
-              <span className="rounded border border-line bg-muted px-2 py-1 text-[10px] font-semibold text-content-soft">
-                {data ? tx('ORGANIZATION LEDGER', 'سجل المؤسسة') : tx('LOADING', 'جارٍ التحميل')}
-              </span>
+      className={styles.shell} dir={ar ? 'rtl' : 'ltr'}>
+      <header className={styles.hero}>
+        <div className={styles.heroTop}>
+          <div className={styles.heroIntro}>
+            <div className={styles.eyebrow}>
+              <span className={styles.heroSymbol}><Wheat size={14} /></span>
+              {tx('GROWA / FOOD RESILIENCE INTELLIGENCE',
+                'جروا / استخبارات مرونة الأمن الغذائي')}
             </div>
-            <p className="mt-1 text-[12px] text-content-soft">
-              {tx('Production · Imports · Demand · Inventory coverage · Evidence quality',
-                'الإنتاج · الواردات · الطلب · تغطية المخزون · جودة الأدلة')}
-            </p>
-            <p className="mt-1 text-[11px] text-content-soft">
-              {tx('Production, imports, demand, and inventory coverage for the selected horizon.',
-                'الإنتاج والواردات والطلب وتغطية المخزون للفترة المحددة.')}
-            </p>
+            <h2>{tx('Food security command center', 'مركز قيادة الأمن الغذائي')}</h2>
+            <p>{tx(
+              'One command view for reviewed supply balances, exposure and evidence quality.',
+              'عرض موحد لموازين الإمداد المُراجعة والمخاطر وجودة الأدلة.'
+            )}</p>
+          </div>
+          <div className={styles.controls}>
+            <div className={styles.controlCaption}>
+              <CalendarDays size={13} />
+              {tx('ASSESSMENT HORIZON', 'أفق التقييم')}
+            </div>
+            <div className={styles.horizonPicker} role="group"
+              aria-label={tx('Food security horizon', 'فترة الأمن الغذائي')}>
+              {([7, 30, 90, 180] as const).map(period => (
+                <button key={period} type="button" aria-pressed={days === period}
+                  disabled={loading} onClick={() => setDays(period)}>
+                  {period}{tx('D', 'ي')}
+                </button>
+              ))}
+              <button type="button" className={styles.refresh}
+                onClick={() => setRefresh(value => value + 1)} disabled={loading}
+                aria-label={tx('Refresh food security', 'تحديث الأمن الغذائي')}>
+                <RefreshCw size={15} className={loading ? 'animate-spin' : ''}/>
+              </button>
+            </div>
           </div>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <label className="flex items-center gap-2 text-[11px] text-content-soft">
-            {tx('Horizon', 'الفترة')}
-            <select
-              aria-label={tx('Food security horizon', 'فترة الأمن الغذائي')}
-              value={days}
-              onChange={(event) => setDays(Number(event.target.value) as 7 | 30 | 90 | 180)}
-              className="h-9 rounded-md border border-line bg-card px-2 text-[12px] text-content"
-            >
-              <option value={7}>7 {tx('days', 'أيام')}</option>
-              <option value={30}>30 {tx('days', 'يوماً')}</option>
-              <option value={90}>90 {tx('days', 'يوماً')}</option>
-              <option value={180}>180 {tx('days', 'يوماً')}</option>
-            </select>
-          </label>
-          <button type="button" onClick={() => setRefresh(x => x + 1)} disabled={loading}
-            aria-label={tx('Refresh food security', 'تحديث الأمن الغذائي')}
-            className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-line text-content disabled:opacity-40">
-            <RefreshCw className={'h-4 w-4 ' + (loading ? 'animate-spin' : '')} />
-          </button>
+        <div className={styles.scopeStrip}>
+          <span><Database size={13}/>
+            {tx('ORGANIZATION SCOPE', 'نطاق المؤسسة')}: <strong>
+              {organization?.name ?? (orgId ? tx('Selected organization', 'المؤسسة المحددة') :
+                tx('Not selected', 'لم يتم التحديد'))}</strong></span>
+          <span><CalendarDays size={13}/>
+            {data ? data.fromDate + ' → ' + data.toDate : tx('Period pending', 'الفترة قيد التحميل')}</span>
+          <span><Clock3 size={13}/>
+            {tx('Source review', 'مراجعة المصدر')}: {lastReviewed ??
+              tx('Not available', 'غير متاح')}</span>
         </div>
-      </div>
+        {data && <div className={styles.metrics}>
+          {metrics.map(item => (
+            <div key={item.id} className={styles.metric} data-kind={item.id}>
+              <span>{tx(item.en, item.ar)}</span>
+              <strong>{item.value}</strong>
+              <small>{item.note}</small>
+            </div>
+          ))}
+        </div>}
+        <div className={styles.heroFooter}>
+          <Activity size={13}/>
+          {tx('Organization records only · Reviewed evidence · Screening, not an official national risk classification',
+            'سجلات المؤسسة فقط · أدلة مُراجعة · فحص أولي وليس تصنيفاً وطنياً رسمياً')}
+        </div>
+      </header>
 
       {organizationLoading ? (
-        <p className="p-5 text-[13px] text-content-soft">{tx('Resolving your organization…', 'جارٍ تحديد مؤسستك…')}</p>
+        <div className={styles.statePanel} role="status">
+          {tx('Resolving your organization…', 'جارٍ تحديد مؤسستك…')}
+        </div>
       ) : !orgId ? (
-        <p role="status" className="p-5 text-[13px] text-content-soft">
-          {tx('Select an organization to open the food security ledger.',
-            'اختر مؤسسة لفتح سجل الأمن الغذائي.')}
-        </p>
+        <div className={styles.statePanel} role="status">
+          {tx('Select an organization to view its food security ledger. No organization metrics are inferred.',
+            'اختر مؤسسة لعرض سجل الأمن الغذائي. لا يتم استنتاج أي مؤشرات بدون مصدر.')}
+        </div>
       ) : error ? (
-        <div role="alert" className="rounded-md border border-warning-line bg-warning-soft p-3 text-[12px] text-warning-strong">
-          {error}. {tx('Food KPI values are withheld while the source is unavailable.',
-            'لن تُعرض مؤشرات الأمن الغذائي في حالة تعذر الوصول إلى المصدر.')}
+        <div className={styles.errorPanel} role="alert">
+          <AlertTriangle size={17}/>
+          <span>{error}. {tx('Metrics are withheld while the source is unavailable.',
+            'لن تُعرض المؤشرات عند تعذر الوصول إلى المصدر.')}</span>
         </div>
       ) : loading || !data ? (
-        <p className="p-5 text-[13px] text-content-soft" role="status">
-          {tx('Loading commodity balances…', 'جارٍ تحميل موازين السلع…')}
-        </p>
+        <div className={styles.statePanel} role="status">
+          <RefreshCw size={16} className="animate-spin"/>
+          {tx('Loading reviewed supply balances…', 'جارٍ تحميل الموازين المُراجعة…')}
+        </div>
       ) : (
         <>
-          <div className="flex flex-wrap justify-between gap-2 text-[11px] text-content-soft">
-            <span>{tx('Scope', 'النطاق')}: <strong className="text-content">{organization?.name ?? orgId}</strong></span>
-            <span>{data.fromDate} → {data.toDate}</span>
-            <span>{tx('Last source review', 'آخر مراجعة للمصدر') + ': ' + (lastReviewed ?? tx('Not available', 'غير متاح'))}</span>
-          </div>
-
-          <div className="grid grid-cols-2 gap-2 md:grid-cols-3 xl:grid-cols-5">
-            {statBlocks.map(block => (
-              <div className="rounded-md border border-line bg-background px-3 py-3" key={block.en}>
-                <p className="text-[11px] text-content-soft">{tx(block.en, block.ar)}</p>
-                <p className="mt-1 text-[25px] font-medium tabular-nums text-content">{block.value}</p>
-                <p className="mt-0.5 text-[10px] text-content-soft">{tx(block.noteEn, block.noteAr)}</p>
+          <div className={styles.insightsGrid}>
+            <section className={styles.distributionCard} aria-label={tx(
+              'Commodity risk distribution', 'توزيع مؤشرات مخاطر السلع')}>
+              <div className={styles.cardHeading}>
+                <div>
+                  <span className={styles.sectionEyebrow}>{tx('EXPOSURE OVERVIEW', 'نظرة عامة على المخاطر')}</span>
+                  <h3>{tx('Commodity screening distribution', 'توزيع مؤشرات تقييم السلع')}</h3>
+                  <p>{tx('Count of reviewed signals and unassessed commodities',
+                    'عدد إشارات التقييم المُراجعة والسلع غير المُقيّمة')}</p>
+                </div>
+                <AlertTriangle size={19}/>
               </div>
-            ))}
+              <div className={styles.distributionSummary}>
+                <strong>{assessed ? riskRows.length : '—'}</strong>
+                <span>{tx('Commodities triggering provisional screening thresholds',
+                  'سلع فعّلت عتبات التقييم الأولية')}</span>
+                <small>{assessed ?
+                  tx('Of ' + assessed + ' reviewed balances', 'من ' + assessed + ' ميزان مُراجع') :
+                  tx('Not assessable without reviewed data', 'لا يمكن التقييم بدون بيانات مُراجعة')}</small>
+              </div>
+              <div className={styles.distributionTrack}
+                role="img" aria-label={tx('Screening categories across ' + data.totalCommodities + ' commodities',
+                  'فئات التقييم عبر ' + data.totalCommodities + ' سلعة')}>
+                {distribution.filter(item => item.count > 0).map(item => (
+                  <span key={item.band} data-band={item.band} style={{
+                    width: (data.totalCommodities
+                      ? item.count / data.totalCommodities * 100 : 0) + '%',
+                  }} title={tx(item.en, item.ar) + ': ' + item.count} />
+                ))}
+              </div>
+              <div className={styles.legend}>
+                {distribution.map(item => (
+                  <div className={styles.legendItem} key={item.band}>
+                    <i data-band={item.band}/>
+                    <span>{tx(item.en, item.ar)}</span>
+                    <strong>{item.count}</strong>
+                  </div>
+                ))}
+              </div>
+              <div className={styles.cardNote}>
+                <AlertTriangle size={13}/>
+                {tx('Unknown is not safe. Deficits and coverage thresholds are preliminary screening indicators.',
+                  'غير معروف لا يعني آمناً. العجز وعتبات التغطية مؤشرات فحص أولية.')}
+              </div>
+            </section>
+
+            <section className={styles.readinessCard} aria-label={tx(
+              'Reviewed evidence readiness', 'جاهزية الأدلة المُراجعة')}>
+              <div className={styles.cardHeading}>
+                <div>
+                  <span className={styles.sectionEyebrow}>{tx('DATA CONFIDENCE', 'موثوقية البيانات')}</span>
+                  <h3>{tx('Evidence readiness', 'جاهزية الأدلة')}</h3>
+                  <p>{tx('Coverage of complete reviewed balances', 'نسبة الموازين المكتملة المُراجعة')}</p>
+                </div>
+                <ShieldCheck size={19}/>
+              </div>
+              <div className={styles.readinessBody}>
+                <div className={styles.donut}>
+                  <svg viewBox="0 0 120 120" aria-hidden="true">
+                    <circle cx="60" cy="60" r="45" className={styles.donutTrack}/>
+                    <circle cx="60" cy="60" r="45" className={styles.donutFill}
+                      strokeDasharray={String(2 * Math.PI * 45)}
+                      strokeDashoffset={String(2 * Math.PI * 45 * (1 - readiness / 100))}/>
+                  </svg>
+                  <div><strong>{format(readiness, 0)}%</strong>
+                    <span>{tx('reviewed', 'مُراجع')}</span></div>
+                </div>
+                <div className={styles.readinessText}>
+                  <strong>{data.assessedCount} / {data.totalCommodities}</strong>
+                  <span>{tx('Complete reviewed commodity balances', 'موازين سلع مكتملة ومُراجعة')}</span>
+                  <p>{data.unknownCount} {tx('still require source verification', 'ما زالت تحتاج للتحقق من المصادر')}</p>
+                  {data.pendingReviewCount !== null &&
+                    <p>{data.pendingReviewCount} {tx('records awaiting independent approval',
+                      'سجلات تنتظر الموافقة المستقلة')}</p>}
+                </div>
+              </div>
+              <div className={styles.readinessNote}>
+                <Database size={13}/>
+                {tx('Readiness is source completeness, not supply security.',
+                  'الجاهزية تعني اكتمال الأدلة، وليس أمان الإمدادات.')}
+              </div>
+            </section>
           </div>
 
           {assessed === 0 && (
-            <div className="rounded-md border border-warning-line bg-warning-soft p-3 text-[12px] text-content">
-              {tx('No commodities have a complete reviewed balance for this period. This is a data-readiness gap, not a low-risk assessment.',
-                'لا توجد سلع لديها ميزان مكتمل ومُراجع لهذه الفترة. هذه فجوة في جاهزية البيانات وليست مؤشراً على انخفاض المخاطر.')}
+            <div className={styles.noAssessment} role="status">
+              <AlertTriangle size={16}/>
+              {tx('No complete reviewed balances for this period. Risk cannot be classified without evidence.',
+                'لا توجد موازين مكتملة ومُراجعة لهذه الفترة، ولا يمكن تصنيف المخاطر دون أدلة.')}
             </div>
           )}
 
-          <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_295px]">
-            <div className="min-w-0 rounded-lg border border-line">
-              <div className="flex flex-wrap items-center justify-between gap-2 border-b border-line px-3 py-3">
-                <h3 className="text-[13px] font-medium text-content">
-                  {tx('Commodity resilience board', 'لوحة مرونة السلع')}
-                </h3>
-                <label className="flex items-center gap-2 text-[11px] text-content-soft">
-                  {tx('Show', 'عرض')}
-                  <select value={filter}
-                    onChange={(event) => setFilter(event.target.value as 'all' | 'risk' | 'gaps')}
-                    className="h-8 rounded-md border border-line bg-card px-2 text-[11px] text-content">
-                    <option value="all">{tx('All', 'الكل')}</option>
-                    <option value="risk">{tx('Screening signals', 'إشارات التقييم')}</option>
-                    <option value="gaps">{tx('Data gaps', 'فجوات البيانات')}</option>
-                  </select>
-                </label>
+          <div className={styles.mainGrid}>
+            <section className={styles.board}>
+              <div className={styles.boardHead}>
+                <div>
+                  <span className={styles.sectionEyebrow}>
+                    {tx('COMMODITY RESILIENCE MONITOR', 'مراقبة مرونة السلع')}</span>
+                  <h3>{tx('Supply & coverage intelligence', 'استخبارات الإمداد والتغطية')}</h3>
+                  <p>{tx('Period-end projections with source-verified inputs',
+                    'توقعات نهاية الفترة بناء على مدخلات موثقة')}</p>
+                </div>
+                <span className={styles.boardCount}>{commodities.length} {tx('commodities', 'سلع')}</span>
               </div>
-              <div className="overflow-x-auto">
-                <table className="w-full min-w-[690px] text-start">
-                  <thead>
-                    <tr className="border-b border-line bg-muted/30 text-[10px] uppercase tracking-wide text-content-soft">
-                      <th className="px-3 py-2 text-start font-medium">{tx('Commodity', 'السلعة')}</th>
-                      <th className="px-3 py-2 text-start font-medium">{tx('Assessment', 'التقييم')}</th>
-                      <th className="px-3 py-2 text-end font-medium">{tx('Deficit', 'العجز')}</th>
-                      <th className="px-3 py-2 text-end font-medium">{tx('Coverage', 'التغطية')}</th>
-                      <th className="px-3 py-2 text-end font-medium">{tx('Import inflow share', 'نسبة الواردات من التدفقات')}</th>
-                      <th className="px-3 py-2 text-end font-medium">{tx('Evidence', 'الأدلة')}</th>
-                      <th className="px-3 py-2 text-end font-medium">{tx('Investigate', 'تحليل')}</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-line">
-                    {commodities.map(row => {
-                      const badge = SCREENING_LABEL[row.band]
-                      return (
-                        <tr key={row.commodityId} className="text-[12px] text-content hover:bg-muted/20">
-                          <td className="px-3 py-3 font-medium">{ar ? row.nameAr : row.name}</td>
-                          <td className="px-3 py-3">
-                            <span className={'inline-flex rounded border px-2 py-0.5 text-[10px] ' + badge.css}>
-                              {ar ? badge.ar : badge.en}
-                            </span>
-                            <p className="mt-1 text-[10px] text-content-soft">
-                              {ar ? REASON[row.reason].ar : REASON[row.reason].en}
-                            </p>
-                          </td>
-                          <td className="px-3 py-3 text-end tabular-nums">
-                            {format(row.deficitTonnes)} {row.deficitTonnes !== null ? 't' : ''}
-                          </td>
-                          <td className="px-3 py-3 text-end tabular-nums">
-                            {format(row.coverageDays)} {row.coverageDays !== null ? tx('days', 'يوم') : ''}
-                          </td>
-                          <td className="px-3 py-3 text-end tabular-nums">
-                            {format(row.importShareOfInflowsPercent)}{row.importShareOfInflowsPercent !== null ? '%' : ''}
-                          </td>
-                          <td className="px-3 py-3 text-end tabular-nums">
-                            {row.evidenceSourceRefs.length > 0
-                              ? String(row.evidenceSourceRefs.length) : '—'}
-                          </td>
-                          <td className="px-3 py-3 text-end">
-                            <Link href={scopeLink(orgId, row.commodityId)}
-                              aria-label={tx('Open commodity intelligence for ', 'فتح تحليل السلعة: ') + (ar ? row.nameAr : row.name)}
-                              className="inline-flex items-center gap-1 text-[11px] font-medium text-sage-700 hover:underline">
-                              {tx('Open', 'فتح')} <ArrowUpRight className="h-3 w-3 rtl:-scale-x-100" />
-                            </Link>
-                          </td>
-                        </tr>
-                      )
-                    })}
-                  </tbody>
+              <div className={styles.boardFilters} role="group"
+                aria-label={tx('Filter commodities', 'تصفية السلع')}>
+                {([
+                  { id: 'all' as const, en: 'All commodities', ar: 'جميع السلع', count: data.totalCommodities },
+                  { id: 'risk' as const, en: 'Screening signals', ar: 'إشارات التقييم', count: riskRows.length },
+                  { id: 'gaps' as const, en: 'Missing evidence', ar: 'أدلة ناقصة', count: gapRows.length },
+                ]).map(item => (
+                  <button key={item.id} type="button" aria-pressed={filter === item.id}
+                    onClick={() => setFilter(item.id)}>
+                    {tx(item.en, item.ar)} <span>{item.count}</span>
+                  </button>
+                ))}
+              </div>
+              <div className={styles.tableScroll}>
+                <table className={styles.table}>
+                  <thead><tr>
+                    <th>{tx('Commodity', 'السلعة')}</th>
+                    <th>{tx('Screening status', 'حالة التقييم')}</th>
+                    <th>{tx('Projected deficit', 'العجز المتوقع')}</th>
+                    <th>{tx('Coverage · period-end', 'التغطية · نهاية الفترة')}</th>
+                    <th>{tx('Import share of inflows', 'حصة الواردات من التدفقات')}</th>
+                    <th>{tx('Evidence', 'الأدلة')}</th>
+                    <th>{tx('Action', 'الإجراء')}</th>
+                  </tr></thead>
+                  <tbody>{commodities.map(row => {
+                    const badge = SCREENING_LABEL[row.band]
+                    return (
+                      <tr key={row.commodityId} data-band={row.band}>
+                        <td><strong>{ar ? row.nameAr : row.name}</strong>
+                          <small>{row.commodityId}</small></td>
+                        <td>
+                          <span className={styles.band} data-band={row.band}>
+                            <i/>{tx(badge.en, badge.ar)}</span>
+                          <p>{tx(REASON[row.reason].en, REASON[row.reason].ar)}</p>
+                        </td>
+                        <td className={styles.numeric}>
+                          <strong>{format(row.deficitTonnes)}{row.deficitTonnes !== null ? ' t' : ''}</strong>
+                        </td>
+                        <td className={styles.numeric}>
+                          <strong>{format(row.coverageDays)}{row.coverageDays !== null ?
+                            ' ' + tx('days', 'يوم') : ''}</strong>
+                          {row.coverageDays !== null && (
+                            <div className={styles.coverageTrack} role="meter"
+                              aria-label={tx('Period-end coverage days', 'أيام تغطية نهاية الفترة')}
+                              aria-valuemin={0} aria-valuemax={30}
+                              aria-valuenow={Math.min(30, Math.max(0, row.coverageDays))}>
+                              <span data-band={row.band}
+                                style={{ width: coverageWidth(row.coverageDays) + '%' }}/>
+                            </div>
+                          )}
+                        </td>
+                        <td className={styles.numeric}>
+                          <strong>{format(row.importShareOfInflowsPercent)}
+                            {row.importShareOfInflowsPercent !== null ? '%' : ''}</strong>
+                        </td>
+                        <td className={styles.numeric}>
+                          <span className={styles.evidenceCount}>
+                            <Database size={12}/>
+                            {row.evidenceSourceRefs.length > 0 ? row.evidenceSourceRefs.length : '—'}
+                          </span>
+                        </td>
+                        <td><Link href={scopeLink(orgId, row.commodityId)} className={styles.rowLink}
+                          aria-label={tx('Open commodity intelligence for ',
+                            'فتح تحليل السلعة: ') + (ar ? row.nameAr : row.name)}>
+                          {tx('Investigate', 'تحليل')} <ArrowUpRight size={14}/>
+                        </Link></td>
+                      </tr>
+                    )
+                  })}</tbody>
                 </table>
+                {!commodities.length && <div className={styles.emptyRows}>
+                  {tx('No commodities match this filter.', 'لا توجد سلع تطابق هذا الفلتر.')}
+                </div>}
               </div>
-              {commodities.length === 0 && (
-                <p className="px-3 py-5 text-[12px] text-content-soft">
-                  {tx('No commodities match this filter.', 'لا توجد سلع مطابقة لهذا الفلتر.')}
-                </p>
-              )}
-            </div>
-            <div className="space-y-3">
-              <div className="rounded-lg border border-line p-3">
-                <h3 className="flex items-center gap-2 text-[13px] font-medium text-content">
-                  <AlertTriangle className="h-4 w-4 text-warning-strong" />
-                  {tx('Priority investigations', 'التحقيقات ذات الأولوية')}
-                </h3>
-                <p className="mt-1 text-[11px] text-content-soft">
-                  {tx('Derived screening signals, not issued operational alerts.',
-                    'إشارات تقييم مشتقة وليست تنبيهات تشغيلية معتمدة.')}
-                </p>
+              <div className={styles.boardFoot}>
+                <span>{tx('Coverage meter caps at 30 days; exact values appear above.',
+                  'شريط التغطية يتوقف عند 30 يوماً؛ القيم الفعلية ظاهرة فوقه.')}</span>
+                <span>{tx('No inferred values for missing source records.',
+                  'لا يتم تقدير قيم لسجلات المصادر المفقودة.')}</span>
+              </div>
+            </section>
+
+            <aside className={styles.sideColumn}>
+              <section className={styles.priorityCard}>
+                <div className={styles.cardHeading}>
+                  <div><span className={styles.sectionEyebrow}>
+                    {tx('PRIORITY REVIEW', 'مراجعة الأولويات')}</span>
+                    <h3>{tx('Investigations to review', 'التحقيقات المطلوب مراجعتها')}</h3></div>
+                  <AlertTriangle size={18}/>
+                </div>
+                <p className={styles.sideHint}>{tx('Screening triggers only. No procurement decision is issued automatically.',
+                  'مؤشرات فحص فقط. لا تُتخذ قرارات الشراء تلقائياً.')}</p>
                 {riskRows.length === 0 ? (
-                  <p className="mt-3 text-[12px] text-content-soft">
-                    {assessed === 0
-                      ? tx('Source coverage is insufficient to assess risk.',
-                        'تغطية المصادر غير كافية لتقييم المخاطر.')
-                      : tx('No screening signals among assessed commodities.',
-                        'لا توجد إشارات تقييم بين السلع المُقيّمة.')}
-                  </p>
+                  <p className={styles.emptySide}>{assessed === 0
+                    ? tx('No reviewed evidence is available to classify risk.',
+                      'لا توجد أدلة مُراجعة لتصنيف المخاطر.')
+                    : tx('No triggers among assessed commodities. Check unassessed records separately.',
+                      'لا توجد مؤشرات ضمن السلع المُقيّمة، ويجب مراجعة السلع غير المُقيّمة منفصلة.')}</p>
                 ) : (
-                  <ol className="mt-2 space-y-2">
-                    {riskRows.slice(0, 4).map(row => (
-                      <li key={row.commodityId} className="border-b border-dotted border-line pb-2 last:border-0">
-                        <Link href={scopeLink(orgId, row.commodityId)}
-                          className="flex items-center justify-between gap-2 text-[12px] text-content hover:text-sage-700">
-                          <span className="font-medium">{ar ? row.nameAr : row.name}</span>
-                          <ArrowUpRight className="h-3 w-3" />
-                        </Link>
-                        <p className="mt-1 text-[11px] text-content-soft">
-                          {ar ? REASON[row.reason].ar : REASON[row.reason].en}
-                        </p>
+                  <ol className={styles.priorityList}>
+                    {riskRows.slice(0, 5).map((row, i) => (
+                      <li key={row.commodityId}>
+                        <span className={styles.priorityNumber}>{String(i + 1).padStart(2, '0')}</span>
+                        <div>
+                          <span className={styles.band} data-band={row.band}>
+                            <i/>{tx(SCREENING_LABEL[row.band].en, SCREENING_LABEL[row.band].ar)}
+                          </span>
+                          <Link href={scopeLink(orgId, row.commodityId)}>
+                            {ar ? row.nameAr : row.name}<ArrowUpRight size={13}/>
+                          </Link>
+                          <small>{tx(REASON[row.reason].en, REASON[row.reason].ar)}</small>
+                        </div>
                       </li>
                     ))}
                   </ol>
                 )}
-              </div>
+              </section>
 
-              <div className="rounded-lg border border-line p-3">
-                <h3 className="flex items-center gap-2 text-[13px] font-medium text-content">
-                  <Database className="h-4 w-4 text-content-soft" />
-                  {tx('Source readiness', 'جاهزية المصادر')}
-                </h3>
-                <p className="mt-2 text-[12px] text-content">
-                  {data.totalCommodities - data.assessedCount} {tx('commodities awaiting complete data',
-                    'سلع تنتظر بيانات مكتملة')}
-                </p>
-                <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-muted"
-                  role="progressbar" aria-valuemin={0} aria-valuemax={data.totalCommodities}
-                  aria-valuenow={data.assessedCount}
-                  aria-label={tx('Complete reviewed commodity balances', 'موازين السلع المكتملة والمُراجعة')}>
-                  <div className="h-full rounded-full bg-sage-700"
-                    style={{ width: (data.totalCommodities
-                      ? (100 * data.assessedCount / data.totalCommodities) : 0) + '%' }} />
+              <section className={styles.evidenceCard}>
+                <div className={styles.cardHeading}>
+                  <div><span className={styles.sectionEyebrow}>
+                    {tx('SOURCE READINESS', 'جاهزية المصادر')}</span>
+                    <h3>{tx('Evidence review queue', 'قائمة مراجعة الأدلة')}</h3></div>
+                  <ClipboardCheck size={18}/>
                 </div>
-                {gapRows.length > 0 && (
-                  <p className="mt-2 text-[11px] text-content-soft">
-                    {tx('Commodities needing source verification', 'سلع تحتاج إلى توثيق المصادر')}: {' '}
-                    {gapRows.slice(0, 3).map(x => ar ? x.nameAr : x.name).join(' · ')}
-                  </p>
-                )}
-                {data.pendingReviewCount !== null && data.pendingReviewCount > 0 && (
-                  <p className="mt-2 text-[11px] text-warning-strong">
-                    {data.pendingReviewCount} {tx('submitted records require independent approval.',
-                      'سجلات مُرسلة تحتاج إلى موافقة مستقلة.')}
-                  </p>
-                )}
-                {<Link href={scopeLink(orgId, data.commodities[0]?.commodityId || 'tomato')}
-                  className="mt-3 inline-flex items-center gap-1 text-[11px] font-medium text-sage-700 hover:underline">
-                  <ShieldCheck className="h-3.5 w-3.5" />
-                  {tx('Review commodity sources', 'مراجعة مصادر السلع')}
+                <div className={styles.evidenceLine}>
+                  <strong>{data.totalCommodities - data.assessedCount}</strong>
+                  <span>{tx('commodities need complete source coverage',
+                    'سلع تحتاج إلى تغطية مكتملة للمصادر')}</span>
+                </div>
+                <div className={styles.evidenceProgress} role="progressbar"
+                  aria-label={tx('Complete reviewed balances', 'موازين مكتملة ومُراجعة')}
+                  aria-valuemin={0} aria-valuemax={data.totalCommodities}
+                  aria-valuenow={data.assessedCount}>
+                  <span style={{ width: readiness + '%' }}/>
+                </div>
+                {gapRows.length > 0 && <p className={styles.evidenceGap}>
+                  {tx('Verification required for', 'يلزم التحقق من')}:
+                  {' '}{gapRows.slice(0, 3).map(row => ar ? row.nameAr : row.name).join(' · ')}
+                </p>}
+                {data.pendingReviewCount !== null && data.pendingReviewCount > 0 &&
+                  <div className={styles.pending}>
+                    <AlertTriangle size={13}/>
+                    {data.pendingReviewCount} {tx('submitted records await independent approval',
+                      'سجلات مُرسلة تنتظر الموافقة المستقلة')}
+                  </div>}
+                {data.commodities.length > 0 && <Link
+                  href={scopeLink(orgId, data.commodities[0].commodityId)}
+                  className={styles.sourceLink}>
+                  <ShieldCheck size={14}/>
+                  {tx('Review source records', 'مراجعة سجلات المصادر')}
+                  <ArrowUpRight size={14}/>
                 </Link>}
-              </div>
-            </div>
+              </section>
+            </aside>
           </div>
 
-          <WatchtowerResilienceDesk posture={data} />
-
-          <div className="flex flex-wrap items-start justify-between gap-2 border-t border-dotted border-line pt-3 text-[11px] text-content-soft">
-            <p>{tx('Coverage bands: <7d critical, 7–13d high, 14–29d attention. Screening only.',
-              'حدود التغطية: أقل من 7 أيام حرج، 7–13 مرتفع، 14–29 يحتاج للانتباه. للاستدلال فقط.')}</p>
-            <p>{tx('Import share is a share of planned inflows, not national import dependence.',
-              'حصة الواردات من التدفقات المخططة، وليست الاعتماد الوطني على الواردات.')}</p>
+          <div className={styles.decisionDesk}>
+            <WatchtowerResilienceDesk posture={data}/>
           </div>
+
+          <footer className={styles.footer}>
+            <span>{tx('Coverage thresholds: below 7d critical · 7–13d high · 14–29d attention. Screening only.',
+              'عتبات التغطية: أقل من 7 أيام حرج · 7–13 مرتفع · 14–29 انتباه. للتقييم فقط.')}</span>
+            <span>{tx('Import share is planned inflow composition, not national import dependence.',
+              'حصة الواردات من التدفقات المخططة وليست الاعتماد الوطني على الاستيراد.')}</span>
+          </footer>
         </>
       )}
     </section>
