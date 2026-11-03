@@ -56,6 +56,15 @@ describe('Public HTML GCC radar without MyShipTracking API',()=>{
   const changed=cargo.replace('Speed: 12.5 kn Course: 135° Info','Info Speed: 12.5 kn Course: 135°')
   expect(parsePublicVessel(changed,ref)?.speedKnots).toBe(12.5)
  })
+ it('logs diagnostic summaries in the browser console without dumping positions or credentials',()=>{
+  const ui=readFileSync(join(process.cwd(),'components/dashboard/watchtower/global-watchtower.tsx'),'utf8')
+  expect(ui).toContain("console.groupCollapsed('[Watchtower][GCC] MyShipTracking scan'")
+  expect(ui).toContain('console.table(body.hubs.map')
+  expect(ui).toContain("console.warn('[Watchtower][GCC] HTTP'")
+  expect(ui).toContain("console.info('[Watchtower][AIS] data-tracking.net status'")
+  expect(ui).not.toContain('console.log(orgId)')
+  expect(ui).not.toContain('console.log(body.assets)')
+ })
  it('has no hardcoded API dependency or automatic bot-evasion techniques',()=>{
   const source=readFileSync(join(process.cwd(),'lib/watchtower/myshiptracking-public.ts'),'utf8')
   const api=readFileSync(join(process.cwd(),'app/api/watchtower/gcc-radar/route.ts'),'utf8')

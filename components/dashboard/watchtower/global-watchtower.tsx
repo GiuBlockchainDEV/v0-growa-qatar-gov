@@ -165,14 +165,30 @@ export function GlobalWatchtower() {
           cache:'no-store',
           signal:AbortSignal.any([controller.signal,AbortSignal.timeout(27000)]),
         })
-        if(!response.ok)throw Error('Chokepoint AIS feed unavailable')
+        if(!response.ok){
+          console.warn('[Watchtower][AIS] data-tracking.net HTTP',response.status)
+          throw Error('Chokepoint AIS feed HTTP '+response.status)
+        }
         const body=await response.json() as DataTrackingSnapshot
         if(!Array.isArray(body.assets)||!Array.isArray(body.chokepoints)||
           body.source!=='hormuz.data-tracking.net')throw Error('Invalid chokepoint AIS response')
+        console.info('[Watchtower][AIS] data-tracking.net status',{
+          fetchedAt:new Date().toISOString(),cargoMarkers:body.assets.length,
+          chokepoints:body.chokepoints.map(area=>({
+            name:area.label,status:area.state,rawRows:area.providerRows??null,
+            cargoWithCoordinates:area.usableCargoRows??null,
+            mappedShips:area.vesselCount,crossings24h:area.crossings24h,
+            lastPoll:area.lastPoll,
+          })),
+        })
+        if(body.assets.length===0)console.warn('[Watchtower][AIS] No usable cargo fixes; crossing totals are not coordinates.')
         if(active){setMaritimeFeed(body);setMaritimeError('')}
-      }catch{
-        if(active&&!controller.signal.aborted)
+      }catch(reason){
+        if(active&&!controller.signal.aborted){
+          console.error('[Watchtower][AIS] Request or parsing failed',
+            reason instanceof Error?reason.message:'Unknown error')
           setMaritimeError('data-tracking.net AIS temporarily unavailable; last received snapshots may be stale.')
+        }
       }
     }
     void load()
@@ -185,7 +201,11 @@ export function GlobalWatchtower() {
   // Opt-in GCC web radar, 5-minute polling. Server handles permission gates.
   // Browser polls every 5 minutes while visible, without a background daemon.
   useEffect(()=>{
-    if(!orgId){setGccRadar(null);return}
+    if(!orgId){
+      console.warn('[Watchtower][GCC] Request skipped: missing organization context.')
+      setGccRadar(null)
+      return
+    }
     let running=false,active=true
     const controller=new AbortController()
     const load=async()=>{
@@ -197,14 +217,37 @@ export function GlobalWatchtower() {
           cache:'no-store',
           signal:AbortSignal.any([controller.signal,AbortSignal.timeout(28000)]),
         })
-        if(!response.ok)throw Error('Licensed GCC radar request unavailable')
+        if(!response.ok){
+          let detail='No server detail'
+          try{
+            const result=await response.json() as {error?:unknown}
+            if(typeof result.error==='string')detail=result.error.slice(0,200)
+          }catch{ /* Invalid error body */ }
+          console.warn('[Watchtower][GCC] HTTP',response.status,detail)
+          throw Error('GCC radar HTTP '+response.status+': '+detail)
+        }
         const body=await response.json() as GccRadarSnapshot
         if(!Array.isArray(body.assets)||!Array.isArray(body.hubs)||
            body.source!=='MyShipTracking API'&&body.source!=='MyShipTracking public pages')throw Error('Invalid GCC radar result')
+        console.groupCollapsed('[Watchtower][GCC] MyShipTracking scan',body.status,new Date().toISOString())
+        console.info('Source:',body.source,'| Enabled:',body.configured,
+          '| Ships checked:',body.checked,'| Cargo markers:',body.assets.length,
+          '| Estimated routes:',body.withRoutes)
+        console.table(body.hubs.map(hub=>({
+          port:hub.label,status:hub.status,candidates:hub.candidates,
+          mapped:hub.observed,routes:hub.withRoutes,detail:hub.detail,
+        })))
+        console.info('Source diagnostic:',body.sourceNote)
+        console.groupEnd()
+        if(body.status==='not_configured')console.warn('[Watchtower][GCC] Radar not configured on server.')
+        else if(body.assets.length===0)console.warn('[Watchtower][GCC] No verified cargo positions in provider response.')
         if(active){setGccRadar(body);setGccRadarError('')}
-      }catch{
-        if(active&&!controller.signal.aborted)
+      }catch(reason){
+        if(active&&!controller.signal.aborted){
+          console.error('[Watchtower][GCC] Request or parsing failed',
+            reason instanceof Error?reason.message:'Unknown error')
           setGccRadarError('GCC radar unavailable; existing AIS observations remain visible.')
+        }
       }finally{running=false}
     }
     void load()
