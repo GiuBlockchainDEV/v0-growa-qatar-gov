@@ -54,6 +54,7 @@ export function GlobalWatchtower() {
   const [busy, setBusy] = useState(false), [refresh, setRefresh] = useState(0), [paused, setPaused] = useState(false), [now, setNow] = useState(Date.now)
   const [mobile, setMobile] = useState(false), [filtersOpen, setFiltersOpen] = useState(true), [alertsOpen, setAlertsOpen] = useState(true), [fullscreen, setFullscreen] = useState(false)
   const [query, setQuery] = useState(''), [region, setRegion] = useState<Region>('gulf'), [cargoOnly, setCargoOnly] = useState(true), [shipCargoOnly,setShipCargoOnly]=useState(false)
+  const [movingShipsOnly,setMovingShipsOnly]=useState(false)
   const [commodity, setCommodity] = useState('all'), [alertKind, setAlertKind] = useState('all'), [productionKind,setProductionKind] = useState<'all'|ProductionDriver>('all'), [highOnly, setHighOnly] = useState(false)
   const [selectedId, setSelectedId] = useState<string | null>(null), [sourceId, setSourceId] = useState<string | null>(null)
   const [focus, setFocus] = useState<GlobalTrackingMapProps['focus']>(null)
@@ -178,6 +179,8 @@ export function GlobalWatchtower() {
           chokepoints:body.chokepoints.map(area=>({
             name:area.label,status:area.state,rawRows:area.providerRows??null,
             cargoWithCoordinates:area.usableCargoRows??null,
+             allVesselsWithCoordinates:area.usablePositionRows??null,
+             moving:area.movingCount??null,
             mappedShips:area.vesselCount,crossings24h:area.crossings24h,
             lastPoll:area.lastPoll,
           })),
@@ -296,18 +299,21 @@ export function GlobalWatchtower() {
     // Keep explicit capacity for maritime observations; otherwise the latest
     // 2,000 aircraft fixes can crowd out 30-minute AIS cargo positions.
     const incoming=[...(snapshot?.assets??[]),...(maritimeFeed?.assets??[]),...(gccRadar?.assets??[])]
-    const vessels=mergeAssets(incoming.filter(asset=>asset.kind==='vessel')).slice(0,700)
-    const aircraft=mergeAssets(incoming.filter(asset=>asset.kind==='aircraft')).slice(0,1300)
+    const vessels=mergeAssets(incoming.filter(asset=>asset.kind==='vessel'))
+      .sort((a,b)=>Number((b.speedKnots??0)>=1.5)-Number((a.speedKnots??0)>=1.5)||
+        b.observedAt.localeCompare(a.observedAt)).slice(0,1100)
+    const aircraft=mergeAssets(incoming.filter(asset=>asset.kind==='aircraft')).slice(0,900)
     return [...aircraft,...vessels]
   },[snapshot,maritimeFeed,gccRadar])
   const assets = useMemo(() => allAssets.filter(a =>
     inside(a)&&
     (selectedChokepoint==='all'||a.kind==='aircraft'||a.chokepointId===selectedChokepoint||Boolean(a.hubId))&&
     (selectedGccHub==='all'||a.kind==='aircraft'||a.hubId===selectedGccHub)&&
-    (a.kind==='vessel' ? (!shipCargoOnly||a.cargo==='ais_cargo_class') :
+    (a.kind==='vessel' ? (!shipCargoOnly||a.cargo==='ais_cargo_class')&&
+      (!movingShipsOnly||(a.speedKnots!==null&&a.speedKnots>=1.5)) :
       (!cargoOnly||a.cargo!=='unverified')) &&
     (!query || (a.label + ' ' + a.id + ' ' + (a.destination ?? '')).toLowerCase().includes(query.toLowerCase())),
-    ), [allAssets, inside, selectedChokepoint, selectedGccHub, cargoOnly, shipCargoOnly, query])
+    ), [allAssets, inside, selectedChokepoint, selectedGccHub, cargoOnly, shipCargoOnly, movingShipsOnly, query])
   const alerts = useMemo(() => allAlerts.filter(a => inside(a) && (alertKind === 'all' || a.kind === alertKind) &&
     (!highOnly || a.severity === 'high') && (commodity === 'all' || a.kind !== 'food' || a.id === 'food:' + commodity) &&
     (!query || (a.title + ' ' + a.source).toLowerCase().includes(query.toLowerCase()))), [allAlerts, inside, alertKind, highOnly, commodity, query])
@@ -483,7 +489,7 @@ export function GlobalWatchtower() {
       </p>
       <hr className={styles.divider} />
       <label className={styles.label} htmlFor="watchtower-chokepoint">
-        Cargo ships · maritime chokepoints
+        AIS vessels · maritime chokepoints
       </label>
       <select id="watchtower-chokepoint" className={styles.input}
         value={selectedChokepoint}
@@ -511,7 +517,7 @@ export function GlobalWatchtower() {
             </span>
             <small>
               {report?.vesselCount===null||report?.vesselCount===undefined?'N/A':report.vesselCount}
-              {' '}cargo-like AIS · {report?.crossings24h??'N/A'} all-vessel 24h crossings
+              {' '}AIS positions · {report?.cargoVesselCount??'N/A'} cargo-class · {report?.movingCount??'N/A'} SOG ≥1.5 kn · {report?.crossings24h??'N/A'} all-vessel 24h crossings
             </small>
           </button>
         })}
@@ -520,7 +526,9 @@ export function GlobalWatchtower() {
         Source: <a href="https://hormuz.data-tracking.net/api-docs" target="_blank"
           rel="noopener noreferrer">data-tracking.net (CC BY 4.0)</a>.
         {' '}AIS observations update around every 30 minutes, not continuously.
-        Cargo vessel type does not establish food on board.
+        All source-observed vessel classes are shown; enable the cargo-class filter to narrow the map.
+        Vessel class does not establish food on board.
+        {maritimeFeed?' '+maritimeFeed.assets.length+' regional AIS ship positions ('+maritimeFeed.assets.filter(a=>a.speedKnots!==null&&a.speedKnots>=1.5).length+' SOG ≥1.5 kn).':''}
         {maritimeError?' '+maritimeError:''}
         {' '}{aisHistoryStatus}
       </p>
@@ -531,6 +539,7 @@ export function GlobalWatchtower() {
       <hr className={styles.divider} />
       <button className={styles.toggle} aria-pressed={cargoOnly} onClick={() => setCargoOnly(!cargoOnly)}><span>Freight aircraft only</span><i className={styles.switch} /></button>
       <button className={styles.toggle} aria-pressed={shipCargoOnly} onClick={()=>setShipCargoOnly(!shipCargoOnly)}><span>Only identified cargo-class ships</span><i className={styles.switch}/></button>
+      <button className={styles.toggle} aria-pressed={movingShipsOnly} onClick={()=>setMovingShipsOnly(!movingShipsOnly)}><span>Only ships reporting SOG ≥1.5 kn</span><i className={styles.switch}/></button>
       <label className={styles.label} htmlFor="watchtower-alert-type">Alert category</label>
       <select id="watchtower-alert-type" className={styles.input} value={alertKind} onChange={e => setAlertKind(e.target.value)}><option value="all">All categories</option><option value="food">Food security</option><option value="hazard">Weather & natural hazards</option><option value="aviation">Aviation advisories</option><option value="maritime">Maritime incident reports</option></select>
       <button className={styles.toggle} aria-pressed={highOnly} onClick={() => setHighOnly(!highOnly)}><span>High signals only</span><i className={styles.switch} /></button>

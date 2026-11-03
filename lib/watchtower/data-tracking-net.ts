@@ -36,6 +36,11 @@ export type ChokepointReport={
   providerRows?:number|null
   /** Cargo-class rows that have coordinates, before age validation. */
   usableCargoRows?:number|null
+  /** All vessel classes with genuine coordinates, before age validation. */
+  usablePositionRows?:number|null
+  cargoVesselCount?:number|null
+  /** SOG >= 1.5 kn, not confirmed movement history. */
+  movingCount?:number|null
   freshObservedCount:number|null
   crossings24h:number|null
   lastPoll:string|null
@@ -67,41 +72,43 @@ const date=(raw:unknown):string|null=>{
     new Date(t).toISOString():null
 }
 function rows(raw:unknown):Row[]{
-  const root=obj(raw),data=obj(root.data)
-  // Wrapped APIs often return {ships:{MMSI:{...}}}. Never interpret the
-  // outer object as an MMSI dictionary before inspecting its children.
-  const candidates=[root.ships,root.vessels,root.results,root.positions,
-    root.items,root.records,root.current,
-    data.ships,data.vessels,data.results,data.positions,data.items,data.records,
-    root.data,raw]
-  for(const candidate of candidates){
+  // The public AIS API can return arrays, tabular data or nested wrappers.
+  // Descend through named containers without fabricating ship positions.
+  const queue:unknown[]=[raw],seen=new Set<unknown>()
+  while(queue.length){
+    const candidate=queue.shift()
+    if(!candidate||typeof candidate!=='object'||seen.has(candidate))continue
+    seen.add(candidate)
     if(Array.isArray(candidate)){
       if(candidate.length&&Array.isArray(candidate[0])){
-        // Accept a header-labelled tabular representation only, never guess
-        // positional indexes of anonymous arrays.
-        const heading=candidate[0] as unknown[]
-        if(heading.every(k=>typeof k==='string')&&heading.includes('mmsi')&&
-          heading.some(k=>['lat','latitude'].includes(String(k).toLowerCase()))){
+        const header=candidate[0] as unknown[]
+        if(header.every(v=>typeof v==='string')&&
+          header.some(v=>String(v).toLowerCase()==='mmsi')&&
+          header.some(v=>['lat','latitude'].includes(String(v).toLowerCase()))){
           return candidate.slice(1,12001).filter(Array.isArray).map(v=>
-            Object.fromEntries((v as unknown[]).slice(0,heading.length)
-              .map((value,i)=>[String(heading[i]),value])))
+            Object.fromEntries((v as unknown[]).slice(0,header.length)
+              .map((value,i)=>[String(header[i]),value])))
         }
-        return []
+      }else if(candidate.length){
+        const first=obj(candidate[0])
+        if(['mmsi','MMSI','lat','latitude','LATITUDE','AIS','position']
+          .some(key=>key in first))return candidate.slice(0,12000).map(obj)
+        for(const item of candidate.slice(0,30))queue.push(item)
       }
-      return candidate.slice(0,12000).map(obj)
+      continue
     }
-    if(candidate&&typeof candidate==='object'){
-      const entries=Object.entries(candidate as Row)
-      if(entries.length&&entries.length<=12000&&
-        entries.every(([key,v])=>/^[1-9]\d{8}$/.test(key)&&
-          v!==null&&typeof v==='object'&&!Array.isArray(v))){
-        // The API may return an MMSI-indexed object whose entries omit mmsi.
-        return entries.map(([key,value])=>{
-          const item=obj(value)
-          return {...item,mmsi:item.mmsi??item.MMSI??
-            (/^[1-9]\d{8}$/.test(key)?key:undefined)}
-        })
-      }
+    const record=obj(candidate),entries=Object.entries(record)
+    if(entries.length>0&&entries.length<=12000&&
+      entries.every(([key,value])=>/^[1-9]\d{8}$/.test(key)&&
+        value!==null&&typeof value==='object'&&!Array.isArray(value))){
+      return entries.map(([key,value])=>{
+        const ship=obj(value)
+        return {...ship,mmsi:ship.mmsi??ship.MMSI??key}
+      })
+    }
+    for(const key of ['ships','vessels','results','positions','items',
+      'records','current','data','payload','fleet']){
+      if(record[key]!==undefined)queue.push(record[key])
     }
   }
   return []
@@ -131,6 +138,7 @@ export function parseDataTrackingShips(raw:unknown,id:'hormuz'|'bab_el_mandeb',n
   totalRows:number
   timestamped:number
   usableCargoRows:number
+  usablePositionRows:number
 }{
   const poll=timestamp(raw)??date(pollFallback)
   const sourceName='hormuz.data-tracking.net AIS'
@@ -138,18 +146,19 @@ export function parseDataTrackingShips(raw:unknown,id:'hormuz'|'bab_el_mandeb',n
     ?'https://hormuz.data-tracking.net/live-map'
     :'https://hormuz.data-tracking.net/bab-el-mandeb'
   const values=rows(raw)
-  let timestamped=0,usableCargoRows=0
+  let timestamped=0,usableCargoRows=0,usablePositionRows=0
   const parsed:TrackingAsset[]=[]
   for(const value of values){
     const pos=obj(value.position),ais=obj(value.AIS)
     const row={...ais,...value}
-    if(!dryCargoCategory(row))continue
+    const cargoClass=dryCargoCategory(row)
     const mmsi=String(row.mmsi??row.MMSI??row.mmsi_number??'').trim()
     if(!/^[1-9]\d{8}$/.test(mmsi))continue
     const point=coordinate(row.lat??row.latitude??row.LATITUDE??row.position_lat??pos.lat??pos.latitude,
       row.lon??row.lng??row.longitude??row.LONGITUDE??row.position_lon??pos.lon??pos.lng??pos.longitude)
     if(!point)continue
-    usableCargoRows++
+    usablePositionRows++
+    if(cargoClass)usableCargoRows++
     const perShip=date(row.timestamp??row.last_seen??row.last_seen_at??
       row.last_position_at??row.position_time??row.updated_at??row.time??
       row.last_position_time??row.last_seen_utc??row.received_at??
@@ -163,7 +172,7 @@ export function parseDataTrackingShips(raw:unknown,id:'hormuz'|'bab_el_mandeb',n
     const speed=num(row.speed??row.sog??row.speed_knots??row.SPEED)
     const imo=String(row.imo??row.IMO??'')
     const shipType=[row.ship_type,row.vessel_type,row.type_name,row.category,row.type]
-      .map(v=>string(v,45)).find(v=>v&&Number.isNaN(Number(v)))??'Cargo vessel (AIS category)'
+      .map(v=>string(v,45)).find(v=>v&&Number.isNaN(Number(v)))??'Unclassified AIS vessel'
     const destination=string(row.destination??row.dest??row.DESTINATION,80)
     const label=string(row.name??row.ship_name??row.vessel_name??row.NAME,80)||mmsi
     parsed.push({
@@ -174,12 +183,18 @@ export function parseDataTrackingShips(raw:unknown,id:'hormuz'|'bab_el_mandeb',n
       sourceUrl:/^\d{7}$/.test(imo)
         ?'https://www.vesselfinder.com/vessels/details/'+imo:site,
       type:shipType+' · '+(id==='hormuz'?'Hormuz':'Bab el-Mandeb'),
-      cargo:'ais_cargo_class',destination:destination||null,foodCargoVerified:false,
+      cargo:cargoClass?'ais_cargo_class':'unverified',destination:destination||null,foodCargoVerified:false,
       chokepointId:id,observationBasis:perShip?'position_report':'snapshot_poll',
     })
   }
-  return {assets:mergeAssets(parsed).slice(0,1600),lastPoll:poll,
-    totalRows:values.length,timestamped,usableCargoRows}
+  // Large regional snapshots are port-heavy. Underway vessels should not
+  // disappear merely because stationary vessels filled the display budget.
+  const prioritized=mergeAssets(parsed).sort((a,b)=>
+    Number((b.speedKnots??0)>=1.5)-Number((a.speedKnots??0)>=1.5)||
+    Number(b.cargo==='ais_cargo_class')-Number(a.cargo==='ais_cargo_class')||
+    b.observedAt.localeCompare(a.observedAt))
+  return {assets:prioritized.slice(0,1600),lastPoll:poll,
+    totalRows:values.length,timestamped,usableCargoRows,usablePositionRows}
 }
 export function parseCrossingCount(raw:unknown):number|null{
   const root=obj(raw),data=obj(root.data),summary=obj(root.summary)
@@ -195,7 +210,7 @@ export function parseCrossingCount(raw:unknown):number|null{
 }
 const origin='https://hormuz.data-tracking.net'
 const SOURCE_NOTICE=
-  'AIS-derived snapshots, not a continuous global live feed. Some ships are absent due to receiver coverage, AIS-off, spoofing or jamming. Vessel category is not a cargo manifest. Counts of all-vessel crossings are not food shipments.'
+  'AIS-derived snapshots of all reported vessel classes, not a continuous global live feed. Some ships are absent due to receiver coverage, AIS-off, spoofing or jamming. Vessel category is not a cargo manifest. Counts of all-vessel crossings are not food shipments.'
 async function getJson(path:string,limitBytes=12000000):Promise<unknown>{
   const response=await fetch(origin+path,{
     headers:{Accept:'application/json'},
@@ -252,12 +267,16 @@ async function fetchArea(spec:typeof supported[number],now:number):Promise<{
     id:spec.id,label:cfg.label,
     state:stale?'stale':'partial',
     vesselCount:parsed.assets.length,providerRows:parsed.totalRows,
-    usableCargoRows:parsed.usableCargoRows,freshObservedCount:freshCount,
+    usableCargoRows:parsed.usableCargoRows,usablePositionRows:parsed.usablePositionRows,
+    cargoVesselCount:parsed.assets.filter(a=>a.cargo==='ais_cargo_class').length,
+    movingCount:parsed.assets.filter(a=>a.speedKnots!==null&&a.speedKnots>=1.5).length,
+    freshObservedCount:freshCount,
     crossings24h:summary.status==='fulfilled'?parseCrossingCount(summary.value):null,
     lastPoll:evidenceDate,checkedAt,sourceUrl:cfg.pageUrl,
     detail:(stale?'SOURCE DELAYED / data is NOT live. ':'AIS provider snapshot. ')+
-      'Cargo-like vessel types only; received '+parsed.totalRows+
-      ' raw rows, '+parsed.usableCargoRows+' cargo-type rows with coordinates, '+
+      'All AIS vessel classes; received '+parsed.totalRows+
+      ' raw rows, '+parsed.usablePositionRows+' with usable coordinates, '+
+      parsed.usableCargoRows+' identified cargo-class positions. '+
       parsed.timestamped+'/'+parsed.assets.length+
       ' accepted cargo vessels have their own observation timestamp. '+
       '24h crossing statistics include all vessel classes; not a cargo-specific count. '+SOURCE_NOTICE,

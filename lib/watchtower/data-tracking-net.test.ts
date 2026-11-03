@@ -3,7 +3,7 @@ import {readFileSync} from 'node:fs'
 import {join} from 'node:path'
 import {dryCargoCategory,parseDataTrackingShips,parseCrossingCount,
   TRACKED_CHOKEPOINTS} from './data-tracking-net'
-import {freshAsset} from './global-tracking'
+import {freshAsset,mergeAssets} from './global-tracking'
 
 const t=Date.now()
 const stamp=(ageMinutes:number)=>new Date(t-ageMinutes*60000).toISOString()
@@ -24,7 +24,7 @@ describe('Data-tracking.net public chokepoint AIS adapter',()=>{
     expect(dryCargoCategory({category:'passenger ship'})).toBe(false)
     expect(dryCargoCategory({category:'unknown'})).toBe(false)
   })
-  it('requires a real AIS position, MMSI, timestamp and cargo classification',()=>{
+  it('requires real AIS coordinates and timestamps without removing non-cargo vessels',()=>{
     const result=parseDataTrackingShips({
       last_poll:stamp(29),
       ships:[vessel(),vessel({mmsi:'bad'}),
@@ -33,7 +33,10 @@ describe('Data-tracking.net public chokepoint AIS adapter',()=>{
         vessel({mmsi:123456792,last_seen:stamp(12000)}),
       ],
     },'hormuz',t)
-    expect(result.assets).toHaveLength(2)
+    expect(result.assets).toHaveLength(3)
+    expect(result.assets.find(a=>a.id==='sea:123456790')).toMatchObject({cargo:'unverified'})
+    expect(result.usablePositionRows).toBe(3)
+    expect(result.usableCargoRows).toBe(2)
     expect(result.assets[0]).toMatchObject({
       id:'sea:123456789',kind:'vessel',cargo:'ais_cargo_class',
       chokepointId:'hormuz',observationBasis:'position_report',
@@ -61,7 +64,22 @@ describe('Data-tracking.net public chokepoint AIS adapter',()=>{
     expect(result.timestamped).toBe(0)
     expect(parseDataTrackingShips({ships:[vessel({last_seen:null})]},'hormuz',t).assets).toHaveLength(0)
   })
+  it('accepts nested AIS response wrappers and prioritizes ships reporting movement',()=>{
+    const result=parseDataTrackingShips({data:{payload:{ships:[
+      vessel({mmsi:123456780,speed:0}),vessel({mmsi:123456781,speed:14}),
+    ]}},last_poll:stamp(20)},'hormuz',t)
+    expect(result.assets).toHaveLength(2)
+    expect(result.assets[0].id).toBe('sea:123456781')
+  })
+  it('never replaces a source-dated AIS position with a webpage capture time',()=>{
+    const observed=parseDataTrackingShips({last_poll:stamp(30),ships:[vessel()]},'hormuz',t).assets[0]
+    const capture={...observed,lat:25,lon:51.6,
+      observedAt:new Date(t).toISOString(),observationBasis:'webpage_capture' as const}
+    expect(mergeAssets([observed,capture])[0].lat).toBe(observed.lat)
+    expect(mergeAssets([capture,observed])[0].lat).toBe(observed.lat)
+  })
   it('does not invent 24-hour crossing counts',()=>{
+
     expect(parseCrossingCount({total_crossings:23})).toBe(23)
     expect(parseCrossingCount({inbound:4,outbound:8})).toBe(12)
     expect(parseCrossingCount({data:{crossings_24h:19}})).toBe(19)

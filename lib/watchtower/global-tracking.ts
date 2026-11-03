@@ -79,7 +79,13 @@ export function mergeAssets(assets: readonly TrackingAsset[]): TrackingAsset[] {
   const byId = new Map<string, TrackingAsset>()
   for (const asset of assets) {
     const previous = byId.get(asset.id)
-    if (!previous || asset.observedAt > previous.observedAt) byId.set(asset.id, asset)
+    // A webpage capture timestamp is not the time an AIS fix was broadcast.
+    // Never let it overwrite a source-dated vessel position for the same MMSI.
+    const capture=asset.observationBasis==='webpage_capture'
+    const previousCapture=previous?.observationBasis==='webpage_capture'
+    if(!previous||(previousCapture&&!capture)||
+      (capture===previousCapture&&asset.observedAt>previous.observedAt))
+      byId.set(asset.id,asset)
   }
   return [...byId.values()].sort((a, b) => b.observedAt.localeCompare(a.observedAt)).slice(0, MAX_ASSETS)
 }
