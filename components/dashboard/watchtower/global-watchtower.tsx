@@ -2,7 +2,7 @@
 import dynamic from 'next/dynamic'
 import Link from 'next/link'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { AlertTriangle, ArrowUpRight, ChevronLeft, ExternalLink, Layers, Maximize2, Minimize2, Pause, Plane, Play, Radio, RefreshCw, Search, Ship, Wheat, X } from 'lucide-react'
+import { Activity, AlertTriangle, ArrowUpRight, ChevronLeft, ExternalLink, FileText, Globe2, Layers, Maximize2, Minimize2, Pause, Plane, Play, Radar, Radio, RefreshCw, Search, Ship, Wheat, X } from 'lucide-react'
 import { useI18n } from '@/lib/i18n'
 import { useOrganization } from '@/hooks/use-organization'
 import type { FoodPosture } from '@/lib/watchtower/food-posture'
@@ -35,7 +35,7 @@ const REGIONS = {
 } as const
 type Region = keyof typeof REGIONS
 type ShipView = 'moving' | 'cargoMoving'
-const count = (n: number | null) => n === null ? 'N/A' : n.toLocaleString('en-US')
+const count = (n: number | null) => n === null ? '—' : n.toLocaleString('en-US')
 function utc(value: string | null) {
   if (!value || !Number.isFinite(Date.parse(value))) return 'Not provided'
   if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return value + ' (date only)'
@@ -564,8 +564,20 @@ export function GlobalWatchtower() {
     [ipcRisk,query])
   const displayedRiskAlerts=useMemo(()=>externalRiskAlerts.filter(alert=>
     riskPanelFilter==='all'||(riskPanelFilter==='hazards'&&alert.kind==='hazard')||
-    (riskPanelFilter==='logistics'&&['aviation','maritime'].includes(alert.kind))),
+    (riskPanelFilter==='logistics'&&['aviation','maritime'].includes(alert.kind)))
+      .sort((a,b)=>Number(b.severity==='high')-Number(a.severity==='high')||
+        (b.observedAt??'').localeCompare(a.observedAt??'')),
     [externalRiskAlerts,riskPanelFilter])
+  const visibleFoodReports=useMemo(()=>(publicFood?.fews.reports??[])
+    .filter(report=>!query||report.title.toLowerCase().includes(query.toLowerCase()))
+    .slice(0,25),[publicFood,query])
+  const hazardSignals=externalRiskAlerts.filter(alert=>alert.kind==='hazard').length
+  const logisticsSignals=externalRiskAlerts.filter(alert=>
+    alert.kind==='aviation'||alert.kind==='maritime').length
+  const highPrioritySignals=externalRiskAlerts.filter(alert=>alert.severity==='high').length
+  const foodSignals=visibleFoodReports.length+displayedIpc.length
+  const showFoodInsights=riskPanelFilter==='all'||riskPanelFilter==='ipc'
+  const visibleSignals=riskPanelFilter==='ipc'?0:displayedRiskAlerts.length
 
   const selectedAsset = allAssets.find(a => a.id === selectedId), selectedAlert = allAlerts.find(a => a.id === selectedId)
   const selectedProductionZone=(productionRisk?.zones??[]).find(zone=>zone.id===selectedId)
@@ -668,18 +680,15 @@ export function GlobalWatchtower() {
         { label: 'Aircraft observations', value: (known(airSource?.state)||regionalAir.some(b=>b.succeeded>0)) ? assets.filter(a => a.kind === 'aircraft').length : null, note: freightFlightsOnly?'Freight-operator candidates only':'Regional ADS-B, all observed classes', icon: Plane },
         { label: 'Vessel observations', value: (openWaters?.state==='available'||openWaters?.state==='partial'||globalAis?.state==='partial'||globalAis?.state==='stale'||openSea?.state==='available'||openSea?.state==='stale'||known(seaSource?.state)||Boolean(maritimeFeed?.chokepoints.some(point=>point.state==='partial'||point.state==='stale'))||Boolean(gccRadar?.configured)) ? assets.filter(a => a.kind === 'vessel').length : null, note: (openWaters?.state==='available'||openWaters?.state==='partial')?'Multi-region Open Waters AIS':globalAis?.state==='partial'?'OpenSeaFeed global AIS + regional sources':openSea?.state==='available'?'hormuz.now regional AIS + other sources':openSea?.state==='stale'?'Regional AIS delayed':maritimeFeed?'data-tracking.net AIS + port samples':'Awaiting regional AIS coverage', icon: Ship },
         { label: 'Worldwide risk reports', value: riskReadable ? externalRiskAlerts.length : null, note: 'Worldwide reports, not viewport-limited', icon: AlertTriangle },
-        { label: publicFood?.fao.state==='available'?'FAO food-assistance countries':'IPC assessed countries',
-          value:publicFood?.fao.countryCount??(ipcRisk?.state==='available'?ipcRisk.countryCount:null),
+        { label: 'Countries requiring assistance',
+          value:publicFood?.fao.state==='available'?publicFood.fao.countryCount:null,
           note:publicFood?.fao.state==='available'
-            ?'FAO GIEWS '+(publicFood.fao.edition??'published assessment')+'; not IPC'
-            :ipcRisk?.state==='unconfigured'?'IPC key required; public FAO feed pending'
-            :ipcRisk?.state==='unavailable'?'IPC unavailable; FAO '+(publicFood?.fao.state??'loading')
-            :'Official IPC/CH assessments', icon: Wheat },
-      ].map(item => <div key={item.label} className={styles.stat}><label>{item.label}</label><strong>{(item.label==='IPC assessed countries'||item.label==='FAO food-assistance countries')&&item.value===null
-          ?ipcRisk?.state==='unconfigured'?'KEY REQUIRED'
-            :ipcRisk?.state==='unavailable'?'API ERROR'
-            :ipcRisk?.state==='partial'?'NO DATA':'LOADING'
-          :count(item.value)}</strong><item.icon size={21} /><small>{item.note}</small></div>)}</div>
+            ?'FAO GIEWS · '+(publicFood.fao.edition??'published assessment')
+            :'FAO GIEWS · assessment not available', icon: Wheat },
+      ].map(item => <div key={item.label} className={styles.stat}>
+        <label>{item.label}</label><strong>{count(item.value)}</strong>
+        <item.icon size={21} /><small>{item.note}</small>
+      </div>)}</div>
     </header>
     {error && <div className={styles.statusError} role="alert">{error}</div>}
     <aside className={`${styles.panel} ${styles.filters} ${filtersOpen ? '' : styles.hidePanel}`} aria-label="Map controls">
@@ -736,7 +745,7 @@ export function GlobalWatchtower() {
         }))}>
         <span><Layers size={13}/>Available routes & tracks</span><i className={styles.switch}/>
       </button>
-      <p className={styles.controlNote}>Stationary and port-berthed vessels, unknown-speed ships, webpage captures and positions older than two hours are hidden. Reported SOG is not proof of a voyage.</p>
+      <p className={styles.controlNote}>Stationary and port-berthed ships are hidden. Positions are source-observed, sometimes delayed by up to 12 hours; reported speed does not prove a voyage.</p>
       <details className={styles.sourcesDetails}>
         <summary>Data sources & freshness</summary>
         <div className={styles.sourceBody}>
@@ -928,60 +937,164 @@ export function GlobalWatchtower() {
           <p className={styles.hint}>Operational impact requires a matching supplier, commodity and shipment. No disruption probability or automatic rerouting is asserted.</p>
           <Link className={styles.smallButton} href="/dashboard/logistics">Compare logistics <ArrowUpRight size={12} /></Link>
         </div> : selectedId ? <p className={styles.empty}>This observation is no longer in the current feed. Return to alerts or search for another asset.</p> : <>
-          <p className={styles.hint}>Worldwide assessments and source-backed events. The list is global even when the map is centred on Qatar. IPC indicates assessed acute food insecurity; GDACS indicates possible agricultural impacts; logistics advisories do not confirm shipment disruption.</p>
-          <div className={styles.riskFilterRow}>
+          <section className={styles.intelHero} aria-label="Global food security intelligence overview">
+            <div className={styles.intelHeroTop}>
+              <span className={styles.intelEyebrow}><Globe2 size={13}/> GLOBAL INTELLIGENCE</span>
+              <span className={styles.intelHeroLabel}><i/> WORLDWIDE</span>
+            </div>
+            <div className={styles.intelHeroTitle}>
+              <div>
+                <h2>Food security pulse</h2>
+                <p>Observed disruptions, official assessments and published outlooks.</p>
+              </div>
+              <span className={styles.intelRadar} aria-hidden="true"><Radar size={31}/></span>
+            </div>
+            <div className={styles.intelMetrics}>
+              <div className={styles.intelMetric}>
+                <strong>{publicFood?.fao.state==='available'&&publicFood.fao.countryCount!==null
+                  ?publicFood.fao.countryCount.toLocaleString('en-US'):'—'}</strong>
+                <span>Countries requiring assistance</span>
+                <small>FAO GIEWS · {publicFood?.fao.edition??'assessment pending'}</small>
+              </div>
+              <div className={styles.intelMetric}>
+                <strong>{riskReadable?externalRiskAlerts.length:'—'}</strong>
+                <span>Geolocated reports</span>
+                <small>GDACS / logistics</small>
+              </div>
+              <div className={styles.intelMetric}>
+                <strong>{publicFood?.fews.state==='available'||publicFood?.fews.state==='partial'
+                  ?publicFood.fews.reports.length:'—'}</strong>
+                <span>Food outlook reports</span>
+                <small>FEWS NET · publications</small>
+              </div>
+            </div>
+            <div className={styles.intelHeroFoot}>
+              <Activity size={12}/> Different source cadences · No estimated impacts
+            </div>
+          </section>
+          <div className={styles.intelSourceStrip} aria-label="Data source availability">
             {([
-              ['all','All global risks'],['ipc','IPC food crises'],
-              ['hazards','Production hazards'],['logistics','Logistics'],
-            ] as const).map(([value,label])=><button key={value}
-              className={styles.riskFilterButton}
-              aria-pressed={riskPanelFilter===value}
-              onClick={()=>setRiskPanelFilter(value)}>{label}</button>)}
+              ['FAO',publicFood?.fao.state],
+              ['FEWS',publicFood?.fews.state],
+              ['GDACS',productionRisk?.status],
+              ['IPC',ipcRisk?.state],
+            ] as const).map(([name,state])=>
+              <span key={name} className={styles.intelSource} data-state={state??'loading'}
+                title={name+' · '+(state??'loading')}>
+                <i/>{name}
+              </span>)}
+            <span className={styles.intelSourceCaption}>SOURCE STATUS</span>
           </div>
-          {(ipcRisk?.state==='unavailable'||ipcRisk?.state==='unconfigured')&&
-            <p className={styles.notice}>IPC/CH assessments: {ipcRisk.detail}
-              {' '}FAO GIEWS and FEWS NET are displayed separately and do not require this IPC credential.
-            </p>}
-          {publicFood?.fao.state==='available'&&
-            <p className={styles.notice}>
-              FAO GIEWS ({publicFood.fao.edition??'published edition'}):
-              {' '}{publicFood.fao.countryCount} countries requiring external food assistance.
-              {' '}This is NOT the number of IPC-classified countries.
-              {' '}<a href={publicFood.fao.url} target="_blank" rel="noopener noreferrer">Official FAO source</a>
-            </p>}
-          {publicFoodError&&<p className={styles.notice}>FAO / FEWS sources: {publicFoodError}</p>}
-          {(riskPanelFilter==='all'||riskPanelFilter==='ipc')&&Boolean(publicFood?.fews.reports.length)&&
-            <div className={styles.controlSectionHeading}>Latest global food security reports · FEWS NET</div>}
-          {(riskPanelFilter==='all'||riskPanelFilter==='ipc')&&publicFood?.fews.reports
-            .filter(report=>!query||report.title.toLowerCase().includes(query.toLowerCase()))
-            .slice(0,25).map(report=>
-              <a key={report.id} className={styles.alert} href={report.url}
-                target="_blank" rel="noopener noreferrer">
-                <div className={styles.alertHead}>
-                  <span className={styles.severity}>PUBLISHED REPORT</span>
-                  <small>{report.publishedAt.slice(0,10)}</small>
-                </div>
-                <strong>{report.title}</strong>
-                <p>FEWS NET · Source publication, not a confirmed live food security incident.</p>
-              </a>)}
-          {ipcError&&<p className={styles.notice}>IPC: {ipcError}</p>}
-          {productionRisk?.status==='unavailable'&&<p className={styles.notice}>GDACS production screening unavailable. Global safety cannot be inferred.</p>}
-          {(riskPanelFilter==='all'||riskPanelFilter==='ipc')&&displayedIpc.length>0&&
-            <div className={styles.controlSectionHeading}>Acute food insecurity · IPC / CH</div>}
-          {(riskPanelFilter==='all'||riskPanelFilter==='ipc')&&displayedIpc.map(r=>
-            <button key={r.id} className={styles.alert} onClick={()=>{
-              setSelectedId(null);setSourceId(null);setSelectedIpcId(r.id);setAlertsOpen(true)
-            }}>
-              <div className={styles.alertHead}>
-                <span className={styles.severity} data-level="high">IPC Phase 3+</span>
-                <small>{r.period}</small>
+          <div className={styles.riskFilterRow} role="group" aria-label="Filter global risk reports">
+            {([
+              ['all','All',Globe2,foodSignals+externalRiskAlerts.length],
+              ['ipc','Food',Wheat,foodSignals],
+              ['hazards','Hazards',AlertTriangle,hazardSignals],
+              ['logistics','Logistics',Ship,logisticsSignals],
+            ] as const).map(([value,label,Icon,total])=>
+              <button key={value} className={styles.riskFilterButton}
+                aria-pressed={riskPanelFilter===value}
+                onClick={()=>setRiskPanelFilter(value)}>
+                <Icon size={13}/><span>{label}</span><small>{total}</small>
+              </button>)}
+          </div>
+          <div className={styles.intelSectionIntro}>
+            <div><span>INTELLIGENCE FEED</span>
+              <strong>{riskPanelFilter==='all'?'Latest global signals':
+                riskPanelFilter==='ipc'?'Food security outlooks':
+                riskPanelFilter==='hazards'?'Production hazard monitoring':'Transport disruption watch'}</strong>
+            </div>
+            <span className={styles.intelSectionCount}>
+              {visibleSignals+(showFoodInsights?foodSignals:0)} records
+            </span>
+          </div>
+          {riskPanelFilter!=='ipc'&&highPrioritySignals>0&&
+            <div className={styles.intelPrioritySummary}>
+              <span className={styles.intelPriorityDot}/>
+              {highPrioritySignals} high-severity source reports globally
+              <span>· screening only</span>
+            </div>}
+          {showFoodInsights&&visibleFoodReports.length>0&&
+            <div className={styles.intelGroupLabel}><FileText size={12}/> PUBLISHED FOOD OUTLOOKS
+              <span>{visibleFoodReports.length}</span>
+            </div>}
+          {showFoodInsights&&visibleFoodReports.map(report=>
+            <a key={report.id} className={styles.intelSignalCard}
+              href={report.url} target="_blank" rel="noopener noreferrer">
+              <div className={styles.intelSignalTop}>
+                <span className={styles.intelType} data-kind="report">FEWS NET · REPORT</span>
+                <time dateTime={report.publishedAt}>{report.publishedAt.slice(0,10)}</time>
+              </div>
+              <strong>{report.title}</strong>
+              <div className={styles.intelSignalBottom}>
+                <span>Published food security analysis</span><ArrowUpRight size={13}/>
+              </div>
+            </a>)}
+          {showFoodInsights&&displayedIpc.length>0&&
+            <div className={styles.intelGroupLabel}><Wheat size={12}/> ACUTE FOOD INSECURITY
+              <span>{displayedIpc.length}</span>
+            </div>}
+          {showFoodInsights&&displayedIpc.map(r=>
+            <button key={r.id} className={styles.intelSignalCard}
+              onClick={()=>{setSelectedId(null);setSourceId(null);setSelectedIpcId(r.id);setAlertsOpen(true)}}>
+              <div className={styles.intelSignalTop}>
+                <span className={styles.intelType} data-kind="food">IPC / CH · PHASE 3+</span>
+                <span>{r.period}</span>
               </div>
               <strong>{r.country}</strong>
-              <p>{r.phase3Plus.toLocaleString('en-US')} assessed people in IPC Phase 3+ · {r.from} to {r.to}</p>
+              <div className={styles.intelSignalBottom}>
+                <span>{r.phase3Plus.toLocaleString('en-US')} assessed people · through {r.to}</span>
+                <ArrowUpRight size={13}/>
+              </div>
             </button>)}
-          {(staleSnapshot || paused) && <p className={styles.notice}>{paused ? 'Automatic updates paused. Positions will age.' : 'Tracking snapshot is stale. Source availability may have changed.'}</p>}
-          <div className="mt-3">{(riskPanelFilter==='ipc'?[]:displayedRiskAlerts).map(alert => <button key={alert.id} className={styles.alert} onClick={() => choose(alert)}><div className={styles.alertHead}><span className={styles.severity} data-level={alert.severity}>{alert.severity}</span><small>{alert.source}</small></div><strong>{alert.title}</strong><p>{alert.kind === 'food' ? 'Organization-level signal' : alert.kind === 'aviation' ? 'Advisory / not a verified closure' : alert.kind === 'maritime' ? 'Regional report / position approximate' : 'Reported hazard / impact unverified'}</p></button>)}</div>
-          {!displayedRiskAlerts.length && !displayedIpc.length && !publicFood?.fews.reports.length && <p className={styles.empty}>{busy ? 'Loading source-backed observations...' : 'No matching mapped reports in this response. Missing feeds are not evidence that a corridor is safe.'}</p>}
+          {riskPanelFilter!=='ipc'&&displayedRiskAlerts.length>0&&
+            <div className={styles.intelGroupLabel}><AlertTriangle size={12}/> REPORTED EVENTS & ADVISORIES
+              <span>{displayedRiskAlerts.length}</span>
+            </div>}
+          {riskPanelFilter!=='ipc'&&displayedRiskAlerts.map(alert=>
+            <button key={alert.id}
+              className={`${styles.intelSignalCard} ${alert.severity==='high'?styles.intelSignalHigh:''}`}
+              onClick={()=>choose(alert)}>
+              <div className={styles.intelSignalTop}>
+                <span className={styles.intelType}
+                  data-kind={alert.severity==='high'?'high':'attention'}>
+                  {alert.severity==='high'?'HIGH SEVERITY':'MONITOR'}
+                </span>
+                <time dateTime={alert.observedAt??undefined}>
+                  {alert.observedAt?.slice(0,10)??'Date unavailable'}
+                </time>
+              </div>
+              <strong>{alert.title}</strong>
+              <div className={styles.intelSignalBottom}>
+                <span>{alert.source} · {alert.kind==='hazard'?'Potential impact':
+                  alert.kind==='aviation'?'Airspace advisory':'Maritime advisory'}</span>
+                <ArrowUpRight size={13}/>
+              </div>
+            </button>)}
+          {visibleSignals+(showFoodInsights?foodSignals:0)===0&&
+            <div className={styles.intelEmpty}>
+              <Radio size={20}/>
+              <strong>No source reports in this view</strong>
+              <span>Unavailable sources or filters can reduce coverage. This does not establish that an area is safe.</span>
+            </div>}
+          {(staleSnapshot||paused)&&
+            <div className={styles.intelQuietStatus}>
+              {paused?'Automatic updates paused':'Tracking observations may be delayed'}
+            </div>}
+          <details className={styles.intelMethod}>
+            <summary>Sources & methodology <ChevronLeft size={12}/></summary>
+            <div>
+              <p>FAO GIEWS: {publicFood?.fao.state??'loading'} · {publicFood?.fao.edition??'edition unavailable'}.
+                {' '}<a href={publicFood?.fao.url??'https://www.fao.org/giews/country-analysis/external-assistance/en/'} target="_blank" rel="noopener noreferrer">View FAO</a></p>
+              <p>FEWS NET: {publicFood?.fews.state??'loading'} · {publicFood?.fews.reports.length??'—'} published reports.</p>
+              <p>GDACS: {productionRisk?.status??'loading'} · Event screening, not confirmed food losses.</p>
+              <p>IPC/CH: {ipcRisk?.state==='unconfigured'?'not connected':ipcRisk?.state??'loading'} ·
+                {' '}<a href="https://www.ipcinfo.org/ipc-country-analysis/api/" target="_blank" rel="noopener noreferrer">Official information</a></p>
+              {publicFoodError&&<p>Public source status: {publicFoodError}</p>}
+              {ipcError&&<p>IPC source status: {ipcError}</p>}
+              <p>Countries requiring external food assistance are not the number of IPC-classified countries. Alert counts are source reports, not probability or verified shipment disruption.</p>
+            </div>
+          </details>
         </>}
       </div>
     </aside>
