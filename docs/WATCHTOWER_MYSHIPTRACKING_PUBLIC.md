@@ -10,7 +10,6 @@ trajectory. Historical tracks need a separate provider with timed fixes.
 ## Activation / permissions
 Set these SERVER variables in Vercel:
 - WATCHTOWER_MST_SCRAPE_ENABLED=true
-- WATCHTOWER_MST_MAX_SHIPS_PER_HUB=12 (default and maximum 12)
 
 No MYSHIPTRACKING_API_KEY is required for public HTML mode, and no
 billable MyShipTracking API request is made when this flag is enabled.
@@ -91,3 +90,5 @@ Diagnostics show candidate/inspected/mapped/cargo-class totals for each port.
 Website source access, HTML layout, actual coordinates and permitted use
 remain independent limitations: the result is not guaranteed to match
 the number of ships printed by a local Selenium browser.
+
+The public HTML radar uses a fixed 12 candidate vessel pages per supported port, matching the provided Python workflow. The old WATCHTOWER_MST_MAX_SHIPS_PER_HUB environment variable is ignored in this public-webpage mode so a stale Vercel value of 4 cannot silently reduce coverage. This is a discovery limit, not a guarantee of 12 mapped vessels per port.

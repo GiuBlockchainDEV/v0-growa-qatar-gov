@@ -237,10 +237,9 @@ export function isPublicScrapeAllowed(orgId:string){
     .map(x=>x.trim().toLowerCase()).filter(Boolean)
   return allow.includes(orgId.toLowerCase())
 }
-const limit=()=>{
-  const v=Number(process.env.WATCHTOWER_MST_MAX_SHIPS_PER_HUB??'12')
-  return Number.isInteger(v)?cap(v,1,12):4
-}
+// Mirror the 12-per-port Python workflow. Ignore a stale legacy
+// MAX_SHIPS_PER_HUB=4 Vercel setting instead of silently scanning only four.
+const limit=()=>12
 const baseHeaders={Accept:'text/html,application/xhtml+xml',
   // Identify our client; we deliberately do not spoof human browsers.
   'User-Agent':'Growa-NFII-Research/1.0 (+https://growa.ai)'}
