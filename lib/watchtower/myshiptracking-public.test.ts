@@ -121,9 +121,9 @@ describe('Public HTML GCC radar without MyShipTracking API',()=>{
   expect(ship?.cargo).toBe('unverified')
   expect(ship?.lat).toBeCloseTo(25.12345)
  })
- it('shows all ship classes by default while keeping cargo-class filtering optional',()=>{
+ it('defaults to moving vessels and keeps cargo-class filtering optional',()=>{
   const ui=readFileSync(join(process.cwd(),'components/dashboard/watchtower/global-watchtower.tsx'),'utf8')
-  expect(ui).toContain("[shipView,setShipView]=useState<ShipView>('all')")
+  expect(ui).toContain("[shipView,setShipView]=useState<ShipView>('moving')")
   expect(ui).toContain('Cargo-class vessels')
   expect(ui).toContain("a.cargo==='ais_cargo_class'")
  })

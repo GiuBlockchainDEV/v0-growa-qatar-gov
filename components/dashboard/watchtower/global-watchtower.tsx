@@ -56,6 +56,7 @@ export function GlobalWatchtower() {
   const [freightFlightsOnly,setFreightFlightsOnly]=useState(false)
   const [regionalAir,setRegionalAir]=useState<RegionalAirBatch[]>([])
   const [regionalAirLoading,setRegionalAirLoading]=useState(false)
+  const [regionalAirFailedBatches,setRegionalAirFailedBatches]=useState<number[]>([])
   const [maritimeError,setMaritimeError]=useState('')
   const [aisHistory,setAISHistory]=useState<AISRoute[]>([])
   const [aisHistoryStatus,setAISHistoryStatus]=useState('')
@@ -166,9 +167,16 @@ export function GlobalWatchtower() {
               return data
             }))
           if(!active)break
-          for(const entry of fetched)if(entry.status==='fulfilled')
-            setRegionalAir(current=>[...current.filter(item=>item.batch!==entry.value.batch),
-              entry.value].sort((a,b)=>a.batch-b.batch))
+          for(const [offset,entry] of fetched.entries()){
+            const index=start+offset
+            if(entry.status==='fulfilled'){
+              setRegionalAirFailedBatches(current=>current.filter(n=>n!==index))
+              setRegionalAir(current=>[...current.filter(item=>item.batch!==entry.value.batch),
+                entry.value].sort((a,b)=>a.batch-b.batch))
+            }else{
+              setRegionalAirFailedBatches(current=>[...new Set([...current,index])].sort((a,b)=>a-b))
+            }
+          }
         }
       }finally{
         running=false
@@ -623,10 +631,19 @@ export function GlobalWatchtower() {
             {openSea?.providerAt?' Source '+utc(openSea.providerAt)+'.':''}
           </p>
           {openSeaError&&<p>{openSeaError}</p>}
-          <p><strong>Regional ADS-B grid:</strong> {regionalAir.length}/{REGIONAL_AIR_BATCH_COUNT} batches,
-            {regionalAir.reduce((n,b)=>n+b.succeeded,0)}/60 search circles responding.
-            {' '}{regionalAirLoading?'Refreshing observations.':''}
-            {' '}Source coverage is not guaranteed across the requested rectangle.
+          <p><strong>Regional ADS-B grid:</strong> {regionalAir.length}/{REGIONAL_AIR_BATCH_COUNT} batches received,
+            {' '}{regionalAir.reduce((n,b)=>n+b.succeeded,0)}/60 search circles responding,
+            {' '}{regionalAir.reduce((n,b)=>n+b.failed,0)} source errors,
+            {' '}{regionalAirFailedBatches.length} batch requests failed.
+            {' '}{regionalAirLoading?'Loading remaining areas.':''}
+          </p>
+          <p><strong>ADS-B errors:</strong> {Object.entries(regionalAir.reduce<Record<string,number>>(
+            (errors,batch)=>{
+              for(const [code,n] of Object.entries(batch.failureCodes??{}))
+                errors[code]=(errors[code]??0)+n
+              return errors
+            },{})).map(([code,n])=>code+': '+n).join(' · ')||'none reported'}.
+            A failed request does not mean empty airspace.
           </p>
           <p><strong>OpenSeaFeed:</strong> {globalAis?.state??'loading'} · {globalAis?.accepted??'N/A'} mapped,
             {globalAis?.regional??'N/A'} regional. {globalAisError}

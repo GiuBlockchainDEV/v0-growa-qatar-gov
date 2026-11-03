@@ -11,14 +11,14 @@ const read=(path:string)=>readFileSync(join(process.cwd(),path),'utf8')
 
 describe('Watchtower maritime focus around Qatar, Gulf and Red Sea',()=>{
   it('defaults to the user-selected Gulf / Hormuz / Red Sea corridor, with a world-map option',()=>{
-    expect(REGIONAL_WATCHTOWER_VIEW.box).toEqual([9,31,36,68])
+    expect(REGIONAL_WATCHTOWER_VIEW.box).toEqual([7,25,42,80])
     expect(REGIONAL_WATCHTOWER_VIEW.lat).toBeGreaterThan(20)
     expect(REGIONAL_WATCHTOWER_VIEW.lon).toBeGreaterThan(45)
     const ui=read('components/dashboard/watchtower/global-watchtower.tsx')
     const map=read('components/dashboard/watchtower/global-tracking-map.tsx')
     expect(ui).toContain("useState<Region>('gulf')")
-    expect(ui).toContain('Regional waters')
-    expect(ui).toContain("setView('global')")
+    expect(ui).toContain('Gulf · Red Sea · Gulf of Aden')
+    expect(ui).toContain("global: { name: 'Global'")
     expect(map).toContain('REGIONAL_WATCHTOWER_VIEW.lat,REGIONAL_WATCHTOWER_VIEW.lon')
     expect(map).toContain('ESRI_POLITICAL_BASE')
   })

@@ -10,7 +10,7 @@ const nm=(latA:number,lonA:number,latB:number,lonB:number)=>{
 describe('Geographic coverage of the full Watchtower screenshot',()=>{
   it('covers the complete Egypt-to-Pakistan rectangle with real 250 NM queries',()=>{
     expect(REGIONAL_AIR_CENTERS).toHaveLength(60)
-    expect(REGIONAL_AIR_BATCH_COUNT).toBe(6)
+    expect(REGIONAL_AIR_BATCH_COUNT).toBe(12)
     for(const center of REGIONAL_AIR_CENTERS){
       expect(center.lat).toBeGreaterThanOrEqual(7)
       expect(center.lat).toBeLessThanOrEqual(42)
@@ -24,8 +24,8 @@ describe('Geographic coverage of the full Watchtower screenshot',()=>{
       }
     expect(worst).toBeLessThan(250)
   })
-  it('splits the area into six ten-query batches',()=>{
+  it('splits the area into twelve serialized five-query batches',()=>{
     for(let batch=0;batch<REGIONAL_AIR_BATCH_COUNT;batch++)
-      expect(REGIONAL_AIR_CENTERS.filter(c=>c.batch===batch)).toHaveLength(10)
+      expect(REGIONAL_AIR_CENTERS.filter(c=>c.batch===batch)).toHaveLength(5)
   })
 })

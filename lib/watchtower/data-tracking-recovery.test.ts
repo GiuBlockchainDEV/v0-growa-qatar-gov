@@ -26,13 +26,14 @@ describe('public chokepoint AIS recovery',()=>{
     expect(r.assets[0].observedAt).toBe(iso(6500))
     expect(parseDataTrackingShips({ships:[ship],last_poll:iso(46000)},'hormuz',now).assets).toEqual([])
   })
-  it('accepts MMSI-keyed arrays and no double counting; rejects tankers',()=>{
+  it('accepts MMSI-keyed arrays, preserves distinct vessel classes and identifies dry cargo',()=>{
     const fixture={ships:{'123456789':{...ship,mmsi:undefined},
       '123456790':{...ship,mmsi:123456790,ship_type:'Oil Tanker'}}}
     const r=parseDataTrackingShips(fixture,'hormuz',now,iso(15))
     expect(r.totalRows).toBe(2)
-    expect(r.assets).toHaveLength(1)
-    expect(r.assets[0].id).toBe('sea:123456789')
+    expect(r.assets).toHaveLength(2)
+    expect(r.assets.find(a=>a.id==='sea:123456789')?.cargo).toBe('ais_cargo_class')
+    expect(r.assets.find(a=>a.id==='sea:123456790')?.cargo).toBe('unverified')
     expect(dryCargoCategory({category:'Dry bulk carrier'})).toBe(true)
     expect(dryCargoCategory({category:'Oil/Chemical Tanker'})).toBe(false)
   })

@@ -33,7 +33,9 @@ const url='https://api.openseafeed.com/v1/snapshot'
 export function parseOpenSeaFeedSnapshot(raw:unknown,now=Date.now()):OpenSeaFeedSnapshot{
   const data=obj(raw)
   if(!Array.isArray(data.vessels))throw Error('OpenSeaFeed vessels array unavailable')
-  const snapshotMs=num(data.generated_at_ms)
+  // Current OpenSeaFeed snapshotter publishes generated_at, while some
+  // historical fixtures used generated_at_ms. Accept both without inventing time.
+  const snapshotMs=num(data.generated_at??data.generated_at_ms)
   if(snapshotMs===null||snapshotMs<Date.UTC(2020,0,1)||snapshotMs>now+120000)
     throw Error('OpenSeaFeed snapshot has no credible source timestamp')
   const mapped:TrackingAsset[]=[]
@@ -125,9 +127,9 @@ export async function getOpenSeaFeedSnapshot():Promise<OpenSeaFeedSnapshot>{
         headers:{Accept:'application/json'},signal:AbortSignal.timeout(14000),
         next:{revalidate:75},
       })
-      if(!response.ok||!response.body)throw Error('OpenSeaFeed snapshot unavailable')
+      if(!response.ok||!response.body)throw Error('HTTP '+response.status)
       const contentLength=num(response.headers.get('content-length'))
-      if(contentLength!==null&&contentLength>25000000)throw Error('OpenSeaFeed snapshot too large')
+      if(contentLength!==null&&contentLength>60000000)throw Error('OpenSeaFeed snapshot too large')
       const decoder=new TextDecoder(),reader=response.body.getReader()
       let body='',bytes=0
       try{
@@ -135,14 +137,16 @@ export async function getOpenSeaFeedSnapshot():Promise<OpenSeaFeedSnapshot>{
           const {done,value:chunk}=await reader.read()
           if(done)break
           bytes+=chunk.byteLength
-          if(bytes>25000000){await reader.cancel();throw Error('OpenSeaFeed snapshot too large')}
+          if(bytes>60000000){await reader.cancel();throw Error('OpenSeaFeed snapshot too large')}
           body+=decoder.decode(chunk,{stream:true})
         }
         body+=decoder.decode()
       }finally{reader.releaseLock()}
       value=parseOpenSeaFeedSnapshot(JSON.parse(body) as unknown)
-    }catch{
-      value=unavailable('unavailable','OpenSeaFeed provider inaccessible or invalid; no global AIS positions fabricated.')
+    }catch(error){
+      const detail=error instanceof Error?error.message:'unknown source error'
+      value=unavailable('unavailable','OpenSeaFeed: '+detail.slice(0,110)+
+        '. No AIS positions fabricated. Check endpoint availability and provider access.')
     }
     cache={value,expires:Date.now()+(value.state==='unavailable'?60000:75000)}
     return value

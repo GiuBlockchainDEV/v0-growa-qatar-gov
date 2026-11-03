@@ -12,7 +12,7 @@ export async function GET(request:Request){
     const {data:{user},error}=await supabase.auth.getUser()
     if(error||!user)return NextResponse.json({error:'Authentication required'},{status:401,headers})
     const input=new URL(request.url).searchParams.get('batch')??''
-    if(!/^[0-5]$/.test(input)||Number(input)>=REGIONAL_AIR_BATCH_COUNT)
+    if(!/^[0-9]{1,2}$/.test(input)||Number(input)>=REGIONAL_AIR_BATCH_COUNT)
       return NextResponse.json({error:'Invalid regional ADS-B batch'},{status:400,headers})
     return NextResponse.json(await getRegionalAirBatch(Number(input)),{headers})
   }catch{
