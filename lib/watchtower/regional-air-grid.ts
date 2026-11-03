@@ -38,7 +38,7 @@ async function collect(batch:number):Promise<RegionalAirBatch>{
     outcomes.push(...chunk)
   }
   const success=outcomes.filter((r):r is PromiseFulfilledResult<
-    Awaited<ReturnType<typeof fetchCircle>>=>r.status==='fulfilled')
+    Awaited<ReturnType<typeof fetchCircle>>>=>r.status==='fulfilled')
   const assets=mergeAssets(success.flatMap(r=>r.value))
   return {
     source:'ADSB.lol regional grid',batch,checkedAt,
