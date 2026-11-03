@@ -124,6 +124,8 @@ describe('Map-first integration and data boundaries', () => {
     expect(providers).toContain("getTrackingSnapshot('quick')")
     expect(providers).toContain("aircraft(FAST_AIRFRAME_SAMPLE)")
     expect(providers).toContain("aircraft(ADDITIONAL_AIRFRAME_SAMPLE)")
+    expect(providers).toContain('geographicAircraft()')
+    expect(providers).toContain('/dist/250')
     expect(providers).toContain("https://api.adsbdb.com/v0/callsign/")
     const controller=read('components/dashboard/watchtower/global-watchtower.tsx')
     expect(controller).toContain("tracking?stage='+stage")

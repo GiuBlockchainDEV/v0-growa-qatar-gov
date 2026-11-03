@@ -9,6 +9,18 @@ import { mergeAssets, parseAircraft, parseVessels, parseGlobalHazards, freshAsse
 const AIRFRAME_SAMPLE = ['B744', 'B748', 'B77L', 'B763', 'B752', 'A306'] as const
 const FAST_AIRFRAME_SAMPLE = ['B77L', 'B763', 'B744', 'B748'] as const
 const ADDITIONAL_AIRFRAME_SAMPLE = ['B752', 'A306'] as const
+// 250 NM ADS-B geospatial samples, focused on the displayed maritime corridor.
+// Overlapping circles are deduplicated by aircraft hex; not a full global feed.
+export const REGIONAL_ADSB_CENTERS = [
+  {label:'Qatar',lat:25.3,lon:51.6},
+  {label:'UAE / Oman',lat:24.7,lon:56.1},
+  {label:'Persian Gulf',lat:27.6,lon:51.0},
+  {label:'Northern Red Sea',lat:27.3,lon:34.9},
+  {label:'Central Red Sea',lat:21.2,lon:38.6},
+  {label:'Southern Red Sea',lat:15.8,lon:42.3},
+  {label:'Gulf of Aden',lat:12.8,lon:47.1},
+  {label:'Arabian Sea',lat:19.5,lon:58.2},
+] as const
 type Batch<T> = { items: T[]; source: TrackingSource }
 async function json(url: string, revalidate: number, maxBytes = 3000000): Promise<unknown> {
   const response = await fetch(url, { headers: { Accept: 'application/json' }, signal: AbortSignal.timeout(7500), next: { revalidate } })
@@ -49,6 +61,26 @@ async function aircraft(types:readonly string[]=AIRFRAME_SAMPLE): Promise<Batch<
   meta.latestObservationAt = latest(items)
   if (good.length < types.length) meta.detail += ' Some queries failed. Missing observations do not mean zero traffic.'
   return { items, source: meta }
+}
+/**
+ * Regional ADS-B data from geographic queries rather than only six cargo
+ * airframe types. An observed flight is NOT a verified freight shipment.
+ */
+async function geographicAircraft():Promise<Batch<TrackingAsset>>{
+  const meta=source('adsb-geo','ADSB.lol geographic samples','https://api.adsb.lol/docs',
+    'Public ADS-B positions within eight regional 250 NM circles; all aircraft classes, no manifests. ODbL 1.0.')
+  if(process.env.WATCHTOWER_ADSB_ENABLED==='false')
+    return {items:[],source:{...meta,state:'unconfigured',detail:'ADS-B disabled by administrator.'}}
+  const results=await Promise.allSettled(REGIONAL_ADSB_CENTERS.map(async center=>
+    parseAircraft(await json('https://api.adsb.lol/v2/lat/'+center.lat+
+      '/lon/'+center.lon+'/dist/250',60,5500000))))
+  const successes=results.filter((r):r is PromiseFulfilledResult<TrackingAsset[]>=>r.status==='fulfilled')
+  const items=mergeAssets(successes.flatMap(r=>r.value))
+  meta.state=successes.length===0?'unavailable':items.length&&!items.some(a=>freshAsset(a))?'stale':'partial'
+  meta.latestObservationAt=latest(items)
+  meta.detail+=' Successful areas: '+successes.length+'/'+REGIONAL_ADSB_CENTERS.length+
+    '. Missing receiver coverage is unknown traffic, not zero flights.'
+  return {items,source:meta}
 }
 async function vessels(): Promise<Batch<TrackingAsset>> {
   const meta = source('ais', 'VesselFinder AIS', 'https://api.vesselfinder.com/docs/livedata.html',
@@ -229,13 +261,13 @@ export async function getTrackingSnapshot(stage:'quick'|'full'='full'):Promise<T
       snapshots.set('quick',{expires:Date.now()+55000,snapshot})
       return snapshot
     }
-    const [air,extra,sea,hazard,aviation,marine]=await Promise.all([
+    const [air,extra,geo,sea,hazard,aviation,marine]=await Promise.all([
       // The UI already received four priority airframes on the quick path.
       // Two additional types enrich the full snapshot without delaying it.
       getTrackingSnapshot('quick'),aircraft(ADDITIONAL_AIRFRAME_SAMPLE),
-      vessels(),hazards(),advisories(),maritime(),
+      geographicAircraft(),vessels(),hazards(),advisories(),maritime(),
     ])
-    const allAircraft=mergeAssets([...air.assets,...extra.items])
+    const allAircraft=mergeAssets([...air.assets,...extra.items,...geo.items])
     const fullAirSource=air.sources[0]
     const airSource={...fullAirSource,
       state:allAircraft.length && !allAircraft.some(asset=>freshAsset(asset))
@@ -248,7 +280,7 @@ export async function getTrackingSnapshot(stage:'quick'|'full'='full'):Promise<T
       generatedAt:new Date().toISOString(),refreshSeconds:REFRESH_SECONDS,
       assets:[...allAircraft,...sea.items],
       alerts:[...hazard.items,...aviation.items,...marine.items],
-      sources:[airSource,sea.source,hazard.source,aviation.source,marine.source],
+      sources:[airSource,geo.source,sea.source,hazard.source,aviation.source,marine.source],
     }
     snapshots.set('full',{expires:Date.now()+55000,snapshot})
     return snapshot

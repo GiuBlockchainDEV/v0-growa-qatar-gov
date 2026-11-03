@@ -12,6 +12,7 @@ import {TRACKED_CHOKEPOINTS,type ChokepointId,type DataTrackingSnapshot,type Cho
 import type {AISRoute,HistoryOverlay} from '@/lib/watchtower/data-tracking-history'
 import {MONITORED_MARITIME_PORTS,type GccRadarSnapshot} from '@/lib/watchtower/myshiptracking-gcc-shared'
 import type {HormuzNowFeed} from '@/lib/watchtower/hormuz-now'
+import type {OpenSeaFeedSnapshot} from '@/lib/watchtower/openseafeed'
 import {REGIONAL_WATCHTOWER_VIEW} from '@/lib/watchtower/map-viewport'
 import type { GlobalTrackingMapProps } from './global-tracking-map'
 import {mergeTrackingUpdate,mergeFlightItineraries,type RouteLookupResponse} from '@/lib/watchtower/tracking-merge'
@@ -49,6 +50,9 @@ export function GlobalWatchtower() {
   const [maritimeFeed,setMaritimeFeed]=useState<DataTrackingSnapshot|null>(null)
   const [openSea,setOpenSea]=useState<HormuzNowFeed|null>(null)
   const [openSeaError,setOpenSeaError]=useState('')
+  const [globalAis,setGlobalAis]=useState<OpenSeaFeedSnapshot|null>(null)
+  const [globalAisError,setGlobalAisError]=useState('')
+  const [freightFlightsOnly,setFreightFlightsOnly]=useState(false)
   const [maritimeError,setMaritimeError]=useState('')
   const [aisHistory,setAISHistory]=useState<AISRoute[]>([])
   const [aisHistoryStatus,setAISHistoryStatus]=useState('')
@@ -58,7 +62,7 @@ export function GlobalWatchtower() {
   const [busy, setBusy] = useState(false), [refresh, setRefresh] = useState(0), [paused, setPaused] = useState(false), [now, setNow] = useState(Date.now)
   const [mobile, setMobile] = useState(false), [filtersOpen, setFiltersOpen] = useState(true), [alertsOpen, setAlertsOpen] = useState(true), [fullscreen, setFullscreen] = useState(false)
   const [query, setQuery] = useState(''), [region, setRegion] = useState<Region>('gulf')
-  const [shipView,setShipView]=useState<ShipView>('all')
+  const [shipView,setShipView]=useState<ShipView>('moving')
   const [selectedId, setSelectedId] = useState<string | null>(null), [sourceId, setSourceId] = useState<string | null>(null)
   const [focus, setFocus] = useState<GlobalTrackingMapProps['focus']>(null)
   const [layers, setLayers] = useState<MapLayers>({ aircraft: true, vessels: true, risks: true, production: true, gateways: true, trails: true, projections: true })
@@ -193,6 +197,33 @@ export function GlobalWatchtower() {
     const visible=()=>{if(!document.hidden)void load()}
     document.addEventListener('visibilitychange',visible)
     return()=>{active=false;controller.abort();clearInterval(interval)
+      document.removeEventListener('visibilitychange',visible)}
+  },[refresh])
+  // OpenSeaFeed regional/global AIS is independent from port-page sampling.
+  // Report missing geographical coverage instead of inventing ship positions.
+  useEffect(()=>{
+    let active=true
+    const controller=new AbortController()
+    const load=async()=>{
+      if(!active||document.hidden||pausedRef.current)return
+      try{
+        const res=await fetch('/api/watchtower/open-ais',{
+          cache:'no-store',signal:AbortSignal.any([controller.signal,AbortSignal.timeout(26000)]),
+        })
+        if(!res.ok)throw Error('OpenSeaFeed HTTP '+res.status)
+        const body=await res.json() as OpenSeaFeedSnapshot
+        if(body.source!=='OpenSeaFeed AIS'||!Array.isArray(body.assets))throw Error('Invalid global AIS response')
+        if(active){setGlobalAis(body);setGlobalAisError(body.state==='unavailable'?body.detail:'')}
+      }catch(error){
+        if(active&&!controller.signal.aborted)setGlobalAisError(
+          error instanceof Error?error.message:'OpenSeaFeed unavailable')
+      }
+    }
+    void load()
+    const timer=setInterval(()=>void load(),120000)
+    const visible=()=>{if(!document.hidden)void load()}
+    document.addEventListener('visibilitychange',visible)
+    return()=>{active=false;controller.abort();clearInterval(timer)
       document.removeEventListener('visibilitychange',visible)}
   },[refresh])
   // Public data-tracking.net AIS chokepoints refresh separately from aircraft,
@@ -337,26 +368,31 @@ export function GlobalWatchtower() {
   }, [region])
   const allAssets=useMemo(()=>{
     const incoming=[
-      ...(openSea?.assets??[]),...(snapshot?.assets??[]),
+      ...(openSea?.assets??[]),...(globalAis?.assets??[]),...(snapshot?.assets??[]),
       ...(maritimeFeed?.assets??[]),...(gccRadar?.assets??[]),
     ]
     // Regional AIS can contain >1,500 actual ship positions. Do not impose
     // the port-page scanner's 48-vessel ceiling on the combined map.
-    const vessels=mergeAssets(incoming.filter(asset=>asset.kind==='vessel'))
+    const allVessels=mergeAssets(incoming.filter(asset=>asset.kind==='vessel'))
       .sort((a,b)=>Number((b.speedKnots??0)>=1.5)-Number((a.speedKnots??0)>=1.5)||
-        b.observedAt.localeCompare(a.observedAt)).slice(0,1900)
-    const aircraft=mergeAssets(incoming.filter(asset=>asset.kind==='aircraft')).slice(0,1000)
+        b.observedAt.localeCompare(a.observedAt))
+    // Reserve capacity for actual AIS reports outside Hormuz, so a huge Gulf
+    // snapshot does not displace the Red Sea/Gulf of Aden or global coverage.
+    const outsideGulf=allVessels.filter(a=>!(a.lat>=22&&a.lat<=31&&a.lon>=47&&a.lon<=61))
+    const gulf=allVessels.filter(a=>a.lat>=22&&a.lat<=31&&a.lon>=47&&a.lon<=61)
+    const vessels=[...outsideGulf.slice(0,1100),...gulf.slice(0,800)]
+    const aircraft=mergeAssets(incoming.filter(asset=>asset.kind==='aircraft')).slice(0,1450)
     return [...aircraft,...vessels]
-  },[openSea,snapshot,maritimeFeed,gccRadar])
+  },[openSea,globalAis,snapshot,maritimeFeed,gccRadar])
   const assets = useMemo(() => allAssets.filter(a =>
     inside(a) &&
     (a.kind==='vessel'
       ? ((shipView==='all'||shipView==='moving')||a.cargo==='ais_cargo_class')&&
         ((shipView==='all'||shipView==='cargo')||
           (a.speedKnots!==null&&a.speedKnots>=1.5))
-      : a.cargo!=='unverified') &&
+      : (!freightFlightsOnly||a.cargo==='operator_inferred')) &&
     (!query || (a.label+' '+a.id+' '+(a.destination??'')).toLowerCase().includes(query.toLowerCase())),
-  ),[allAssets,inside,shipView,query])
+  ),[allAssets,inside,shipView,freightFlightsOnly,query])
   const alerts=useMemo(()=>allAlerts.filter(a=>
     inside(a)&&(!query||(a.title+' '+a.source).toLowerCase().includes(query.toLowerCase())),
   ),[allAlerts,inside,query])
@@ -465,8 +501,8 @@ export function GlobalWatchtower() {
         </div>
       </div>
       <div className={styles.stats}>{[
-        { label: 'Aircraft observations', value: known(airSource?.state) ? assets.filter(a => a.kind === 'aircraft').length : null, note: 'Sampled freight operators, not confirmed cargo', icon: Plane },
-        { label: 'Vessel observations', value: (openSea?.state==='available'||openSea?.state==='stale'||known(seaSource?.state)||Boolean(maritimeFeed?.chokepoints.some(point=>point.state==='partial'||point.state==='stale'))||Boolean(gccRadar?.configured)) ? assets.filter(a => a.kind === 'vessel').length : null, note: openSea?.state==='available'?'hormuz.now regional AIS + other sources':openSea?.state==='stale'?'Regional AIS delayed':maritimeFeed?'data-tracking.net AIS + port samples':'Awaiting regional AIS coverage', icon: Ship },
+        { label: 'Aircraft observations', value: known(airSource?.state) ? assets.filter(a => a.kind === 'aircraft').length : null, note: freightFlightsOnly?'Freight-operator candidates only':'Regional ADS-B aircraft, all classes', icon: Plane },
+        { label: 'Vessel observations', value: (globalAis?.state==='partial'||globalAis?.state==='stale'||openSea?.state==='available'||openSea?.state==='stale'||known(seaSource?.state)||Boolean(maritimeFeed?.chokepoints.some(point=>point.state==='partial'||point.state==='stale'))||Boolean(gccRadar?.configured)) ? assets.filter(a => a.kind === 'vessel').length : null, note: globalAis?.state==='partial'?'OpenSeaFeed global AIS + regional sources':openSea?.state==='available'?'hormuz.now regional AIS + other sources':openSea?.state==='stale'?'Regional AIS delayed':maritimeFeed?'data-tracking.net AIS + port samples':'Awaiting regional AIS coverage', icon: Ship },
         { label: 'Mapped risk reports', value: riskReadable ? externalRiskAlerts.length : null, note: 'External hazard and advisory reports', icon: AlertTriangle },
         { label: 'Food-security signals', value: food && food.assessedCount > 0 ? foodAlerts.length : null, note: staleFood ? 'Stale organization snapshot' : foodError ? 'Organization ledger unavailable' : food ? food.assessedCount + ' commodities assessed / organization' : 'Organization ledger not loaded', icon: Wheat },
       ].map(item => <div key={item.label} className={styles.stat}><label>{item.label}</label><strong>{count(item.value)}</strong><item.icon size={21} /><small>{item.note}</small></div>)}</div>
@@ -492,8 +528,8 @@ export function GlobalWatchtower() {
       <label className={styles.label} htmlFor="watchtower-ship-mode">Vessels</label>
       <select id="watchtower-ship-mode" className={styles.input} value={shipView}
         onChange={e=>setShipView(e.target.value as ShipView)}>
-        <option value="all">All observed vessels</option>
         <option value="moving">Moving (SOG ≥1.5 kn)</option>
+        <option value="all">All observed vessels</option>
         <option value="cargo">Cargo-class vessels</option>
         <option value="cargoMoving">Moving cargo vessels</option>
       </select>
@@ -504,12 +540,16 @@ export function GlobalWatchtower() {
       <div className={styles.controlSectionHeading}>Show on map</div>
       {([
         ['vessels',Ship,'Vessels'],
-        ['aircraft',Plane,'Cargo-capable aircraft'],
+        ['aircraft',Plane,'Aircraft (all classes)'],
       ] as const).map(([key,Icon,title])=>
         <button key={key} className={styles.toggle} aria-pressed={layers[key]}
           onClick={()=>setLayers(current=>({...current,[key]:!current[key]}))}>
           <span><Icon size={13}/>{title}</span><i className={styles.switch}/>
         </button>)}
+      <button className={styles.toggle} aria-pressed={freightFlightsOnly}
+        onClick={()=>setFreightFlightsOnly(value=>!value)}>
+        <span><Plane size={13}/>Only freight-operator candidates</span><i className={styles.switch}/>
+      </button>
       <button className={styles.toggle} aria-pressed={layers.risks||layers.production}
         onClick={()=>setLayers(current=>({...current,
           risks:!(current.risks||current.production),
@@ -533,6 +573,9 @@ export function GlobalWatchtower() {
             {openSea?.providerAt?' Source '+utc(openSea.providerAt)+'.':''}
           </p>
           {openSeaError&&<p>{openSeaError}</p>}
+          <p><strong>OpenSeaFeed:</strong> {globalAis?.state??'loading'} · {globalAis?.accepted??'N/A'} mapped,
+            {globalAis?.regional??'N/A'} regional. {globalAisError}
+          </p>
           <p><strong>Chokepoint AIS:</strong> {maritimeFeed?.assets.length??'N/A'} positions,
             {maritimeFeed?.chokepoints.filter(c=>c.state==='partial').length??0} reporting areas.
             {maritimeError?' '+maritimeError:''}
@@ -552,6 +595,7 @@ export function GlobalWatchtower() {
     <div className={styles.feedDock} aria-label="Tracking source status">
       {snapshot?.sources.map(source => <button key={source.id} className={styles.feedPill} data-state={source.state} onClick={() => { setSourceId(source.id); setSelectedId(null); setAlertsOpen(true); if (mobile) setFiltersOpen(false) }}><i />{source.name}: {source.state}</button>)}
       {openSea&&<span className={styles.feedPill} data-state={openSea.state}><i/>Regional AIS: {openSea.state} · {openSea.acceptedCount.toLocaleString('en-US')}</span>}
+      {globalAis&&<span className={styles.feedPill} data-state={globalAis.state}><i/>Global AIS: {globalAis.state} · {globalAis.accepted.toLocaleString('en-US')}</span>}
       {maritimeFeed&&<span className={styles.feedPill} data-state={maritimeFeed.assets.length?'partial':'unavailable'}>
         <i/>Chokepoint AIS: {maritimeFeed.assets.length}</span>}
     </div>
@@ -675,6 +719,6 @@ export function GlobalWatchtower() {
       </div>
     </aside>
     <div className={styles.legend}><span><Plane size={12} color="var(--growa-sage)" />Aircraft</span><span><Ship size={12} color="var(--growa-ink-600)" />AIS vessel</span><span><AlertTriangle size={12} color="var(--warning-strong)" />Reported risk</span><span><i className={styles.productionRiskSwatch} />Production risk areas ({layers.production?riskZones.length:0})</span><span><i className={styles.routePastLine} />Observed</span><span><i className={styles.routeOriginLine} />From origin (reference)</span><span><i className={styles.routeFutureLine} />To destination (reference)</span></div>
-    <footer className={styles.footer}><span>{busy ? 'UPDATING SOURCES' : snapshot ? 'SNAPSHOT ' + utc(snapshot.generatedAt) : 'CONNECTING TO SOURCES'} / {paused ? 'PAUSED' : 'AUTO 60s'}</span><span>ESRI POLITICAL MAP · ADSB.lol / ODbL 1.0 · hormuz.now + data-tracking.net / CC BY 4.0 · No simulated traffic</span></footer>
+    <footer className={styles.footer}><span>{busy ? 'UPDATING SOURCES' : snapshot ? 'SNAPSHOT ' + utc(snapshot.generatedAt) : 'CONNECTING TO SOURCES'} / {paused ? 'PAUSED' : 'AUTO 60s'}</span><span>ESRI POLITICAL MAP · ADSB.lol / ODbL 1.0 · regional AIS CC BY 4.0 · OpenSeaFeed · No simulated traffic</span></footer>
   </div>
 }
