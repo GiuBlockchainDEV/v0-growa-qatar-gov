@@ -427,9 +427,11 @@ export function GlobalWatchtower() {
     const outsideGulf=allVessels.filter(a=>!(a.lat>=22&&a.lat<=31&&a.lon>=47&&a.lon<=61))
     const gulf=allVessels.filter(a=>a.lat>=22&&a.lat<=31&&a.lon>=47&&a.lon<=61)
     const vessels=[...outsideGulf.slice(0,1100),...gulf.slice(0,800)]
-    const aircraft=mergeAssets(incoming.filter(asset=>asset.kind==='aircraft'))
-      .filter(a=>a.lat>=7&&a.lat<=42&&a.lon>=25&&a.lon<=80)
-      .slice(0,2600)
+    const aircraftCandidates=mergeAssets(incoming.filter(asset=>asset.kind==='aircraft'))
+    const aircraft=[
+      ...aircraftCandidates.filter(a=>a.lat>=7&&a.lat<=42&&a.lon>=25&&a.lon<=80).slice(0,2600),
+      ...aircraftCandidates.filter(a=>a.lat<7||a.lat>42||a.lon<25||a.lon>80).slice(0,450),
+    ]
     return [...aircraft,...vessels]
   },[openSea,globalAis,snapshot,maritimeFeed,gccRadar,regionalAir])
   const assets = useMemo(() => allAssets.filter(a =>
@@ -637,9 +639,12 @@ export function GlobalWatchtower() {
             {gccRadar?.moving??'N/A'} reporting SOG ≥1.5 kn.
             {gccRadarError?' '+gccRadarError:''}
           </p>
-          <p>Only <a href="https://hormuz.now/data" target="_blank" rel="noopener noreferrer">hormuz.now</a> and
+          <p>Regional AIS is limited to actual provider reception:
+            <a href="https://hormuz.now/data" target="_blank" rel="noopener noreferrer"> hormuz.now</a>,
             <a href="https://hormuz.data-tracking.net/api-docs" target="_blank" rel="noopener noreferrer"> data-tracking.net</a>
-            offer region-level public AIS coverage here. The port-page feed is capped at 48.
+            {' '}and <a href="https://openseafeed.com/" target="_blank" rel="noopener noreferrer">OpenSeaFeed</a>.
+            Missing marine observations outside the Gulf do not imply no ship traffic.
+            Port pages remain a sample capped at 48.
           </p>
           {aisHistoryStatus&&<p>{aisHistoryStatus}</p>}
         </div>
