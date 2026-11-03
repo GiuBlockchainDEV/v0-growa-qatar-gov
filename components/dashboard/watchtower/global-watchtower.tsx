@@ -70,7 +70,7 @@ export function GlobalWatchtower() {
   const [gccRadarError,setGccRadarError]=useState('')
   const [error, setError] = useState(''), [, setFoodError] = useState('')
   const [busy, setBusy] = useState(false), [refresh, setRefresh] = useState(0), [paused, setPaused] = useState(false), [now, setNow] = useState(Date.now)
-  const [mobile, setMobile] = useState(false), [filtersOpen, setFiltersOpen] = useState(true), [alertsOpen, setAlertsOpen] = useState(true), [fullscreen, setFullscreen] = useState(false)
+  const [mobile, setMobile] = useState(false), [filtersOpen, setFiltersOpen] = useState(false), [alertsOpen, setAlertsOpen] = useState(true), [fullscreen, setFullscreen] = useState(false)
   const [query, setQuery] = useState(''), [region, setRegion] = useState<Region>('gulf')
   const [shipView,setShipView]=useState<ShipView>('moving')
   const [ipcRisk,setIpcRisk]=useState<IpcRiskSnapshot|null>(null)
