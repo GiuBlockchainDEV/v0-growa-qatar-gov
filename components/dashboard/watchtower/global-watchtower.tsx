@@ -13,6 +13,7 @@ import type {AISRoute,HistoryOverlay} from '@/lib/watchtower/data-tracking-histo
 import {MONITORED_MARITIME_PORTS,type GccRadarSnapshot} from '@/lib/watchtower/myshiptracking-gcc-shared'
 import type {HormuzNowFeed} from '@/lib/watchtower/hormuz-now'
 import type {OpenSeaFeedSnapshot} from '@/lib/watchtower/openseafeed'
+import type {OpenWatersSnapshot} from '@/lib/watchtower/open-waters-ais'
 import {REGIONAL_AIR_BATCH_COUNT,type RegionalAirBatch} from '@/lib/watchtower/regional-air-shared'
 import {REGIONAL_WATCHTOWER_VIEW} from '@/lib/watchtower/map-viewport'
 import type { GlobalTrackingMapProps } from './global-tracking-map'
@@ -53,6 +54,8 @@ export function GlobalWatchtower() {
   const [openSeaError,setOpenSeaError]=useState('')
   const [globalAis,setGlobalAis]=useState<OpenSeaFeedSnapshot|null>(null)
   const [globalAisError,setGlobalAisError]=useState('')
+  const [openWaters,setOpenWaters]=useState<OpenWatersSnapshot|null>(null)
+  const [openWatersError,setOpenWatersError]=useState('')
   const [freightFlightsOnly,setFreightFlightsOnly]=useState(false)
   const [regionalAir,setRegionalAir]=useState<RegionalAirBatch[]>([])
   const [regionalAirLoading,setRegionalAirLoading]=useState(false)
@@ -279,6 +282,34 @@ export function GlobalWatchtower() {
     return()=>{active=false;controller.abort();clearInterval(timer)
       document.removeEventListener('visibilitychange',visible)}
   },[refresh])
+  // Licensed multi-region AIS connector. An unavailable or unconfigured
+  // provider must never be presented as zero shipping traffic.
+  useEffect(()=>{
+    let active=true
+    const controller=new AbortController()
+    const load=async()=>{
+      if(!active||document.hidden||pausedRef.current)return
+      try{
+        const response=await fetch('/api/watchtower/open-waters',{
+          cache:'no-store',signal:AbortSignal.any([controller.signal,AbortSignal.timeout(28000)]),
+        })
+        if(!response.ok)throw Error('Open Waters HTTP '+response.status)
+        const data=await response.json() as OpenWatersSnapshot
+        if(data.source!=='Open Waters AIS'||!Array.isArray(data.assets)||
+          !Array.isArray(data.areas))throw Error('Invalid Open Waters AIS response')
+        if(active){setOpenWaters(data);setOpenWatersError('')}
+      }catch(error){
+        if(active&&!controller.signal.aborted)
+          setOpenWatersError(error instanceof Error?error.message:'Open Waters AIS unavailable')
+      }
+    }
+    void load()
+    const timer=setInterval(()=>void load(),180000)
+    const visible=()=>{if(!document.hidden)void load()}
+    document.addEventListener('visibilitychange',visible)
+    return()=>{active=false;controller.abort();clearInterval(timer)
+      document.removeEventListener('visibilitychange',visible)}
+  },[refresh])
   // Public data-tracking.net AIS chokepoints refresh separately from aircraft,
   // advisories and licensed VesselFinder. Do not fake unsupported coverage.
   useEffect(()=>{
@@ -421,7 +452,7 @@ export function GlobalWatchtower() {
   }, [region])
   const allAssets=useMemo(()=>{
     const incoming=[
-      ...(openSea?.assets??[]),...(globalAis?.assets??[]),...(snapshot?.assets??[]),
+      ...(openSea?.assets??[]),...(globalAis?.assets??[]),...(openWaters?.assets??[]),...(snapshot?.assets??[]),
       ...regionalAir.flatMap(batch=>batch.assets),
       ...(maritimeFeed?.assets??[]),...(gccRadar?.assets??[]),
     ]
@@ -441,7 +472,7 @@ export function GlobalWatchtower() {
       ...aircraftCandidates.filter(a=>a.lat<7||a.lat>42||a.lon<25||a.lon>80).slice(0,450),
     ]
     return [...aircraft,...vessels]
-  },[openSea,globalAis,snapshot,maritimeFeed,gccRadar,regionalAir])
+  },[openSea,globalAis,openWaters,snapshot,maritimeFeed,gccRadar,regionalAir])
   const assets = useMemo(() => allAssets.filter(a =>
     inside(a) &&
     (a.kind==='vessel'
@@ -560,7 +591,7 @@ export function GlobalWatchtower() {
       </div>
       <div className={styles.stats}>{[
         { label: 'Aircraft observations', value: (known(airSource?.state)||regionalAir.some(b=>b.succeeded>0)) ? assets.filter(a => a.kind === 'aircraft').length : null, note: freightFlightsOnly?'Freight-operator candidates only':'Regional ADS-B, all observed classes', icon: Plane },
-        { label: 'Vessel observations', value: (globalAis?.state==='partial'||globalAis?.state==='stale'||openSea?.state==='available'||openSea?.state==='stale'||known(seaSource?.state)||Boolean(maritimeFeed?.chokepoints.some(point=>point.state==='partial'||point.state==='stale'))||Boolean(gccRadar?.configured)) ? assets.filter(a => a.kind === 'vessel').length : null, note: globalAis?.state==='partial'?'OpenSeaFeed global AIS + regional sources':openSea?.state==='available'?'hormuz.now regional AIS + other sources':openSea?.state==='stale'?'Regional AIS delayed':maritimeFeed?'data-tracking.net AIS + port samples':'Awaiting regional AIS coverage', icon: Ship },
+        { label: 'Vessel observations', value: (openWaters?.state==='available'||openWaters?.state==='partial'||globalAis?.state==='partial'||globalAis?.state==='stale'||openSea?.state==='available'||openSea?.state==='stale'||known(seaSource?.state)||Boolean(maritimeFeed?.chokepoints.some(point=>point.state==='partial'||point.state==='stale'))||Boolean(gccRadar?.configured)) ? assets.filter(a => a.kind === 'vessel').length : null, note: (openWaters?.state==='available'||openWaters?.state==='partial')?'Multi-region Open Waters AIS':globalAis?.state==='partial'?'OpenSeaFeed global AIS + regional sources':openSea?.state==='available'?'hormuz.now regional AIS + other sources':openSea?.state==='stale'?'Regional AIS delayed':maritimeFeed?'data-tracking.net AIS + port samples':'Awaiting regional AIS coverage', icon: Ship },
         { label: 'Mapped risk reports', value: riskReadable ? externalRiskAlerts.length : null, note: 'External hazard and advisory reports', icon: AlertTriangle },
         { label: 'Food-security signals', value: food && food.assessedCount > 0 ? foodAlerts.length : null, note: staleFood ? 'Stale organization snapshot' : foodError ? 'Organization ledger unavailable' : food ? food.assessedCount + ' commodities assessed / organization' : 'Organization ledger not loaded', icon: Wheat },
       ].map(item => <div key={item.label} className={styles.stat}><label>{item.label}</label><strong>{count(item.value)}</strong><item.icon size={21} /><small>{item.note}</small></div>)}</div>
@@ -648,6 +679,14 @@ export function GlobalWatchtower() {
           <p><strong>OpenSeaFeed:</strong> {globalAis?.state??'loading'} · {globalAis?.accepted??'N/A'} mapped,
             {globalAis?.regional??'N/A'} regional. {globalAisError}
           </p>
+          <p><strong>Red Sea / Arabian Sea / Indian Ocean AIS:</strong> {openWaters?.state??'loading'}.
+            {' '}{openWaters?.vessels??'N/A'} source-observed vessels across
+            {' '}{openWaters?.areas.filter(a=>a.state==='available').length??0}/15 regions.
+            {' '}{openWaters?.detail??''} {openWatersError}
+          </p>
+          {openWaters?.areas.filter(a=>a.state==='unavailable').map(a=><p key={a.id}>
+            {a.name}: {a.reason??'no usable provider response'}</p>)}
+          {openWaters?.attribution.map((credit,i)=><p key={i}>AIS attribution: {credit}</p>)}
           <p><strong>Chokepoint AIS:</strong> {maritimeFeed?.assets.length??'N/A'} positions,
             {maritimeFeed?.chokepoints.filter(c=>c.state==='partial').length??0} reporting areas.
             {maritimeError?' '+maritimeError:''}
@@ -660,6 +699,7 @@ export function GlobalWatchtower() {
             <a href="https://hormuz.now/data" target="_blank" rel="noopener noreferrer"> hormuz.now</a>,
             <a href="https://hormuz.data-tracking.net/api-docs" target="_blank" rel="noopener noreferrer"> data-tracking.net</a>
             {' '}and <a href="https://openseafeed.com/" target="_blank" rel="noopener noreferrer">OpenSeaFeed</a>.
+            {' '}An optional <a href="https://openwaters.io/ais/" target="_blank" rel="noopener noreferrer">Open Waters AIS</a> adapter covers additional geographic zones when commercially authorised.
             Missing marine observations outside the Gulf do not imply no ship traffic.
             Port pages remain a sample capped at 48.
           </p>
@@ -671,6 +711,7 @@ export function GlobalWatchtower() {
       {snapshot?.sources.map(source => <button key={source.id} className={styles.feedPill} data-state={source.state} onClick={() => { setSourceId(source.id); setSelectedId(null); setAlertsOpen(true); if (mobile) setFiltersOpen(false) }}><i />{source.name}: {source.state}</button>)}
       {openSea&&<span className={styles.feedPill} data-state={openSea.state}><i/>Regional AIS: {openSea.state} · {openSea.acceptedCount.toLocaleString('en-US')}</span>}
       {globalAis&&<span className={styles.feedPill} data-state={globalAis.state}><i/>Global AIS: {globalAis.state} · {globalAis.accepted.toLocaleString('en-US')}</span>}
+      {openWaters&&<span className={styles.feedPill} data-state={openWaters.state}><i/>Offshore AIS: {openWaters.state} · {openWaters.vessels}</span>}
       <span className={styles.feedPill} data-state={regionalAir.some(b=>b.succeeded>0)?'partial':'unavailable'}>
         <i/>ADS-B area: {regionalAir.reduce((n,b)=>n+b.succeeded,0)}/60 circles</span>
       {maritimeFeed&&<span className={styles.feedPill} data-state={maritimeFeed.assets.length?'partial':'unavailable'}>
