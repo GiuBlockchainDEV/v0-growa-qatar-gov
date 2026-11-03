@@ -209,3 +209,161 @@
   .tickerSkeleton { animation:none; }
   .shell * { transition:none !important; }
 }
+
+
+/* Commodity Markets · premium Growa market intelligence, no synthetic ticks.
+   Every number/heat cell is derived from published IMF/FRED monthly observations.
+   Direction colors are NOT measures of food security or trading performance. */
+.shell { gap:17px; }
+.header { padding:4px 1px 3px; }
+.heading h1 { font-weight:750; letter-spacing:-1px; }
+.heading .eyebrow { letter-spacing:1.45px; font-weight:750; }
+.tickerStrip { gap:8px; padding:1px 1px 8px; }
+.tickerItem {
+  flex:1 0 158px; min-width:158px; max-width:225px;
+  border-radius:12px; padding:11px 12px 9px;
+  box-shadow:none; transition:border-color .16s ease,transform .16s ease,background .16s ease;
+}
+.tickerItem:hover { transform:translateY(-2px); }
+.tickerItem[data-active='true'] { border-color:var(--growa-sage-600); background:var(--growa-cream-50); }
+.tickerMovement { display:flex; justify-content:space-between; align-items:center; gap:6px; min-width:0; }
+.tickerMovement>span:first-child { font-size:11px; font-weight:750; white-space:nowrap; }
+.tickerMovement svg { width:58px; height:22px; flex:none; }
+.tickerMovement [data-movement^='up'] { color:#976D35; }
+.tickerMovement [data-movement^='down'] { color:var(--growa-sage-700); }
+.tickerMovement [data-movement='flat'],.tickerMovement [data-movement='missing'] { color:var(--growa-stone-600); }
+
+.pulsePanel {
+  background:var(--growa-ink); color:var(--growa-white);
+  border:1px solid var(--growa-ink-700);
+  border-radius:17px; overflow:hidden;
+  box-shadow:0 12px 30px rgba(17,30,19,.11);
+}
+.pulseTop {
+  display:flex; justify-content:space-between; gap:22px; align-items:flex-start;
+  padding:22px 23px 16px;
+}
+.pulseEyebrow {
+  display:inline-flex; align-items:center; gap:8px;
+  font-size:10px; color:var(--growa-cream); letter-spacing:1.2px;
+  font-weight:750;
+}
+.pulseEyebrow svg { color:var(--growa-cream); }
+.pulseTop h2 { font-weight:760; font-size:clamp(23px,2.2vw,31px); letter-spacing:-.85px; margin:9px 0 5px; line-height:1.2; }
+.pulseTop p { font-size:11px; color:var(--growa-stone-300); line-height:1.55; }
+.pulsePeriod {
+  flex:none; display:inline-flex; align-items:center; gap:8px;
+  padding:8px 10px; border:1px solid var(--border-inverse);
+  color:var(--growa-cream); font-size:10px; letter-spacing:.3px;
+  font-weight:650; border-radius:999px; background:var(--growa-ink-800);
+}
+.pulseStatusDot { width:7px; height:7px; border-radius:50%; background:var(--growa-stone-300); }
+.pulseMetrics { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:8px; padding:0 23px 18px; }
+.pulseMetric {
+  min-width:0; padding:15px 14px 12px;
+  border:1px solid rgba(238,244,201,.17);
+  border-top:2px solid var(--growa-stone-500);
+  background:var(--growa-ink-800); border-radius:10px;
+}
+.pulseMetric>span { display:block; font-size:10px; line-height:1.45; color:var(--growa-stone-300); font-weight:600; }
+.pulseMetric>strong { display:block; margin:10px 0 7px; font-size:clamp(22px,2.15vw,30px); line-height:1; letter-spacing:-.8px; font-weight:760; white-space:nowrap; color:var(--growa-white); }
+.pulseMetric>strong small { font-size:15px; font-weight:550; color:var(--growa-stone-300); }
+.pulseMetric p { margin:0; font-size:9px; color:var(--growa-stone-300); line-height:1.45; }
+.pulseBreadth { display:flex !important; align-items:center; gap:10px; }
+.pulseBreadth span { display:inline-flex; align-items:center; gap:3px; }
+.pulseBreadth span:first-child { color:#E2C18A; }
+.pulseBreadth span:last-child { color:var(--growa-cream); }
+.pulseBreadth i { color:var(--growa-stone-500); font-size:18px; font-weight:400; font-style:normal; }
+.pulseBottom { border-top:1px solid var(--border-inverse); padding:15px 23px 17px; background:rgba(255,255,255,.025); }
+.pulseMoverHeading { display:flex; justify-content:space-between; align-items:center; gap:12px; margin-bottom:10px; }
+.pulseMoverHeading>span { display:inline-flex; gap:8px; align-items:center; color:var(--growa-white); font-size:11px; font-weight:700; }
+.pulseMoverHeading svg { color:var(--growa-cream); }
+.pulseMoverHeading small { font-size:9px; color:var(--growa-stone-300); }
+.moversGrid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:8px; }
+.moverCard {
+  cursor:pointer; width:100%; min-width:0; display:flex; align-items:center; gap:10px;
+  padding:12px 11px; text-align:start; border-radius:10px;
+  border:1px solid rgba(238,244,201,.19);
+  background:var(--growa-ink-800); color:var(--growa-white);
+  transition:background .17s ease,border-color .17s ease,transform .17s ease;
+}
+.moverCard:hover { background:var(--growa-ink-700); transform:translateY(-2px); }
+.moverCard[data-active='true'] { border-color:var(--growa-cream-500); }
+.moverRank { font-size:10px; font-weight:750; color:var(--growa-stone-500); }
+.moverName { display:grid; gap:4px; flex:1; min-width:0; }
+.moverName strong { font-size:11px; font-weight:700; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.moverName small { font-size:9px; color:var(--growa-stone-300); }
+.moverMove { flex:none; display:inline-flex; align-items:center; gap:3px; font-size:12px; font-weight:750; }
+.moverMove[data-movement^='up'] { color:#E2C18A; }
+.moverMove[data-movement^='down'] { color:var(--growa-cream); }
+.moverMove[data-movement='flat'] { color:var(--growa-stone-300); }
+.pulseEmpty { grid-column:1/-1; padding:15px 10px; color:var(--growa-stone-300); font-size:11px; }
+.pulseDisclaimer { display:flex; align-items:center; gap:7px; color:var(--growa-stone-300); font-size:9px; margin-top:12px; line-height:1.45; }
+.pulseDisclaimer svg { flex:none; }
+.mainGrid { gap:13px; }
+.heroPanel,.detailsPanel,.tablePanel,.budgetPanel,.footPanel { box-shadow:0 2px 9px rgba(17,30,19,.04); }
+.heroPanel { border-top:3px solid var(--growa-sage-600); }
+.horizons .horizonActive { background:var(--growa-ink); }
+.positive { color:#976D35 !important; } /* price increase / higher budget exposure */
+.negative { color:var(--growa-sage-700) !important; } /* price decrease, not automatically positive for food security */
+
+.matrixPanel {
+  min-width:0; padding:19px 0 12px;
+  background:var(--growa-white); border:1px solid var(--border-subtle);
+  border-radius:15px; box-shadow:0 2px 9px rgba(17,30,19,.04);
+}
+.matrixHeading { padding:0 21px 17px; display:flex; justify-content:space-between; align-items:end; gap:16px; flex-wrap:wrap; }
+.matrixHeading h2 { margin:8px 0 5px; font-size:19px; letter-spacing:-.4px; font-weight:740; }
+.matrixHeading p { color:var(--growa-stone-600); font-size:11px; max-width:680px; line-height:1.6; }
+.matrixLegend { display:flex; align-items:center; flex-wrap:wrap; gap:10px; color:var(--growa-stone-600); font-size:10px; }
+.matrixLegend span { display:inline-flex; align-items:center; gap:5px; white-space:nowrap; }
+.matrixLegend i { width:11px; height:11px; border-radius:3px; }
+.matrixScroll { width:100%; overflow-x:auto; }
+.matrixTable { width:100%; border-collapse:separate; border-spacing:0; min-width:670px; }
+.matrixTable th,.matrixTable td { border-top:1px solid var(--border-subtle); padding:10px 12px; font-size:11px; }
+.matrixTable thead th { padding-top:12px; padding-bottom:12px; color:var(--growa-stone-600); font-size:10px; background:var(--growa-stone-50); font-weight:700; text-align:center; }
+.matrixTable thead th:first-child { text-align:start; padding-inline-start:22px; }
+.matrixTable tbody tr[data-active='true'] { background:var(--growa-cream-50); }
+.matrixTable tbody tr:hover { background:var(--growa-stone-50); }
+.matrixTable tbody th { text-align:start; width:33%; padding-inline-start:22px; }
+.matrixTable tbody th button { display:grid; gap:4px; cursor:pointer; text-align:start; }
+.matrixTable tbody th strong { font-size:11px; color:var(--growa-ink); font-weight:730; }
+.matrixTable tbody th small { color:var(--growa-stone-600); font-weight:450; font-size:9px; }
+.matrixTable td { text-align:center; width:15%; }
+.matrixCell { min-width:84px; padding:7px 9px; border:1px solid var(--border-subtle); border-radius:7px; display:inline-flex; justify-content:center; font-size:11px; font-weight:750; white-space:nowrap; }
+.matrixCell[data-movement],.matrixLegend i[data-movement] { background:var(--growa-stone-50); color:var(--growa-stone-600); }
+.matrixCell[data-movement='up'],.matrixLegend i[data-movement='up'] { background:#F8F1E6; border-color:#EBDDCA; color:#95672E; }
+.matrixCell[data-movement='up-strong'],.matrixLegend i[data-movement='up-strong'] { background:#F3E4CF; border-color:#DFC39B; color:#83561F; }
+.matrixCell[data-movement='down'],.matrixLegend i[data-movement='down'] { background:var(--growa-cream-50); border-color:var(--growa-cream-300); color:var(--growa-sage-700); }
+.matrixCell[data-movement='down-strong'],.matrixLegend i[data-movement='down-strong'] { background:var(--growa-cream-100); border-color:var(--growa-cream-500); color:var(--growa-ink-700); }
+.matrixCell[data-movement='flat'] { color:var(--growa-stone-600); }
+.matrixVolatility { color:var(--growa-stone-600); font-size:11px; font-weight:650; }
+.matrixEmpty { padding:25px; text-align:center; font-size:11px; color:var(--growa-stone-600); }
+.matrixFoot { display:flex; align-items:center; gap:7px; border-top:1px solid var(--border-subtle); padding:11px 21px 0; color:var(--growa-stone-600); font-size:10px; line-height:1.5; margin-top:5px; }
+.matrixFoot svg { flex:none; }
+
+@media (max-width:1250px) {
+  .pulseMetrics { grid-template-columns:repeat(2,minmax(0,1fr)); }
+}
+@media (max-width:850px) {
+  .pulseTop { flex-wrap:wrap; padding:19px 15px 14px; }
+  .pulseMetrics { padding:0 15px 16px; }
+  .pulseBottom { padding:13px 15px 15px; }
+  .moversGrid { grid-template-columns:1fr; }
+  .moverCard { min-height:52px; }
+  .matrixHeading { padding:0 14px 15px; }
+}
+@media (max-width:480px) {
+  .pulseTop h2 { font-size:24px; }
+  .pulseTop { gap:10px; }
+  .pulsePeriod { font-size:9px; }
+  .pulseMetrics { gap:6px; }
+  .pulseMetric { padding:12px 10px; }
+  .pulseMetric>strong { font-size:23px; }
+  .pulseMoverHeading { flex-wrap:wrap; }
+  .matrixFoot { padding:10px 13px 0; align-items:flex-start; }
+}
+@media (prefers-reduced-motion:reduce) {
+  .tickerItem,.moverCard { transition:none; }
+  .tickerItem:hover,.moverCard:hover { transform:none; }
+}

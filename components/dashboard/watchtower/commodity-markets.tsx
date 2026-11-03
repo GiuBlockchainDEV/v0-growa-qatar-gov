@@ -1,8 +1,8 @@
 'use client'
 
 import {useEffect,useMemo,useState} from 'react'
-import {ArrowDownRight,ArrowUpRight,BarChart3,Check,ChevronDown,ExternalLink,
-  Globe2,Info,LineChart,RefreshCw,Search,Star,TrendingUp,Wheat} from 'lucide-react'
+import {Activity,ArrowDownRight,ArrowUpRight,BarChart3,Check,ChevronDown,ExternalLink,
+  Globe2,Grid2X2,Info,LineChart,RefreshCw,Search,Star,TrendingUp,Wheat} from 'lucide-react'
 import {useI18n} from '@/lib/i18n'
 import {COMMODITY_CATALOG,type CommodityMarketsSnapshot,type MarketGroup,
   type MarketPoint} from '@/lib/watchtower/commodity-markets'
@@ -33,6 +33,10 @@ function price(numberUsd:number,currency:Currency,rate:number,locale:string){
   return number(numberUsd*(currency==='QAR'?rate:1),locale,2)
 }
 const MONTHLY_SOURCE='Published monthly average, not a live exchange quote'
+// Movement direction is not a food security severity or a trading recommendation.
+const movement=(value:number|null):'up-strong'|'up'|'down-strong'|'down'|'flat'|'missing'=>
+  value===null?'missing':value>5?'up-strong':value>0?'up':
+  value< -5?'down-strong':value<0?'down':'flat'
 
 function MiniTrend({points,positive}:{points:readonly MarketPoint[];positive:boolean}){
   const series=points.slice(-13)
@@ -209,6 +213,13 @@ export function CommodityMarkets(){
   const decliners=changeable.filter(x=>x.change1mPct!<0).length
   const biggest=changeable.slice().sort((a,b)=>
     Math.abs(b.change1mPct??0)-Math.abs(a.change1mPct??0))[0]
+  const movers=changeable.slice().sort((a,b)=>
+    Math.abs(b.change1mPct??0)-Math.abs(a.change1mPct??0)).slice(0,3)
+  const flat=changeable.length-gainers-decliners
+  const meanMonthlyMove=changeable.length
+    ?changeable.reduce((sum,item)=>sum+Math.abs(item.change1mPct??0),0)/changeable.length:null
+  const volatile=items.filter(x=>x.volatility12mPct!==null)
+    .sort((a,b)=>(b.volatility12mPct??0)-(a.volatility12mPct??0))[0]
   const selectedSeries=selected?.points.slice(-horizon)??[]
   const purchaseTonnes=Number(tonnes)
   const validTonnes=Number.isFinite(purchaseTonnes)&&purchaseTonnes>0&&purchaseTonnes<=10000000
@@ -259,34 +270,83 @@ export function CommodityMarkets(){
           data-active={selected?.id===item.id}>
           <span className={styles.tickerLabel}>{ar?item.labelAr:item.label}</span>
           <strong>{price(item.latestUsdTonne,currency,rate,language)}</strong>
-          <span className={positiveColor(item.change1mPct)}>{signed(item.change1mPct,language)}</span>
+          <span className={styles.tickerMovement}>
+            <span data-movement={movement(item.change1mPct)}>{signed(item.change1mPct,language)}</span>
+            <MiniTrend points={item.points} positive={(item.change12mPct??0)>=0}/>
+          </span>
         </button>)}
       {!loading&&items.length===0&&<p className={styles.missingData}>
         {tx('No verified market data returned. Prices are intentionally not simulated.',
           'لا تتوفر أسعار موثوقة حالياً. لا توجد أسعار افتراضية.')}</p>}
     </section>
-    <div className={styles.scorecards}>
-      <div className={styles.scorecard}><span>{tx('Benchmarks available','المؤشرات المتاحة')}</span>
-        <strong>{marketData?marketData.available+' / '+marketData.tracked:'—'}</strong>
-        <small>{tx('IMF series · global references','سلاسل مرجعية عالمية')}</small>
-        <LineChart size={19}/>
+    <section className={styles.pulsePanel} aria-label={tx('Commodity market pulse','نبض أسواق السلع')}>
+      <div className={styles.pulseTop}>
+        <div>
+          <span className={styles.pulseEyebrow}><Activity size={13}/>
+            {tx('GLOBAL MARKET INTELLIGENCE','استخبارات الأسواق العالمية')}</span>
+          <h2>{tx('Commodity market pulse','نبض أسواق السلع')}</h2>
+          <p>{tx('Published benchmark movements and price exposure in one view.',
+            'حركة المؤشرات المرجعية المنشورة وانكشاف الأسعار في عرض واحد.')}</p>
+        </div>
+        <span className={styles.pulsePeriod}><span className={styles.pulseStatusDot}/>
+          {marketData?.latestObservationMonth
+            ?monthLabel(marketData.latestObservationMonth,language)
+            :tx('Awaiting published data','بانتظار البيانات المنشورة')}
+          {' · '}{tx('MONTHLY','شهري')}</span>
       </div>
-      <div className={styles.scorecard}><span>{tx('Rising this month','ارتفاع شهري')}</span>
-        <strong className={styles.positive}>{marketData?gainers:'—'}</strong>
-        <small>{tx('Month-over-month increases','ارتفاع مقارنة بالشهر السابق')}</small>
-        <ArrowUpRight size={19}/>
+      <div className={styles.pulseMetrics}>
+        <div className={styles.pulseMetric}>
+          <span>{tx('Verified benchmarks','المؤشرات المؤكدة')}</span>
+          <strong>{marketData?marketData.available:'—'}<small> / {marketData?.tracked??COMMODITY_CATALOG.length}</small></strong>
+          <p>{tx('IMF series available','سلاسل صندوق النقد المتاحة')}</p>
+        </div>
+        <div className={styles.pulseMetric}>
+          <span>{tx('Monthly direction','الاتجاه الشهري')}</span>
+          <strong className={styles.pulseBreadth}><span>{marketData?gainers:'—'} <ArrowUpRight size={15}/></span>
+            <i>/</i><span>{marketData?decliners:'—'} <ArrowDownRight size={15}/></span></strong>
+          <p>{tx('Higher / lower · '+flat+' unchanged','ارتفاع / انخفاض · '+flat+' بدون تغير')}</p>
+        </div>
+        <div className={styles.pulseMetric}>
+          <span>{tx('Average absolute move','متوسط التغير المطلق')}</span>
+          <strong>{meanMonthlyMove===null?'—':number(meanMonthlyMove,language,1)+'%'}</strong>
+          <p>{tx('Across available MoM observations','للقيم الشهرية المتاحة')}</p>
+        </div>
+        <div className={styles.pulseMetric}>
+          <span>{tx('Highest observed volatility','أعلى تقلب مرصود')}</span>
+          <strong>{volatile?number(volatile.volatility12mPct!,language,1)+'%':'—'}</strong>
+          <p>{volatile?(ar?volatile.labelAr:volatile.label):
+            tx('Requires 6+ monthly pairs','يتطلب ست مقارنات شهرية')}</p>
+        </div>
       </div>
-      <div className={styles.scorecard}><span>{tx('Falling this month','انخفاض شهري')}</span>
-        <strong className={styles.negative}>{marketData?decliners:'—'}</strong>
-        <small>{tx('Month-over-month declines','انخفاض مقارنة بالشهر السابق')}</small>
-        <ArrowDownRight size={19}/>
+      <div className={styles.pulseBottom}>
+        <div className={styles.pulseMoverHeading}>
+          <span><TrendingUp size={14}/>{tx('Largest monthly price movements','أكبر تحركات الأسعار الشهرية')}</span>
+          <small>{tx('Absolute change · not a trading signal','تغير مطلق · ليس توصية تداول')}</small>
+        </div>
+        <div className={styles.moversGrid}>
+          {movers.length?movers.map((item,index)=>
+            <button key={item.id} type="button" className={styles.moverCard}
+              onClick={()=>setSelectedId(item.id)}
+              data-active={selected?.id===item.id}>
+              <span className={styles.moverRank}>{String(index+1).padStart(2,'0')}</span>
+              <span className={styles.moverName}>
+                <strong>{ar?item.labelAr:item.label}</strong>
+                <small>{monthLabel(item.latestDate,language)}</small>
+              </span>
+              <span className={styles.moverMove} data-movement={movement(item.change1mPct)}>
+                {item.change1mPct!==null&&item.change1mPct>=0?<ArrowUpRight size={15}/>:<ArrowDownRight size={15}/>}
+                {signed(item.change1mPct,language,1)}
+              </span>
+            </button>):
+            <span className={styles.pulseEmpty}>{tx('No comparable monthly movements available.',
+              'لا توجد تغيرات شهرية قابلة للمقارنة.')}</span>}
+        </div>
+        <p className={styles.pulseDisclaimer}>
+          <Info size={12}/>{tx('Prices rising or falling do not establish food security risk. Monthly observations, not live quotes.',
+            'ارتفاع الأسعار أو انخفاضها لا يثبت مخاطر الأمن الغذائي. بيانات شهرية وليست أسعاراً فورية.')}
+        </p>
       </div>
-      <div className={styles.scorecard}><span>{tx('Largest monthly move','أكبر تغير شهري')}</span>
-        <strong>{biggest?signed(biggest.change1mPct,language,1):'—'}</strong>
-        <small>{biggest?(ar?biggest.labelAr:biggest.label):tx('Awaiting observations','في انتظار الأسعار')}</small>
-        <TrendingUp size={19}/>
-      </div>
-    </div>
+    </section>
     {marketData&&marketData.status!=='available'&&<p className={styles.feedStatus} role="status">
       {tx('Partial market coverage: some source series are currently unavailable.',
         'التغطية جزئية: بعض السلاسل غير متاحة حالياً.')} {marketData.available}/{marketData.tracked}
@@ -359,6 +419,51 @@ export function CommodityMarkets(){
         </div>
       </aside>
     </div>
+    <section className={styles.matrixPanel} aria-label={tx('Commodity price change matrix','مصفوفة تغير أسعار السلع')}>
+      <div className={styles.matrixHeading}>
+        <div><span className={styles.eyebrow}><Grid2X2 size={13}/>
+          {tx('COMPARATIVE INTELLIGENCE','تحليل المقارنة')}</span>
+          <h2>{tx('Price movement matrix','مصفوفة تحركات الأسعار')}</h2>
+          <p>{tx('Compare published price changes across monthly horizons. Shades show direction and magnitude, not food insecurity severity.',
+            'مقارنة تغيرات الأسعار المنشورة عبر فترات مختلفة. الألوان تمثل الاتجاه والحجم لا شدة انعدام الأمن الغذائي.')}</p>
+        </div>
+        <div className={styles.matrixLegend}>
+          <span><i data-movement="up"/>{tx('Price increase','ارتفاع السعر')}</span>
+          <span><i data-movement="down"/>{tx('Price decrease','انخفاض السعر')}</span>
+          <span><i data-movement="missing"/>{tx('Unavailable','غير متاح')}</span>
+        </div>
+      </div>
+      <div className={styles.matrixScroll}>
+        <table className={styles.matrixTable}>
+          <thead><tr><th>{tx('Benchmark','السلعة المرجعية')}</th>
+            <th>{tx('1 month','شهر')}</th><th>{tx('3 months','3 أشهر')}</th>
+            <th>{tx('12 months','12 شهراً')}</th>
+            <th>{tx('Monthly volatility','التقلب الشهري')}</th></tr></thead>
+          <tbody>
+            {entries.map(item=><tr key={item.id} data-active={selected?.id===item.id}>
+              <th scope="row"><button type="button" onClick={()=>setSelectedId(item.id)}>
+                <strong>{ar?item.labelAr:item.label}</strong>
+                <small>{item.seriesId} · {monthLabel(item.latestDate,language)}</small>
+              </button></th>
+              {([item.change1mPct,item.change3mPct,item.change12mPct] as const).map((value,i)=>
+                <td key={i}><span className={styles.matrixCell} data-movement={movement(value)}>
+                  {signed(value,language,1)}</span></td>)}
+              <td><span className={styles.matrixVolatility}>
+                {item.volatility12mPct===null?'—':number(item.volatility12mPct,language,1)+'%'}
+              </span></td>
+            </tr>)}
+          </tbody>
+        </table>
+        {entries.length===0&&<div className={styles.matrixEmpty}>
+          {loading?tx('Retrieving published benchmarks…','جلب المؤشرات المنشورة…'):
+            tx('No verified series matches these market filters.','لا توجد سلاسل موثوقة تطابق عوامل التصفية.')}
+        </div>}
+      </div>
+      <div className={styles.matrixFoot}><Info size={12}/>
+        {tx('MoM, 3M and YoY are calculated against exact published months. No daily or weekly changes are inferred.',
+          'تُحسب التغيرات بحسب أشهر النشر الفعلية. لا يتم تقدير التغيرات اليومية أو الأسبوعية.')}
+      </div>
+    </section>
     <div className={styles.bottomGrid}>
       <section className={styles.tablePanel}>
         <div className={styles.tableHeading}>
