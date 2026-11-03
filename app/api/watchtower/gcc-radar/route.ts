@@ -1,7 +1,10 @@
 import {NextResponse} from 'next/server'
 import {requireCapability} from '@/lib/auth/require-capability'
 import {validFoodUuid} from '@/lib/food-security/ingestion'
-import {getGccRadarSnapshot,isGccRadarAllowed,GCC_PORTS} from '@/lib/watchtower/myshiptracking-gcc'
+import {getGccRadarSnapshot,isGccRadarAllowed} from '@/lib/watchtower/myshiptracking-gcc'
+import {GCC_PORTS} from '@/lib/watchtower/myshiptracking-gcc-shared'
+import {getPublicGccRadarSnapshot,isPublicScrapeAllowed,publicScrapeEnabled}
+  from '@/lib/watchtower/myshiptracking-public'
 export const dynamic='force-dynamic'
 export const runtime='nodejs'
 export const maxDuration=30
@@ -13,6 +16,13 @@ export async function GET(request:Request){
   if(!validFoodUuid(org))return reply({error:'Valid organizationId required'},400)
   const auth=await requireCapability('supply.view',org)
   if(!auth.ok)return reply({error:auth.error},auth.status)
+  // Public HTML collection is deliberately opt-in. Respect authorization
+  // and site access restrictions; never fall back to a paid API silently.
+  if(publicScrapeEnabled()){
+    if(!isPublicScrapeAllowed(org))return reply({error:'Public tracking not enabled for this organization'},403)
+    try{return reply(await getPublicGccRadarSnapshot())}
+    catch{return reply({error:'Public MyShipTracking pages unavailable. No traffic simulated.'},503)}
+  }
   if(!isGccRadarAllowed(org))return reply({
     status:'not_configured',configured:false,generatedAt:new Date().toISOString(),
     source:'MyShipTracking API',sourceUrl:'https://api.myshiptracking.com/docs/getting-started',

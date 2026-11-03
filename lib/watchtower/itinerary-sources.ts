@@ -21,7 +21,7 @@ export type RouteItinerary={
   destination:RouteEndpoint|null
   departureAt:string|null
   etaAt:string|null
-  source:'adsb_lol_routeset'|'adsbdb_callsign'|'vesselfinder_ais_voyage'|'myshiptracking_voyage'
+  source:'adsb_lol_routeset'|'adsbdb_callsign'|'vesselfinder_ais_voyage'|'myshiptracking_voyage'|'myshiptracking_public'
   sourceUrl:string
   confidence:'lookup_plausible'|'lookup_unverified'|'crew_reported'
   description:string

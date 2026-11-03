@@ -182,8 +182,7 @@ export function GlobalWatchtower() {
     return()=>{active=false;controller.abort();clearInterval(timer)
       document.removeEventListener('visibilitychange',visible)}
   },[refresh])
-  // Optional licensed GCC marine radar: no provider calls until an
-  // authorized organization explicitly enables this in server env.
+  // Opt-in GCC web radar, 5-minute polling. Server handles permission gates.
   // Browser polls every 5 minutes while visible, without a background daemon.
   useEffect(()=>{
     if(!orgId){setGccRadar(null);return}
@@ -201,7 +200,7 @@ export function GlobalWatchtower() {
         if(!response.ok)throw Error('Licensed GCC radar request unavailable')
         const body=await response.json() as GccRadarSnapshot
         if(!Array.isArray(body.assets)||!Array.isArray(body.hubs)||
-           body.source!=='MyShipTracking API')throw Error('Invalid GCC radar result')
+           body.source!=='MyShipTracking API'&&body.source!=='MyShipTracking public pages')throw Error('Invalid GCC radar result')
         if(active){setGccRadar(body);setGccRadarError('')}
       }catch{
         if(active&&!controller.signal.aborted)
@@ -386,7 +385,7 @@ export function GlobalWatchtower() {
       </div>
       <div className={styles.stats}>{[
         { label: 'Aircraft observations', value: known(airSource?.state) ? assets.filter(a => a.kind === 'aircraft').length : null, note: cargoOnly ? 'Freight-operator candidates / sampled' : 'Six airframe samples / not all traffic', icon: Plane },
-        { label: 'Cargo vessel observations', value: (known(seaSource?.state)||Boolean(maritimeFeed?.chokepoints.some(point=>point.state==='partial'||point.state==='stale'))) ? assets.filter(a => a.kind === 'vessel').length : null, note: gccRadar?.configured ? 'GCC MyShipTracking + public AIS' : maritimeFeed ? 'data-tracking.net Hormuz/Bab · AIS sample' : seaSource?.state === 'unconfigured' ? 'Waiting for public AIS / licensed AIS unavailable' : 'AIS coverage / not global totals', icon: Ship },
+        { label: 'Cargo vessel observations', value: (known(seaSource?.state)||Boolean(maritimeFeed?.chokepoints.some(point=>point.state==='partial'||point.state==='stale'))) ? assets.filter(a => a.kind === 'vessel').length : null, note: gccRadar?.configured ? 'GCC MyShipTracking observations + AIS' : maritimeFeed ? 'data-tracking.net Hormuz/Bab · AIS sample' : seaSource?.state === 'unconfigured' ? 'Waiting for public AIS / licensed AIS unavailable' : 'AIS coverage / not global totals', icon: Ship },
         { label: 'Mapped risk reports', value: riskReadable ? externalRiskAlerts.length : null, note: 'External hazard and advisory reports', icon: AlertTriangle },
         { label: 'Food-security signals', value: food && food.assessedCount > 0 ? foodAlerts.length : null, note: staleFood ? 'Stale organization snapshot' : foodError ? 'Organization ledger unavailable' : food ? food.assessedCount + ' commodities assessed / organization' : 'Organization ledger not loaded', icon: Wheat },
       ].map(item => <div key={item.label} className={styles.stat}><label>{item.label}</label><strong>{count(item.value)}</strong><item.icon size={21} /><small>{item.note}</small></div>)}</div>
@@ -401,7 +400,7 @@ export function GlobalWatchtower() {
       <select id="watchtower-region" className={styles.input} value={region} onChange={e => setView(e.target.value as Region)}>{Object.entries(REGIONS).map(([key, value]) => <option key={key} value={key}>{value.name}</option>)}</select>
       <div className="mt-2 flex gap-2"><button className={styles.smallButton} onClick={() => setView('global')}><Globe2 size={12} />Global</button><button className={styles.smallButton} onClick={() => { setView('gulf'); setFocus({ ...QATAR, zoom: 6, token: Date.now() }) }}>Qatar</button></div>
       <label className={styles.label} htmlFor="watchtower-gcc-hub">
-        GCC ship radar · MyShipTracking
+        GCC ship radar · MyShipTracking public pages
       </label>
       <select id="watchtower-gcc-hub" className={styles.input}
         value={selectedGccHub}
@@ -423,8 +422,8 @@ export function GlobalWatchtower() {
         {gccRadar?.configured?
           <>{gccRadar.moving} moving cargo-type vessels · {gccRadar.withRoutes} modeled route pairs.
             Last checked {utc(gccRadar.generatedAt)}. 5-minute browser polling;
-            locations and voyage names depend on licensed terrestrial AIS.</>:
-          <>Optional licensed MyShipTracking API not configured for this organization.
+            website observations may be delayed or unavailable.</>:
+          <>Optional MyShipTracking public-page collection is not enabled for this organization.
             Existing public AIS feeds remain in use.</>}
         {gccRadar?.creditsCharged!=null?' Credits last scan: '+gccRadar.creditsCharged+'.':''}
         {gccRadarError?' '+gccRadarError:''}

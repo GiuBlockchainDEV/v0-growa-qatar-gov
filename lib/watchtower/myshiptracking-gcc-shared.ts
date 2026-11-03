@@ -17,7 +17,7 @@ export type GccHubReport={
   sourceUrl:string;detail:string
 }
 export type GccRadarSnapshot={
-  generatedAt:string;refreshSeconds:300;source:'MyShipTracking API'
+  generatedAt:string;refreshSeconds:300;source:'MyShipTracking API'|'MyShipTracking public pages'
   status:GccRadarState;configured:boolean
   hubs:GccHubReport[];assets:TrackingAsset[];sourceUrl:string
   checked:number;moving:number;withRoutes:number
