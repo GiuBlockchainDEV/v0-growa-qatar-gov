@@ -23,8 +23,6 @@ export const GCC_PUBLIC_PORTS=[
 export type PublicVesselCandidate={
   hubId:GccHubId;name:string;url:string;event:'ARRIVAL'|'DEPARTURE'|'UNCONFIRMED'
 }
-type Dict=Record<string,unknown>
-const dict=(v:unknown):Dict=>v!==null&&typeof v==='object'&&!Array.isArray(v)?v as Dict:{}
 const clean=(value:string)=>value.replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi,'')
   .replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi,'')
   .replace(/<[^>]+>/g,' ').replace(/&nbsp;/gi,' ')
