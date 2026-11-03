@@ -512,15 +512,16 @@ export function GlobalWatchtower() {
       : (!freightFlightsOnly||a.cargo==='operator_inferred')) &&
     (!query || (a.label+' '+a.id+' '+(a.destination??'')).toLowerCase().includes(query.toLowerCase())),
   ),[allAssets,inside,shipView,freightFlightsOnly,query,now])
+  // Risk overlays are worldwide, independent from the transport/asset
+  // region filter. Leaflet clips display to the current map viewport.
   const alerts=useMemo(()=>allAlerts.filter(a=>
-    inside(a)&&(!query||(a.title+' '+a.source).toLowerCase().includes(query.toLowerCase())),
-  ),[allAlerts,inside,query])
-  // Internal organization risk metrics remain on the map and KPI cards, but
-  // must not clutter the public Food Security & Risk alert inbox.
+    !query||(a.title+' '+a.source).toLowerCase().includes(query.toLowerCase()),
+  ),[allAlerts,query])
+  // Organization-level indicators do not become global food-crisis alerts.
   const riskZones=useMemo<ProductionRiskZone[]>(()=>(
-    productionRisk?.zones??[]).filter(zone=>inside(zone.center)&&
-    (!query||(zone.name+' '+zone.country+' '+zone.driver+' '+zone.eventTitles.join(' ')).toLowerCase().includes(query.toLowerCase())),
-  ),[productionRisk,inside,query])
+    productionRisk?.zones??[]).filter(zone=>
+    !query||(zone.name+' '+zone.country+' '+zone.driver+' '+zone.eventTitles.join(' ')).toLowerCase().includes(query.toLowerCase())),
+  ),[productionRisk,query])
   const externalRiskAlerts = useMemo(
     () => allAlerts.filter(alert=>alert.source!=='Organization food ledger'&&
       (!query||(alert.title+' '+alert.source).toLowerCase().includes(query.toLowerCase()))),
