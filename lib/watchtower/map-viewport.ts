@@ -20,3 +20,14 @@ export function getWorldFillZoom(width: number, height: number): number {
   const snapped = Math.ceil((target - 1e-10) / WORLD_ZOOM_STEP) * WORLD_ZOOM_STEP
   return Math.max(MIN_WORLD_ZOOM, Math.min(MAX_WORLD_ZOOM, Number(snapped.toFixed(1))))
 }
+
+/**
+ * Starting viewport for the Watchtower's Qatar-centred maritime corridor.
+ * The focus covers the Persian Gulf, Hormuz, Gulf of Oman, Red Sea,
+ * Bab el-Mandeb and Gulf of Aden. Coordinates define a VIEW/FILTER, not
+ * an assertion of live AIS reception throughout these waters.
+ */
+export const REGIONAL_WATCHTOWER_VIEW={
+  lat:22.5,lon:50,zoom:4.5,
+  box:[9,31,36,68] as readonly [number,number,number,number],
+} as const

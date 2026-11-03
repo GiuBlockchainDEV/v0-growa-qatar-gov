@@ -10,14 +10,15 @@ import type {ProductionRiskSnapshot,ProductionRiskZone,ProductionDriver} from '@
 import { CHOKEPOINTS, QATAR, REFRESH_SECONDS, freshAsset, mergeAssets, separationKm, type MapAlert, type MapLayers, type TrackingAsset, type TrackingSnapshot } from '@/lib/watchtower/global-tracking'
 import {TRACKED_CHOKEPOINTS,type ChokepointId,type DataTrackingSnapshot,type ChokepointReport} from '@/lib/watchtower/data-tracking-net'
 import type {AISRoute,HistoryOverlay} from '@/lib/watchtower/data-tracking-history'
-import {GCC_PORTS,type GccHubId,type GccRadarSnapshot} from '@/lib/watchtower/myshiptracking-gcc-shared'
+import {MONITORED_MARITIME_PORTS,type GccHubId,type GccRadarSnapshot} from '@/lib/watchtower/myshiptracking-gcc-shared'
+import {REGIONAL_WATCHTOWER_VIEW} from '@/lib/watchtower/map-viewport'
 import type { GlobalTrackingMapProps } from './global-tracking-map'
 import {mergeTrackingUpdate,mergeFlightItineraries,type RouteLookupResponse} from '@/lib/watchtower/tracking-merge'
 import styles from './global-watchtower.module.css'
 const Map = dynamic<GlobalTrackingMapProps>(() => import('./global-tracking-map').then(m => m.GlobalTrackingMap), { ssr: false, loading: () => <div className={styles.map} aria-busy="true" /> })
 const REGIONS = {
   global: { name: 'Global', lat: 22, lon: 35, zoom: 2, box: [-85, -180, 85, 180] },
-  gulf: { name: 'Gulf & Red Sea', lat: 24, lon: 47, zoom: 4, box: [10, 30, 36, 63] },
+  gulf: { name: 'Gulf · Red Sea · Gulf of Aden', ...REGIONAL_WATCHTOWER_VIEW },
   europe: { name: 'Europe', lat: 50, lon: 12, zoom: 4, box: [35, -18, 72, 45] },
   asia: { name: 'Asia', lat: 25, lon: 103, zoom: 3, box: [-12, 45, 75, 180] },
   africa: { name: 'Africa', lat: 2, lon: 22, zoom: 3, box: [-36, -20, 38, 53] },
@@ -52,7 +53,7 @@ export function GlobalWatchtower() {
   const [error, setError] = useState(''), [foodError, setFoodError] = useState('')
   const [busy, setBusy] = useState(false), [refresh, setRefresh] = useState(0), [paused, setPaused] = useState(false), [now, setNow] = useState(Date.now)
   const [mobile, setMobile] = useState(false), [filtersOpen, setFiltersOpen] = useState(true), [alertsOpen, setAlertsOpen] = useState(true), [fullscreen, setFullscreen] = useState(false)
-  const [query, setQuery] = useState(''), [region, setRegion] = useState<Region>('global'), [cargoOnly, setCargoOnly] = useState(true), [shipCargoOnly,setShipCargoOnly]=useState(false)
+  const [query, setQuery] = useState(''), [region, setRegion] = useState<Region>('gulf'), [cargoOnly, setCargoOnly] = useState(true), [shipCargoOnly,setShipCargoOnly]=useState(false)
   const [commodity, setCommodity] = useState('all'), [alertKind, setAlertKind] = useState('all'), [productionKind,setProductionKind] = useState<'all'|ProductionDriver>('all'), [highOnly, setHighOnly] = useState(false)
   const [selectedId, setSelectedId] = useState<string | null>(null), [sourceId, setSourceId] = useState<string | null>(null)
   const [focus, setFocus] = useState<GlobalTrackingMapProps['focus']>(null)
@@ -388,7 +389,7 @@ export function GlobalWatchtower() {
   const chooseChokepoint=(id:ChokepointId)=>{
     const area=TRACKED_CHOKEPOINTS.find(point=>point.id===id)
     if(!area)return
-    setRegion('global')
+    setRegion(id==='hormuz'||id==='bab_el_mandeb'?'gulf':'global')
     setSelectedChokepoint(id)
     setFocus({lat:area.lat,lon:area.lon,zoom:6,token:Date.now()})
     if(mobile){setFiltersOpen(false);setAlertsOpen(false)}
@@ -439,9 +440,13 @@ export function GlobalWatchtower() {
       {query && <div className={styles.searchMatches}>{assets.slice(0, 6).map(asset => <button key={asset.id} onClick={() => choose(asset)}>{asset.kind === 'aircraft' ? 'AIR' : 'SEA'} / {asset.label}</button>)}</div>}
       <label className={styles.label} htmlFor="watchtower-region">Geographic view</label>
       <select id="watchtower-region" className={styles.input} value={region} onChange={e => setView(e.target.value as Region)}>{Object.entries(REGIONS).map(([key, value]) => <option key={key} value={key}>{value.name}</option>)}</select>
-      <div className="mt-2 flex gap-2"><button className={styles.smallButton} onClick={() => setView('global')}><Globe2 size={12} />Global</button><button className={styles.smallButton} onClick={() => { setView('gulf'); setFocus({ ...QATAR, zoom: 6, token: Date.now() }) }}>Qatar</button></div>
+      <div className="mt-2 flex flex-wrap gap-2">
+        <button className={styles.smallButton} onClick={()=>setView('gulf')}><Ship size={12}/>Regional waters</button>
+        <button className={styles.smallButton} onClick={()=>setView('global')}><Globe2 size={12}/>Global</button>
+        <button className={styles.smallButton} onClick={()=>{setView('gulf');setFocus({...QATAR,zoom:6,token:Date.now()})}}>Qatar</button>
+      </div>
       <label className={styles.label} htmlFor="watchtower-gcc-hub">
-        GCC ship radar · MyShipTracking public pages
+        Regional ship radar · MyShipTracking public pages
       </label>
       <select id="watchtower-gcc-hub" className={styles.input}
         value={selectedGccHub}
@@ -449,21 +454,21 @@ export function GlobalWatchtower() {
           const hub=e.target.value as 'all'|GccHubId
           setSelectedGccHub(hub)
           if(hub!=='all'){
-            const area=GCC_PORTS.find(x=>x.id===hub)
+            const area=MONITORED_MARITIME_PORTS.find(x=>x.id===hub)
             if(area){
-              setRegion('global');setSelectedChokepoint('all')
+              setRegion('gulf');setSelectedChokepoint('all')
               setFocus({lat:area.lat,lon:area.lon,zoom:8,token:Date.now()})
             }
           }
         }}>
-        <option value="all">All GCC monitored ports</option>
-        {GCC_PORTS.map(h=><option key={h.id} value={h.id}>{h.label}</option>)}
+        <option value="all">All monitored regional ports</option>
+        {MONITORED_MARITIME_PORTS.map(h=><option key={h.id} value={h.id}>{h.label}</option>)}
       </select>
       <p className={styles.hint}>
         {gccRadar?.configured?
           <>{gccRadar.assets.length} vessel positions · {gccRadar.assets.filter(a=>a.cargo==='ais_cargo_class').length} cargo-class vessels · {gccRadar.moving} moving · {gccRadar.withRoutes} modeled route pairs.
             Last checked {utc(gccRadar.generatedAt)}. 5-minute browser polling;
-            website observations may be delayed or unavailable.</>:
+            watched across the Gulf, Red Sea and Gulf of Aden; website observations may be delayed or unavailable.</>:
           <>MyShipTracking website collection is not enabled or data is unavailable.
             Existing public AIS feeds remain in use.</>}
         {gccRadar?.sourceNote&&<span className={styles.hint}>
@@ -484,7 +489,7 @@ export function GlobalWatchtower() {
         value={selectedChokepoint}
         onChange={e=>{
           const next=e.target.value as 'all'|ChokepointId
-          if(next==='all'){setSelectedChokepoint('all');setView('global')}
+          if(next==='all'){setSelectedChokepoint('all');setView('gulf')}
           else chooseChokepoint(next)
         }}>
         <option value="all">All monitored chokepoints</option>
@@ -643,7 +648,7 @@ export function GlobalWatchtower() {
           </div>
           {selectedAsset.hubId&&<div className={styles.routeDetail}>
             <h3>GCC port radar · MyShipTracking</h3>
-            <p>{GCC_PORTS.find(h=>h.id===selectedAsset.hubId)?.label}</p>
+            <p>{MONITORED_MARITIME_PORTS.find(h=>h.id===selectedAsset.hubId)?.label}</p>
             <p>{selectedAsset.observationBasis==='webpage_capture'?
               'Public webpage coordinates. AIS position time NOT provided; displayed observation may be old. Page inspected ':
               'Source-reported AIS position at '}

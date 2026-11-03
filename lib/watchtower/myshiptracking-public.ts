@@ -12,13 +12,14 @@
 import {coordinate,epoch,mergeAssets,type TrackingAsset} from './global-tracking'
 import {knownPort,type RouteItinerary,type RouteEndpoint} from './itinerary-sources'
 import {withModeledSeaLegs} from './itinerary-sea'
-import {GCC_PORTS,GCC_RADAR_INTERVAL_MS,
+import {MONITORED_MARITIME_PORTS,REGIONAL_SCAN_PORTS,GCC_RADAR_INTERVAL_MS,
   type GccHubId,type GccHubReport,type GccRadarSnapshot} from './myshiptracking-gcc-shared'
 
 export const GCC_PUBLIC_PORTS=[
   {id:'AEJEA' as const,url:'https://www.myshiptracking.com/ports/port-of-jebel-ali-in-ae-uae-id-228'},
   {id:'QADOH' as const,url:'https://www.myshiptracking.com/ports/port-of-doha-in-qa-qatar-id-5833'},
   {id:'QARLF' as const,url:'https://www.myshiptracking.com/ports/port-of-ras-laffan-in-qa-qatar-id-5836'},
+  ...REGIONAL_SCAN_PORTS.map(hub=>({id:hub.id,url:hub.url})),
 ] as const
 export type PublicVesselCandidate={
   hubId:GccHubId;name:string;url:string;event:'ARRIVAL'|'DEPARTURE'|'UNCONFIRMED'
@@ -36,7 +37,7 @@ const nm=(v:unknown):number|null=>{
   return Number.isFinite(n)?n:null
 }
 const port=(code:string)=>{
-  const local=GCC_PORTS.find(p=>p.id===code)
+  const local=MONITORED_MARITIME_PORTS.find(p=>p.id===code)
   if(local)return {name:local.label,code:local.unloco,country:local.id.slice(0,2),
     lat:local.lat,lon:local.lon} as RouteEndpoint
   return knownPort(code)
@@ -128,21 +129,34 @@ export function parsePublicPortCandidates(html:string,hubId:GccHubId,limit=12):P
   return out
 }
 export function selectPublicGccCandidates(
-  found:readonly PublicVesselCandidate[],maxPerHub=12,
+  found:readonly PublicVesselCandidate[],maxPerHub=12,maxTotal=48,
 ):PublicVesselCandidate[]{
   const unique=new Map<string,PublicVesselCandidate>()
   for(const candidate of found)if(!unique.has(candidate.url))unique.set(candidate.url,candidate)
-  const byHub=GCC_PUBLIC_PORTS.map(h=>
-    [...unique.values()].filter(candidate=>candidate.hubId===h.id))
+  const byHub=new Map<GccHubId,PublicVesselCandidate[]>()
+  for(const entry of GCC_PUBLIC_PORTS){
+    byHub.set(entry.id,[...unique.values()].filter(candidate=>candidate.hubId===entry.id))
+  }
   const selected:PublicVesselCandidate[]=[]
+  const used=new Set<string>()
   const perHub=cap(Math.trunc(maxPerHub),1,12)
-  // Round-robin prevents one large port from starving the smaller ports.
-  for(let index=0;index<perHub;index++){
-    for(const candidates of byHub){
-      const candidate=candidates[index]
-      if(candidate&&selected.length<36)selected.push(candidate)
+  const total=cap(Math.trunc(maxTotal),1,48)
+  const core=['AEJEA','QADOH','QARLF'] as const
+  const secondary=GCC_PUBLIC_PORTS.map(p=>p.id).filter(
+    id=>!core.some(c=>c===id))
+  const add=(portId:GccHubId,index:number)=>{
+    const candidate=byHub.get(portId)?.[index]
+    if(candidate&&!used.has(candidate.url)&&selected.length<total){
+      selected.push(candidate);used.add(candidate.url)
     }
   }
+  // Give EVERY available regional port at least two chances before filling
+  // extra places from the original three high-priority Python hubs.
+  for(let i=0;i<Math.min(perHub,2);i++){
+    for(const port of GCC_PUBLIC_PORTS)add(port.id,i)
+  }
+  for(let i=2;i<perHub;i++)for(const id of core)add(id,i)
+  for(let i=2;i<perHub;i++)for(const id of secondary)add(id,i)
   return selected
 }
 function portName(raw:string):RouteEndpoint|null{
@@ -243,7 +257,7 @@ const limit=()=>12
 const baseHeaders={Accept:'text/html,application/xhtml+xml',
   // Identify our client; we deliberately do not spoof human browsers.
   'User-Agent':'Growa-NFII-Research/1.0 (+https://growa.ai)'}
-async function getHtml(url:string,timeout=9000):Promise<string>{
+async function getHtml(url:string,timeout=7500):Promise<string>{
   const u=new URL(url)
   if(u.protocol!=='https:'||u.hostname!=='www.myshiptracking.com')throw Error('Invalid source URL')
   const controller=AbortSignal.timeout(timeout)
@@ -307,10 +321,10 @@ export async function getPublicGccRadarSnapshot():Promise<GccRadarSnapshot>{
     for(const hub of GCC_PUBLIC_PORTS)issues.set(hub.id,{
       inspected:0,incomplete:0,blocked:0,failures:0,
     })
-    // Up to 36 real source pages, scanned in four bounded waves. No hidden
-    // endpoints, no anti-bot evasion and no retries on site access blocks.
-    for(let i=0;i<toInspect.length;i+=9){
-      const chunk=toInspect.slice(i,i+9)
+    // At most 48 real source pages per scan, in bounded batches. Never
+    // follow hidden endpoints or retry website access blocks.
+    for(let i=0;i<toInspect.length;i+=10){
+      const chunk=toInspect.slice(i,i+10)
       const response=await Promise.allSettled(chunk.map(async c=>
         parsePublicVessel(await page(c.url,300000),c)))
       for(let j=0;j<response.length;j++){
@@ -337,7 +351,7 @@ export async function getPublicGccRadarSnapshot():Promise<GccRadarSnapshot>{
       routes++
       return {...asset,itinerary:withModeledSeaLegs(i,asset)}
     })
-    const reports:GccHubReport[]=GCC_PORTS.map(h=>{
+    const reports:GccHubReport[]=MONITORED_MARITIME_PORTS.map(h=>{
       const response=hubCalls.find(r=>r.status==='fulfilled'&&r.value.hub.id===h.id)
       const defined=GCC_PUBLIC_PORTS.some(x=>x.id===h.id)
       const candidateCount=response?.status==='fulfilled'?response.value.candidates.length:0
@@ -383,6 +397,7 @@ export async function getPublicGccRadarSnapshot():Promise<GccRadarSnapshot>{
         found.filter(a=>a.cargo==='ais_cargo_class').length+' cargo-class positions; '+
         rejected+' missing/invalid GPS; '+failed+' page failures ('+blocked+
         ' blocked). '+reasons.join('; ')+'. '+
+        'Regional coverage is limited to port-linked source pages; no open-sea AIS coverage is inferred. '+
         '5-minute refresh means polling cadence only. Actual last-position timestamp is preserved. '+
         'Website data rights and permitted use must be confirmed before enabling. '+
         'Routes are model references, not actual AIS sailed tracks.',

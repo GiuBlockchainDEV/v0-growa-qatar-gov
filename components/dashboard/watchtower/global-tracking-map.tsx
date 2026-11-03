@@ -6,7 +6,7 @@ import { QATAR, freshAsset, type TrackingAsset, type MapAlert, type MapLayers } 
 import {TRACKED_CHOKEPOINTS,type ChokepointId,type ChokepointReport} from '@/lib/watchtower/data-tracking-net'
 import type {AISRoute} from '@/lib/watchtower/data-tracking-history'
 import styles from './global-watchtower.module.css'
-import { getWorldFillZoom } from '@/lib/watchtower/map-viewport'
+import { getWorldFillZoom, REGIONAL_WATCHTOWER_VIEW } from '@/lib/watchtower/map-viewport'
 import { makeAirGreatCircle } from '@/lib/nfii/logistics-route-geometry'
 import type {ProductionRiskZone} from '@/lib/watchtower/production-risk'
 import { captureObservedPositions, automaticRouteEvidence, worldCopyPolyline, type TrackPoint } from '@/lib/watchtower/route-geometry'
@@ -45,7 +45,11 @@ export function GlobalTrackingMap({ assets, historyAssets, alerts, riskZones, ch
     const initialFloor = getWorldFillZoom(host.current.clientWidth, host.current.clientHeight)
     let currentFloor = initialFloor
     const map = L.map(host.current, {
-      center: [12, 20], zoom: initialFloor, minZoom: initialFloor, maxZoom: 19,
+      // The screenshot's Gulf/Red Sea sector is the default operating
+      // picture. Global basemap and panning remain fully available.
+      center: [REGIONAL_WATCHTOWER_VIEW.lat,REGIONAL_WATCHTOWER_VIEW.lon],
+      zoom: Math.max(initialFloor,REGIONAL_WATCHTOWER_VIEW.zoom),
+      minZoom: initialFloor, maxZoom: 19,
       zoomSnap: 0.1, zoomDelta: 0.5,
       zoomControl: false, attributionControl: true, preferCanvas: true,
       // Do not clip the world to +/-180 degrees: ESRI is tiled globally.
