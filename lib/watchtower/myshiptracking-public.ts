@@ -289,7 +289,7 @@ function empty(status:'not_configured'|'unavailable',detail:string):GccRadarSnap
   return {
     source:'MyShipTracking public pages',generatedAt:new Date().toISOString(),
     refreshSeconds:300,status,configured:status!=='not_configured',
-    hubs:GCC_PORTS.map(h=>({id:h.id,label:h.label,status,
+    hubs:MONITORED_MARITIME_PORTS.map(h=>({id:h.id,label:h.label,status,
       candidates:0,observed:0,withRoutes:0,sourceUrl:'https://www.myshiptracking.com/',
       detail})),assets:[],sourceUrl:'https://www.myshiptracking.com/',
     checked:0,moving:0,withRoutes:0,maxShipsPerHub:max,creditsCharged:null,
