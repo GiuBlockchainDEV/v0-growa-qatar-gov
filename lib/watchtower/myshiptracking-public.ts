@@ -169,7 +169,7 @@ export function parsePublicVessel(html:string,candidate:PublicVesselCandidate,no
   // Missing speed must NOT erase an otherwise source-observed cargo ship.
   // Avoid AVG Speed / MAX Speed from the trip summary: those aren't SOG.
   const positionText=text.split(/Current Position/i)[1]?.split(/\b(?:Information|Weather|Last Port Calls|Info)\b/i)[0]??''
-  const speedMatch=html.match(/["']speed["']\s*[:=]\s*["']?(\d{1,2}(?:\.\d+)?)/i)
+  const speedMatch=html.match(/\b["']?speed["']?\s*[:=]\s*["']?(\d{1,2}(?:\.\d+)?)/i)
     ??text.match(/\bcurrent speed (?:is|:)\s*(\d{1,2}(?:\.\d+)?)\s*(?:knots|kn)\b/i)
     ??text.match(/\bSOG\s*:?\s*(\d{1,2}(?:\.\d+)?)\s*(?:knots|kn)\b/i)
     ??positionText.match(/\bSpeed\s*:?\s*(\d{1,2}(?:\.\d+)?)\s*(?:knots|kn|kts)\b/i)
