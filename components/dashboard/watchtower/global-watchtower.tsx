@@ -639,7 +639,10 @@ export function GlobalWatchtower() {
           {selectedAsset.hubId&&<div className={styles.routeDetail}>
             <h3>GCC port radar · MyShipTracking</h3>
             <p>{GCC_PORTS.find(h=>h.id===selectedAsset.hubId)?.label}</p>
-            <p>Real terrestrial AIS fix: {utc(selectedAsset.observedAt)}. Port names are source-reported; maritime reference lines are modeled, not verified sailed routes.</p>
+            <p>{selectedAsset.observationBasis==='webpage_capture'?
+              'Public webpage coordinates. AIS position time NOT provided; displayed observation may be old. Page inspected ':
+              'Source-reported AIS position at '}
+              {utc(selectedAsset.observedAt)}. Port names are source-reported; maritime reference lines are modeled, not verified sailed routes.</p>
           </div>}
           {selectedAsset.chokepointId&&<div className={styles.routeDetail}>
             <h3>Maritime chokepoint observation</h3>

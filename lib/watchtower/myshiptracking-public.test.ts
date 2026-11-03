@@ -65,6 +65,18 @@ describe('Public HTML GCC radar without MyShipTracking API',()=>{
   expect(ui).not.toContain('console.log(orgId)')
   expect(ui).not.toContain('console.log(body.assets)')
  })
+ it('accepts Python-style lat/lng JavaScript coordinates without fabricating an AIS timestamp',()=>{
+  const ref=parsePublicPortCandidates(portHtml,'AEJEA')[0]
+  const page=`<html><head><title>CARGO BULK - Cargo (IMO: 1234567, MMSI: 123456789)</title></head>
+   <body><h1>CARGO BULK</h1><script>var lat=25.12345;var lng=55.23456;var speed=8.5;</script>
+   <section>Public ship details; no ship-specific AIS observation date here</section></body></html>`
+  const asset=parsePublicVessel(page,ref)
+  expect(asset?.lat).toBeCloseTo(25.12345)
+  expect(asset?.lon).toBeCloseTo(55.23456)
+  expect(asset?.observationBasis).toBe('webpage_capture')
+  expect(asset?.speedKnots).toBe(8.5)
+  expect(asset?.foodCargoVerified).toBe(false)
+ })
  it('has no hardcoded API dependency or automatic bot-evasion techniques',()=>{
   const source=readFileSync(join(process.cwd(),'lib/watchtower/myshiptracking-public.ts'),'utf8')
   const api=readFileSync(join(process.cwd(),'app/api/watchtower/gcc-radar/route.ts'),'utf8')
@@ -74,7 +86,8 @@ describe('Public HTML GCC radar without MyShipTracking API',()=>{
   expect(source).not.toContain('AutomationControlled')
   expect(source).toContain('WATCHTOWER_MST_SCRAPE_ENABLED')
   expect(source).toContain('GCC_RADAR_INTERVAL_MS')
-  expect(api).toContain("requireCapability('supply.view',null)")
+  expect(api).toContain('buildSessionContext({})')
+  expect(api).toContain('canViewGlobalMaritimeRadar(session.payload)')
   expect(api).not.toContain('organizationId')
   expect(api).toContain('getPublicGccRadarSnapshot()')
   expect(client).toContain('setInterval(()=>void load(),300000)')

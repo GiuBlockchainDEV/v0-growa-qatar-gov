@@ -49,3 +49,23 @@ The adapter has fixture-level tests, not a validated production scraping
 session against a currently accessible website.
 
 The endpoint requires server-validated supply.view permission derived from the authenticated session. It never expects a client-supplied organizationId and no WATCHTOWER_MST_ALLOWED_ORG_IDS variable is needed for public-page mode. If the environment flag is missing or disabled, public scraping remains off. Consent, source permissions, and website access limits still apply.
+
+## November 2026 authorization and parser fix
+The global radar is protected by server-side account status and active
+intelligence-view membership checks (or a verified platform super-admin).
+This makes it independent of the chosen organization, but DOES NOT open
+the endpoint anonymously. No WATCHTOWER_MST_ALLOWED_ORG_IDS or
+client-supplied organizationId is required.
+
+Public PHP/JS vessel pages may expose coordinate variables without an
+AIS fix timestamp. The parser can show those real webpage coordinate pairs
+as **webpage_capture** with unknown position freshness. They are dimmed
+on the map and are never considered fresh AIS observations. No timestamp is
+fabricated. Reported AIS positions remain separately dated.
+
+Candidate sampling now rotates across Jebel Ali, Doha and Ras Laffan,
+rather than using the entire quota on the first port. At most 24 candidate
+pages per scan (up to eight per public hub) are read with bounded
+concurrency. The 5-minute refresh is a dashboard polling interval and
+not a promise of new upstream AIS fixes. A refused website request
+must remain unavailable, with diagnostics rather than fake vessels.

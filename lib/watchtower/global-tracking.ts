@@ -11,7 +11,7 @@ export type TrackingAsset = {
   chokepointId?: import('./data-tracking-net').ChokepointId
   hubId?: import('./myshiptracking-gcc-shared').GccHubId
   /** Distinguishes a per-ship timestamp from a dataset-level last poll. */
-  observationBasis?: 'position_report' | 'snapshot_poll'
+  observationBasis?: 'position_report' | 'snapshot_poll' | 'webpage_capture'
 }
 export type MapAlert = {
   id: string; kind: 'hazard' | 'aviation' | 'maritime' | 'food'; title: string
@@ -65,6 +65,9 @@ export function epoch(v: unknown): number | null {
 const bearing = (v: unknown) => { const n = numeric(v); return n !== null && n >= 0 && n < 360 ? n : null }
 const speed = (v: unknown, max: number) => { const n = numeric(v); return n !== null && n >= 0 && n < max ? n : null }
 export function freshAsset(asset: TrackingAsset, now = Date.now()): boolean {
+  // A captured public webpage does not prove when the AIS fix was sent.
+  // Keep its ship marker visible but never paint it as a fresh AIS fix.
+  if(asset.observationBasis==='webpage_capture')return false
   const age = now - Date.parse(asset.observedAt)
   // The public data-tracking.net AIS source polls roughly every 30 minutes.
   // "Recent" here means recent relative to THAT source cadence, never live.

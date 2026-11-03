@@ -43,33 +43,46 @@ const port=(code:string)=>{
     lat:local.lat,lon:local.lon} as RouteEndpoint
   return knownPort(code)
 }
-function htmlPosition(html:string):{lat:number;lon:number;received:string}|null{
+type PublicPosition={lat:number;lon:number;received:string;timestampBasis:'position_report'|'webpage_capture'}
+/**
+ * The Python reference extracts latitude and longitude from JavaScript
+ * variables independently. The previous web adapter required a date in the
+ * SAME JSON object, silently rejecting real vessel-page coordinate pairs.
+ *
+ * When a page exposes coordinates but not their AIS fix time, expose the
+ * position with UNVERIFIED freshness (never call it a live observation).
+ * Do not use page load time as a claimed timestamp of the ship's transmission.
+ */
+function htmlPosition(html:string,now=Date.now()):PublicPosition|null{
   const text=clean(html)
-  // The source provides a sentence like:
-  // "coordinates 26.17783° / 50.71119° as reported on 2026-04-19 19:26"
   const narrative=text.match(
     /\bcoordinates\s+(-?\d{1,2}\.\d{3,8})\s*°?\s*\/\s*(-?\d{1,3}\.\d{3,8})\s*°?\s+as\s+reported\s+on\s+(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2})/i)
   if(narrative){
-    const coord=coordinate(narrative[1],narrative[2])
-    const time=epoch(narrative[3].replace(' ','T')+'Z')
-    if(coord&&time!==null&&time<=Date.now()+60000)
-      return {...coord,received:new Date(time).toISOString()}
+    const point=coordinate(narrative[1],narrative[2])
+    const stamp=epoch(narrative[3].replace(' ','T')+'Z')
+    if(point&&stamp!==null&&stamp<=now+60000)
+      return {...point,received:new Date(stamp).toISOString(),timestampBasis:'position_report'}
   }
-  // Fallback to two explicit JSON keys in the SAME object, with a dated fix.
-  // Do not greedily mine the entire document (it contains the port's
-  // coordinates and other vessels too).
-  for(const match of html.matchAll(/\{[^{}]{0,1500}(?:["']lat["']|["']latitude["'])[^{}]{0,1500}\}/gi)){
-    const part=match[0]
-    const a=part.match(/["'](?:lat|latitude)["']\s*:\s*["']?(-?\d+(?:\.\d+)?)/i)
-    const b=part.match(/["'](?:lon|lng|longitude)["']\s*:\s*["']?(-?\d+(?:\.\d+)?)/i)
-    const t=part.match(/["'](?:last_seen|timestamp|received|position_time)["']\s*:\s*["']([^"']{10,40})/i)
-    const coord=a&&b?coordinate(a[1],b[1]):null
-    const time=t?epoch(t[1]):null
-    if(coord&&time!==null&&time<=Date.now()+60000)
-      return {...coord,received:new Date(time).toISOString()}
+  // Look first for dated JSON-style fix records. Nearby lat/lon pairs may
+  // come from a map centre, so ignore isolated single coordinate values.
+  for(const match of html.matchAll(/["']?(?:lat|latitude)["']?\s*[:=]\s*["']?(-?\d{1,2}\.\d{3,8})/gi)){
+    const index=match.index??0
+    const window=html.slice(index,Math.min(html.length,index+900))
+    const lon=window.match(/["']?(?:lng|lon|long|longitude)["']?\s*[:=]\s*["']?(-?\d{1,3}\.\d{3,8})/i)
+    if(!lon)continue
+    const point=coordinate(match[1],lon[1])
+    if(!point)continue
+    const t=window.match(/["']?(?:last_seen|timestamp|received|position_time)["']?\s*[:=]\s*["']([^"']{10,40})["']/i)
+    const ts=t?epoch(t[1]):null
+    if(ts!==null&&ts<=now+60000&&now-ts<=30*86400000)
+      return {...point,received:new Date(ts).toISOString(),timestampBasis:'position_report'}
+    // Current PHP/JS pages can publish the same position without a
+    // timestamp key. This is a captured page position, freshness unknown.
+    return {...point,received:new Date(now).toISOString(),timestampBasis:'webpage_capture'}
   }
   return null
 }
+
 function shipType(html:string):string{
   const pageTitle=html.match(/<title[^>]*>([\s\S]{0,250}?)<\/title>/i)?.[1]??''
   const heading=html.match(/<h2\b[^>]*>([\s\S]{0,200}?)<\/h2>/i)?.[1]??''
@@ -149,14 +162,19 @@ export function parsePublicVessel(html:string,candidate:PublicVesselCandidate,no
   if(!mmsi||!(/^[1-9]\d{8}$/.test(mmsi)))return null
   const kind=shipType(html)
   if(!isPublicCargoType(kind))return null
-  const point=htmlPosition(html)
+  const point=htmlPosition(html,now)
   if(!point)return null
   const age=now-Date.parse(point.received)
   if(age< -60000||age>30*86400000)return null
   const text=clean(html)
   // Public pages place navigational values in different sections.
   // Missing speed must NOT erase an otherwise source-observed cargo ship.
-  const speedMatch=text.match(/\b(?:Speed|SOG)\s*:?\s*(\d{1,2}(?:\.\d+)?)\s*(?:Knots|kn|kts)\b/i)
+  // Avoid AVG Speed / MAX Speed from the trip summary: those aren't SOG.
+  const positionText=text.split(/Current Position/i)[1]?.split(/\b(?:Information|Weather|Last Port Calls|Info)\b/i)[0]??''
+  const speedMatch=html.match(/["']speed["']\s*[:=]\s*["']?(\d{1,2}(?:\.\d+)?)/i)
+    ??text.match(/\bcurrent speed (?:is|:)\s*(\d{1,2}(?:\.\d+)?)\s*(?:knots|kn)\b/i)
+    ??text.match(/\bSOG\s*:?\s*(\d{1,2}(?:\.\d+)?)\s*(?:knots|kn)\b/i)
+    ??positionText.match(/\bSpeed\s*:?\s*(\d{1,2}(?:\.\d+)?)\s*(?:knots|kn|kts)\b/i)
   const rawSpeed=speedMatch?nm(speedMatch[1]):null
   const speed=rawSpeed!==null&&rawSpeed>=0&&rawSpeed<=55?rawSpeed:null
   const course=text.match(/\b(?:Course|COG)\s*:?\s*(\d{1,3}(?:\.\d+)?)\s*°?/i)
@@ -180,13 +198,14 @@ export function parsePublicVessel(html:string,candidate:PublicVesselCandidate,no
       'is a reference and not a measured AIS trajectory.',
   }:null
   return {
-    id:'sea:'+mmsi,kind:'vessel',label:candidate.name,...point,
+    id:'sea:'+mmsi,kind:'vessel',label:candidate.name,
+    lat:point.lat,lon:point.lon,
     heading:heading!==null&&heading>=0&&heading<360?heading:null,
     speedKnots:speed,altitudeFt:null,observedAt:point.received,
     source:'MyShipTracking public website',sourceUrl:candidate.url,
     type:kind,cargo:'ais_cargo_class',destination:destination?.name??null,
     foodCargoVerified:false,hubId:candidate.hubId,
-    observationBasis:'position_report',itinerary,
+    observationBasis:point.timestampBasis,itinerary,
   }
 }
 export const publicScrapeEnabled=()=>process.env.WATCHTOWER_MST_SCRAPE_ENABLED==='true'
@@ -261,12 +280,23 @@ export async function getPublicGccRadarSnapshot():Promise<GccRadarSnapshot>{
     const all=hubCalls.flatMap(r=>r.status==='fulfilled'?r.value.candidates:[])
     const unique=new Map<string,PublicVesselCandidate>()
     for(const candidate of all)if(!unique.has(candidate.url))unique.set(candidate.url,candidate)
-    const toInspect=[...unique.values()].slice(0,12)
+    // Distribute candidates among ports; the old first-12 slice exhausted
+    // its budget in Jebel Ali and never inspected Qatar.
+    const byHub=GCC_PUBLIC_PORTS.map(h=>
+      [...unique.values()].filter(candidate=>candidate.hubId===h.id))
+    const toInspect:PublicVesselCandidate[]=[]
+    const perHub=Math.min(max,8)
+    for(let index=0;index<perHub;index++){
+      for(const candidates of byHub){
+        const candidate=candidates[index]
+        if(candidate&&toInspect.length<24)toInspect.push(candidate)
+      }
+    }
     const found:TrackingAsset[]=[]
     let rejected=0,blocked=0,failed=0
     // bounded concurrency; this is an ordinary public HTML fetch, not Selenium.
-    for(let i=0;i<toInspect.length;i+=4){
-      const chunk=toInspect.slice(i,i+4)
+    for(let i=0;i<toInspect.length;i+=8){
+      const chunk=toInspect.slice(i,i+8)
       const response=await Promise.allSettled(chunk.map(async c=>
         parsePublicVessel(await page(c.url,300000),c)))
       for(const entry of response){
