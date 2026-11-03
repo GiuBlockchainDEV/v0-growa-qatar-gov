@@ -66,7 +66,14 @@ export function parseOpenSeaFeedSnapshot(raw:unknown,now=Date.now()):OpenSeaFeed
   }
   // Distribute worldwide observations geographically. A giant European
   // coastal cluster must not consume every marker before Red Sea/Gulf assets.
-  const candidates=mergeAssets(mapped).sort((a,b)=>
+  // Do not apply mergeAssets' global cap before geographical sampling.
+  // Otherwise a dense receiver region can evict ALL distant real positions.
+  const byId=new Map<string,TrackingAsset>()
+  for(const item of mapped){
+    const previous=byId.get(item.id)
+    if(!previous||item.observedAt>previous.observedAt)byId.set(item.id,item)
+  }
+  const candidates=[...byId.values()].sort((a,b)=>
     Number((b.speedKnots??0)>=1.5)-Number((a.speedKnots??0)>=1.5)||
     b.observedAt.localeCompare(a.observedAt))
   const buckets=new Map<string,number>()
