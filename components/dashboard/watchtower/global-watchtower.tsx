@@ -385,7 +385,7 @@ export function GlobalWatchtower() {
       </div>
       <div className={styles.stats}>{[
         { label: 'Aircraft observations', value: known(airSource?.state) ? assets.filter(a => a.kind === 'aircraft').length : null, note: cargoOnly ? 'Freight-operator candidates / sampled' : 'Six airframe samples / not all traffic', icon: Plane },
-        { label: 'Cargo vessel observations', value: (known(seaSource?.state)||Boolean(maritimeFeed?.chokepoints.some(point=>point.state==='partial'||point.state==='stale'))) ? assets.filter(a => a.kind === 'vessel').length : null, note: gccRadar?.configured ? 'GCC MyShipTracking observations + AIS' : maritimeFeed ? 'data-tracking.net Hormuz/Bab · AIS sample' : seaSource?.state === 'unconfigured' ? 'Waiting for public AIS / licensed AIS unavailable' : 'AIS coverage / not global totals', icon: Ship },
+        { label: 'Cargo vessel observations', value: (known(seaSource?.state)||Boolean(maritimeFeed?.chokepoints.some(point=>point.state==='partial'||point.state==='stale'))||Boolean(gccRadar?.configured)) ? assets.filter(a => a.kind === 'vessel').length : null, note: gccRadar?.configured ? 'GCC MyShipTracking observations + AIS' : maritimeFeed ? 'data-tracking.net Hormuz/Bab · AIS sample' : seaSource?.state === 'unconfigured' ? 'Waiting for public AIS / licensed AIS unavailable' : 'AIS coverage / not global totals', icon: Ship },
         { label: 'Mapped risk reports', value: riskReadable ? externalRiskAlerts.length : null, note: 'External hazard and advisory reports', icon: AlertTriangle },
         { label: 'Food-security signals', value: food && food.assessedCount > 0 ? foodAlerts.length : null, note: staleFood ? 'Stale organization snapshot' : foodError ? 'Organization ledger unavailable' : food ? food.assessedCount + ' commodities assessed / organization' : 'Organization ledger not loaded', icon: Wheat },
       ].map(item => <div key={item.label} className={styles.stat}><label>{item.label}</label><strong>{count(item.value)}</strong><item.icon size={21} /><small>{item.note}</small></div>)}</div>
@@ -425,6 +425,13 @@ export function GlobalWatchtower() {
             website observations may be delayed or unavailable.</>:
           <>Optional MyShipTracking public-page collection is not enabled for this organization.
             Existing public AIS feeds remain in use.</>}
+        {gccRadar?.sourceNote&&<span className={styles.hint}>
+          {' '}Diagnostics: {gccRadar.sourceNote}
+        </span>}
+        {gccRadar?.hubs.map(h=><span key={h.id} className={styles.hint}>
+          {h.label}: {h.candidates} discovered, {h.observed} mapped · {h.status}.
+          {' '}{h.detail}
+        </span>)}
         {gccRadar?.creditsCharged!=null?' Credits last scan: '+gccRadar.creditsCharged+'.':''}
         {gccRadarError?' '+gccRadarError:''}
       </p>

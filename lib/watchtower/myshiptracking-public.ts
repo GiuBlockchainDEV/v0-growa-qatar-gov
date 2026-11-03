@@ -12,7 +12,7 @@
 import {coordinate,epoch,mergeAssets,type TrackingAsset} from './global-tracking'
 import {knownPort,type RouteItinerary,type RouteEndpoint} from './itinerary-sources'
 import {withModeledSeaLegs} from './itinerary-sea'
-import {GCC_PORTS,GCC_RADAR_INTERVAL_MS,GCC_RADAR_MIN_SPEED_KNOTS,
+import {GCC_PORTS,GCC_RADAR_INTERVAL_MS,
   type GccHubId,type GccHubReport,type GccRadarSnapshot} from './myshiptracking-gcc-shared'
 
 export const GCC_PUBLIC_PORTS=[
@@ -75,7 +75,10 @@ function shipType(html:string):string{
   const heading=html.match(/<h2\b[^>]*>([\s\S]{0,200}?)<\/h2>/i)?.[1]??''
   const title=safe(pageTitle)
   const dash=title.match(/\s-\s([^()]+?)\s*\(IMO\s*:/i)?.[1]
-  return safe(dash||heading,70)
+  // Heading may only contain a vessel name, not its AIS ship class.
+  const body=clean(html)
+  const reported=body.match(/(?:Ship Type|Vessel Type|Type)\s*:?\s*(Bulk Carrier|Container Ship|General Cargo|Cargo Ship|Reefer|Ro-Ro|Oil Tanker|LNG Tanker)/i)
+  return safe(dash||reported?.[1]||heading,70)
 }
 export function isPublicCargoType(value:string):boolean{
   const v=value.toLowerCase()
@@ -85,27 +88,31 @@ export function isPublicCargoType(value:string):boolean{
 export function parsePublicPortCandidates(html:string,hubId:GccHubId,limit=12):PublicVesselCandidate[]{
   const out:PublicVesselCandidate[]=[]
   const seen=new Set<string>()
-  const entries=[...html.matchAll(/<tr\b[^>]*>[\s\S]*?<\/tr>/gi)].map(x=>x[0])
-  // Some layouts wrap vessel entries in non-table cards: fall back to anchor
-  // extraction only if no tabular vessel rows exist.
-  const rows=entries.length?entries:
-    [...html.matchAll(/<a\b[^>]*href\s*=\s*["'][^"']*\/vessels\/[^"']+["'][^>]*>[\s\S]*?<\/a>/gi)].map(x=>x[0])
-  for(const row of rows){
-    const match=row.match(/<a\b[^>]*href\s*=\s*["']([^"']*\/vessels\/[a-z0-9_-]+(?:\?[^"']*)?)["'][^>]*>([\s\S]*?)<\/a>/i)
-    if(!match)continue
-    const name=safe(match[2],90)
-    if(name.length<2)continue
+  // Public port pages often contain OTHER tables before the vessel list.
+  // Inspect links directly, not only <tr> elements or the first table.
+  const links=html.matchAll(
+    /<a\b[^>]*\bhref\s*=\s*["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi)
+  for(const link of links){
+    const href=link[1]
     let url:URL
-    try{url=new URL(match[1],'https://www.myshiptracking.com')}catch{continue}
-    if(url.hostname!=='www.myshiptracking.com'||!/^\/vessels\/[a-z0-9_-]+$/i.test(url.pathname))continue
-    const key=url.pathname
-    if(seen.has(key))continue
-    seen.add(key)
-    const content=clean(row).toUpperCase()
-    const event:PublicVesselCandidate['event']=/\b(DEPARTURE|DEPARTED)\b/.test(content)?
-      'DEPARTURE':/\b(ARRIVAL|ARRIVED)\b/.test(content)?'ARRIVAL':'UNCONFIRMED'
+    try{url=new URL(href,'https://www.myshiptracking.com')}catch{continue}
+    if(url.protocol!=='https:'||url.hostname!=='www.myshiptracking.com'||
+      !/^\/vessels\/[a-z0-9_-]+$/i.test(url.pathname))continue
+    if(seen.has(url.pathname))continue
+    const name=safe(link[2],90)
+    if(name.length<2)continue
+    seen.add(url.pathname)
+    // Use the surrounding row ONLY to identify explicit arrival/departure
+    // events. "Expected Arrivals" as a section does not prove an arrival.
+    const position=link.index??0
+    const rowOpen=html.lastIndexOf('<tr',position)
+    const rowEnd=html.indexOf('</tr>',position)
+    const row=rowOpen>=0&&rowEnd>=0&&position-rowOpen<3000&&
+      rowEnd-position<3000?clean(html.slice(rowOpen,rowEnd+5)).toUpperCase():''
+    const event:PublicVesselCandidate['event']=/\b(DEPARTURE|DEPARTED)\b/.test(row)?
+      'DEPARTURE':/\b(ARRIVAL|ARRIVED)\b/.test(row)?'ARRIVAL':'UNCONFIRMED'
     out.push({hubId,name,url:url.origin+url.pathname,event})
-    if(out.length>=cap(limit,1,12))break
+    if(out.length>=cap(limit,1,48))break
   }
   return out
 }
@@ -147,11 +154,12 @@ export function parsePublicVessel(html:string,candidate:PublicVesselCandidate,no
   const age=now-Date.parse(point.received)
   if(age< -60000||age>30*86400000)return null
   const text=clean(html)
-  const positionSection=text.split(/Current Position/i)[1]?.split(/\bInfo\b|Last Port Calls|Weather/i)[0]??text
-  const speedMatch=positionSection.match(/\bSpeed\s*:?\s*(\d{1,2}(?:\.\d+)?)\s*(?:Knots|kn)\b/i)
-  const speed=speedMatch?nm(speedMatch[1]):null
-  if(speed===null||speed<GCC_RADAR_MIN_SPEED_KNOTS||speed>55)return null
-  const course=positionSection.match(/\bCourse\s*:?\s*(\d{1,3}(?:\.\d+)?)\s*°?/i)
+  // Public pages place navigational values in different sections.
+  // Missing speed must NOT erase an otherwise source-observed cargo ship.
+  const speedMatch=text.match(/\b(?:Speed|SOG)\s*:?\s*(\d{1,2}(?:\.\d+)?)\s*(?:Knots|kn|kts)\b/i)
+  const rawSpeed=speedMatch?nm(speedMatch[1]):null
+  const speed=rawSpeed!==null&&rawSpeed>=0&&rawSpeed<=55?rawSpeed:null
+  const course=text.match(/\b(?:Course|COG)\s*:?\s*(\d{1,3}(?:\.\d+)?)\s*°?/i)
   const heading=course?nm(course[1]):null
   const call=candidate.event
   const reportedOrigin=annotatedPort(html,'origin')
@@ -159,8 +167,10 @@ export function parsePublicVessel(html:string,candidate:PublicVesselCandidate,no
   const local=port(candidate.hubId)
   const origin=reportedOrigin??(call==='DEPARTURE'?local:null)
   const destination=reportedDestination??(call==='ARRIVAL'?local:null)
-  if(origin?.code&&destination?.code&&origin.code===destination.code)return null
-  const itinerary:RouteItinerary|null=origin||destination?{
+  // A vessel may call at the same port more than once; suppress the
+  // nonsensical loop line, but retain its observed position marker.
+  const samePort=Boolean(origin?.code&&destination?.code&&origin.code===destination.code)
+  const itinerary:RouteItinerary|null=!samePort&&(origin||destination)?{
     origin,destination,
     departureAt:null,etaAt:null,source:'myshiptracking_public',
     sourceUrl:candidate.url,confidence:'crew_reported',
@@ -251,15 +261,22 @@ export async function getPublicGccRadarSnapshot():Promise<GccRadarSnapshot>{
     const all=hubCalls.flatMap(r=>r.status==='fulfilled'?r.value.candidates:[])
     const unique=new Map<string,PublicVesselCandidate>()
     for(const candidate of all)if(!unique.has(candidate.url))unique.set(candidate.url,candidate)
-    const toInspect=[...unique.values()].slice(0,24)
+    const toInspect=[...unique.values()].slice(0,12)
     const found:TrackingAsset[]=[]
+    let rejected=0,blocked=0,failed=0
     // bounded concurrency; this is an ordinary public HTML fetch, not Selenium.
     for(let i=0;i<toInspect.length;i+=4){
       const chunk=toInspect.slice(i,i+4)
       const response=await Promise.allSettled(chunk.map(async c=>
         parsePublicVessel(await page(c.url,300000),c)))
-      for(const entry of response)if(entry.status==='fulfilled'&&entry.value)
-        found.push(entry.value)
+      for(const entry of response){
+        if(entry.status==='fulfilled'&&entry.value)found.push(entry.value)
+        else if(entry.status==='fulfilled')rejected++
+        else{
+          failed++
+          if(/403|429|challenge|not permit|denied/i.test(String(entry.reason)))blocked++
+        }
+      }
     }
     let assets=mergeAssets(found).slice(0,48)
     // Strictly server-side Node.js ocean-network geometry, never a
@@ -284,11 +301,17 @@ export async function getPublicGccRadarSnapshot():Promise<GccRadarSnapshot>{
         sourceUrl:response?.status==='fulfilled'?response.value.hub.url:
           'https://www.myshiptracking.com/',
         detail:!defined?'No verified public port page for this hub.':
-          response?'Public webpage scanned; absence of valid AIS fixes is not proof of no traffic.':
-          'Public port page unavailable; no data guessed.',
+          response?'HTML links found: '+candidateCount+
+            '; observed cargo positions: '+here.length+
+            '. Missing speed does not exclude a ship; missing coordinates, dated fixes, or recognized cargo type still do.':
+          'Port HTML could not be retrieved; check website permissions, URL, and server access.',
       }
     })
     const successes=hubCalls.filter(r=>r.status==='fulfilled').length
+    const reasons=hubCalls.filter(r=>r.status==='rejected')
+      .map((r,i)=>'port fetch failed '+i+': '+
+        (/403|429|challenge|denied/i.test(String((r as PromiseRejectedResult).reason))
+          ?'provider refused automated access':'network or HTML unavailable'))
     const result:GccRadarSnapshot={
       generatedAt:checkedAt,refreshSeconds:300,source:'MyShipTracking public pages',
       status:successes===0?'unavailable':'partial',configured:true,
@@ -296,7 +319,11 @@ export async function getPublicGccRadarSnapshot():Promise<GccRadarSnapshot>{
       checked:toInspect.length,moving:assets.length,
       withRoutes:assets.filter(a=>a.itinerary?.modelSeaLegs).length,
       maxShipsPerHub:max,creditsCharged:null,
-      sourceNote:'Optional public HTML observations, not an AIS API feed. '+
+      sourceNote:'Public pages: '+successes+'/'+GCC_PUBLIC_PORTS.length+
+        ' fetched; '+all.length+' candidate links; '+toInspect.length+
+        ' vessel pages requested; '+found.length+' valid cargo fixes; '+
+        rejected+' incomplete/non-cargo; '+failed+' page failures ('+blocked+
+        ' blocked). '+reasons.join('; ')+'. '+
         '5-minute refresh means polling cadence only. Actual last-position timestamp is preserved. '+
         'Website data rights and permitted use must be confirmed before enabling. '+
         'Routes are model references, not actual AIS sailed tracks.',

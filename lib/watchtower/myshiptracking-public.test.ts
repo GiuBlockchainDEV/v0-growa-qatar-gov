@@ -39,11 +39,22 @@ describe('Public HTML GCC radar without MyShipTracking API',()=>{
   expect(result.itinerary?.modelSeaLegs).toBeUndefined()
   expect(result.foodCargoVerified).toBe(false)
  })
- it('rejects unknown timestamp, stationary ships and impossible coordinates',()=>{
+ it('preserves stationary ships and rejects missing GPS or impossible coordinates',()=>{
   const ref=parsePublicPortCandidates(portHtml,'AEJEA')[0]
   expect(parsePublicVessel(cargo.replace(/as reported on [0-9:\- ]+/,'as reported on N/A'),ref)).toBeNull()
-  expect(parsePublicVessel(cargo.replace('Speed: 12.5 kn','Speed: 0.2 kn'),ref)).toBeNull()
+  expect(parsePublicVessel(cargo.replace('Speed: 12.5 kn','Speed: 0.2 kn'),ref)?.speedKnots).toBe(0.2)
+  expect(parsePublicVessel(cargo.replace('Speed: 12.5 kn','No vessel speed'),ref)?.speedKnots).toBeNull()
   expect(parsePublicVessel(cargo.replace('25.12345°','99.12345°'),ref)).toBeNull()
+ })
+ it('finds ship links even when the port contains unrelated HTML tables',()=>{
+  const html='<table><tr><td>Unrelated</td></tr></table>'+
+    '<div class="vessels"><a href="/vessels/cargo-bulk-imo-1234567-mmsi-123456789">CARGO BULK</a></div>'
+  expect(parsePublicPortCandidates(html,'QADOH')).toHaveLength(1)
+ })
+ it('does not discard ships because speed is listed after an Info heading',()=>{
+  const ref=parsePublicPortCandidates(portHtml,'AEJEA')[0]
+  const changed=cargo.replace('Speed: 12.5 kn Course: 135° Info','Info Speed: 12.5 kn Course: 135°')
+  expect(parsePublicVessel(changed,ref)?.speedKnots).toBe(12.5)
  })
  it('has no hardcoded API dependency or automatic bot-evasion techniques',()=>{
   const source=readFileSync(join(process.cwd(),'lib/watchtower/myshiptracking-public.ts'),'utf8')
