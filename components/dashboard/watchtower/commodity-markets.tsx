@@ -2,7 +2,7 @@
 
 import {useEffect,useMemo,useState} from 'react'
 import {Activity,ArrowDownRight,ArrowUpRight,BarChart3,Check,ChevronDown,ExternalLink,
-  Globe2,Grid2X2,Info,LineChart,RefreshCw,Search,Star,TrendingUp,Wheat} from 'lucide-react'
+  Globe2,Grid2X2,Info,RefreshCw,Search,Star,TrendingUp,Wheat} from 'lucide-react'
 import {useI18n} from '@/lib/i18n'
 import {COMMODITY_CATALOG,type CommodityMarketsSnapshot,type MarketGroup,
   type MarketPoint} from '@/lib/watchtower/commodity-markets'
@@ -211,8 +211,6 @@ export function CommodityMarkets(){
   const changeable=items.filter(x=>x.change1mPct!==null)
   const gainers=changeable.filter(x=>x.change1mPct!>0).length
   const decliners=changeable.filter(x=>x.change1mPct!<0).length
-  const biggest=changeable.slice().sort((a,b)=>
-    Math.abs(b.change1mPct??0)-Math.abs(a.change1mPct??0))[0]
   const movers=changeable.slice().sort((a,b)=>
     Math.abs(b.change1mPct??0)-Math.abs(a.change1mPct??0)).slice(0,3)
   const flat=changeable.length-gainers-decliners
