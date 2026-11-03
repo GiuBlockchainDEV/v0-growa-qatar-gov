@@ -14,6 +14,8 @@ import {MONITORED_MARITIME_PORTS,type GccRadarSnapshot} from '@/lib/watchtower/m
 import type {HormuzNowFeed} from '@/lib/watchtower/hormuz-now'
 import type {OpenSeaFeedSnapshot} from '@/lib/watchtower/openseafeed'
 import type {OpenWatersSnapshot} from '@/lib/watchtower/open-waters-ais'
+import {visibleUnderwayVessel} from '@/lib/watchtower/visible-vessels'
+import type {IpcRiskSnapshot} from '@/lib/watchtower/ipc-food-security'
 import {REGIONAL_AIR_BATCH_COUNT,type RegionalAirBatch} from '@/lib/watchtower/regional-air-shared'
 import {REGIONAL_WATCHTOWER_VIEW} from '@/lib/watchtower/map-viewport'
 import type { GlobalTrackingMapProps } from './global-tracking-map'
@@ -31,7 +33,7 @@ const REGIONS = {
   americas: { name: 'Americas', lat: 15, lon: -80, zoom: 3, box: [-60, -180, 80, -30] },
 } as const
 type Region = keyof typeof REGIONS
-type ShipView = 'all' | 'moving' | 'cargo' | 'cargoMoving'
+type ShipView = 'moving' | 'cargoMoving'
 const count = (n: number | null) => n === null ? 'N/A' : n.toLocaleString('en-US')
 function utc(value: string | null) {
   if (!value || !Number.isFinite(Date.parse(value))) return 'Not provided'
@@ -70,6 +72,10 @@ export function GlobalWatchtower() {
   const [mobile, setMobile] = useState(false), [filtersOpen, setFiltersOpen] = useState(true), [alertsOpen, setAlertsOpen] = useState(true), [fullscreen, setFullscreen] = useState(false)
   const [query, setQuery] = useState(''), [region, setRegion] = useState<Region>('gulf')
   const [shipView,setShipView]=useState<ShipView>('moving')
+  const [ipcRisk,setIpcRisk]=useState<IpcRiskSnapshot|null>(null)
+  const [ipcError,setIpcError]=useState('')
+  const [riskPanelFilter,setRiskPanelFilter]=useState<'all'|'ipc'|'hazards'|'logistics'>('all')
+  const [selectedIpcId,setSelectedIpcId]=useState<string|null>(null)
   const [selectedId, setSelectedId] = useState<string | null>(null), [sourceId, setSourceId] = useState<string | null>(null)
   const [focus, setFocus] = useState<GlobalTrackingMapProps['focus']>(null)
   const [layers, setLayers] = useState<MapLayers>({ aircraft: true, vessels: true, risks: true, production: true, gateways: true, trails: true, projections: true })
@@ -192,6 +198,31 @@ export function GlobalWatchtower() {
     document.addEventListener('visibilitychange',visible)
     return()=>{active=false;controller.abort();clearInterval(interval)
       document.removeEventListener('visibilitychange',visible)}
+  },[refresh])
+  // IPC assessments cover assessed countries worldwide. Their aggregate
+  // country records have no precise event coordinates and stay in the panel.
+  useEffect(()=>{
+    let active=true
+    const controller=new AbortController()
+    const load=async()=>{
+      if(!active||document.hidden||pausedRef.current)return
+      try{
+        const response=await fetch('/api/watchtower/ipc-food-security',{
+          cache:'no-store',signal:AbortSignal.any([controller.signal,AbortSignal.timeout(18000)]),
+        })
+        if(!response.ok)throw Error('IPC HTTP '+response.status)
+        const data=await response.json() as IpcRiskSnapshot
+        if(data.source!=='IPC/CH acute food insecurity'||!Array.isArray(data.risks))
+          throw Error('Unexpected IPC assessment response')
+        if(active){setIpcRisk(data);setIpcError('')}
+      }catch(error){
+        if(active&&!controller.signal.aborted)
+          setIpcError(error instanceof Error?error.message:'IPC assessment unavailable')
+      }
+    }
+    void load()
+    const timer=setInterval(()=>void load(),30*60000)
+    return()=>{active=false;controller.abort();clearInterval(timer)}
   },[refresh])
   // Separate feed: risk geometry does not block aircraft positions or AIS.
   // A source failure stays visible, never silently interpreted as safety.
@@ -476,12 +507,11 @@ export function GlobalWatchtower() {
   const assets = useMemo(() => allAssets.filter(a =>
     inside(a) &&
     (a.kind==='vessel'
-      ? ((shipView==='all'||shipView==='moving')||a.cargo==='ais_cargo_class')&&
-        ((shipView==='all'||shipView==='cargo')||
-          (a.speedKnots!==null&&a.speedKnots>=1.5))
+      ? visibleUnderwayVessel(a,now)&&
+        (shipView!=='cargoMoving'||a.cargo==='ais_cargo_class')
       : (!freightFlightsOnly||a.cargo==='operator_inferred')) &&
     (!query || (a.label+' '+a.id+' '+(a.destination??'')).toLowerCase().includes(query.toLowerCase())),
-  ),[allAssets,inside,shipView,freightFlightsOnly,query])
+  ),[allAssets,inside,shipView,freightFlightsOnly,query,now])
   const alerts=useMemo(()=>allAlerts.filter(a=>
     inside(a)&&(!query||(a.title+' '+a.source).toLowerCase().includes(query.toLowerCase())),
   ),[allAlerts,inside,query])
@@ -492,9 +522,19 @@ export function GlobalWatchtower() {
     (!query||(zone.name+' '+zone.country+' '+zone.driver+' '+zone.eventTitles.join(' ')).toLowerCase().includes(query.toLowerCase())),
   ),[productionRisk,inside,query])
   const externalRiskAlerts = useMemo(
-    () => alerts.filter(alert => alert.source !== 'Organization food ledger'),
-    [alerts],
+    () => allAlerts.filter(alert=>alert.source!=='Organization food ledger'&&
+      (!query||(alert.title+' '+alert.source).toLowerCase().includes(query.toLowerCase()))),
+    [allAlerts,query],
   )
+  const selectedIpc=ipcRisk?.risks.find(r=>r.id===selectedIpcId)
+  const displayedIpc=useMemo(()=>(ipcRisk?.risks??[]).filter(r=>
+    !query||(r.country+' '+r.period).toLowerCase().includes(query.toLowerCase())),
+    [ipcRisk,query])
+  const displayedRiskAlerts=useMemo(()=>externalRiskAlerts.filter(alert=>
+    riskPanelFilter==='all'||(riskPanelFilter==='hazards'&&alert.kind==='hazard')||
+    (riskPanelFilter==='logistics'&&['aviation','maritime'].includes(alert.kind))),
+    [externalRiskAlerts,riskPanelFilter])
+
   const selectedAsset = allAssets.find(a => a.id === selectedId), selectedAlert = allAlerts.find(a => a.id === selectedId)
   const selectedProductionZone=(productionRisk?.zones??[]).find(zone=>zone.id===selectedId)
   // Load a bounded selection of real 7-day AIS tracks separately from ship
@@ -565,7 +605,11 @@ export function GlobalWatchtower() {
   const known = (state: string | undefined) => state === 'partial' || state === 'available' || state === 'stale'
   const riskReadable = Boolean(snapshot?.sources.some(s => ['gdacs', 'easa', 'hormuz'].includes(s.id) && known(s.state)))
   const select = useCallback((id: string) => { setSelectedId(id); setSourceId(null); setAlertsOpen(true); if (mobile) setFiltersOpen(false) }, [mobile])
-  const choose = (item: TrackingAsset | MapAlert) => { select(item.id); setFocus({ lat: item.lat, lon: item.lon, zoom: 5, token: Date.now() }) }
+  const choose = (item: TrackingAsset | MapAlert) => {
+    setSelectedIpcId(null)
+    if(item.kind!=='aircraft'&&item.kind!=='vessel')setRegion('global')
+    select(item.id);setFocus({lat:item.lat,lon:item.lon,zoom:5,token:Date.now()})
+  }
   const setView = (key: Region) => { setRegion(key); setFocus({ ...REGIONS[key], token: Date.now() }) }
   const toggleFull = async () => {
     try { if (document.fullscreenElement) await document.exitFullscreen(); else await root.current?.requestFullscreen() }
@@ -592,8 +636,8 @@ export function GlobalWatchtower() {
       <div className={styles.stats}>{[
         { label: 'Aircraft observations', value: (known(airSource?.state)||regionalAir.some(b=>b.succeeded>0)) ? assets.filter(a => a.kind === 'aircraft').length : null, note: freightFlightsOnly?'Freight-operator candidates only':'Regional ADS-B, all observed classes', icon: Plane },
         { label: 'Vessel observations', value: (openWaters?.state==='available'||openWaters?.state==='partial'||globalAis?.state==='partial'||globalAis?.state==='stale'||openSea?.state==='available'||openSea?.state==='stale'||known(seaSource?.state)||Boolean(maritimeFeed?.chokepoints.some(point=>point.state==='partial'||point.state==='stale'))||Boolean(gccRadar?.configured)) ? assets.filter(a => a.kind === 'vessel').length : null, note: (openWaters?.state==='available'||openWaters?.state==='partial')?'Multi-region Open Waters AIS':globalAis?.state==='partial'?'OpenSeaFeed global AIS + regional sources':openSea?.state==='available'?'hormuz.now regional AIS + other sources':openSea?.state==='stale'?'Regional AIS delayed':maritimeFeed?'data-tracking.net AIS + port samples':'Awaiting regional AIS coverage', icon: Ship },
-        { label: 'Mapped risk reports', value: riskReadable ? externalRiskAlerts.length : null, note: 'External hazard and advisory reports', icon: AlertTriangle },
-        { label: 'Food-security signals', value: food && food.assessedCount > 0 ? foodAlerts.length : null, note: staleFood ? 'Stale organization snapshot' : foodError ? 'Organization ledger unavailable' : food ? food.assessedCount + ' commodities assessed / organization' : 'Organization ledger not loaded', icon: Wheat },
+        { label: 'Worldwide risk reports', value: riskReadable ? externalRiskAlerts.length : null, note: 'Worldwide reports, not viewport-limited', icon: AlertTriangle },
+        { label: 'IPC assessed countries', value: ipcRisk?.state==='available'?ipcRisk.countryCount:null, note: ipcRisk?.state==='unavailable'?'IPC source unavailable':ipcRisk?.state==='partial'?'IPC data incomplete':'IPC Phase 3+ population assessments', icon: Wheat },
       ].map(item => <div key={item.label} className={styles.stat}><label>{item.label}</label><strong>{count(item.value)}</strong><item.icon size={21} /><small>{item.note}</small></div>)}</div>
     </header>
     {error && <div className={styles.statusError} role="alert">{error}</div>}
@@ -617,10 +661,8 @@ export function GlobalWatchtower() {
       <label className={styles.label} htmlFor="watchtower-ship-mode">Vessels</label>
       <select id="watchtower-ship-mode" className={styles.input} value={shipView}
         onChange={e=>setShipView(e.target.value as ShipView)}>
-        <option value="moving">Moving (SOG ≥1.5 kn)</option>
-        <option value="all">All observed vessels</option>
-        <option value="cargo">Cargo-class vessels</option>
-        <option value="cargoMoving">Moving cargo vessels</option>
+        <option value="moving">Ships underway (SOG ≥1.5 kn)</option>
+        <option value="cargoMoving">Cargo-class ships underway</option>
       </select>
       <p className={styles.controlSummary}>
         <strong>{assets.filter(a=>a.kind==='vessel').length.toLocaleString('en-US')}</strong> vessels shown
@@ -653,7 +695,7 @@ export function GlobalWatchtower() {
         }))}>
         <span><Layers size={13}/>Available routes & tracks</span><i className={styles.switch}/>
       </button>
-      <p className={styles.controlNote}>Real source positions only. Speed is not proof of a completed journey; vessel type is not proof of food cargo.</p>
+      <p className={styles.controlNote}>Stationary and port-berthed vessels, unknown-speed ships, webpage captures and positions older than two hours are hidden. Reported SOG is not proof of a voyage.</p>
       <details className={styles.sourcesDetails}>
         <summary>Data sources & freshness</summary>
         <div className={styles.sourceBody}>
@@ -687,6 +729,7 @@ export function GlobalWatchtower() {
           {openWaters?.areas.filter(a=>a.state==='unavailable').map(a=><p key={a.id}>
             {a.name}: {a.reason??'no usable provider response'}</p>)}
           {openWaters?.attribution.map((credit,i)=><p key={i}>AIS attribution: {credit}</p>)}
+          <p><strong>Global IPC food security:</strong> {ipcRisk?.state??'loading'} · {ipcRisk?.countryCount??'N/A'} assessed countries. {ipcRisk?.detail??''} {ipcError}</p>
           <p><strong>Chokepoint AIS:</strong> {maritimeFeed?.assets.length??'N/A'} positions,
             {maritimeFeed?.chokepoints.filter(c=>c.state==='partial').length??0} reporting areas.
             {maritimeError?' '+maritimeError:''}
@@ -718,9 +761,22 @@ export function GlobalWatchtower() {
         <i/>Chokepoint AIS: {maritimeFeed.assets.length}</span>}
     </div>
     <aside className={`${styles.panel} ${styles.alertPanel} ${alertsOpen ? '' : styles.hidePanel}`} aria-label="Alerts and selected observation">
-      <div className={styles.panelTitle}><span>{selectedSource ? 'SOURCE STATUS' : selectedProductionZone ? 'PRODUCTION RISK EXPOSURE' : selectedId ? 'OBSERVATION DETAILS' : 'FOOD SECURITY & RISK'}</span><button className={styles.iconButton} aria-label={selectedId || sourceId ? 'Back to alerts' : 'Close alert panel'} onClick={() => { if (selectedId || sourceId) { setSelectedId(null); setSourceId(null) } else setAlertsOpen(false) }}>{selectedId || sourceId ? <ChevronLeft size={12} /> : <X size={12} />}</button></div>
+      <div className={styles.panelTitle}><span>{selectedSource ? 'SOURCE STATUS' : selectedProductionZone ? 'PRODUCTION RISK EXPOSURE' : selectedIpc ? 'IPC FOOD INSECURITY' : selectedId ? 'OBSERVATION DETAILS' : 'GLOBAL FOOD SECURITY & RISK'}</span><button className={styles.iconButton} aria-label={selectedId || sourceId ? 'Back to alerts' : 'Close alert panel'} onClick={() => { if (selectedId || sourceId || selectedIpcId) { setSelectedId(null); setSourceId(null); setSelectedIpcId(null) } else setAlertsOpen(false) }}>{selectedId || sourceId || selectedIpcId ? <ChevronLeft size={12} /> : <X size={12} />}</button></div>
       <div className={styles.scroll}>
         {selectedSource ? <div className={styles.details}><Radio size={24} /><h2>{selectedSource.name}</h2><span className={styles.severity}>{selectedSource.state}</span><p className="mt-3">{selectedSource.detail}</p><div className={styles.detailGrid}><div><span>Last checked</span><strong>{utc(selectedSource.checkedAt)}</strong></div><div><span>Latest observation</span><strong>{utc(selectedSource.latestObservationAt)}</strong></div></div><a href={selectedSource.url} target="_blank" rel="noopener noreferrer">Provider documentation <ExternalLink size={11} className="inline" /></a><p className={styles.notice}>Unavailable coverage means unknown traffic or risk, not zero. Refreshing the screen does not make an old observation live.</p></div>
+        : selectedIpc ? <div className={styles.details}>
+          <Wheat size={24}/><h2>{selectedIpc.country}</h2>
+          <p><strong>Acute food insecurity · IPC Phase 3+</strong></p>
+          <div className={styles.detailGrid}>
+            <div><span>Population in Phase 3+</span><strong>{selectedIpc.phase3Plus.toLocaleString('en-US')}</strong></div>
+            <div><span>Assessed period</span><strong>{selectedIpc.from} to {selectedIpc.to}</strong></div>
+            <div><span>Classification period</span><strong>{selectedIpc.period}</strong></div>
+            <div><span>Phase 4 population</span><strong>{selectedIpc.phase4?.toLocaleString('en-US')??'Not reported'}</strong></div>
+            <div><span>Phase 5 population</span><strong>{selectedIpc.phase5?.toLocaleString('en-US')??'Not reported'}</strong></div>
+          </div>
+          <p className={styles.notice}>National assessment, not an exact incident point. Coverage is limited to assessed countries and valid publication periods; figures are not live movement data.</p>
+          <a href={selectedIpc.sourceUrl} target="_blank" rel="noopener noreferrer">Open official IPC dashboard <ExternalLink size={11} className="inline"/></a>
+        </div>
         : selectedProductionZone ? <div className={styles.details}>
           <div className={styles.riskZoneHeading}>
             <span className={styles.severity} data-level={selectedProductionZone.severity==='high'?'high':'attention'}>
@@ -829,10 +885,35 @@ export function GlobalWatchtower() {
           <p className={styles.hint}>Operational impact requires a matching supplier, commodity and shipment. No disruption probability or automatic rerouting is asserted.</p>
           <Link className={styles.smallButton} href="/dashboard/logistics">Compare logistics <ArrowUpRight size={12} /></Link>
         </div> : selectedId ? <p className={styles.empty}>This observation is no longer in the current feed. Return to alerts or search for another asset.</p> : <>
-          <p className={styles.hint}>Source-backed aviation, maritime and natural-hazard reports. Organization food ledger records are excluded from this alert list. Reports do not confirm disruption to food shipments.</p>
+          <p className={styles.hint}>Worldwide assessments and source-backed events. The list is global even when the map is centred on Qatar. IPC indicates assessed acute food insecurity; GDACS indicates possible agricultural impacts; logistics advisories do not confirm shipment disruption.</p>
+          <div className={styles.riskFilterRow}>
+            {([
+              ['all','All global risks'],['ipc','IPC food crises'],
+              ['hazards','Production hazards'],['logistics','Logistics'],
+            ] as const).map(([value,label])=><button key={value}
+              className={styles.riskFilterButton}
+              aria-pressed={riskPanelFilter===value}
+              onClick={()=>setRiskPanelFilter(value)}>{label}</button>)}
+          </div>
+          {ipcRisk?.state==='unavailable'&&<p className={styles.notice}>IPC feed unavailable. {ipcRisk.detail}</p>}
+          {ipcError&&<p className={styles.notice}>IPC: {ipcError}</p>}
+          {productionRisk?.status==='unavailable'&&<p className={styles.notice}>GDACS production screening unavailable. Global safety cannot be inferred.</p>}
+          {(riskPanelFilter==='all'||riskPanelFilter==='ipc')&&displayedIpc.length>0&&
+            <div className={styles.controlSectionHeading}>Acute food insecurity · IPC / CH</div>}
+          {(riskPanelFilter==='all'||riskPanelFilter==='ipc')&&displayedIpc.map(r=>
+            <button key={r.id} className={styles.alert} onClick={()=>{
+              setSelectedId(null);setSourceId(null);setSelectedIpcId(r.id);setAlertsOpen(true)
+            }}>
+              <div className={styles.alertHead}>
+                <span className={styles.severity} data-level="high">IPC Phase 3+</span>
+                <small>{r.period}</small>
+              </div>
+              <strong>{r.country}</strong>
+              <p>{r.phase3Plus.toLocaleString('en-US')} assessed people in IPC Phase 3+ · {r.from} to {r.to}</p>
+            </button>)}
           {(staleSnapshot || paused) && <p className={styles.notice}>{paused ? 'Automatic updates paused. Positions will age.' : 'Tracking snapshot is stale. Source availability may have changed.'}</p>}
-          <div className="mt-3">{externalRiskAlerts.map(alert => <button key={alert.id} className={styles.alert} onClick={() => choose(alert)}><div className={styles.alertHead}><span className={styles.severity} data-level={alert.severity}>{alert.severity}</span><small>{alert.source}</small></div><strong>{alert.title}</strong><p>{alert.kind === 'food' ? 'Organization-level signal' : alert.kind === 'aviation' ? 'Advisory / not a verified closure' : alert.kind === 'maritime' ? 'Regional report / position approximate' : 'Reported hazard / impact unverified'}</p></button>)}</div>
-          {!externalRiskAlerts.length && <p className={styles.empty}>{busy ? 'Loading source-backed observations...' : 'No matching mapped reports in this response. Missing feeds are not evidence that a corridor is safe.'}</p>}
+          <div className="mt-3">{(riskPanelFilter==='ipc'?[]:displayedRiskAlerts).map(alert => <button key={alert.id} className={styles.alert} onClick={() => choose(alert)}><div className={styles.alertHead}><span className={styles.severity} data-level={alert.severity}>{alert.severity}</span><small>{alert.source}</small></div><strong>{alert.title}</strong><p>{alert.kind === 'food' ? 'Organization-level signal' : alert.kind === 'aviation' ? 'Advisory / not a verified closure' : alert.kind === 'maritime' ? 'Regional report / position approximate' : 'Reported hazard / impact unverified'}</p></button>)}</div>
+          {!displayedRiskAlerts.length && !displayedIpc.length && <p className={styles.empty}>{busy ? 'Loading source-backed observations...' : 'No matching mapped reports in this response. Missing feeds are not evidence that a corridor is safe.'}</p>}
         </>}
       </div>
     </aside>

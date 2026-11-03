@@ -9,7 +9,7 @@ const BOUNDARY_SERVICE=
   'https://services.arcgis.com/P3ePLMYs2RVChkJx/arcgis/rest/services/World_Administrative_Divisions/FeatureServer/0/query'
 const BOUNDARY_URL=
   'https://hub.arcgis.com/datasets/esri::world-administrative-divisions/about'
-const MAX_EVENTS=18
+const MAX_EVENTS=24
 const BOUNDARY_BYTES=650000
 const TTL_MS=20*60000
 

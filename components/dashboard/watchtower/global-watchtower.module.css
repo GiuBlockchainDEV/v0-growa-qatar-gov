@@ -215,6 +215,11 @@
 .feedPill[data-state='unavailable'] i { background: var(--status-critical); }
 .feedPill[data-state='unconfigured'] i { background: var(--growa-stone-500); }
 
+.riskFilterRow { display: flex; flex-wrap: wrap; gap: 5px; margin: 11px 0; }
+.riskFilterButton { border: 1px solid var(--border-default); border-radius: var(--radius-pill); background: var(--surface-card); color: var(--growa-stone-600); padding: 6px 9px; font-size: 10px; cursor: pointer; }
+.riskFilterButton:hover { background: var(--growa-cream-50); }
+.riskFilterButton[aria-pressed='true'] { border-color: var(--growa-sage); background: var(--growa-cream-100); color: var(--growa-ink); font-weight: 600; }
+
 .alertPanel { inset-inline-end: 18px; top: 186px; bottom: 84px; width: clamp(360px, 26vw, 420px); max-width: calc(100% - 36px); display: flex; flex-direction: column; padding: 16px; overflow: hidden; }
 .scroll { overflow: auto; min-height: 0; overscroll-behavior: contain; scrollbar-width: thin; scrollbar-color: var(--growa-stone-300) transparent; }
 .alert { display: block; width: 100%; border: 1px solid var(--border-subtle); border-radius: var(--radius-md); background: var(--surface-card); text-align: start; margin-bottom: 8px; padding: 11px; color: var(--growa-ink); cursor: pointer; transition: background var(--dur-instant) var(--ease-brand); }
