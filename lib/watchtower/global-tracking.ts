@@ -39,7 +39,7 @@ export const CHOKEPOINTS = [
   { label: 'Strait of Gibraltar', lat: 35.98, lon: -5.6 },
   { label: 'Bosporus', lat: 41.12, lon: 29.06 },
 ] as const
-export const MAX_ASSETS = 2000
+export const MAX_ASSETS = 3500
 export const REFRESH_SECONDS = 60
 const record = (v: unknown): Record<string, unknown> =>
   v !== null && typeof v === 'object' && !Array.isArray(v) ? v as Record<string, unknown> : {}
