@@ -52,7 +52,7 @@ export function GlobalWatchtower() {
   const [error, setError] = useState(''), [foodError, setFoodError] = useState('')
   const [busy, setBusy] = useState(false), [refresh, setRefresh] = useState(0), [paused, setPaused] = useState(false), [now, setNow] = useState(Date.now)
   const [mobile, setMobile] = useState(false), [filtersOpen, setFiltersOpen] = useState(true), [alertsOpen, setAlertsOpen] = useState(true), [fullscreen, setFullscreen] = useState(false)
-  const [query, setQuery] = useState(''), [region, setRegion] = useState<Region>('global'), [cargoOnly, setCargoOnly] = useState(true)
+  const [query, setQuery] = useState(''), [region, setRegion] = useState<Region>('global'), [cargoOnly, setCargoOnly] = useState(true), [shipCargoOnly,setShipCargoOnly]=useState(false)
   const [commodity, setCommodity] = useState('all'), [alertKind, setAlertKind] = useState('all'), [productionKind,setProductionKind] = useState<'all'|ProductionDriver>('all'), [highOnly, setHighOnly] = useState(false)
   const [selectedId, setSelectedId] = useState<string | null>(null), [sourceId, setSourceId] = useState<string | null>(null)
   const [focus, setFocus] = useState<GlobalTrackingMapProps['focus']>(null)
@@ -209,7 +209,7 @@ export function GlobalWatchtower() {
       try{
         const response=await fetch('/api/watchtower/gcc-radar',{
           cache:'no-store',
-          signal:AbortSignal.any([controller.signal,AbortSignal.timeout(28000)]),
+          signal:AbortSignal.any([controller.signal,AbortSignal.timeout(52000)]),
         })
         if(!response.ok){
           let detail='No server detail'
@@ -225,16 +225,19 @@ export function GlobalWatchtower() {
            body.source!=='MyShipTracking API'&&body.source!=='MyShipTracking public pages')throw Error('Invalid GCC radar result')
         console.groupCollapsed('[Watchtower][GCC] MyShipTracking scan',body.status,new Date().toISOString())
         console.info('Source:',body.source,'| Enabled:',body.configured,
-          '| Ships checked:',body.checked,'| Cargo markers:',body.assets.length,
+          '| Vessel pages checked:',body.checked,'| Vessel markers:',body.assets.length,
+          '| Cargo class:',body.assets.filter(a=>a.cargo==='ais_cargo_class').length,
           '| Estimated routes:',body.withRoutes)
         console.table(body.hubs.map(hub=>({
-          port:hub.label,status:hub.status,candidates:hub.candidates,
-          mapped:hub.observed,routes:hub.withRoutes,detail:hub.detail,
+          port:hub.label,status:hub.status,discovered:hub.candidates,
+          checked:hub.inspected??null,mapped:hub.observed,
+          cargoClass:hub.cargoClass??null,missingGPS:hub.incomplete??null,
+          blocked:hub.blocked??null,routes:hub.withRoutes,detail:hub.detail,
         })))
         console.info('Source diagnostic:',body.sourceNote)
         console.groupEnd()
         if(body.status==='not_configured')console.warn('[Watchtower][GCC] Radar not configured on server.')
-        else if(body.assets.length===0)console.warn('[Watchtower][GCC] No verified cargo positions in provider response.')
+        else if(body.assets.length===0)console.warn('[Watchtower][GCC] No usable ship positions in provider response; see per-port diagnostics.')
         if(active){setGccRadar(body);setGccRadarError('')}
       }catch(reason){
         if(active&&!controller.signal.aborted){
@@ -300,9 +303,10 @@ export function GlobalWatchtower() {
     inside(a)&&
     (selectedChokepoint==='all'||a.kind==='aircraft'||a.chokepointId===selectedChokepoint||Boolean(a.hubId))&&
     (selectedGccHub==='all'||a.kind==='aircraft'||a.hubId===selectedGccHub)&&
-    (!cargoOnly || a.cargo !== 'unverified') &&
+    (a.kind==='vessel' ? (!shipCargoOnly||a.cargo==='ais_cargo_class') :
+      (!cargoOnly||a.cargo!=='unverified')) &&
     (!query || (a.label + ' ' + a.id + ' ' + (a.destination ?? '')).toLowerCase().includes(query.toLowerCase())),
-    ), [allAssets, inside, selectedChokepoint, selectedGccHub, cargoOnly, query])
+    ), [allAssets, inside, selectedChokepoint, selectedGccHub, cargoOnly, shipCargoOnly, query])
   const alerts = useMemo(() => allAlerts.filter(a => inside(a) && (alertKind === 'all' || a.kind === alertKind) &&
     (!highOnly || a.severity === 'high') && (commodity === 'all' || a.kind !== 'food' || a.id === 'food:' + commodity) &&
     (!query || (a.title + ' ' + a.source).toLowerCase().includes(query.toLowerCase()))), [allAlerts, inside, alertKind, highOnly, commodity, query])
@@ -422,7 +426,7 @@ export function GlobalWatchtower() {
       </div>
       <div className={styles.stats}>{[
         { label: 'Aircraft observations', value: known(airSource?.state) ? assets.filter(a => a.kind === 'aircraft').length : null, note: cargoOnly ? 'Freight-operator candidates / sampled' : 'Six airframe samples / not all traffic', icon: Plane },
-        { label: 'Cargo vessel observations', value: (known(seaSource?.state)||Boolean(maritimeFeed?.chokepoints.some(point=>point.state==='partial'||point.state==='stale'))||Boolean(gccRadar?.configured)) ? assets.filter(a => a.kind === 'vessel').length : null, note: gccRadar?.configured ? 'GCC MyShipTracking observations + AIS' : maritimeFeed ? 'data-tracking.net Hormuz/Bab · AIS sample' : seaSource?.state === 'unconfigured' ? 'Waiting for public AIS / licensed AIS unavailable' : 'AIS coverage / not global totals', icon: Ship },
+        { label: shipCargoOnly ? 'Cargo-class vessels' : 'Vessel observations', value: (known(seaSource?.state)||Boolean(maritimeFeed?.chokepoints.some(point=>point.state==='partial'||point.state==='stale'))||Boolean(gccRadar?.configured)) ? assets.filter(a => a.kind === 'vessel').length : null, note: gccRadar?.configured ? 'GCC MyShipTracking observations + AIS' : maritimeFeed ? 'data-tracking.net Hormuz/Bab · AIS sample' : seaSource?.state === 'unconfigured' ? 'Waiting for public AIS / licensed AIS unavailable' : 'AIS coverage / not global totals', icon: Ship },
         { label: 'Mapped risk reports', value: riskReadable ? externalRiskAlerts.length : null, note: 'External hazard and advisory reports', icon: AlertTriangle },
         { label: 'Food-security signals', value: food && food.assessedCount > 0 ? foodAlerts.length : null, note: staleFood ? 'Stale organization snapshot' : foodError ? 'Organization ledger unavailable' : food ? food.assessedCount + ' commodities assessed / organization' : 'Organization ledger not loaded', icon: Wheat },
       ].map(item => <div key={item.label} className={styles.stat}><label>{item.label}</label><strong>{count(item.value)}</strong><item.icon size={21} /><small>{item.note}</small></div>)}</div>
@@ -457,7 +461,7 @@ export function GlobalWatchtower() {
       </select>
       <p className={styles.hint}>
         {gccRadar?.configured?
-          <>{gccRadar.moving} moving cargo-type vessels · {gccRadar.withRoutes} modeled route pairs.
+          <>{gccRadar.assets.length} vessel positions · {gccRadar.assets.filter(a=>a.cargo==='ais_cargo_class').length} cargo-class vessels · {gccRadar.moving} moving · {gccRadar.withRoutes} modeled route pairs.
             Last checked {utc(gccRadar.generatedAt)}. 5-minute browser polling;
             website observations may be delayed or unavailable.</>:
           <>MyShipTracking website collection is not enabled or data is unavailable.
@@ -466,7 +470,7 @@ export function GlobalWatchtower() {
           {' '}Diagnostics: {gccRadar.sourceNote}
         </span>}
         {gccRadar?.hubs.map(h=><span key={h.id} className={styles.hint}>
-          {h.label}: {h.candidates} discovered, {h.observed} mapped · {h.status}.
+          {h.label}: {h.candidates} discovered, {h.inspected??'N/A'} checked, {h.observed} mapped, {h.cargoClass??'N/A'} cargo-class · {h.status}.
           {' '}{h.detail}
         </span>)}
         {gccRadar?.creditsCharged!=null?' Credits last scan: '+gccRadar.creditsCharged+'.':''}
@@ -517,10 +521,11 @@ export function GlobalWatchtower() {
       </p>
       <hr className={styles.divider} />
       {([
-        ['aircraft', Plane, 'Aircraft'], ['vessels', Ship, 'Cargo vessels'], ['risks', AlertTriangle, 'Risk reports'], ['production', Wheat, 'Food production exposure zones'], ['gateways', Globe2, 'Strategic chokepoints'], ['trails', Activity, 'Origin / recorded past'], ['projections', Activity, 'Destination / estimated future'],
+        ['aircraft', Plane, 'Aircraft'], ['vessels', Ship, 'All vessels'], ['risks', AlertTriangle, 'Risk reports'], ['production', Wheat, 'Food production exposure zones'], ['gateways', Globe2, 'Strategic chokepoints'], ['trails', Activity, 'Origin / recorded past'], ['projections', Activity, 'Destination / estimated future'],
       ] as const).map(([key, Icon, title]) => <button key={key} className={styles.toggle} aria-pressed={layers[key]} onClick={() => setLayers(current => ({ ...current, [key]: !current[key] }))}><span><Icon size={13} />{title}</span><i className={styles.switch} /></button>)}
       <hr className={styles.divider} />
-      <button className={styles.toggle} aria-pressed={cargoOnly} onClick={() => setCargoOnly(!cargoOnly)}><span>Freight operators only</span><i className={styles.switch} /></button>
+      <button className={styles.toggle} aria-pressed={cargoOnly} onClick={() => setCargoOnly(!cargoOnly)}><span>Freight aircraft only</span><i className={styles.switch} /></button>
+      <button className={styles.toggle} aria-pressed={shipCargoOnly} onClick={()=>setShipCargoOnly(!shipCargoOnly)}><span>Only identified cargo-class ships</span><i className={styles.switch}/></button>
       <label className={styles.label} htmlFor="watchtower-alert-type">Alert category</label>
       <select id="watchtower-alert-type" className={styles.input} value={alertKind} onChange={e => setAlertKind(e.target.value)}><option value="all">All categories</option><option value="food">Food security</option><option value="hazard">Weather & natural hazards</option><option value="aviation">Aviation advisories</option><option value="maritime">Maritime incident reports</option></select>
       <button className={styles.toggle} aria-pressed={highOnly} onClick={() => setHighOnly(!highOnly)}><span>High signals only</span><i className={styles.switch} /></button>
@@ -657,7 +662,7 @@ export function GlobalWatchtower() {
             <a href={TRACKED_CHOKEPOINTS.find(point=>point.id===selectedAsset.chokepointId)?.pageUrl??'https://hormuz.data-tracking.net/'}
               target="_blank" rel="noopener noreferrer">Open source tracking <ExternalLink size={11} className="inline" /></a>
           </div>}
-          <p className={styles.notice}>{selectedAsset.cargo === 'ais_cargo_class' ? 'AIS class identifies a cargo vessel.' : selectedAsset.cargo === 'operator_inferred' ? 'Freight-operator callsign heuristic, not a verified cargo manifest.' : 'Aircraft type alone does not confirm a cargo flight.'} Food cargo, supplier and purchase-order linkage are unverified.</p>
+          <p className={styles.notice}>{selectedAsset.cargo === 'ais_cargo_class' ? 'AIS class identifies a cargo vessel.' : selectedAsset.cargo === 'operator_inferred' ? 'Freight-operator callsign heuristic, not a verified cargo manifest.' : selectedAsset.kind==='vessel' ? 'Vessel classification unverified or not a cargo class.' : 'Aircraft type alone does not confirm a cargo flight.'} Food cargo, supplier and purchase-order linkage are unverified.</p>
           {nearGateway && separationKm(selectedAsset, nearGateway) < 600 && <p>Reference proximity: {nearGateway.label}, approximately {Math.round(separationKm(selectedAsset, nearGateway))} km. Not evidence of crossing or disruption.</p>}
           {nearby.map(alert => <button key={alert.id} className={styles.alert} onClick={() => choose(alert)}><strong>{alert.title}</strong><p>Reported point within 350 km. Proximity only, not confirmed impact.</p></button>)}
           <a href={selectedAsset.sourceUrl} target="_blank" rel="noopener noreferrer">{selectedAsset.source} <ExternalLink size={11} className="inline" /></a>

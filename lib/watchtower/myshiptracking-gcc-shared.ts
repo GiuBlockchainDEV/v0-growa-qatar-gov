@@ -14,6 +14,8 @@ export type GccRadarState='not_configured'|'available'|'partial'|'unavailable'
 export type GccHubReport={
   id:GccHubId;label:string;status:GccRadarState
   candidates:number;observed:number;withRoutes:number
+  /** Optional public-page scan diagnostics (not provided by licensed API). */
+  inspected?:number;incomplete?:number;blocked?:number;cargoClass?:number
   sourceUrl:string;detail:string
 }
 export type GccRadarSnapshot={

@@ -127,6 +127,24 @@ export function parsePublicPortCandidates(html:string,hubId:GccHubId,limit=12):P
   }
   return out
 }
+export function selectPublicGccCandidates(
+  found:readonly PublicVesselCandidate[],maxPerHub=12,
+):PublicVesselCandidate[]{
+  const unique=new Map<string,PublicVesselCandidate>()
+  for(const candidate of found)if(!unique.has(candidate.url))unique.set(candidate.url,candidate)
+  const byHub=GCC_PUBLIC_PORTS.map(h=>
+    [...unique.values()].filter(candidate=>candidate.hubId===h.id))
+  const selected:PublicVesselCandidate[]=[]
+  const perHub=cap(Math.trunc(maxPerHub),1,12)
+  // Round-robin prevents one large port from starving the smaller ports.
+  for(let index=0;index<perHub;index++){
+    for(const candidates of byHub){
+      const candidate=candidates[index]
+      if(candidate&&selected.length<36)selected.push(candidate)
+    }
+  }
+  return selected
+}
 function portName(raw:string):RouteEndpoint|null{
   const name=safe(raw,85)
   if(!name||/^(?:UNKNOWN PORT|---|N\/A|HIGH SEAS|NOT AVAILABLE)$/i.test(name))return null
@@ -157,9 +175,14 @@ export function parsePublicVessel(html:string,candidate:PublicVesselCandidate,no
   if(html.length>1000000||html.length<50)return null
   const m=candidate.url.match(/-mmsi-(\d{9})(?:-|$)/i)
   const mmsi=m?.[1]??clean(html).match(/\bMMSI\s*:?\s*(\d{9})\b/i)?.[1]
-  if(!mmsi||!(/^[1-9]\d{8}$/.test(mmsi)))return null
+  // The Python workflow tracks vessel-page links, regardless of whether the
+  // site includes an MMSI in the displayed HTML. A stable source-page key
+  // allows non-MMSI vessel observations without inventing a registration.
+  const slug=new URL(candidate.url).pathname.match(/^\/vessels\/([a-z0-9_-]+)$/i)?.[1]
+  if(!slug)return null
+  const identifiedMmsi=mmsi&&/^[1-9]\d{8}$/.test(mmsi)?mmsi:null
   const kind=shipType(html)
-  if(!isPublicCargoType(kind))return null
+  const cargoClass=isPublicCargoType(kind)
   const point=htmlPosition(html,now)
   if(!point)return null
   const age=now-Date.parse(point.received)
@@ -196,12 +219,14 @@ export function parsePublicVessel(html:string,candidate:PublicVesselCandidate,no
       'is a reference and not a measured AIS trajectory.',
   }:null
   return {
-    id:'sea:'+mmsi,kind:'vessel',label:candidate.name,
+    id:identifiedMmsi?'sea:'+identifiedMmsi:'sea:page:'+slug.toLowerCase(),
+    kind:'vessel',label:candidate.name,
     lat:point.lat,lon:point.lon,
     heading:heading!==null&&heading>=0&&heading<360?heading:null,
     speedKnots:speed,altitudeFt:null,observedAt:point.received,
     source:'MyShipTracking public website',sourceUrl:candidate.url,
-    type:kind,cargo:'ais_cargo_class',destination:destination?.name??null,
+    type:kind||'Unclassified vessel',cargo:cargoClass?'ais_cargo_class':'unverified',
+    destination:destination?.name??null,
     foodCargoVerified:false,hubId:candidate.hubId,
     observationBasis:point.timestampBasis,itinerary,
   }
@@ -213,7 +238,7 @@ export function isPublicScrapeAllowed(orgId:string){
   return allow.includes(orgId.toLowerCase())
 }
 const limit=()=>{
-  const v=Number(process.env.WATCHTOWER_MST_MAX_SHIPS_PER_HUB??'4')
+  const v=Number(process.env.WATCHTOWER_MST_MAX_SHIPS_PER_HUB??'12')
   return Number.isInteger(v)?cap(v,1,12):4
 }
 const baseHeaders={Accept:'text/html,application/xhtml+xml',
@@ -276,33 +301,29 @@ export async function getPublicGccRadarSnapshot():Promise<GccRadarSnapshot>{
       return {hub:p,candidates}
     }))
     const all=hubCalls.flatMap(r=>r.status==='fulfilled'?r.value.candidates:[])
-    const unique=new Map<string,PublicVesselCandidate>()
-    for(const candidate of all)if(!unique.has(candidate.url))unique.set(candidate.url,candidate)
-    // Distribute candidates among ports; the old first-12 slice exhausted
-    // its budget in Jebel Ali and never inspected Qatar.
-    const byHub=GCC_PUBLIC_PORTS.map(h=>
-      [...unique.values()].filter(candidate=>candidate.hubId===h.id))
-    const toInspect:PublicVesselCandidate[]=[]
-    const perHub=Math.min(max,8)
-    for(let index=0;index<perHub;index++){
-      for(const candidates of byHub){
-        const candidate=candidates[index]
-        if(candidate&&toInspect.length<24)toInspect.push(candidate)
-      }
-    }
+    const toInspect=selectPublicGccCandidates(all,max)
     const found:TrackingAsset[]=[]
     let rejected=0,blocked=0,failed=0
-    // bounded concurrency; this is an ordinary public HTML fetch, not Selenium.
-    for(let i=0;i<toInspect.length;i+=8){
-      const chunk=toInspect.slice(i,i+8)
+    const issues=new Map<GccHubId,{inspected:number;incomplete:number;blocked:number;failures:number}>()
+    for(const hub of GCC_PUBLIC_PORTS)issues.set(hub.id,{
+      inspected:0,incomplete:0,blocked:0,failures:0,
+    })
+    // Up to 36 real source pages, scanned in four bounded waves. No hidden
+    // endpoints, no anti-bot evasion and no retries on site access blocks.
+    for(let i=0;i<toInspect.length;i+=9){
+      const chunk=toInspect.slice(i,i+9)
       const response=await Promise.allSettled(chunk.map(async c=>
         parsePublicVessel(await page(c.url,300000),c)))
-      for(const entry of response){
+      for(let j=0;j<response.length;j++){
+        const entry=response[j],stats=issues.get(chunk[j].hubId)!
+        stats.inspected++
         if(entry.status==='fulfilled'&&entry.value)found.push(entry.value)
-        else if(entry.status==='fulfilled')rejected++
+        else if(entry.status==='fulfilled'){rejected++;stats.incomplete++}
         else{
-          failed++
-          if(/403|429|challenge|not permit|denied/i.test(String(entry.reason)))blocked++
+          failed++;stats.failures++
+          if(/403|429|challenge|not permit|denied/i.test(String(entry.reason))){
+            blocked++;stats.blocked++
+          }
         }
       }
     }
@@ -322,16 +343,25 @@ export async function getPublicGccRadarSnapshot():Promise<GccRadarSnapshot>{
       const defined=GCC_PUBLIC_PORTS.some(x=>x.id===h.id)
       const candidateCount=response?.status==='fulfilled'?response.value.candidates.length:0
       const here=assets.filter(a=>a.hubId===h.id)
+      const diagnostic=issues.get(h.id)
       return {id:h.id,label:h.label,status:!defined?'not_configured':
         response?'partial':'unavailable',
         candidates:candidateCount,observed:here.length,
+        inspected:diagnostic?.inspected??0,
+        incomplete:diagnostic?.incomplete??0,
+        blocked:diagnostic?.blocked??0,
+        cargoClass:here.filter(a=>a.cargo==='ais_cargo_class').length,
         withRoutes:here.filter(a=>a.itinerary?.modelSeaLegs).length,
         sourceUrl:response?.status==='fulfilled'?response.value.hub.url:
           'https://www.myshiptracking.com/',
         detail:!defined?'No verified public port page for this hub.':
-          response?'HTML links found: '+candidateCount+
-            '; observed cargo positions: '+here.length+
-            '. Missing speed does not exclude a ship; missing coordinates, dated fixes, or recognized cargo type still do.':
+          response?'Vessel links: '+candidateCount+
+            '; pages checked: '+(diagnostic?.inspected??0)+
+            '; positions mapped: '+here.length+
+            '; identified cargo class: '+here.filter(a=>a.cargo==='ais_cargo_class').length+
+            '; no usable GPS: '+(diagnostic?.incomplete??0)+
+            '; site blocked: '+(diagnostic?.blocked??0)+
+            '. Other vessel classes are visible but are NOT assumed to carry food.':
           'Port HTML could not be retrieved; check website permissions, URL, and server access.',
       }
     })
@@ -344,13 +374,15 @@ export async function getPublicGccRadarSnapshot():Promise<GccRadarSnapshot>{
       generatedAt:checkedAt,refreshSeconds:300,source:'MyShipTracking public pages',
       status:successes===0?'unavailable':'partial',configured:true,
       hubs:reports,assets,sourceUrl:'https://www.myshiptracking.com/',
-      checked:toInspect.length,moving:assets.length,
+      checked:toInspect.length,
+      moving:assets.filter(a=>a.speedKnots!==null&&a.speedKnots>=1.5).length,
       withRoutes:assets.filter(a=>a.itinerary?.modelSeaLegs).length,
       maxShipsPerHub:max,creditsCharged:null,
       sourceNote:'Public pages: '+successes+'/'+GCC_PUBLIC_PORTS.length+
         ' fetched; '+all.length+' candidate links; '+toInspect.length+
-        ' vessel pages requested; '+found.length+' valid cargo fixes; '+
-        rejected+' incomplete/non-cargo; '+failed+' page failures ('+blocked+
+        ' vessel pages requested; '+found.length+' vessel positions; '+
+        found.filter(a=>a.cargo==='ais_cargo_class').length+' cargo-class positions; '+
+        rejected+' missing/invalid GPS; '+failed+' page failures ('+blocked+
         ' blocked). '+reasons.join('; ')+'. '+
         '5-minute refresh means polling cadence only. Actual last-position timestamp is preserved. '+
         'Website data rights and permitted use must be confirmed before enabling. '+

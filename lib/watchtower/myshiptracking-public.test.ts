@@ -2,7 +2,7 @@ import {describe,expect,it} from 'vitest'
 import {readFileSync} from 'node:fs'
 import {join} from 'node:path'
 import {GCC_PUBLIC_PORTS,isPublicCargoType,parsePublicPortCandidates,
-  parsePublicVessel} from './myshiptracking-public'
+  parsePublicVessel,selectPublicGccCandidates,type PublicVesselCandidate} from './myshiptracking-public'
 const stamp=new Date(Date.now()-30*60000)
 const t=stamp.toISOString().slice(0,16).replace('T',' ')
 const portHtml=`<html><table><tr><td>DEPARTURE</td><td>
@@ -76,6 +76,56 @@ describe('Public HTML GCC radar without MyShipTracking API',()=>{
   expect(asset?.observationBasis).toBe('webpage_capture')
   expect(asset?.speedKnots).toBe(8.5)
   expect(asset?.foodCargoVerified).toBe(false)
+ })
+ it('scans 12 candidates per hub, not 4 or a global first-port slice',()=>{
+  const candidates:PublicVesselCandidate[]=[
+    ...(['AEJEA','QADOH','QARLF'] as const).flatMap(hubId=>
+      Array.from({length:12},(_,i)=>({
+        hubId,name:hubId+' '+i,
+        url:'https://www.myshiptracking.com/vessels/'+hubId.toLowerCase()+'-'+i,
+        event:'UNCONFIRMED' as const,
+      })))
+  ]
+  const selected=selectPublicGccCandidates(candidates)
+  expect(selected).toHaveLength(36)
+  expect(selected.slice(0,3).map(a=>a.hubId)).toEqual(['AEJEA','QADOH','QARLF'])
+  expect(selected.filter(a=>a.hubId==='AEJEA')).toHaveLength(12)
+  expect(selected.filter(a=>a.hubId==='QADOH')).toHaveLength(12)
+  expect(selected.filter(a=>a.hubId==='QARLF')).toHaveLength(12)
+  expect(selectPublicGccCandidates(candidates,4)).toHaveLength(12)
+ })
+ it('retains port-service vessels without mislabelling them cargo or food shipments',()=>{
+  const candidate:PublicVesselCandidate={
+    hubId:'QARLF',name:'HALUL 71',
+    url:'https://www.myshiptracking.com/vessels/halul-71-imo-9876543',
+    event:'DEPARTURE',
+  }
+  const html=`<html><head><title>HALUL 71 - Offshore Supply Vessel (IMO: 9876543) | MyShipTracking</title></head>
+   <body><h2>HALUL 71</h2><script>var lat=25.66777;var lng=52.41100;var speed=4.1;</script>
+   <div>Previous port RAS LAFFAN; destination HALUL ISLAND</div></body></html>`
+  const ship=parsePublicVessel(html,candidate)
+  expect(ship?.id).toBe('sea:page:halul-71-imo-9876543')
+  expect(ship?.label).toBe('HALUL 71')
+  expect(ship?.lat).toBeCloseTo(25.66777)
+  expect(ship?.lon).toBeCloseTo(52.411)
+  expect(ship?.speedKnots).toBe(4.1)
+  expect(ship?.cargo).toBe('unverified')
+  expect(ship?.foodCargoVerified).toBe(false)
+  expect(ship?.observationBasis).toBe('webpage_capture')
+ })
+ it('retains a ship with a readable MMSI even when not classified as cargo',()=>{
+  const ref=parsePublicPortCandidates(portHtml,'AEJEA')[1]
+  const html=cargo.replace('Bulk Carrier','Oil Tanker')
+  const ship=parsePublicVessel(html,ref)
+  expect(ship?.id).toBe('sea:223456789')
+  expect(ship?.cargo).toBe('unverified')
+  expect(ship?.lat).toBeCloseTo(25.12345)
+ })
+ it('shows all ship classes by default while keeping cargo-class filtering optional',()=>{
+  const ui=readFileSync(join(process.cwd(),'components/dashboard/watchtower/global-watchtower.tsx'),'utf8')
+  expect(ui).toContain('[shipCargoOnly,setShipCargoOnly]=useState(false)')
+  expect(ui).toContain('Only identified cargo-class ships')
+  expect(ui).toContain("shipCargoOnly||a.cargo==='ais_cargo_class'")
  })
  it('has no hardcoded API dependency or automatic bot-evasion techniques',()=>{
   const source=readFileSync(join(process.cwd(),'lib/watchtower/myshiptracking-public.ts'),'utf8')
