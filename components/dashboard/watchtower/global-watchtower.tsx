@@ -201,19 +201,13 @@ export function GlobalWatchtower() {
   // Opt-in GCC web radar, 5-minute polling. Server handles permission gates.
   // Browser polls every 5 minutes while visible, without a background daemon.
   useEffect(()=>{
-    if(!orgId){
-      console.warn('[Watchtower][GCC] Request skipped: missing organization context.')
-      setGccRadar(null)
-      return
-    }
     let running=false,active=true
     const controller=new AbortController()
     const load=async()=>{
       if(running||!active||document.hidden||pausedRef.current)return
       running=true
       try{
-        const response=await fetch('/api/watchtower/gcc-radar?'+
-          new URLSearchParams({organizationId:orgId}),{
+        const response=await fetch('/api/watchtower/gcc-radar',{
           cache:'no-store',
           signal:AbortSignal.any([controller.signal,AbortSignal.timeout(28000)]),
         })
@@ -256,7 +250,7 @@ export function GlobalWatchtower() {
     document.addEventListener('visibilitychange',visible)
     return()=>{active=false;controller.abort();clearInterval(timer)
       document.removeEventListener('visibilitychange',visible)}
-  },[orgId,refresh])
+  },[refresh])
   useEffect(() => {
     setPosture(null); setFoodError(''); setCommodity('all')
     if (!orgId) return
@@ -466,7 +460,7 @@ export function GlobalWatchtower() {
           <>{gccRadar.moving} moving cargo-type vessels · {gccRadar.withRoutes} modeled route pairs.
             Last checked {utc(gccRadar.generatedAt)}. 5-minute browser polling;
             website observations may be delayed or unavailable.</>:
-          <>Optional MyShipTracking public-page collection is not enabled for this organization.
+          <>MyShipTracking website collection is not enabled or data is unavailable.
             Existing public AIS feeds remain in use.</>}
         {gccRadar?.sourceNote&&<span className={styles.hint}>
           {' '}Diagnostics: {gccRadar.sourceNote}

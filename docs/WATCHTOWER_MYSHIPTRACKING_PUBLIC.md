@@ -10,7 +10,6 @@ trajectory. Historical tracks need a separate provider with timed fixes.
 ## Activation / permissions
 Set these SERVER variables in Vercel:
 - WATCHTOWER_MST_SCRAPE_ENABLED=true
-- WATCHTOWER_MST_ALLOWED_ORG_IDS=<organization UUID>
 - WATCHTOWER_MST_MAX_SHIPS_PER_HUB=4 (up to 12)
 
 No MYSHIPTRACKING_API_KEY is required for public HTML mode, and no
@@ -31,8 +30,8 @@ verified public HTML port URL is wired for it. The tracker will not pretend
 Doha and Hamad are identical. Source-page changes can break extraction.
 
 ## Cadence
-While an authorized user keeps the Watchtower tab visible, the browser polls
-GET /api/watchtower/gcc-radar?organizationId=<uuid> every 300 seconds.
+While a user with the server-validated supply.view permission keeps the Watchtower tab visible, the browser polls
+GET /api/watchtower/gcc-radar every 300 seconds.
 The server caches HTML pages and results for five minutes; requests for up to
 12 candidates per hub are constrained, including at most four vessel pages at
 once. There is no permanent server worker or guaranteed five-minute update
@@ -40,11 +39,13 @@ when the web page is closed. Last AIS-observed timestamps are shown separately.
 
 If WATCHTOWER_MST_SCRAPE_ENABLED is not explicitly true, the existing optional
 licensed API branch remains available only with its own explicit opt-in,
-organization allowlist and key. When neither source is configured the
-UI shows "not configured".
+key. The global radar endpoint does not fall back to the paid API.
+When public collection is disabled, the UI shows "not configured".
 
 The public-page parser is deliberately conservative. If the website's
 actual HTML lacks explicit cargo-type classification, dated GPS positions,
 and speed, it will return zero accepted ships rather than invent them.
 The adapter has fixture-level tests, not a validated production scraping
 session against a currently accessible website.
+
+The endpoint requires server-validated supply.view permission derived from the authenticated session. It never expects a client-supplied organizationId and no WATCHTOWER_MST_ALLOWED_ORG_IDS variable is needed for public-page mode. If the environment flag is missing or disabled, public scraping remains off. Consent, source permissions, and website access limits still apply.
