@@ -638,7 +638,11 @@ export function GlobalWatchtower() {
         { label: 'Vessel observations', value: (openWaters?.state==='available'||openWaters?.state==='partial'||globalAis?.state==='partial'||globalAis?.state==='stale'||openSea?.state==='available'||openSea?.state==='stale'||known(seaSource?.state)||Boolean(maritimeFeed?.chokepoints.some(point=>point.state==='partial'||point.state==='stale'))||Boolean(gccRadar?.configured)) ? assets.filter(a => a.kind === 'vessel').length : null, note: (openWaters?.state==='available'||openWaters?.state==='partial')?'Multi-region Open Waters AIS':globalAis?.state==='partial'?'OpenSeaFeed global AIS + regional sources':openSea?.state==='available'?'hormuz.now regional AIS + other sources':openSea?.state==='stale'?'Regional AIS delayed':maritimeFeed?'data-tracking.net AIS + port samples':'Awaiting regional AIS coverage', icon: Ship },
         { label: 'Worldwide risk reports', value: riskReadable ? externalRiskAlerts.length : null, note: 'Worldwide reports, not viewport-limited', icon: AlertTriangle },
         { label: 'IPC assessed countries', value: ipcRisk?.state==='available'?ipcRisk.countryCount:null, note: ipcRisk?.state==='unavailable'?'IPC source unavailable':ipcRisk?.state==='partial'?'IPC data incomplete':'IPC Phase 3+ population assessments', icon: Wheat },
-      ].map(item => <div key={item.label} className={styles.stat}><label>{item.label}</label><strong>{count(item.value)}</strong><item.icon size={21} /><small>{item.note}</small></div>)}</div>
+      ].map(item => <div key={item.label} className={styles.stat}><label>{item.label}</label><strong>{item.label==='IPC assessed countries'&&item.value===null
+          ?ipcRisk?.state==='unconfigured'?'KEY REQUIRED'
+            :ipcRisk?.state==='unavailable'?'API ERROR'
+            :ipcRisk?.state==='partial'?'NO DATA':'LOADING'
+          :count(item.value)}</strong><item.icon size={21} /><small>{item.note}</small></div>)}</div>
     </header>
     {error && <div className={styles.statusError} role="alert">{error}</div>}
     <aside className={`${styles.panel} ${styles.filters} ${filtersOpen ? '' : styles.hidePanel}`} aria-label="Map controls">
