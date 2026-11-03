@@ -159,7 +159,7 @@ describe('Map-first integration and data boundaries', () => {
     expect(riskClient).toContain('riskZones={riskZones}')
     expect(riskClient).toContain('PRODUCTION RISK EXPOSURE')
     const client = read('components/dashboard/watchtower/global-watchtower.tsx')
-    expect(client).toContain("alert.source !== 'Organization food ledger'")
+    expect(client).toContain("alert.source!=='Organization food ledger'")
     expect(client).toContain('displayedRiskAlerts).map(alert')
     expect(client).toContain('!displayedRiskAlerts.length')
     expect(client).toContain('alerts={alerts}')

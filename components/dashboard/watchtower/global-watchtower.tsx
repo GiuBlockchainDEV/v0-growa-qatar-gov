@@ -16,6 +16,7 @@ import type {OpenSeaFeedSnapshot} from '@/lib/watchtower/openseafeed'
 import type {OpenWatersSnapshot} from '@/lib/watchtower/open-waters-ais'
 import {visibleUnderwayVessel} from '@/lib/watchtower/visible-vessels'
 import type {IpcRiskSnapshot} from '@/lib/watchtower/ipc-food-security'
+import type {PublicFoodSnapshot} from '@/lib/watchtower/public-food-intelligence'
 import {REGIONAL_AIR_BATCH_COUNT,type RegionalAirBatch} from '@/lib/watchtower/regional-air-shared'
 import {REGIONAL_WATCHTOWER_VIEW} from '@/lib/watchtower/map-viewport'
 import type { GlobalTrackingMapProps } from './global-tracking-map'
@@ -74,6 +75,8 @@ export function GlobalWatchtower() {
   const [shipView,setShipView]=useState<ShipView>('moving')
   const [ipcRisk,setIpcRisk]=useState<IpcRiskSnapshot|null>(null)
   const [ipcError,setIpcError]=useState('')
+  const [publicFood,setPublicFood]=useState<PublicFoodSnapshot|null>(null)
+  const [publicFoodError,setPublicFoodError]=useState('')
   const [riskPanelFilter,setRiskPanelFilter]=useState<'all'|'ipc'|'hazards'|'logistics'>('all')
   const [selectedIpcId,setSelectedIpcId]=useState<string|null>(null)
   const [selectedId, setSelectedId] = useState<string | null>(null), [sourceId, setSourceId] = useState<string | null>(null)
@@ -218,6 +221,31 @@ export function GlobalWatchtower() {
       }catch(error){
         if(active&&!controller.signal.aborted)
           setIpcError(error instanceof Error?error.message:'IPC assessment unavailable')
+      }
+    }
+    void load()
+    const timer=setInterval(()=>void load(),30*60000)
+    return()=>{active=false;controller.abort();clearInterval(timer)}
+  },[refresh])
+  // Independent source-backed global assessments and published outlooks.
+  // IPC access may be restricted; FEWS/FAO must remain separately available.
+  useEffect(()=>{
+    let active=true
+    const controller=new AbortController()
+    const load=async()=>{
+      if(!active||document.hidden||pausedRef.current)return
+      try{
+        const response=await fetch('/api/watchtower/public-food',{
+          cache:'no-store',signal:AbortSignal.any([controller.signal,AbortSignal.timeout(22000)]),
+        })
+        if(!response.ok)throw Error('Public food source HTTP '+response.status)
+        const body=await response.json() as PublicFoodSnapshot
+        if(body.source!=='FAO GIEWS + FEWS NET'||!Array.isArray(body.fews?.reports))
+          throw Error('Unexpected public food data')
+        if(active){setPublicFood(body);setPublicFoodError('')}
+      }catch(error){
+        if(active&&!controller.signal.aborted)
+          setPublicFoodError(error instanceof Error?error.message:'Food security sources unavailable')
       }
     }
     void load()
@@ -640,8 +668,14 @@ export function GlobalWatchtower() {
         { label: 'Aircraft observations', value: (known(airSource?.state)||regionalAir.some(b=>b.succeeded>0)) ? assets.filter(a => a.kind === 'aircraft').length : null, note: freightFlightsOnly?'Freight-operator candidates only':'Regional ADS-B, all observed classes', icon: Plane },
         { label: 'Vessel observations', value: (openWaters?.state==='available'||openWaters?.state==='partial'||globalAis?.state==='partial'||globalAis?.state==='stale'||openSea?.state==='available'||openSea?.state==='stale'||known(seaSource?.state)||Boolean(maritimeFeed?.chokepoints.some(point=>point.state==='partial'||point.state==='stale'))||Boolean(gccRadar?.configured)) ? assets.filter(a => a.kind === 'vessel').length : null, note: (openWaters?.state==='available'||openWaters?.state==='partial')?'Multi-region Open Waters AIS':globalAis?.state==='partial'?'OpenSeaFeed global AIS + regional sources':openSea?.state==='available'?'hormuz.now regional AIS + other sources':openSea?.state==='stale'?'Regional AIS delayed':maritimeFeed?'data-tracking.net AIS + port samples':'Awaiting regional AIS coverage', icon: Ship },
         { label: 'Worldwide risk reports', value: riskReadable ? externalRiskAlerts.length : null, note: 'Worldwide reports, not viewport-limited', icon: AlertTriangle },
-        { label: 'IPC assessed countries', value: ipcRisk?.state==='available'?ipcRisk.countryCount:null, note: ipcRisk?.state==='unavailable'?'IPC source unavailable':ipcRisk?.state==='partial'?'IPC data incomplete':'IPC Phase 3+ population assessments', icon: Wheat },
-      ].map(item => <div key={item.label} className={styles.stat}><label>{item.label}</label><strong>{item.label==='IPC assessed countries'&&item.value===null
+        { label: publicFood?.fao.state==='available'?'FAO food-assistance countries':'IPC assessed countries',
+          value:publicFood?.fao.countryCount??(ipcRisk?.state==='available'?ipcRisk.countryCount:null),
+          note:publicFood?.fao.state==='available'
+            ?'FAO GIEWS '+(publicFood.fao.edition??'published assessment')+'; not IPC'
+            :ipcRisk?.state==='unconfigured'?'IPC key required; public FAO feed pending'
+            :ipcRisk?.state==='unavailable'?'IPC unavailable; FAO '+(publicFood?.fao.state??'loading')
+            :'Official IPC/CH assessments', icon: Wheat },
+      ].map(item => <div key={item.label} className={styles.stat}><label>{item.label}</label><strong>{(item.label==='IPC assessed countries'||item.label==='FAO food-assistance countries')&&item.value===null
           ?ipcRisk?.state==='unconfigured'?'KEY REQUIRED'
             :ipcRisk?.state==='unavailable'?'API ERROR'
             :ipcRisk?.state==='partial'?'NO DATA':'LOADING'
@@ -736,6 +770,8 @@ export function GlobalWatchtower() {
           {openWaters?.areas.filter(a=>a.state==='unavailable').map(a=><p key={a.id}>
             {a.name}: {a.reason??'no usable provider response'}</p>)}
           {openWaters?.attribution.map((credit,i)=><p key={i}>AIS attribution: {credit}</p>)}
+          <p><strong>FAO GIEWS:</strong> {publicFood?.fao.state??'loading'} · {publicFood?.fao.countryCount??'N/A'} countries requiring external food assistance, {publicFood?.fao.edition??'edition unknown'}. {publicFood?.fao.detail??''}</p>
+          <p><strong>FEWS NET:</strong> {publicFood?.fews.state??'loading'} · {publicFood?.fews.reports.length??0} published outlooks. {publicFood?.fews.detail??''} {publicFoodError}</p>
           <p><strong>Global IPC food security:</strong> {ipcRisk?.state??'loading'} · {ipcRisk?.countryCount??'N/A'} assessed countries. {ipcRisk?.detail??''} {ipcError}</p>
           <p><strong>Chokepoint AIS:</strong> {maritimeFeed?.assets.length??'N/A'} positions,
             {maritimeFeed?.chokepoints.filter(c=>c.state==='partial').length??0} reporting areas.
@@ -902,7 +938,32 @@ export function GlobalWatchtower() {
               aria-pressed={riskPanelFilter===value}
               onClick={()=>setRiskPanelFilter(value)}>{label}</button>)}
           </div>
-          {ipcRisk?.state==='unavailable'&&<p className={styles.notice}>IPC feed unavailable. {ipcRisk.detail}</p>}
+          {(ipcRisk?.state==='unavailable'||ipcRisk?.state==='unconfigured')&&
+            <p className={styles.notice}>IPC/CH assessments: {ipcRisk.detail}
+              {' '}FAO GIEWS and FEWS NET are displayed separately and do not require this IPC credential.
+            </p>}
+          {publicFood?.fao.state==='available'&&
+            <p className={styles.notice}>
+              FAO GIEWS ({publicFood.fao.edition??'published edition'}):
+              {' '}{publicFood.fao.countryCount} countries requiring external food assistance.
+              {' '}This is NOT the number of IPC-classified countries.
+              {' '}<a href={publicFood.fao.url} target="_blank" rel="noopener noreferrer">Official FAO source</a>
+            </p>}
+          {publicFoodError&&<p className={styles.notice}>FAO / FEWS sources: {publicFoodError}</p>}
+          {(riskPanelFilter==='all'||riskPanelFilter==='ipc')&&Boolean(publicFood?.fews.reports.length)&&
+            <div className={styles.controlSectionHeading}>Latest global food security reports · FEWS NET</div>}
+          {(riskPanelFilter==='all'||riskPanelFilter==='ipc')&&publicFood?.fews.reports
+            .filter(report=>!query||report.title.toLowerCase().includes(query.toLowerCase()))
+            .slice(0,25).map(report=>
+              <a key={report.id} className={styles.alert} href={report.url}
+                target="_blank" rel="noopener noreferrer">
+                <div className={styles.alertHead}>
+                  <span className={styles.severity}>PUBLISHED REPORT</span>
+                  <small>{report.publishedAt.slice(0,10)}</small>
+                </div>
+                <strong>{report.title}</strong>
+                <p>FEWS NET · Source publication, not a confirmed live food security incident.</p>
+              </a>)}
           {ipcError&&<p className={styles.notice}>IPC: {ipcError}</p>}
           {productionRisk?.status==='unavailable'&&<p className={styles.notice}>GDACS production screening unavailable. Global safety cannot be inferred.</p>}
           {(riskPanelFilter==='all'||riskPanelFilter==='ipc')&&displayedIpc.length>0&&
@@ -920,7 +981,7 @@ export function GlobalWatchtower() {
             </button>)}
           {(staleSnapshot || paused) && <p className={styles.notice}>{paused ? 'Automatic updates paused. Positions will age.' : 'Tracking snapshot is stale. Source availability may have changed.'}</p>}
           <div className="mt-3">{(riskPanelFilter==='ipc'?[]:displayedRiskAlerts).map(alert => <button key={alert.id} className={styles.alert} onClick={() => choose(alert)}><div className={styles.alertHead}><span className={styles.severity} data-level={alert.severity}>{alert.severity}</span><small>{alert.source}</small></div><strong>{alert.title}</strong><p>{alert.kind === 'food' ? 'Organization-level signal' : alert.kind === 'aviation' ? 'Advisory / not a verified closure' : alert.kind === 'maritime' ? 'Regional report / position approximate' : 'Reported hazard / impact unverified'}</p></button>)}</div>
-          {!displayedRiskAlerts.length && !displayedIpc.length && <p className={styles.empty}>{busy ? 'Loading source-backed observations...' : 'No matching mapped reports in this response. Missing feeds are not evidence that a corridor is safe.'}</p>}
+          {!displayedRiskAlerts.length && !displayedIpc.length && !publicFood?.fews.reports.length && <p className={styles.empty}>{busy ? 'Loading source-backed observations...' : 'No matching mapped reports in this response. Missing feeds are not evidence that a corridor is safe.'}</p>}
         </>}
       </div>
     </aside>

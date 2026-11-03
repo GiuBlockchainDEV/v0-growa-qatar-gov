@@ -124,7 +124,7 @@ describe('Public HTML GCC radar without MyShipTracking API',()=>{
  it('defaults to moving vessels and keeps cargo-class filtering optional',()=>{
   const ui=readFileSync(join(process.cwd(),'components/dashboard/watchtower/global-watchtower.tsx'),'utf8')
   expect(ui).toContain("[shipView,setShipView]=useState<ShipView>('moving')")
-  expect(ui).toContain('Cargo-class vessels')
+  expect(ui).toContain('Cargo-class ships underway')
   expect(ui).toContain("a.cargo==='ais_cargo_class'")
  })
  it('has no hardcoded API dependency or automatic bot-evasion techniques',()=>{

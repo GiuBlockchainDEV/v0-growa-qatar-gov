@@ -20,11 +20,12 @@ describe('port and stationary ship clutter',()=>{
  it('keeps source-observed underway traffic only',()=>{
   expect(visibleUnderwayVessel(ship({speedKnots:1.5}),now)).toBe(true)
   expect(visibleUnderwayVessel(ship({speedKnots:13}),now)).toBe(true)
+  expect(visibleUnderwayVessel(ship({speedKnots:12,observedAt:new Date(now-4*60*60000).toISOString()}),now)).toBe(true)
  })
  it('rejects webpage captures and stale underway reports',()=>{
   expect(visibleUnderwayVessel(ship({observationBasis:'webpage_capture'}),now)).toBe(false)
   expect(visibleUnderwayVessel(ship({
-    observedAt:new Date(now-125*60000).toISOString(),
+    observedAt:new Date(now-13*60*60000).toISOString(),
   }),now)).toBe(false)
   expect(visibleUnderwayVessel(ship({
     observedAt:new Date(now+120000).toISOString(),
