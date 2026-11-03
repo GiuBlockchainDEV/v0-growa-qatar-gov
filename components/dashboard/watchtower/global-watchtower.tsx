@@ -67,7 +67,7 @@ export function GlobalWatchtower() {
   const [aisHistoryStatus,setAISHistoryStatus]=useState('')
   const [gccRadar,setGccRadar]=useState<GccRadarSnapshot|null>(null)
   const [gccRadarError,setGccRadarError]=useState('')
-  const [error, setError] = useState(''), [foodError, setFoodError] = useState('')
+  const [error, setError] = useState(''), [, setFoodError] = useState('')
   const [busy, setBusy] = useState(false), [refresh, setRefresh] = useState(0), [paused, setPaused] = useState(false), [now, setNow] = useState(Date.now)
   const [mobile, setMobile] = useState(false), [filtersOpen, setFiltersOpen] = useState(true), [alertsOpen, setAlertsOpen] = useState(true), [fullscreen, setFullscreen] = useState(false)
   const [query, setQuery] = useState(''), [region, setRegion] = useState<Region>('gulf')
@@ -600,7 +600,6 @@ export function GlobalWatchtower() {
   }
   const recentCount = allAssets.filter(a => freshAsset(a, now)).length
   const staleSnapshot = Boolean(snapshot && now - Date.parse(snapshot.generatedAt) > 180000)
-  const staleFood = Boolean(food && now - Date.parse(food.generatedAt) > 300000)
   const airSource = snapshot?.sources.find(s => s.id === 'adsb'), seaSource = snapshot?.sources.find(s => s.id === 'ais')
   const known = (state: string | undefined) => state === 'partial' || state === 'available' || state === 'stale'
   const riskReadable = Boolean(snapshot?.sources.some(s => ['gdacs', 'easa', 'hormuz'].includes(s.id) && known(s.state)))
