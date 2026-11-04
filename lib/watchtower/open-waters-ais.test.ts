@@ -10,10 +10,15 @@ const feature=(id:number,lat:number,lon:number,ageMin=4,
 describe('Open Waters AIS adapter for waters outside the Persian Gulf',()=>{
   it('covers Red Sea, Gulf of Aden, Arabian Sea, and NW Indian Ocean with bounded searches',()=>{
     const ids=MARITIME_AIS_AREAS.map(a=>a.id)
-    for(const name of ['red_sea_north','red_sea_central','red_sea_south',
+    for(const name of ['suez_canal','suez_gulf','red_sea_north','red_sea_central','red_sea_south',
       'aden_west','aden_east','arabian_west','arabian_east',
       'indian_ocean_west','indian_ocean_central','indian_ocean_east'])
       expect(ids).toContain(name)
+    const suez=MARITIME_AIS_AREAS.find(a=>a.id==='suez_canal')!
+    expect(suez.bounds[0]).toBeLessThanOrEqual(29.97) // Suez
+    expect(suez.bounds[2]).toBeGreaterThanOrEqual(31.26) // Port Said
+    expect(suez.bounds[1]).toBeLessThanOrEqual(32.3)
+    expect(suez.bounds[3]).toBeGreaterThanOrEqual(32.55)
     for(const area of MARITIME_AIS_AREAS){
       const [south,west,north,east]=area.bounds
       expect((north-south)*(east-west)).toBeLessThanOrEqual(100)
