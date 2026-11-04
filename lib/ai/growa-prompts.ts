@@ -1,5 +1,5 @@
 import type { GrowaAnalysisContext, GrowaFarmAnalysisContext, GrowaModule } from './growa-types'
-import { isFarmGrowaContext, isHarvestGrowaContext, isQatarCountryGrowaContext } from './growa-types'
+import { isFarmGrowaContext, isHarvestGrowaContext, isQatarCountryGrowaContext, isNationalUtilityGrowaContext } from './growa-types'
 
 export interface GrowaPromptOption {
   id: string
@@ -236,8 +236,24 @@ export function getGrowaPrompts(module: GrowaModule, context?: GrowaAnalysisCont
         ? harvestFieldPrompts(context)
         : harvestNationalPrompts(context)
     case 'water-intelligence':
+      if (isNationalUtilityGrowaContext(context)) return [
+        {id:'water-national',label:'Qatar water-security briefing',
+         prompt:'Assess Qatar national water security from source-attributed annual potable production, groundwater abstraction, distribution losses and reuse. Cite years and units, separate the indicators, and flag missing evidence.'},
+        {id:'water-nexus',label:'Water–energy–food nexus',
+         prompt:'Identify credible water–electricity–agriculture dependencies using the national water and energy series, compare publication years, and propose measurements needed for water treatment and irrigation energy intensity.'},
+        {id:'water-plan',label:'Aquifer and reuse priorities',
+         prompt:'Create an evidence-led investigation plan for groundwater abstraction, treated-water reuse and distribution losses, distinguishing observations, risks, scenarios and missing field measurements.'},
+      ]
       return isFarmGrowaContext(context) ? waterIntelligencePrompts(context) : FALLBACK_PROMPTS[module]
     case 'energy-intelligence':
+      if (isNationalUtilityGrowaContext(context)) return [
+        {id:'energy-national',label:'Qatar power-system briefing',
+         prompt:'Evaluate annual Qatar electricity generation and maximum grid demand. Cite exact GWh and MW with years and sources; quantify observed consecutive-year changes only.'},
+        {id:'energy-renewables',label:'Renewables and grid resilience',
+         prompt:'Analyze published renewable share of total final energy and electricity load factors. Never confuse the final-energy share with renewable electricity output; flag the data gaps.'},
+        {id:'energy-nexus',label:'Energy–water–food nexus',
+         prompt:'Assess the relationship of Qatar electricity supply to desalination and agricultural food resilience, using both country datasets without inventing desalination plant kWh/m³ or capacity margins.'},
+      ]
       return isFarmGrowaContext(context) ? energyIntelligencePrompts(context) : FALLBACK_PROMPTS[module]
     case 'watchtower':
       return FALLBACK_PROMPTS.watchtower
