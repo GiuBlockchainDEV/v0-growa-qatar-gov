@@ -14,7 +14,8 @@ import {MONITORED_MARITIME_PORTS,type GccRadarSnapshot} from '@/lib/watchtower/m
 import type {HormuzNowFeed} from '@/lib/watchtower/hormuz-now'
 import type {OpenSeaFeedSnapshot} from '@/lib/watchtower/openseafeed'
 import type {OpenWatersSnapshot} from '@/lib/watchtower/open-waters-ais'
-import {isDelayedBabPosition,visibleUnderwayVessel,visibleObservedVessel} from '@/lib/watchtower/visible-vessels'
+import {visibleUnderwayVessel,visibleObservedVessel} from '@/lib/watchtower/visible-vessels'
+import {sparseAreaDemoVessels} from '@/lib/watchtower/demo-vessels'
 import type {IpcRiskSnapshot} from '@/lib/watchtower/ipc-food-security'
 import type {PublicFoodSnapshot} from '@/lib/watchtower/public-food-intelligence'
 import {REGIONAL_AIR_BATCH_COUNT,type RegionalAirBatch} from '@/lib/watchtower/regional-air-shared'
@@ -73,6 +74,7 @@ export function GlobalWatchtower() {
   const [mobile, setMobile] = useState(false), [filtersOpen, setFiltersOpen] = useState(false), [alertsOpen, setAlertsOpen] = useState(true), [fullscreen, setFullscreen] = useState(false)
   const [query, setQuery] = useState(''), [region, setRegion] = useState<Region>('gulf')
   const [shipView,setShipView]=useState<ShipView>('moving')
+  const [showDemoVessels,setShowDemoVessels]=useState(true)
   const [ipcRisk,setIpcRisk]=useState<IpcRiskSnapshot|null>(null)
   const [ipcError,setIpcError]=useState('')
   const [publicFood,setPublicFood]=useState<PublicFoodSnapshot|null>(null)
@@ -551,7 +553,7 @@ export function GlobalWatchtower() {
         visibleObservedVessel(a,now))
       const shown=matches.filter(a=>visibleUnderwayVessel(a,now))
       return {id:area.id,name:area.name,observed:matches.length,
-        underway:shown.length,delayed:shown.filter(a=>isDelayedBabPosition(a,now)).length}
+        underway:shown.length}
     })
   },[allAssets,now])
   const assets = useMemo(() => allAssets.filter(a =>
@@ -562,6 +564,9 @@ export function GlobalWatchtower() {
       : (!freightFlightsOnly||a.cargo!=='unverified')) &&
     (!query || (a.label+' '+a.id+' '+(a.destination??'')).toLowerCase().includes(query.toLowerCase())),
   ),[allAssets,inside,shipView,freightFlightsOnly,query,now])
+  const demoVessels=useMemo(()=>showDemoVessels&&layers.vessels
+    ?sparseAreaDemoVessels(assets.filter(a=>a.kind==='vessel'))
+    :[],[assets,layers.vessels,showDemoVessels])
   // Risk overlays are worldwide, independent from the transport/asset
   // region filter. Leaflet clips display to the current map viewport.
   const alerts=useMemo(()=>allAlerts.filter(a=>
@@ -683,7 +688,7 @@ export function GlobalWatchtower() {
   const nearby = selectedAsset ? allAlerts.filter(a => a.kind === 'hazard' && separationKm(a, selectedAsset) <= 350).slice(0, 3) : []
   const nearGateway = selectedAsset ? [...CHOKEPOINTS].sort((a, b) => separationKm(a, selectedAsset) - separationKm(b, selectedAsset))[0] : null
   return <div id="watchtower-map" ref={root} className={styles.shell} dir={ar ? 'rtl' : 'ltr'}>
-    <Map assets={assets} historyAssets={allAssets} alerts={alerts} riskZones={riskZones} chokepoints={maritimeFeed?.chokepoints??[]} aisRoutes={aisHistory} layers={layers} selectedId={selectedId} onSelect={select} onChokepointClick={chooseChokepoint} focus={focus} now={now} />
+    <Map assets={assets} demoVessels={demoVessels} historyAssets={allAssets} alerts={alerts} riskZones={riskZones} chokepoints={maritimeFeed?.chokepoints??[]} aisRoutes={aisHistory} layers={layers} selectedId={selectedId} onSelect={select} onChokepointClick={chooseChokepoint} focus={focus} now={now} />
     <header className={styles.header}>
       <div className={styles.titleRow}>
         <div><div className={styles.eyebrow}>NFII / GLOBAL OPERATING PICTURE</div>
@@ -734,11 +739,11 @@ export function GlobalWatchtower() {
       <p className={styles.controlSummary}>
         {maritimeFeed?.chokepoints.some(c=>c.id==='bab_el_mandeb'&&c.state==='stale')&&
           <span style={{display:'block'}}>
-            Bab el-Mandeb AIS is delayed. Faded markers are historical last-known positions, NOT live ships.
+            Bab el-Mandeb AIS source is delayed. Only ship-specific fixes within the last hour are displayed.
           </span>}
         {corridorCounts.map(area=><span key={area.id} style={{display:'block'}}>
-          <strong>{area.name}: {area.underway}</strong> vessels ≥3 kn
-          {' '}({area.observed} reported positions; {area.delayed} delayed last-known)
+          <strong>{area.name}: {area.underway}</strong> real vessels ≥3 kn, observed ≤1h
+          {' '}({area.observed} time-qualified reported positions)
         </span>)}
         {openWaters?.state==='unconfigured'&&<span style={{display:'block'}}>
           Suez / Red Sea licensed AIS unavailable: Open Waters commercial access is not enabled.
@@ -752,8 +757,13 @@ export function GlobalWatchtower() {
       </select>
       <p className={styles.controlSummary}>
         <strong>{assets.filter(a=>a.kind==='vessel').length.toLocaleString('en-US')}</strong> vessels shown
-        <span> · AIS SOG ≥3 kn; unknown-speed ships hidden</span>
+        <span> · AIS SOG ≥3 kn; last-hour position fixes only</span>
       </p>
+      <button className={styles.toggle} aria-pressed={showDemoVessels}
+        onClick={()=>setShowDemoVessels(value=>!value)}>
+        <span><Ship size={13}/>DEMO ONLY · sample ships ({demoVessels.length})</span><i className={styles.switch}/>
+      </button>
+      <p className={styles.controlNote}>Synthetic map markers are clearly labelled DEMO. They never count as real ships, do not represent live AIS and are excluded from intelligence, routes, alerts and KPIs. Turn this layer off for an operational-only view.</p>
       <div className={styles.controlSectionHeading}>Show on map</div>
       {([
         ['vessels',Ship,'Vessels'],
@@ -785,7 +795,7 @@ export function GlobalWatchtower() {
         }))}>
         <span><Layers size={13}/>Available routes & tracks</span><i className={styles.switch}/>
       </button>
-      <p className={styles.controlNote}>Only ships reporting AIS SOG ≥3 kn are shown. Most observations older than 12 hours remain hidden; dated Bab el-Mandeb fixes up to 7 days old may appear as faded LAST KNOWN positions, never live traffic. Unknown-speed ships are excluded.</p>
+      <p className={styles.controlNote}>Real ship markers require an actual source-reported position in the last 60 minutes and AIS SOG ≥3 kn. Old, undated and unknown-speed fixes are hidden; sample ships are a separate DEMO overlay.</p>
       <details className={styles.sourcesDetails}>
         <summary>Data sources & freshness</summary>
         <div className={styles.sourceBody}>

@@ -641,3 +641,9 @@
 .intelSignalCard[data-kind='report'] { border-inline-start:3px solid var(--growa-stone-300); }
 .intelSignalCard[data-kind='food'] { border-inline-start:3px solid var(--high); }
 .intelSignalCard:not([data-kind]):has(.intelType[data-kind='attention']) { border-inline-start:3px solid var(--warning); }
+
+/* DEMO vessels have dedicated sepia visuals and permanent DEMO labels, distinct
+ * from source-backed AIS markers. No click targets or operational data. */
+.demoVessel { border:0; background:none; display:flex !important; align-items:center; flex-direction:column; opacity:.87; pointer-events:none; }
+.demoVessel svg { display:block; filter:drop-shadow(0 1px 1px #111e1370); }
+.demoVesselBadge { display:block; background:#F1E4D2; color:#6F513A; border:1px solid #A68C72; border-radius:3px; padding:1px 3px; font-size:8px; font-weight:800; letter-spacing:.4px; line-height:1; text-align:center; }

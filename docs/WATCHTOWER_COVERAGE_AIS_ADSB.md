@@ -33,3 +33,15 @@ No positions, movement, AIS routes or maritime coverage are generated.
 Attribution: ADSB.lol ODbL 1.0; hormuz.now and data-tracking.net CC BY 4.0;
 other providers under their own terms. All provider requests are cached
 and bounded, with failures visible independently in source diagnostics.
+
+## One-hour real AIS versus optional demo ships
+The operational map now requires an individual source-dated fix no older than
+60 minutes, a speed of at least 3 knots, and no page-capture or poll-only
+pseudo-timestamp. The old seven-day Bab el-Mandeb last-known exception is
+removed. Three underserved regions (Red Sea, Gulf of Aden and Arabian Sea)
+have a **separate, visibly labelled DEMO ONLY layer**, with a small bounded
+collection of fixed synthetic map positions, no fake MMSI or AIS timestamps.
+Each demo marker is non-interactive, is never stored as a TrackingAsset, and
+never enters real counts, routes, historical tracks or risk/intelligence outputs.
+Demo markers can be toggled off in Map Controls. They are not a fallback AIS
+feed or evidence of vessels at these coordinates.

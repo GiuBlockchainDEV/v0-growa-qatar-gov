@@ -5,13 +5,14 @@ import 'leaflet/dist/leaflet.css'
 import { QATAR, freshAsset, type TrackingAsset, type MapAlert, type MapLayers } from '@/lib/watchtower/global-tracking'
 import {TRACKED_CHOKEPOINTS,type ChokepointId,type ChokepointReport} from '@/lib/watchtower/data-tracking-net'
 import type {AISRoute} from '@/lib/watchtower/data-tracking-history'
+import type {DemoVessel} from '@/lib/watchtower/demo-vessels'
 import styles from './global-watchtower.module.css'
 import { getWorldFillZoom, REGIONAL_WATCHTOWER_VIEW } from '@/lib/watchtower/map-viewport'
 import { makeAirGreatCircle } from '@/lib/nfii/logistics-route-geometry'
 import type {ProductionRiskZone} from '@/lib/watchtower/production-risk'
 import { captureObservedPositions, automaticRouteEvidence, worldCopyPolyline, type TrackPoint } from '@/lib/watchtower/route-geometry'
 export type GlobalTrackingMapProps = {
-  assets: TrackingAsset[]; historyAssets: TrackingAsset[]; alerts: MapAlert[]; riskZones: ProductionRiskZone[]; chokepoints: ChokepointReport[]; aisRoutes: AISRoute[]; layers: MapLayers; selectedId: string | null
+  assets: TrackingAsset[]; demoVessels: readonly DemoVessel[]; historyAssets: TrackingAsset[]; alerts: MapAlert[]; riskZones: ProductionRiskZone[]; chokepoints: ChokepointReport[]; aisRoutes: AISRoute[]; layers: MapLayers; selectedId: string | null
   onSelect: (id: string) => void; onChokepointClick: (id: ChokepointId) => void; now: number
   focus: { lat: number; lon: number; zoom: number; token: number } | null
 }
@@ -31,7 +32,7 @@ const ESRI_ATTRIBUTION =
 const MARKER = { aircraft: '#EEF4C9', vessel: '#A2B78C', critical: '#A8392B', attention: '#C9A227', ink: '#111E13', cream: '#EEF4C9' }
 
 const label = (value: string) => { const node = document.createElement('span'); node.textContent = value; return node }
-export function GlobalTrackingMap({ assets, historyAssets, alerts, riskZones, chokepoints, aisRoutes, layers, selectedId, onSelect, onChokepointClick, focus, now }: GlobalTrackingMapProps) {
+export function GlobalTrackingMap({ assets, demoVessels, historyAssets, alerts, riskZones, chokepoints, aisRoutes, layers, selectedId, onSelect, onChokepointClick, focus, now }: GlobalTrackingMapProps) {
   const host = useRef<HTMLDivElement>(null), mapRef = useRef<L.Map | null>(null), graphics = useRef<L.LayerGroup | null>(null), productionGraphics = useRef<L.LayerGroup | null>(null)
   const history = useRef(new Map<string, TrackPoint[]>()), select = useRef(onSelect), selectChokepoint = useRef(onChokepointClick)
   const [revision, setRevision] = useState(0), [tileError, setTileError] = useState(false)
@@ -180,6 +181,19 @@ export function GlobalTrackingMap({ assets, historyAssets, alerts, riskZones, ch
           .on('click', () => select.current(asset.id)).addTo(group)
       }
     }
+    // Separate illustrative layer: NOT TrackingAsset, never in clusters, routes,
+    // histories, totals, selection or operational intelligence.
+    if(layers.vessels){
+      for(const demo of demoVessels){
+        if(!bounds.contains([demo.lat,demo.lon]))continue
+        const icon=L.divIcon({className:styles.demoVessel,iconSize:[54,34],iconAnchor:[27,17],
+          html:'<span class="'+styles.demoVesselBadge+'">DEMO</span>'+
+            '<svg viewBox="0 0 24 24" width="24" height="24" style="transform:rotate('+
+            demo.heading+'deg)"><path d="M12 1L19 8L18 22H6L5 8Z" fill="#98816D" stroke="#6F5A48" stroke-width="1.5"/></svg>'})
+        L.marker([demo.lat,demo.lon],{icon,interactive:false,title:'DEMO · synthetic vessel, not AIS'})
+          .addTo(group)
+      }
+    }
     // Complete airport/port PAIRS from source lookup, automatically visible.
     // Neither origin->fix nor fix->destination is an actual observed track:
     // these are explicitly labelled reference legs, with separate style.
@@ -309,7 +323,7 @@ export function GlobalTrackingMap({ assets, historyAssets, alerts, riskZones, ch
         }
       }
     }
-  }, [assets, historyAssets, alerts, chokepoints, aisRoutes, layers, selectedId, now, revision])
+  }, [assets, demoVessels, historyAssets, alerts, chokepoints, aisRoutes, layers, selectedId, now, revision])
   return <><div ref={host} className={styles.map} role="region" aria-label="Interactive Esri political world map with country borders, regions, aircraft, vessels and food-production risk areas" />
     {point && <output className={styles.coordinateReadout} aria-label="Selected map coordinates">
       {point.lat.toFixed(5)}°, {point.lon.toFixed(5)}°
