@@ -689,6 +689,9 @@ export function GlobalWatchtower() {
   const nearGateway = selectedAsset ? [...CHOKEPOINTS].sort((a, b) => separationKm(a, selectedAsset) - separationKm(b, selectedAsset))[0] : null
   return <div id="watchtower-map" ref={root} className={styles.shell} dir={ar ? 'rtl' : 'ltr'}>
     <Map assets={assets} demoVessels={demoVessels} historyAssets={allAssets} alerts={alerts} riskZones={riskZones} chokepoints={maritimeFeed?.chokepoints??[]} aisRoutes={aisHistory} layers={layers} selectedId={selectedId} onSelect={select} onChokepointClick={chooseChokepoint} focus={focus} now={now} />
+    {showDemoVessels&&demoVessels.length>0&&<div className={styles.scenarioBanner} role="status">
+      SCENARIO LAYER ACTIVE · {demoVessels.length} synthetic vessel positions · NOT LIVE AIS
+    </div>}
     <header className={styles.header}>
       <div className={styles.titleRow}>
         <div><div className={styles.eyebrow}>NFII / GLOBAL OPERATING PICTURE</div>
@@ -761,9 +764,9 @@ export function GlobalWatchtower() {
       </p>
       <button className={styles.toggle} aria-pressed={showDemoVessels}
         onClick={()=>setShowDemoVessels(value=>!value)}>
-        <span><Ship size={13}/>DEMO ONLY · sample ships ({demoVessels.length})</span><i className={styles.switch}/>
+        <span><Ship size={13}/>Scenario vessels · synthetic ({demoVessels.length})</span><i className={styles.switch}/>
       </button>
-      <p className={styles.controlNote}>Synthetic map markers are clearly labelled DEMO. They never count as real ships, do not represent live AIS and are excluded from intelligence, routes, alerts and KPIs. Turn this layer off for an operational-only view.</p>
+      <p className={styles.controlNote}>Scenario positions are invented, not observed AIS. A permanent map banner identifies the layer. These markers never enter real-vessel counts, routes, alerts or AI intelligence. Turn this layer off for an operational-only view.</p>
       <div className={styles.controlSectionHeading}>Show on map</div>
       {([
         ['vessels',Ship,'Vessels'],
@@ -795,7 +798,7 @@ export function GlobalWatchtower() {
         }))}>
         <span><Layers size={13}/>Available routes & tracks</span><i className={styles.switch}/>
       </button>
-      <p className={styles.controlNote}>Real ship markers require an actual source-reported position in the last 60 minutes and AIS SOG ≥3 kn. Old, undated and unknown-speed fixes are hidden; sample ships are a separate DEMO overlay.</p>
+      <p className={styles.controlNote}>Real ship markers require an actual source-reported position in the last 60 minutes and AIS SOG ≥3 kn. Old, undated and unknown-speed fixes are hidden; synthetic vessels are a separately disclosed scenario layer.</p>
       <details className={styles.sourcesDetails}>
         <summary>Data sources & freshness</summary>
         <div className={styles.sourceBody}>
