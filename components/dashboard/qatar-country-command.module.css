@@ -1,7 +1,7 @@
 .shell{display:grid;gap:17px;min-width:0;color:var(--growa-ink)}
 .hero{position:relative;border-radius:21px;background:var(--growa-ink);color:var(--growa-white);overflow:hidden;box-shadow:0 17px 48px rgba(16,34,20,.2)}
 .glow{position:absolute;inset:0;pointer-events:none;background:radial-gradient(ellipse 65% 120% at 94% -8%,rgba(168,191,112,.25),transparent 78%),radial-gradient(ellipse 45% 110% at 5% 120%,rgba(214,190,122,.16),transparent 78%)}
-.heroContent{position:relative;display:grid;grid-template-columns:minmax(0,1.55fr) minmax(220px,.55fr);gap:25px;padding:30px}
+.heroContent{position:relative;display:grid;grid-template-columns:minmax(0,1fr);gap:25px;padding:30px}
 .eyebrow{display:flex;align-items:center;gap:8px;font-size:10px;letter-spacing:1.25px;font-weight:820;color:var(--growa-cream)}
 .heroIntro h2{font-size:clamp(35px,4vw,56px);font-weight:800;line-height:1.09;letter-spacing:-1.5px;margin-top:15px}
 .heroIntro h2 em{font-weight:425;font-style:normal;color:var(--growa-cream)}
@@ -85,3 +85,20 @@
 @media(max-width:1200px){.heroContent{grid-template-columns:1fr}.twoColumns{grid-template-columns:1fr}.marketGrid{grid-template-columns:repeat(2,minmax(0,1fr))}.growaStats{grid-template-columns:repeat(3,minmax(0,1fr))}}
 @media(max-width:800px){.kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.sourceRows>div{grid-template-columns:1fr 1fr}.sourceRows>div>div{grid-column:1/-1}}
 @media(max-width:520px){.heroContent{padding:19px}.heroIntro h2{font-size:35px}.kpi,.card,.tradePanel,.growaPanel,.sourcePanel{padding:15px}.growaStats{grid-template-columns:repeat(2,minmax(0,1fr))}.marketGrid{grid-template-columns:repeat(2,minmax(0,1fr))}.sections button{padding:10px 12px}}
+
+.assistantRegion{background:var(--surface-card);border:1px solid var(--border-subtle);border-radius:16px;padding:20px;min-width:0;display:grid;gap:14px}
+.assistantHeading{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px}
+.assistantHeading h3{font-size:22px;letter-spacing:-.5px;font-weight:800;margin-top:8px}
+.assistantHeading p{font-size:11px;color:var(--growa-stone-600);line-height:1.65;margin-top:5px}
+.assistantPanel{height:clamp(365px,48vh,530px);min-height:365px;width:100%;min-width:0}
+.assistantPanel>section{height:100%}
+.refreshButton{display:flex;gap:7px;align-items:center;border:1px solid var(--border-subtle);border-radius:99px;background:var(--growa-stone-50);padding:9px 13px;font-size:10px;font-weight:780;color:var(--growa-sage-700)}
+.chartPoint{cursor:pointer;outline:none}
+.chartPoint:hover,.chartPoint:focus-visible{stroke:var(--growa-sage-700);stroke-width:2px}
+.observation{display:flex;flex-wrap:wrap;gap:18px;align-items:center;border:1px solid var(--border-subtle);background:var(--growa-stone-50);border-radius:10px;padding:12px 14px;margin-top:15px}
+.observation>div{display:grid;gap:7px}
+.observation small{font-size:9px;letter-spacing:.7px;font-weight:760;color:var(--growa-stone-600)}
+.observation strong{font-size:21px;font-weight:780;font-variant-numeric:tabular-nums}
+.observation strong span{font-size:11px;font-weight:510}
+.observation>a{margin-left:auto;color:var(--growa-sage-700);font-size:10px;font-weight:760}
+@media(max-width:580px){.assistantRegion{padding:12px}.assistantPanel{height:470px}.observation{gap:13px}}
