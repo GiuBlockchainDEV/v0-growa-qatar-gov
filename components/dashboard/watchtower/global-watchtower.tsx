@@ -689,9 +689,6 @@ export function GlobalWatchtower() {
   const nearGateway = selectedAsset ? [...CHOKEPOINTS].sort((a, b) => separationKm(a, selectedAsset) - separationKm(b, selectedAsset))[0] : null
   return <div id="watchtower-map" ref={root} className={styles.shell} dir={ar ? 'rtl' : 'ltr'}>
     <Map assets={assets} demoVessels={demoVessels} historyAssets={allAssets} alerts={alerts} riskZones={riskZones} chokepoints={maritimeFeed?.chokepoints??[]} aisRoutes={aisHistory} layers={layers} selectedId={selectedId} onSelect={select} onChokepointClick={chooseChokepoint} focus={focus} now={now} />
-    {showDemoVessels&&demoVessels.length>0&&<div className={styles.scenarioBanner} role="status">
-      SCENARIO LAYER ACTIVE · {demoVessels.length} synthetic vessel positions · NOT LIVE AIS
-    </div>}
     <header className={styles.header}>
       <div className={styles.titleRow}>
         <div><div className={styles.eyebrow}>NFII / GLOBAL OPERATING PICTURE</div>
@@ -766,7 +763,7 @@ export function GlobalWatchtower() {
         onClick={()=>setShowDemoVessels(value=>!value)}>
         <span><Ship size={13}/>Scenario vessels · synthetic ({demoVessels.length})</span><i className={styles.switch}/>
       </button>
-      <p className={styles.controlNote}>Scenario positions are invented, not observed AIS. A permanent map banner identifies the layer. These markers never enter real-vessel counts, routes, alerts or AI intelligence. Turn this layer off for an operational-only view.</p>
+      <p className={styles.controlNote}>Scenario positions are invented, not observed AIS. The Map Controls explicitly identify this as synthetic, not AIS. These markers never enter real-vessel counts, routes, alerts or AI intelligence. Turn this layer off for an operational-only view.</p>
       <div className={styles.controlSectionHeading}>Show on map</div>
       {([
         ['vessels',Ship,'Vessels'],
