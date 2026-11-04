@@ -358,7 +358,6 @@ export function QatarCountryCommand({growa,growaContext}:{growa:Scope;growaConte
   </div>}
   <div className={styles.footer}>
    <span><ShieldCheck size={14}/> Published observations only · source years preserved</span>
-   <span><Database size={14}/> {coverage} source groups · Qatar data catalogue + World Bank</span>
    <span>Qatar statistics are not Growa account measurements</span>
   </div>
  </section>
