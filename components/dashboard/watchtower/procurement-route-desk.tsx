@@ -154,13 +154,18 @@ export function ProcurementRouteDesk({
    {selected&&<div className={styles.costSummary} aria-label="Selected route cost breakdown">
     <div className={styles.costItem}>
      <small>01 · Merchandise price reference</small>
-     <strong>{costs.goods?fmt(costs.goods.totalQar)+' QAR':'Supplier price unavailable'}</strong>
-     <p>{costs.goods?fmt(costs.goods.unitQarPerTonne)+' QAR/t · '+costs.goods.source:
-      'An unqualified supplier lead is not a quotation.'}</p>
+     <strong>{costs.goods?fmt(costs.goods.lowQar)+' – '+fmt(costs.goods.highQar)+' QAR':'No defensible planning price'}</strong>
+     <p>{costs.goods?fmt(costs.goods.unitQarPerTonne)+' QAR/t central reference · '+costs.goods.source:
+      'No commodity and area reference could be verified.'}</p>
+     {costs.goods&&<p>{costs.goods.kind==='approved_contract'?'APPROVED CONTRACT':'INDICATIVE AREA PRICE'} ·
+      {costs.goods.area} · {costs.goods.year??'current contract'} ·
+      {costs.goods.kind==='approved_contract'?'Verify included charges':'Historical planning range; not a supplier offer'}.</p>}
      <p>{costs.goods?.kind==='historical_import'?
       'Historical import customs value is normally CIF-like and may already include freight. NOT a current supplier offer.':
       costs.goods?.kind==='approved_contract'?
       'Approved contract value; verify Incoterms and price inclusions.':
+      costs.goods?
+      'Regional/national historical price proxy. May include freight, NOT a factory-gate supplier offer.':
       'Obtain a firm supplier quote before committing.'}</p>
     </div>
     <div className={styles.costItem}>
@@ -179,7 +184,7 @@ export function ProcurementRouteDesk({
       'Cannot sum reliably'}</strong>
      <p>{costs.subtotal?
       'Arithmetic screening range, NOT a confirmed landed cost.':
-      'Historical CIF-like unit values must not be added to freight; obtain actual supplier terms.'}</p>
+      'Historical area/import prices cannot be safely added to freight. Obtain actual EXW/FOB supplier terms.'}</p>
      <p>Excludes duty, insurance, taxes and local delivery. Contract Incoterms may already include shipping.</p>
     </div>
    </div>}

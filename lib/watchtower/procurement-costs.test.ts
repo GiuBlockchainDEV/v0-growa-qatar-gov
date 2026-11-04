@@ -53,6 +53,18 @@ describe('Watchtower goods and freight costing',()=>{
   expect(x.evaluatedTonnes).toBe(200)
   expect(x.subtotal).toBeNull()
  })
+ it('uses a country-area planning range without pretending it is an official quote',()=>{
+  const regional:OriginReference={...origin,historicalUnitValueQarKg:null,
+   planningPrice:{kind:'regional_proxy',countryCode:'IN',area:'South Asia',
+    year:2024,unitQarPerKg:3,lowQarPerKg:2.1,highQarPerKg:3.9,
+    sourceName:'WITS 2024',sourceUrl:null,comparisonOrigins:2,basis:'Regional median'}}
+  const x=summary(20,20,[],[regional])
+  expect(x.goods?.kind).toBe('regional_proxy')
+  expect(x.goods?.totalQar).toBe(60000)
+  expect(x.goods?.lowQar).toBe(42000)
+  expect(x.goods?.highQar).toBe(78000)
+  expect(x.subtotal).toBeNull()
+ })
  it('never invents freight or combined cost from missing route evidence',()=>{
   const x=summary(20,20,[contract],[],null)
   expect(x.goods?.totalQar).toBe(32000)

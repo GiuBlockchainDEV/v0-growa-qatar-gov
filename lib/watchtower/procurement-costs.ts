@@ -7,7 +7,11 @@ import {displayFreight,type CorridorPayload,type RouteDetail,
  type DisplayFreight} from './procurement-route-evidence'
 
 export type MerchandiseReference={
- kind:'approved_contract'|'historical_import'
+ kind:'approved_contract'|'historical_import'|'regional_proxy'|'national_proxy'
+ lowQar:number
+ highQar:number
+ year:number|null
+ area:string
  unitQarPerTonne:number
  totalQar:number
  source:string
@@ -44,20 +48,31 @@ export function routeCostSummary(
    .sort((a,b)=>(a.priceQarPerTonne??Infinity)-(b.priceQarPerTonne??Infinity))
   const contract=eligible[0]
   if(contract&&contract.priceQarPerTonne!==null){
+   const total=Math.round(contract.priceQarPerTonne*evaluatedTonnes*100)/100
    goods={kind:'approved_contract',unitQarPerTonne:contract.priceQarPerTonne,
-    totalQar:Math.round(contract.priceQarPerTonne*evaluatedTonnes*100)/100,
+    totalQar:total,lowQar:total,highQar:total,year:null,area:selected.country,
     source:'Approved supplier contract ('+contract.name+')'}
   }else{
-   const origin=origins.find(x=>x.countryCode===selected.country&&
-    x.historicalUnitValueQarKg!==null&&
-    Number.isFinite(x.historicalUnitValueQarKg)&&
-    (x.historicalUnitValueQarKg??0)>0)
-   if(origin&&origin.historicalUnitValueQarKg!==null){
+   const origin=origins.find(x=>x.countryCode===selected.country)
+   const planning=origin?.planningPrice
+   if(planning&&planning.unitQarPerKg>0){
+    const unit=planning.unitQarPerKg*1000
+    goods={kind:planning.kind==='origin_customs'?'historical_import':planning.kind,
+     unitQarPerTonne:unit,totalQar:Math.round(unit*evaluatedTonnes*100)/100,
+     lowQar:Math.round(planning.lowQarPerKg*1000*evaluatedTonnes*100)/100,
+     highQar:Math.round(planning.highQarPerKg*1000*evaluatedTonnes*100)/100,
+     year:planning.year,area:planning.area,
+     source:planning.sourceName+' · '+planning.basis}
+   }else if(origin?.historicalUnitValueQarKg!==null&&
+    origin?.historicalUnitValueQarKg!==undefined&&
+    Number.isFinite(origin.historicalUnitValueQarKg)&&origin.historicalUnitValueQarKg>0){
     const unit=origin.historicalUnitValueQarKg*1000
+    const total=Math.round(unit*evaluatedTonnes*100)/100
     goods={kind:'historical_import',unitQarPerTonne:unit,
-     totalQar:Math.round(unit*evaluatedTonnes*100)/100,
-     source:'Qatar customs unit-value reference'+
-      (origin.year!==null?' ('+origin.year+')':'')}
+     totalQar:total,lowQar:Math.round(total*.8*100)/100,
+     highQar:Math.round(total*1.2*100)/100,
+     year:origin.year,area:selected.country,
+     source:'Historical Qatar import unit value ('+(origin.year??'year unknown')+')'}
    }
   }
  }

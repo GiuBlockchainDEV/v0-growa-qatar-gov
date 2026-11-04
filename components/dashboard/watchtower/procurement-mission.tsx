@@ -643,9 +643,15 @@ export function WatchtowerProcurementMission({posture}:{posture:FoodPosture}){
    <div className={styles.costSummary} aria-label="Purchase cost breakdown">
     <div className={styles.costItem}>
      <small>01 · Merchandise / approved contract value</small>
-     <strong>{purchasePlan.lines.length?money(approvedGoodsValue):'Not yet quoted'}</strong>
+     <strong>{purchasePlan.lines.length?money(approvedGoodsValue):selectedRouteCosts.goods?
+      money(selectedRouteCosts.goods.lowQar)+' – '+money(selectedRouteCosts.goods.highQar):
+      'Not yet priced'}</strong>
      <p>{purchasePlan.lines.length?fmt(pricedTonnes)+' t covered by approved contract portions':
-      'Documented prospects are not binding supplier quotations.'}</p>
+      selectedRouteCosts.goods?
+       'Historical '+(selectedRouteCosts.goods.year??'')+' '+selectedRouteCosts.goods.area+
+       ' indicative import benchmark for '+fmt(selectedRouteCosts.evaluatedTonnes??0)+
+       ' t. NOT a supplier quote.':
+       'No verified commodity/area price reference was returned.'}</p>
      {requiredQty!==null&&<p>Target: {fmt(requiredQty)} t ·
       {purchasePlan.ready?' full contractual coverage':' remaining quantity not fully contracted'}</p>}
     </div>
@@ -687,7 +693,10 @@ export function WatchtowerProcurementMission({posture}:{posture:FoodPosture}){
        <small>{item.approved?'Contract capacity reviewed':
         'Supplier due diligence and firm quotation pending'}</small></div>
       <span>{item.approved&&item.priceQarPerTonne!==null?
-       money(item.priceQarPerTonne)+'/t':'NO BINDING QUOTE'}</span>
+       money(item.priceQarPerTonne)+'/t':
+       report.origins.find(o=>o.countryCode===item.country)?.planningPrice?
+       money((report.origins.find(o=>o.countryCode===item.country)?.planningPrice?.unitQarPerKg??0)*1000)+
+       '/t · INDICATIVE, not supplier quote':'NO BINDING QUOTE'}</span>
      </div>)}
     </div>
     {!purchasePlan.ready&&<p className={styles.warning}>

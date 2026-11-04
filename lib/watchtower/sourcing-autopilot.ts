@@ -14,9 +14,11 @@ export type EligibleContract={
   contractRef:string|null;availableTonnes:number;priceQarPerTonne:number
   validTo:string;verification:'approved_supplier_and_current_contract'
 }
+import type {PlanningPriceReference} from '@/lib/nfii/procurement-planning-prices'
 export type OriginReference={
   countryCode:string;countryName:string;observedQatarImports:boolean
   historicalUnitValueQarKg:number|null;year:number|null;documentedLeads:number
+ planningPrice?:PlanningPriceReference|null
 }
 export type RouteReview={
   id:string;country:string;mode:'sea'|'air'|'road';via:string|null

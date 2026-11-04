@@ -8,6 +8,7 @@ import {comtradeOriginUrl,parseImportOriginYear,
   rankQatarImportOrigins} from '@/lib/nfii/origin-price-model'
 import {countryName} from '@/lib/nfii/world-countries'
 import {getWits2024Snapshot} from '@/lib/nfii/wits-2024-prices'
+import {estimateAreaPlanningPrice} from '@/lib/nfii/procurement-planning-prices'
 import {resolveCommodity} from '@/lib/platform/commodity-catalog'
 
 export const dynamic='force-dynamic'
@@ -112,6 +113,8 @@ export async function GET(request:Request){
       documentedLeads:known?.documentedLeads??0,
       observedQatarImports:Boolean(observed),
       historicalUnitValueQarKg:observed?.unitValueQarKg??null,
+      planningPrice:estimateAreaPlanningPrice(code,report,
+       publishedFallback??getWits2024Snapshot(selected)),
       importTonnes:observed?.importWeightTonnes??null,
       year:observed?.sourceYear??null,
       feasibility:observed?'observed_import_route':'documented_company_only',
