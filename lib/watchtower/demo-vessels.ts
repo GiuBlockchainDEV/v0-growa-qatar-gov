@@ -25,14 +25,16 @@ type Zone={
 /** Illustrative water coordinates only; no route, source or position timestamp. */
 // Synthetic density on illustrative open-water corridors, not asserted ship traffic.
 // Deterministic positions, no generated AIS coordinates, IDs or timestamps.
-const ARABIAN_SCENARIO_POSITIONS=Array.from({length:42},(_,i)=>{
-  const lane=i%3,step=Math.floor(i/3)
-  const lat=lane===0?14.0+((step*7)%9)*.19:
-    lane===1?16.3+((step*5)%11)*.22:18.8+((step*3)%9)*.20
-  const lon=lane===0?55.7+step*1.18+((step*7)%4)*.08:
-    lane===1?57.4+step*1.08+((step*3)%5)*.11:
-    60.7+step*.79+((step*5)%4)*.09
-  const heading=(i%2?265:85)+(step%4)*3
+const ARABIAN_SCENARIO_POSITIONS=Array.from({length:21},(_,i)=>{
+  // Fixed pseudo-random distribution: visually irregular but stable on refresh.
+  // Longitude bands keep illustrative positions in the Arabian Sea, not inland.
+  const fractional=(n:number)=>n-Math.floor(n)
+  const r1=fractional(Math.sin((i+1)*127.1)*43758.5453)
+  const r2=fractional(Math.sin((i+1)*311.7)*18392.1941)
+  const r3=fractional(Math.sin((i+1)*71.9)*9261.381)
+  const lon=55.8+r1*16.9
+  const lat=14.2+r2*5.6
+  const heading=Math.round(r3*359)
   return [Number(lat.toFixed(3)),Number(lon.toFixed(3)),heading] as const
 })
 const zones:readonly Zone[]=[
