@@ -234,21 +234,13 @@ export function QatarCountryCommand({growa,growaContext}:{growa:Scope;growaConte
      <p className={styles.disclaimer}>Published crop production, not all food production. These output tonnes do not include imported food.</p>
     </>}
     {view==='self-sufficiency'&&<>
-     <div className={styles.subhead}>Published product-level self-sufficiency · {suffYear??'N/A'}</div>
-     <div className={styles.suffExplanation}>
-      <div className={styles.suffExplanationTitle}>
-       <strong>What does self-sufficiency mean?</strong>
-       <span>100% = domestic production meets estimated domestic demand</span>
-      </div>
-      <p>Self-sufficiency compares domestic production with estimated domestic use of the same food product in the reported year. For example, 25% means roughly one-quarter of that product's estimated domestic requirement was covered locally, not 25% of all Qatar food.</p>
-      <p>Every bar uses the same <strong>0–100% scale</strong>, rather than scaling to the highest observed product. Figures above 100% can occur when production exceeds estimated domestic use and are identified separately. These are historical official statistics, not live readings.</p>
-     </div>
+     <div className={styles.subhead}>2025 food self-sufficiency · Ministry of Municipality</div>
      <div className={styles.suffRows} aria-label="Self-sufficiency by product">
       {[...selfRows].sort((a,b)=>b.ratioPercent-a.ratioPercent).map(row=>
        <div key={row.group+':'+row.product+':'+row.year} className={styles.suffRow}>
         <div className={styles.suffLabel}>
          <div><strong>{row.product}</strong><span>{row.group} · {row.year}</span></div>
-         <strong>{fmt(row.ratioPercent,1)}%</strong>
+         <strong>{fmt(row.ratioPercent,0)}%</strong>
         </div>
         <div className={styles.suffTrack} role="meter"
          aria-label={row.product+' self-sufficiency in '+row.year}
@@ -265,17 +257,23 @@ export function QatarCountryCommand({growa,growaContext}:{growa:Scope;growaConte
        No verified source percentages available for these product groups.
       </p>}
      </div>
-     <p className={styles.disclaimer}>Formula: self-sufficiency (%) = domestic production ÷ estimated domestic use × 100. The ratio is product-specific and depends on the source's consumption methodology.</p>
+     <p className={styles.disclaimer}>2025 Ministry of Municipality figures, published by QNA and The Peninsula. Categories reflect fresh products and basic vegetables, not all food groups.</p>
     </>}
     {view==='farms'&&<>
      <div className={styles.subhead}>Registered farms by municipality · {farmYear??'N/A'}</div>
      <Bars rows={farmCities.map(x=>({name:x.name,value:x.farms}))}/>
      <p className={styles.disclaimer}>Registered holdings, not necessarily active farms or Growa-managed sites.</p>
     </>}
-    <SourceLink href={view==='production'?DATASET_URL('production'):
-     view==='farms'?DATASET_URL('farms'):DATASET_URL('sufficiency')}>
-     Qatar Open Data · National Planning Council
-    </SourceLink>
+    {view==='self-sufficiency'?<div className={styles.suffSourceLinks}>
+      <SourceLink href="https://qna.org.qa/en/news/news-details?date=15%2F10%2F2026&id=qatar-targets-sustainable-food-production-as-self-sufficiency-reaches-99-for-fresh-poultry-and-dairy">
+       Qatar News Agency · Ministry of Municipality (15 Oct 2026)
+      </SourceLink>
+      <SourceLink href="https://thepeninsulaqatar.com/article/02/01/2026/local-vegetable-output-hits-75000-tonnes-in-2025">
+       The Peninsula · 2025 Ministry figures (2 Jan 2026)
+      </SourceLink>
+     </div>:<SourceLink href={view==='production'?DATASET_URL('production'):DATASET_URL('farms')}>
+      Qatar Open Data · National Planning Council
+     </SourceLink>}
    </article>
    <article className={styles.card}>
     <div className={styles.cardHead}>
