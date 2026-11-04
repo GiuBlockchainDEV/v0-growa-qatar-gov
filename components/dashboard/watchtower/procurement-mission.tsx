@@ -2,6 +2,9 @@
 
 import {useEffect,useMemo,useRef,useState} from 'react'
 import Link from 'next/link'
+import {ProcurementRouteDesk} from './procurement-route-desk'
+import {ProcurementQualificationDesk} from './procurement-qualification-desk'
+import {type CorridorPayload,routeOptionReport,mapRouteEvidence} from '@/lib/watchtower/procurement-route-evidence'
 import {
  ArrowLeft,ArrowUpRight,Bot,Check,ClipboardCheck,Copy,
  PackageCheck,Play,RefreshCw,ShieldCheck,Terminal,XCircle,
@@ -20,7 +23,7 @@ import styles from './procurement-mission.module.css'
 type LedgerResult={options:EligibleContract[];available:boolean;error?:string}
 type LeadsResult={results:SourcingLead[];researchStatus:string;error?:string}
 type OriginResult={shortlist:OriginReference[];dataStatus:string;error?:string}
-type RouteResult={routes:RouteReview[];error?:string}
+type RouteResult=CorridorPayload&{error?:string}
 type ReviewRecord={id:string;status:string;target_id?:string;target_type?:string}
 type OrderRecord={id:string;order_ref:string;status:string}
 type Submitted={ref:string;contractId:string;tonnes:number;status:'pending'|'failed';detail:string}
@@ -30,6 +33,7 @@ type WorkflowReport={
  candidates:Candidate[]
  origins:OriginReference[]
  routes:Record<string,RouteReview[]>
+ corridors:Record<string,CorridorPayload>
  scenarios:SourcingScenario[]
  errors:string[]
 }
@@ -75,6 +79,7 @@ export function WatchtowerProcurementMission({posture}:{posture:FoodPosture}){
  const [approvalRecords,setApprovalRecords]=useState<ReviewRecord[]>([])
  const [submitting,setSubmitting]=useState(false)
  const [reviewBusy,setReviewBusy]=useState(false)
+ const [logisticsApprovals,setLogisticsApprovals]=useState<string[]>([])
  const runId=useRef(0)
  const requestController=useRef<AbortController|null>(null)
  const logId=useRef(0)
@@ -92,7 +97,7 @@ export function WatchtowerProcurementMission({posture}:{posture:FoodPosture}){
   cancel();setPhase('idle');setReport(null);setSelectedIds([])
   setScenarioId('diversified');setLogs([]);setBrief('');setNotice('')
   setReviewNote('');setOrders([]);setOrderStates([]);setApprovalRecords([])
-  setSubmitting(false);setReviewBusy(false)
+  setSubmitting(false);setReviewBusy(false);setLogisticsApprovals([])
  }
  useEffect(()=>{
   // A new authorized organization snapshot must never inherit prior analyses.
@@ -100,7 +105,7 @@ export function WatchtowerProcurementMission({posture}:{posture:FoodPosture}){
   // Reset via state setters only; no network calls.
   setPhase('idle');setReport(null);setSelectedIds([])
   setLogs([]);setBrief('');setOrders([]);setOrderStates([])
-  setApprovalRecords([]);setQuantity('');setNotice('')
+  setApprovalRecords([]);setQuantity('');setNotice('');setLogisticsApprovals([])
   return ()=>{runId.current+=1;requestController.current?.abort()}
  },[posture])
  useEffect(()=>{
@@ -118,7 +123,7 @@ export function WatchtowerProcurementMission({posture}:{posture:FoodPosture}){
   const signal=controller.signal
   setPhase('researching');setReport(null);setSelectedIds([])
   setOrders([]);setLogs([]);setNotice('');setBrief('')
-  setOrderStates([]);setApprovalRecords([])
+  setOrderStates([]);setApprovalRecords([]);setLogisticsApprovals([])
   log('Orchestrator','Authorized organization snapshot and commodity: '+selectedCommodity)
   log('Demand agent',requiredQty!==null?
    'Planning target '+fmt(requiredQty)+' tonnes. Source: '+
@@ -164,28 +169,35 @@ export function WatchtowerProcurementMission({posture}:{posture:FoodPosture}){
    'Lead ranking considers source strength and historical Qatar import evidence.')
   const countries=[...new Set(shortlist.map(x=>x.country).filter(x=>x!=='QA'))].slice(0,5)
   const routes:Record<string,RouteReview[]>={}
+  const corridors:Record<string,CorridorPayload>={}
   if(countries.length){
    log('Logistics orchestrator','Screening up to '+countries.length+
     ' candidate origins in parallel, without assuming bookings.','working')
    const perOrigin=await Promise.allSettled(countries.map(async country=>{
     const tonnes=requiredQty===null?20:Math.min(200,Math.max(.1,requiredQty))
+    const documented=shortlist.some(c=>c.country===country&&c.kind==='lead')
+    const approved=shortlist.some(c=>c.country===country&&c.kind==='contract')
     const params=new URLSearchParams({
      organizationId:org,commodity:selectedCommodity,country,
      tonnes:String(tonnes),
      limitDays:String(CARGO_SPECS[selectedCommodity].maxTransitDays),
-     supplierScope:'documented',
+     supplierScope:documented?'documented':approved?'approved':'documented',
     })
     const result=await getJson('/api/nfii/logistics/corridors?'+params,signal) as RouteResult
     if(!Array.isArray(result.routes))throw Error('Invalid route evidence')
-    return {country,routes:result.routes}
+    if(!Array.isArray(result.mapRoutes))throw Error('Missing geographic route evidence')
+    return {country,payload:result}
    }))
    if(signal.aborted||runId.current!==id)return
    for(const [index,response] of perOrigin.entries()){
     const country=countries[index]
     if(response.status==='fulfilled'){
-     routes[country]=response.value.routes
-     log('Corridor agent',country+': '+routes[country].length+
-      ' route alternatives screened. These are not booked shipments.')
+     corridors[country]=response.value.payload
+     routes[country]=response.value.payload.routes
+     const detail=routeOptionReport(mapRouteEvidence(country,corridors[country]))
+     log('Corridor agent',country+': '+detail.total+' alternatives; '+
+      detail.mapped+' mapped; '+detail.unknown+' without a risk index.'+
+      ' Comparing alternatives, not booking a carrier.')
     }else{
      const detail=country+': '+errorText(response.reason)
      errors.push(detail);log('Corridor agent',detail,'gap')
@@ -202,7 +214,7 @@ export function WatchtowerProcurementMission({posture}:{posture:FoodPosture}){
     'Direct purchase orders are correctly blocked until approval.','approval')
   if(!candidates.length)
    log('Evidence auditor','No source-backed candidates available. Research coverage is incomplete.','gap')
-  setReport({candidates,origins,routes,scenarios,errors})
+  setReport({candidates,origins,routes,corridors,scenarios,errors})
   setSelectedIds(shortlist.map(x=>x.id))
   setScenarioId(scenarios[0]?.id??'diversified')
   setPhase('shortlist')
@@ -224,7 +236,7 @@ export function WatchtowerProcurementMission({posture}:{posture:FoodPosture}){
    ' candidates for sourcing analysis, not for legal supplier qualification.','approval')
   log('Strategy agent',scenarios.length+
    ' approaches recalculated using the approved shortlist.','complete')
-  setPhase('plan_approval');setNotice('')
+  setPhase('plan_approval');setLogisticsApprovals([]);setNotice('')
  }
  const rejectShortlist=()=>{
   log('Human checkpoint','Shortlist rejected. Research remains visible for re-selection.','approval')
@@ -236,6 +248,11 @@ export function WatchtowerProcurementMission({posture}:{posture:FoodPosture}){
  }
  const approvePlan=()=>{
   if(!selectedScenario){setNotice('No defensible sourcing scenario available.');return}
+  if(report&&Object.values(report.corridors).some(v=>v.routes.length>0)&&
+   !logisticsApprovals.length){
+   setNotice('Review geographic routes, risks and pass-through steps, then approve logistics alternatives.')
+   return
+  }
   const draft=sourcingBrief(commodity.name,requiredQty,chosen,selectedScenario)
   setBrief(draft);setPhase('approved');setNotice('')
   log('Human checkpoint','Sourcing strategy approved for RFQ preparation; no external requests sent.','approval')
@@ -475,6 +492,15 @@ export function WatchtowerProcurementMission({posture}:{posture:FoodPosture}){
      <small>{s.blockers.length} unresolved evidence / contractual conditions</small>
     </button>)}
    </div>
+   {report&&<ProcurementRouteDesk corridors={report.corridors}
+    locale={ar?'ar':'en'}
+    confirmed={logisticsApprovals}
+    onConfirm={keys=>{
+     setLogisticsApprovals(keys)
+     log('Logistics governance','Reviewed '+keys.length+
+      ' selected source-backed corridors. No carrier services booked.','approval')
+     setNotice('Selected logistics evidence approved for planning.')
+    }}/>}
    {selectedScenario&&<div className={styles.analysisGrid}>
     <div className={styles.summary}>
      <strong>Proposed sourcing allocation</strong>
@@ -502,6 +528,14 @@ export function WatchtowerProcurementMission({posture}:{posture:FoodPosture}){
    </div>}
   </section>}
   {phase==='approved'&&<section className={styles.analysisResults}>
+   <div className={styles.orderJourney}>
+    {['Supplier investigation','Quality / identity','Quotation / contract',
+     'Transport risk selection','Quantity allocation','Purchase-order draft',
+     'Independent approval','Shipment & arrival']
+     .map((name,index)=><div key={name} data-ready={index<=3||index===5}>
+      <span>{String(index+1).padStart(2,'0')}</span><strong>{name}</strong>
+     </div>)}
+   </div>
    <div className={styles.heading}><span>DECISION PACK / GOVERNANCE</span>
     <h4>RFQ and purchase-order readiness</h4>
     <p>Qualified contracts and new prospects have different routes.
@@ -530,6 +564,31 @@ export function WatchtowerProcurementMission({posture}:{posture:FoodPosture}){
      {purchasePlan.ready&&<p>Goods value: {money(approvedGoodsValue)}. Freight,
       duties and insurance excluded until independently quoted.</p>}
     </div>
+   </div>
+   {chosen.some(c=>!c.approved)&&<ProcurementQualificationDesk
+    candidates={chosen} commodity={selectedCommodity}
+    organizationId={posture.organizationId} requiredTonnes={requiredQty}
+    onLifecycleChange={()=>void run()}/>}
+   <div className={styles.orderDraft}>
+    <h5><PackageCheck size={16}/> Purchase order decision file</h5>
+    <p>Commodity: {commodity.name} · Target: {requiredQty===null?
+     'Quantity not verified':fmt(requiredQty)+' tonnes'} ·
+     Approved routing options: {logisticsApprovals.length}.
+     This is a working order dossier, NOT a legally placed order.</p>
+    <div className={styles.draftLines}>
+     {chosen.map(item=><div key={item.id}>
+      <div><strong>{item.name} · {item.country}</strong>
+       <small>{item.approved?'Contract capacity reviewed':
+        'Supplier due diligence and firm quotation pending'}</small></div>
+      <span>{item.approved&&item.priceQarPerTonne!==null?
+       money(item.priceQarPerTonne)+'/t':'NO BINDING QUOTE'}</span>
+     </div>)}
+    </div>
+    {!purchasePlan.ready&&<p className={styles.warning}>
+     A purchase-order draft has been prepared, but legal issuance requires
+     independently approved supplier and contract records covering the quantity.
+     Qualify vendors using the workflow above, then refresh sourcing.
+     Unquoted transport, customs, inspection and handling remain unresolved.</p>}
    </div>
    {purchasePlan.ready&&<div className={styles.orderGate}>
     <h5><PackageCheck size={16}/> Final human authorization: submit PENDING proposals</h5>
