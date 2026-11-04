@@ -1,5 +1,5 @@
 import {describe,expect,it} from 'vitest'
-import {visibleUnderwayVessel} from './visible-vessels'
+import {visibleObservedVessel,visibleUnderwayVessel} from './visible-vessels'
 import type {TrackingAsset} from './global-tracking'
 const now=Date.UTC(2026,10,3,12)
 const ship=(overrides:Partial<TrackingAsset>={}):TrackingAsset=>({
@@ -12,6 +12,15 @@ const ship=(overrides:Partial<TrackingAsset>={}):TrackingAsset=>({
   ...overrides,
 })
 describe('port and stationary ship clutter',()=>{
+ it('allows explicitly selected stopped or speed-unknown observed AIS vessels',()=>{
+  for(const speedKnots of [0,0.1,0.7,1.49,null]){
+    expect(visibleObservedVessel(ship({speedKnots}),now)).toBe(true)
+  }
+  expect(visibleObservedVessel(ship({observationBasis:'webpage_capture'}),now)).toBe(false)
+  expect(visibleObservedVessel(ship({
+    observedAt:new Date(now-13*60*60000).toISOString(),
+  }),now)).toBe(false)
+ })
  it('hides stopped, berthed, unknown and near-stationary ships everywhere',()=>{
   for(const speedKnots of [0,0.1,0.7,1.49,null]){
     expect(visibleUnderwayVessel(ship({speedKnots}),now)).toBe(false)
