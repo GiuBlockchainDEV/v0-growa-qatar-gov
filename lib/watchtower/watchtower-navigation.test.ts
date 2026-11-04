@@ -11,7 +11,9 @@ describe('NFII Watchtower navigation clarity',()=>{
     expect(ui).toContain("'#watchtower-markets'")
     expect(ui).toContain("activeSection === 'food' && <WatchtowerFoodCommandCenter />")
     expect(ui).toContain("activeSection === 'operations' && <WatchtowerOperationsPulse />")
-    expect(ui).toContain("activeSection === 'scenarios' && <WatchtowerScenarioRoom />")
+    expect(ui).not.toContain('WatchtowerScenarioRoom')
+    expect(ui).not.toContain("id: 'scenarios'")
+    expect(ui).toContain("hash === '#watchtower-scenarios') setActiveSection('agents')")
     expect(ui).toContain("activeSection === 'agents' && <WatchtowerAgentOperationsRoom />")
   })
   it('supports deep links and keyboard-accessible active tabs',()=>{

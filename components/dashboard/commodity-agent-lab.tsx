@@ -13,7 +13,7 @@ import {
 import { AGENT_REGISTRY } from '@/lib/ai/agents/registry'
 import { CommodityAgentVerdict } from '@/components/dashboard/commodity-agent-verdict'
 import { CommodityAgentProgress, CommodityScenarioCharts } from '@/components/dashboard/commodity-scenario-charts'
-import { buildAgentFinalRecommendation } from '@/lib/nfii/agent-decision'
+import { buildAgentFinalRecommendation, type AgentFinalRecommendation } from '@/lib/nfii/agent-decision'
 import type { OperationsSnapshot } from '@/lib/nfii/operations-types'
 import {
   simulateCommodityAgents, type AgentStep, type CommodityAgentSimulation,
@@ -43,6 +43,18 @@ function fmt(n:number|null|undefined):string {
     n.toLocaleString('en-US',{maximumFractionDigits:1})
 }
 
+/**
+ * Read-only stage telemetry for the Watchtower control room.
+ * Only revealed stages and completed verdicts may leave this component.
+ * Nothing is executed against databases, brokers or AI model APIs.
+ */
+export type AgentMissionTelemetry={
+ phase:'idle'|'running'|'completed'
+ completed:number
+ total:number
+ steps:readonly AgentStep[]
+ verdict:AgentFinalRecommendation|null
+}
 type AgentRunSession = {
   balance: FoodBalanceResult
   operations: OperationsSnapshot
@@ -63,11 +75,12 @@ function StepBadge({step,active,ar}:{step:AgentStep;active:boolean;ar:boolean}){
 }
 
 export function CommodityAgentLab({
-  balance,operations,today,
+  balance,operations,today,onTelemetry,
 }:{
   balance:FoodBalanceResult|null
   operations:OperationsSnapshot
   today:string
+  onTelemetry?:(telemetry:AgentMissionTelemetry)=>void
 }){
   const {locale}=useI18n()
   const ar=locale==='ar'
@@ -92,6 +105,17 @@ export function CommodityAgentLab({
     ()=>workflowComplete && result ? buildAgentFinalRecommendation(result) : null,
     [workflowComplete,result],
   )
+  useEffect(()=>{
+    if(!onTelemetry)return
+    onTelemetry({
+      phase:!result?'idle':workflowComplete?'completed':'running',
+      completed:result?Math.min(revealed,result.steps.length):0,
+      total:result?.steps.length??10,
+      // Never disclose unplayed findings as completed work.
+      steps:result?result.steps.slice(0,revealed):[],
+      verdict:workflowComplete?recommendation:null,
+    })
+  },[onTelemetry,result,revealed,workflowComplete,recommendation])
 
   useEffect(()=>{
     setSession(null);setRevealed(0);setPlaying(false);setDecision(null)

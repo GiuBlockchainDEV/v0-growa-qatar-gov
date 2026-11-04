@@ -3,12 +3,14 @@ import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 
 const workspace = readFileSync(join(process.cwd(), 'components/dashboard/watchtower-workspace.tsx'), 'utf8')
-const scenario = readFileSync(join(process.cwd(), 'components/dashboard/watchtower/scenario-room.tsx'), 'utf8')
+const agents = readFileSync(join(process.cwd(), 'components/dashboard/watchtower/agent-operations-room.tsx'), 'utf8')
+const lab = readFileSync(join(process.cwd(), 'components/dashboard/commodity-agent-lab.tsx'), 'utf8')
 
 describe('NFII Watchtower scope regression', () => {
-  it('keeps the command room focused on food security and scenarios', () => {
+  it('keeps the command room focused on food security and agent operations', () => {
     expect(workspace).toContain('<WatchtowerFoodCommandCenter />')
-    expect(workspace).toContain('<WatchtowerScenarioRoom />')
+    expect(workspace).toContain('<WatchtowerAgentOperationsRoom />')
+    expect(workspace).not.toContain('<WatchtowerScenarioRoom />')
     expect(readFileSync(join(process.cwd(), 'components/dashboard/watchtower/global-watchtower.tsx'), 'utf8')).toContain('Food Security Watchtower')
   })
 
@@ -27,18 +29,16 @@ describe('NFII Watchtower scope regression', () => {
     expect(workspace).not.toContain(symbol)
   })
 
-  it('uses organization-authorized, verified live balances for scenarios', () => {
-    expect(scenario).toContain('/api/food-security/balance?')
-    expect(scenario).toContain("mode: 'live'")
-    expect(scenario).toContain("payload.dataSource !== 'LIVE'")
-    expect(scenario).toContain("payload.balance.sourceMode !== 'live'")
-    expect(scenario).toContain('calculateFoodScenario')
+  it('reuses live reviewed commodity inputs without a separate scenario room', () => {
+    expect(agents).toContain('useCommodityCase(commodityId,days)')
+    expect(agents).toContain('<CommodityAgentLab')
+    expect(lab).toContain('simulateCommodityAgents({')
   })
 
   it('does not mutate procurement, approvals or source records', () => {
-    expect(scenario).not.toContain("method: 'POST'")
-    expect(scenario).not.toContain('/api/food-security/imports')
-    expect(scenario).not.toContain('/api/food-security/records/review')
+    expect(lab).not.toContain("method: 'POST'")
+    expect(agents).not.toContain("method: 'POST'")
+    expect(agents).not.toContain('/api/food-security/imports')
     expect(workspace).not.toContain('buildDemoFoodBalanceInput')
   })
 })

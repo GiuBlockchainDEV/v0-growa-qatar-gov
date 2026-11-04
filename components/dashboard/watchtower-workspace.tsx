@@ -1,15 +1,14 @@
 'use client'
 import Link from 'next/link'
 import { useEffect, useState } from 'react'
-import { ArrowUpRight, Bot, FlaskConical, Globe2, Network, Wheat, ChartCandlestick } from 'lucide-react'
+import { ArrowUpRight, Bot, Globe2, Network, Wheat, ChartCandlestick } from 'lucide-react'
 import { useI18n } from '@/lib/i18n'
 import { GlobalWatchtower } from '@/components/dashboard/watchtower/global-watchtower'
 import { CommodityMarkets } from '@/components/dashboard/watchtower/commodity-markets'
 import { WatchtowerFoodCommandCenter } from '@/components/dashboard/watchtower/food-command-center'
-import { WatchtowerScenarioRoom } from '@/components/dashboard/watchtower/scenario-room'
 import { WatchtowerOperationsPulse } from '@/components/dashboard/watchtower/operations-pulse'
 import { WatchtowerAgentOperationsRoom } from '@/components/dashboard/watchtower/agent-operations-room'
-type Section = 'map' | 'markets' | 'food' | 'operations' | 'scenarios' | 'agents'
+type Section = 'map' | 'markets' | 'food' | 'operations' | 'agents'
 /** Map-first entry point. Existing workspaces and deep links are preserved. */
 export function WatchtowerWorkspace() {
   const { locale } = useI18n()
@@ -20,7 +19,7 @@ export function WatchtowerWorkspace() {
       const hash = window.location.hash
       if (hash === '#watchtower-markets') setActiveSection('markets')
       else if (hash === '#watchtower-operations') setActiveSection('operations')
-      else if (hash === '#watchtower-scenarios') setActiveSection('scenarios')
+      else if (hash === '#watchtower-scenarios') setActiveSection('agents') // Retired deep link
       else if (hash === '#watchtower-agents') setActiveSection('agents')
       else if (hash === '#watchtower-response' || hash === '#watchtower-food') setActiveSection('food')
       else setActiveSection('map')
@@ -37,7 +36,6 @@ export function WatchtowerWorkspace() {
     { id: 'markets' as const, label: tx('Commodity markets', '\u0623\u0633\u0648\u0627\u0642 \u0627\u0644\u0633\u0644\u0639'), icon: ChartCandlestick },
     { id: 'food' as const, label: tx('Food situation & risk', '\u0627\u0644\u0648\u0636\u0639 \u0627\u0644\u063a\u0630\u0627\u0626\u064a \u0648\u0627\u0644\u0645\u062e\u0627\u0637\u0631'), icon: Wheat },
     { id: 'operations' as const, label: tx('Supply operations', '\u0639\u0645\u0644\u064a\u0627\u062a \u0627\u0644\u0625\u0645\u062f\u0627\u062f'), icon: Network },
-    { id: 'scenarios' as const, label: tx('Scenario room', '\u063a\u0631\u0641\u0629 \u0627\u0644\u0633\u064a\u0646\u0627\u0631\u064a\u0648\u0647\u0627\u062a'), icon: FlaskConical },
     { id: 'agents' as const, label: tx('Agent operations', '\u0639\u0645\u0644\u064a\u0627\u062a \u0627\u0644\u0648\u0643\u0644\u0627\u0621'), icon: Bot },
   ]
   return <main className="growa nfii-command-scope flex h-full min-h-0 w-full flex-col overflow-hidden bg-background text-content">
@@ -52,7 +50,6 @@ export function WatchtowerWorkspace() {
         {activeSection === 'markets' && <CommodityMarkets />}
         {activeSection === 'food' && <WatchtowerFoodCommandCenter />}
         {activeSection === 'operations' && <WatchtowerOperationsPulse />}
-        {activeSection === 'scenarios' && <WatchtowerScenarioRoom />}
         {activeSection === 'agents' && <WatchtowerAgentOperationsRoom />}
       </div></div>}
   </main>
