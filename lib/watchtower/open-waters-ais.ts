@@ -21,6 +21,10 @@ const clean=(value:unknown,max=100)=>typeof value==='string'
   ?value.replace(/[<>]/g,'').trim().slice(0,max):''
 /** Every public anonymous query is <100 square degrees; no artificial ship points. */
 export const MARITIME_AIS_AREAS=[
+  // The former Red Sea north box ended at 29.5N and omitted Suez/Port Said.
+  // These small dedicated queries include both canal approaches, if licensed.
+  {id:'suez_canal',name:'Suez Canal and Port Said',bounds:[29.35,31.9,31.65,33.8]},
+  {id:'suez_gulf',name:'Gulf of Suez',bounds:[26.2,32.45,29.6,35.3]},
   {id:'red_sea_north',name:'Northern Red Sea',bounds:[21,32.5,29.5,39]},
   {id:'red_sea_central',name:'Central Red Sea',bounds:[16.5,37,23,44]},
   {id:'red_sea_south',name:'Southern Red Sea',bounds:[11.5,40,18,46]},
