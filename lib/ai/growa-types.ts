@@ -1,3 +1,5 @@
+import type { QatarCountrySnapshot } from '@/lib/analytics/qatar-country'
+import type { CommodityMarketsSnapshot } from '@/lib/watchtower/commodity-markets'
 import type {
   HarvestMetricKey,
   HarvestMetricSummary,
@@ -244,7 +246,33 @@ export interface WatchtowerGrowaAnalysisContext {
   dataGaps: string[]
 }
 
+
+/** An explicitly national, multi-source Data Analytics context.
+ * Growa farm estimates remain separate from public Qatar totals. */
+export interface QatarCountryGrowaAnalysisContext {
+  module: 'data-analytics'
+  scope: 'qatar-country'
+  generatedAt: string
+  headline: {
+    country: 'Qatar'
+    publicSourceGroups: number
+    availableSourceGroups: number
+    officialIndicatorCount: number
+    benchmarkCount: number
+    growaRecordsAvailable: boolean
+  }
+  national: QatarCountrySnapshot | null
+  markets: Pick<CommodityMarketsSnapshot,
+    'generatedAt' | 'source' | 'sourceUrl' | 'frequency' | 'status' |
+    'latestObservationMonth' | 'fxBasis' | 'instruments' | 'disclaimer'> | null
+  growaOperations: Pick<GrowaFarmAnalysisContext,
+    'headline' | 'crops' | 'producers' | 'rankings' | 'alerts'> | null
+  dataGaps: string[]
+  digest: string
+}
+
 export type GrowaAnalysisContext =
+  | QatarCountryGrowaAnalysisContext
   | GrowaFarmAnalysisContext
   | HarvestGrowaAnalysisContext
   | WatchtowerGrowaAnalysisContext
@@ -261,8 +289,15 @@ export function isWatchtowerGrowaContext(
   return context.module === 'watchtower'
 }
 
+export function isQatarCountryGrowaContext(
+  context: GrowaAnalysisContext
+): context is QatarCountryGrowaAnalysisContext {
+  return context.module === 'data-analytics' && 'scope' in context && context.scope === 'qatar-country'
+}
+
 export function isFarmGrowaContext(context: GrowaAnalysisContext): context is GrowaFarmAnalysisContext {
-  return context.module !== 'harvest' && context.module !== 'watchtower'
+  return context.module !== 'harvest' && context.module !== 'watchtower' &&
+    !isQatarCountryGrowaContext(context)
 }
 
 export interface GrowaChatMessage {
