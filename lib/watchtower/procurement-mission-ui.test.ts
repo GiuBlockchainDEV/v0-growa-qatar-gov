@@ -48,9 +48,10 @@ describe('Growa sourcing autopilot: multi-source analysis and human governance',
   expect(route).toContain("eq('status','approved')")
   expect(route).not.toContain('buildOrganizationOperationsBaseline')
  })
- it('is Growa-themed and keeps optional old audit replay collapsed',()=>{
+ it('is Growa-themed and removes the obsolete diagnostic playback',()=>{
   expect(desk).toContain('<WatchtowerProcurementMission')
-  expect(desk).toContain('<details className={styles.legacyAudit}>')
+  expect(desk).not.toContain('Diagnostic agent audit')
+  expect(desk).not.toContain('<details')
   expect(css).toContain('background:var(--growa-ink)')
   expect(css).toContain('var(--status-critical)')
   expect(css).toContain('.agentConsole')

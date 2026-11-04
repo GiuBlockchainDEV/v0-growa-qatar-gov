@@ -1,0 +1,99 @@
+/* Growa Commodity Intelligence / branded analytical cockpit. */
+.root{display:grid;gap:15px;min-width:0;color:var(--growa-ink)}
+.hero{position:relative;overflow:hidden;border:1px solid var(--growa-ink-700);border-radius:19px;background:var(--growa-ink);color:var(--growa-white);box-shadow:0 13px 36px rgba(19,37,22,.12)}
+.heroBack{pointer-events:none;position:absolute;inset:0;opacity:.58;background:radial-gradient(ellipse 48% 85% at 96% 0%,rgba(148,171,117,.27),transparent 82%),radial-gradient(ellipse 54% 100% at 5% 100%,rgba(198,181,136,.13),transparent 85%);transform:rotate(-2deg)}
+.heroHeader{position:relative;display:grid;grid-template-columns:minmax(0,1.5fr) minmax(280px,.7fr);gap:20px;padding:27px 30px 22px;align-items:center}
+.heroTitle{min-width:0;display:grid;gap:23px}
+.eyebrow,.cardEyebrow{display:flex;align-items:center;gap:7px;color:var(--growa-cream);font-size:10px;font-weight:800;letter-spacing:1.15px}
+.headline{display:flex;align-items:center;gap:20px}
+.cropSymbol{width:84px;height:84px;flex:none;display:grid;place-items:center;border:1px solid rgba(240,237,220,.22);border-radius:21px;background:rgba(255,255,255,.075);font-size:47px;line-height:1}
+.headline h2{font-size:clamp(32px,3.4vw,49px);font-weight:790;line-height:1.04;letter-spacing:-1.4px}
+.headline h2 span{display:block;color:var(--growa-cream);font-weight:470}
+.headline p{margin-top:11px;font-size:12px;line-height:1.6;color:var(--growa-stone-300);max-width:520px}
+.headerTags{display:flex;align-items:center;gap:7px;flex-wrap:wrap}
+.headerTags>span{display:inline-flex;align-items:center;gap:5px;border:1px solid var(--border-inverse);background:rgba(255,255,255,.04);border-radius:100px;padding:7px 11px;color:var(--growa-stone-300);font-size:9px;font-weight:750}
+.headerTags [data-tone='ready']{color:var(--growa-cream)}
+.headerTags [data-tone='missing']{color:#E2B4A9}
+.coveragePanel{display:flex;align-items:center;gap:3px;justify-self:end;min-width:0}
+.dial{width:185px;flex:none;position:relative}
+.dial svg{width:100%;display:block}
+.dialFill{transition:stroke-dashoffset .65s ease}
+.dialCenter{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:4px}
+.dialCenter>span{font-size:8px;letter-spacing:.55px;color:var(--growa-stone-300)}
+.dialCenter strong{font-size:32px;font-weight:810;letter-spacing:-1px;color:var(--growa-white)}
+.dialCenter small{font-size:8px;line-height:1.35;color:var(--growa-stone-300);max-width:100px}
+.coverageDetails{display:grid;gap:8px;max-width:160px}
+.coverageDetails>span{font-size:9px;letter-spacing:.7px;font-weight:750;color:var(--growa-cream)}
+.coverageDetails strong{font-size:30px;letter-spacing:-1px;line-height:1.05;color:var(--growa-white)}
+.coverageDetails strong small{font-size:11px;font-weight:500;color:var(--growa-stone-300)}
+.coverageDetails p{font-size:10px;line-height:1.5;color:var(--growa-stone-300)}
+.kpis{position:relative;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:1px;background:var(--border-inverse);border-top:1px solid var(--border-inverse)}
+.kpi{background:var(--growa-ink-800);min-width:0;display:grid;gap:9px;padding:18px 22px}
+.kpi>div{display:flex;justify-content:space-between;gap:8px;align-items:center}
+.kpi>div span{font-size:9px;letter-spacing:.7px;color:var(--growa-stone-300);font-weight:750}
+.kpi>div svg{color:var(--growa-cream);flex:none}
+.kpi strong{font-size:clamp(22px,2.3vw,34px);font-weight:770;color:var(--growa-white);font-variant-numeric:tabular-nums;line-height:1}
+.kpi strong small{font-size:11px;margin-inline-start:6px;font-weight:500;color:var(--growa-stone-300)}
+.kpi p{font-size:10px;color:var(--growa-stone-300)}
+.deck{display:grid;grid-template-columns:minmax(0,1.13fr) minmax(320px,.87fr);gap:15px;align-items:stretch}
+.decisionPanel,.flowPanel,.marketPanel,.executionPanel{min-width:0;border:1px solid var(--border-subtle);border-radius:15px;background:var(--surface-card);padding:23px 24px;box-shadow:0 3px 13px rgba(18,35,21,.035)}
+.decisionPanel{border-inline-start:4px solid var(--growa-sage);background:linear-gradient(115deg,var(--growa-cream-50),var(--surface-card) 75%)}
+.cardEyebrow{color:var(--growa-sage-700)}
+.decisionTop{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-top:14px}
+.decisionTop h3,.flowPanel h3,.panelTop h3,.executionPanel h3{font-size:clamp(17px,1.55vw,23px);font-weight:770;letter-spacing:-.5px;color:var(--growa-ink)}
+.decisionTop>span{font-size:9px;font-weight:800;letter-spacing:.3px;border-radius:999px;padding:7px 10px;border:1px solid var(--border-default);color:var(--growa-stone-600)}
+.decisionTop>span[data-risk='critical']{color:var(--status-critical);border-color:var(--warning-line);background:var(--warning-soft)}
+.decisionTop>span[data-risk='high']{color:var(--warning-strong);border-color:var(--warning-line)}
+.decisionTop>span[data-risk='stable']{color:var(--growa-sage-700);border-color:var(--growa-cream-300)}
+.decisionText{font-size:13px;line-height:1.65;color:var(--growa-ink);margin-top:12px;max-width:730px}
+.actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:23px}
+.actions button{display:inline-flex;gap:8px;align-items:center;padding:10px 15px;border-radius:100px;font-size:11px;font-weight:740;border:1px solid var(--growa-ink)}
+.actions button:first-child{color:var(--growa-white);background:var(--growa-ink)}
+.actions button:last-child{color:var(--growa-ink);background:var(--surface-card);border-color:var(--border-default)}
+.actions button:hover{transform:translateY(-1px)}
+.agentDisclosure{font-size:10px;line-height:1.5;color:var(--growa-stone-600);border-top:1px solid var(--border-subtle);padding-top:12px;margin-top:18px}
+.flowPanel h3,.executionPanel h3{margin-top:12px}
+.flowPanel>p,.executionPanel>p{font-size:11px;color:var(--growa-stone-600);line-height:1.5;margin-top:6px}
+.flowBars{display:grid;gap:22px;margin-top:26px}
+.barLabel{display:flex;justify-content:space-between;align-items:baseline;gap:9px;font-size:12px;margin-bottom:8px}
+.barLabel span{color:var(--growa-stone-600)}
+.barLabel strong{font-weight:780;font-variant-numeric:tabular-nums}
+.barTrack{height:15px;background:var(--growa-stone-100);border-radius:999px;overflow:hidden}
+.barTrack i{display:block;height:100%;border-radius:999px;transition:width .65s ease}
+.barTrack [data-fill='available']{background:var(--growa-sage)}
+.barTrack [data-fill='required']{background:var(--growa-ink)}
+.flowBars>small{color:var(--growa-stone-600);font-size:10px;line-height:1.55}
+.emptyData,.noMarket{display:grid;place-content:center;justify-items:center;gap:9px;text-align:center;border:1px dashed var(--border-default);border-radius:10px;min-height:180px;padding:23px;font-size:11px;color:var(--growa-stone-600);line-height:1.5}
+.noMarket{min-height:226px}
+.noMarket strong{font-size:13px;color:var(--growa-ink)}
+.noMarket span{max-width:330px}
+.panelTop{display:flex;align-items:start;justify-content:space-between;gap:9px;flex-wrap:wrap}
+.panelTop h3{margin-top:12px}
+.panelTop a{display:flex;align-items:center;gap:5px;color:var(--growa-sage-700);font-size:11px;font-weight:750}
+.sparkChart{margin-top:20px;padding:22px 19px 15px;border-radius:13px;color:var(--growa-white);background:var(--growa-ink);overflow:hidden}
+.priceHeadline{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap}
+.priceHeadline div small{font-size:9px;letter-spacing:.8px;color:var(--growa-stone-300)}
+.priceHeadline div strong{display:block;margin-top:7px;font-size:clamp(25px,2.5vw,36px);line-height:1.06;letter-spacing:-.7px}
+.priceHeadline div strong span{font-size:12px;font-weight:450;color:var(--growa-stone-300)}
+.priceHeadline div p{font-size:10px;margin-top:7px;color:var(--growa-stone-300)}
+.priceHeadline>span{border:1px solid var(--border-inverse);border-radius:999px;padding:7px 9px;font-size:10px;font-weight:700;color:var(--growa-cream)}
+.priceHeadline>span[data-direction='up']{color:#E2C18A}
+.sparkChart svg{display:block;width:100%;height:155px;margin-top:18px}
+.chartDates{display:flex;justify-content:space-between;font-size:10px;color:var(--growa-stone-300);margin-top:3px}
+.priceFoot{margin-top:14px;font-size:9px;line-height:1.5;color:var(--growa-stone-300)}
+.dataAlert{font-size:10px;color:var(--warning-strong);margin-top:11px}
+.readinessRows{display:grid;gap:7px;margin-top:17px}
+.readinessRows>a,.readinessRows>button{display:flex;align-items:center;gap:10px;width:100%;padding:13px 12px;text-align:start;border:1px solid var(--border-subtle);border-radius:10px;background:var(--growa-stone-50);min-width:0;transition:background .15s,border-color .15s}
+.readinessRows>a:hover,.readinessRows>button:hover{border-color:var(--growa-sage-600);background:var(--growa-cream-50)}
+.readinessRows>a>svg,.readinessRows>button>svg{flex:none;color:var(--growa-sage-700)}
+.stepCount{font-size:10px;font-weight:800;color:var(--growa-stone-500)}
+.readinessRows>a>div,.readinessRows>button>div{display:grid;gap:4px;flex:1;min-width:0}
+.readinessRows strong{font-size:10px;font-weight:800;letter-spacing:.35px;color:var(--growa-ink)}
+.readinessRows small{font-size:10px;color:var(--growa-stone-600);line-height:1.4}
+.actionState{color:var(--growa-sage-700);font-size:9px;font-weight:720;max-width:100px}
+.bottomStrip{display:flex;gap:9px 21px;flex-wrap:wrap;padding:9px 2px 2px}
+.bottomStrip span{display:inline-flex;gap:7px;align-items:center;color:var(--growa-stone-600);font-size:10px}
+.bottomStrip svg{color:var(--growa-sage-700)}
+@media(max-width:1200px){.heroHeader{grid-template-columns:1fr}.coveragePanel{justify-self:start}.deck{grid-template-columns:1fr}.kpis{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:620px){.heroHeader{padding:21px 17px}.heroTitle{gap:16px}.headline{align-items:flex-start;gap:12px}.cropSymbol{width:56px;height:56px;font-size:31px;border-radius:14px}.headline h2{font-size:30px}.coveragePanel{gap:0}.dial{width:148px}.coverageDetails{max-width:150px}.kpi{padding:14px}.kpi strong{font-size:25px}.decisionPanel,.flowPanel,.marketPanel,.executionPanel{padding:18px}.actionState{display:none}}
+@media(prefers-reduced-motion:reduce){.dialFill,.barTrack i,.actions button,.readinessRows>a,.readinessRows>button{transition:none}}

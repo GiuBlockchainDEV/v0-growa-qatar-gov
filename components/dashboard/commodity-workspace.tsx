@@ -11,6 +11,7 @@ import { PageHeader } from '@/components/brand/layout'
 import { FoodSourceIntake } from '@/components/dashboard/food-source-intake'
 import { CommodityAgentLab } from '@/components/dashboard/commodity-agent-lab'
 import { CommodityBalanceCharts } from '@/components/dashboard/commodity-balance-charts'
+import { CommodityIntelligenceCockpit } from '@/components/dashboard/commodity-intelligence-cockpit'
 import { useOperationalContext } from '@/contexts/operational-context-provider'
 import { useCommodityCase } from '@/hooks/use-commodity-case'
 import { useI18n } from '@/lib/i18n'
@@ -201,6 +202,15 @@ export function CommodityWorkspace(){
 
       {view==='overview'&&(
         <div className="space-y-4">
+          <CommodityIntelligenceCockpit key={commodity.id} commodity={commodity}
+            balance={balance} links={links} onAgents={()=>setView('agents')}
+            onSources={()=>setView('sources')}/>
+          <details className="rounded-xl border border-line bg-card p-4">
+            <summary className="cursor-pointer text-[12px] font-semibold text-sage-700">
+              {tx('Show detailed accounting and linked source records',
+                'عرض تفاصيل المحاسبة وسجلات المصادر')}
+            </summary>
+            <div className="mt-4 space-y-4">
           <section className="grid grid-cols-2 gap-2 lg:grid-cols-4"
             aria-label={tx('Main commodity indicators','المؤشرات الأساسية للسلعة')}>
             {metrics.map(item=>(
@@ -395,6 +405,8 @@ export function CommodityWorkspace(){
               </div>
             </aside>
           </div>
+            </div>
+          </details>
         </div>
       )}
 
