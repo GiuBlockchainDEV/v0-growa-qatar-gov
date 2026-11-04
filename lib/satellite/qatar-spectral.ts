@@ -11,13 +11,13 @@ export const SPECTRAL_INDEX_CONFIG={
   label:'NDVI',bands:['B08','B04'] as const,
   expression:'(B08-B04)/(B08+B04)',
   description:'Vegetation greenness · near infrared vs red',
-  palette:'rdylgn',rescale:'-0.05,0.65',
+  palette:'rdylgn',rescale:'-0.2,0.9',
  },
  ndmi:{
   label:'NDMI',bands:['B08','B11'] as const,
   expression:'(B08-B11)/(B08+B11)',
   description:'Vegetation canopy moisture proxy · near infrared vs SWIR',
-  palette:'rdbu',rescale:'-0.6,0.6',
+  palette:'rdbu',rescale:'-0.35,0.35',
  },
 } as const
 export function qatarMosaicSearch(date:Date){
