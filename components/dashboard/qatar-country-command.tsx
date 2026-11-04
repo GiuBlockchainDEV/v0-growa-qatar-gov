@@ -1,13 +1,13 @@
 'use client'
 import {useEffect,useMemo,useState} from 'react'
 import {
- Activity,ChartNoAxesCombined,Database,ExternalLink,Globe2,
+ Activity,ChartNoAxesCombined,ExternalLink,Globe2,
  Leaf,RefreshCw,ShieldCheck,Sprout,TrendingUp,
 } from 'lucide-react'
 import type {
  QatarCountrySnapshot,IndicatorSeries,
 } from '@/lib/analytics/qatar-country'
-import {sumLatestProduction,farmsByMunicipality,sourceCoverage,latestYear,
+import {sumLatestProduction,farmsByMunicipality,latestYear,
  WORLD_BANK_INDICATORS,DATASET_URL} from '@/lib/analytics/qatar-country'
 import type {CommodityMarketsSnapshot} from '@/lib/watchtower/commodity-markets'
 import type {GrowaFarmAnalysisContext} from '@/lib/ai/growa-types'
