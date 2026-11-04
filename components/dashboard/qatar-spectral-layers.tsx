@@ -2,7 +2,7 @@
 
 import {useEffect,useRef,useState} from 'react'
 import {Layers3,RefreshCw} from 'lucide-react'
-import type {GridLayer} from 'leaflet'
+import type {GridLayer,GridLayerOptions} from 'leaflet'
 import type {MapController} from '@/components/dashboard/map/map-model'
 import {QATAR_SPECTRAL_BBOX,SPECTRAL_INDEX_CONFIG,type SpectralIndex} from '@/lib/satellite/qatar-spectral'
 import {clipTileToQatar} from '@/lib/satellite/qatar-clip'
@@ -108,7 +108,7 @@ export function QatarSpectralLayers({map}:{map:MapController|null}){
      image.src=tileUrl(payload.url,coords)
      return canvas
     },
-   })
+   }) as unknown as new(options?:GridLayerOptions)=>GridLayer
    layer=new Raster({
     bounds,opacity,tileSize:256,maxZoom:19,maxNativeZoom:14,
     attribution:'ESA Sentinel-2 L2A · Microsoft Planetary Computer · Natural Earth',
