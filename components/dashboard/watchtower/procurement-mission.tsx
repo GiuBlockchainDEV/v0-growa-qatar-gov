@@ -694,8 +694,8 @@ export function WatchtowerProcurementMission({posture}:{posture:FoodPosture}){
         'Supplier due diligence and firm quotation pending'}</small></div>
       <span>{item.approved&&item.priceQarPerTonne!==null?
        money(item.priceQarPerTonne)+'/t':
-       report.origins.find(o=>o.countryCode===item.country)?.planningPrice?
-       money((report.origins.find(o=>o.countryCode===item.country)?.planningPrice?.unitQarPerKg??0)*1000)+
+       report?.origins.find(o=>o.countryCode===item.country)?.planningPrice?
+       money((report?.origins.find(o=>o.countryCode===item.country)?.planningPrice?.unitQarPerKg??0)*1000)+
        '/t · INDICATIVE, not supplier quote':'NO BINDING QUOTE'}</span>
      </div>)}
     </div>
