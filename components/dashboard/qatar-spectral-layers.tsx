@@ -3,9 +3,12 @@ import {useEffect,useRef,useState} from 'react'
 import {Layers3,RefreshCw} from 'lucide-react'
 import type {TileLayer} from 'leaflet'
 import type {MapController} from '@/components/dashboard/map/map-model'
-import {QATAR_SPECTRAL_BBOX,SPECTRAL_INDEX_CONFIG,type SpectralIndex} from '@/lib/satellite/qatar-spectral'
+import {QATAR_SPECTRAL_BBOX,SPECTRAL_INDEX_CONFIG,type SpectralIndex,type SpectralTile} from '@/lib/satellite/qatar-spectral'
 
-type TilePayload={index:SpectralIndex;url:string;startDate:string;endDate:string;notice:string}
+type TilePayload={
+ index:SpectralIndex;url:string;startDate:string;endDate:string;notice:string
+ mode?:'mosaic'|'stac-scenes';tiles?:SpectralTile[]
+}
 const NDVI_COLORS=['#a50026','#f46d43','#ffffbf','#a6d96a','#006837']
 const NDMI_COLORS=['#a50026','#f46d43','#f7f7f7','#abd9e9','#313695']
 
@@ -20,7 +23,7 @@ export function QatarSpectralLayers({map}:{map:MapController|null}){
  const [rendered,setRendered]=useState(false)
  const [error,setError]=useState<string|null>(null)
  const [retry,setRetry]=useState(0)
- const overlay=useRef<TileLayer|null>(null)
+ const overlays=useRef<TileLayer[]>([])
 
  useEffect(()=>{
   if(!index){setPayload(null);setBusy(false);setRendered(false);setError(null);return}
@@ -29,8 +32,8 @@ export function QatarSpectralLayers({map}:{map:MapController|null}){
   void fetch('/api/satellite/qatar-spectral?index='+index,{
    signal:controller.signal,cache:'no-store',
   }).then(async response=>{
-   const body=await response.json() as Partial<TilePayload>&{error?:string}
-   if(!response.ok)throw Error(body.error??'Microsoft Planetary Computer is unavailable')
+   const body=await response.json() as Partial<TilePayload>&{error?:string;detail?:string}
+   if(!response.ok)throw Error([body.error??'Microsoft service unavailable',body.detail].filter(Boolean).join(' · '))
    if(!body.url||body.index!==index||!body.startDate||!body.endDate)
     throw Error('Sentinel-2 tiles have no valid metadata')
    if(!controller.signal.aborted)setPayload(body as TilePayload)
@@ -44,45 +47,63 @@ export function QatarSpectralLayers({map}:{map:MapController|null}){
  },[index,retry])
 
  useEffect(()=>{
-  overlay.current?.remove()
-  overlay.current=null
+  overlays.current.forEach(layer=>layer.remove())
+  overlays.current=[]
   if(!map||!index||!payload||payload.index!==index)return
   let cancelled=false
-  let layer:TileLayer|null=null
+  const layers:TileLayer[]=[]
+  let loaded=0,failures=0
   void import('leaflet').then(module=>{
    if(cancelled)return
    const L=module.default
-   const bounds=L.latLngBounds(
-    [QATAR_SPECTRAL_BBOX[1],QATAR_SPECTRAL_BBOX[0]],
-    [QATAR_SPECTRAL_BBOX[3],QATAR_SPECTRAL_BBOX[2]],
-   )
-   layer=L.tileLayer(payload.url,{
-    bounds,opacity,maxZoom:19,maxNativeZoom:14,
-    attribution:'ESA Sentinel-2 L2A · Microsoft Planetary Computer',
-    crossOrigin:true,
-   }).addTo(map)
-   layer.setZIndex(300)
-   overlay.current=layer
-   let failures=0
-   layer.on('tileload',()=>{if(!cancelled){setBusy(false);setRendered(true)}})
-   layer.on('tileerror',()=>{
-    failures+=1
-    if(!cancelled&&failures>=4){
-     setBusy(false)
-     setError('Some spectral tiles cannot be loaded. Retry or select OFF.')
-    }
-   })
-  }).catch(()=>{if(!cancelled){setError('Unable to initialize the satellite raster');setBusy(false)}})
+   const tiles=payload.tiles?.length?payload.tiles:[{
+    url:payload.url,bbox:[...QATAR_SPECTRAL_BBOX] as [number,number,number,number],
+    sceneDate:payload.endDate,
+   }]
+   for(const item of tiles){
+    if(cancelled)break
+    const bounds=L.latLngBounds(
+     [item.bbox[1],item.bbox[0]],
+     [item.bbox[3],item.bbox[2]],
+    )
+    const layer=L.tileLayer(item.url,{
+     bounds,opacity,maxZoom:19,maxNativeZoom:14,
+     attribution:'ESA Sentinel-2 L2A · Microsoft Planetary Computer',
+     crossOrigin:true,
+    }).addTo(map)
+    layer.setZIndex(300+layers.length)
+    layers.push(layer)
+    layer.on('tileload',()=>{
+     if(!cancelled){
+      loaded+=1
+      setRendered(true)
+      setBusy(false)
+     }
+    })
+    layer.on('tileerror',()=>{
+     failures+=1
+     // Some edge tiles may legitimately have no pixels. Do not call a
+     // partially rendered national STAC mosaic a total failure.
+     if(!cancelled&&loaded===0&&failures>=12){
+      setBusy(false)
+      setError('Satellite tiles failed to render. Try Retry or select OFF.')
+     }
+    })
+   }
+   overlays.current=layers
+  }).catch(()=>{
+   if(!cancelled){setError('Unable to initialize the satellite raster');setBusy(false)}
+  })
   return ()=>{
    cancelled=true
-   layer?.remove()
-   if(overlay.current===layer)overlay.current=null
+   layers.forEach(layer=>layer.remove())
+   overlays.current=overlays.current.filter(layer=>!layers.includes(layer))
   }
-  // Tile opacity is modified without re-registering the raster.
+  // Keep opacity independent of STAC search or raster creation.
   // eslint-disable-next-line react-hooks/exhaustive-deps
  },[map,index,payload])
 
- useEffect(()=>{overlay.current?.setOpacity(opacity)},[opacity,payload])
+ useEffect(()=>{overlays.current.forEach(layer=>layer.setOpacity(opacity))},[opacity,payload])
 
  const toggle=(choice:SpectralIndex|null)=>{
   setIndex(choice===index?null:choice)
@@ -129,12 +150,15 @@ export function QatarSpectralLayers({map}:{map:MapController|null}){
     {error?'Satellite service: '+error:
      busy?'Retrieving Sentinel-2 imagery…':
      payload&&rendered?
-      'Scenes from '+payload.startDate+' to '+payload.endDate:
+      (payload.mode==='stac-scenes'?
+       'STAC fallback · '+(payload.tiles?.length??1)+' satellite scene(s) · '+payload.startDate+' to '+payload.endDate:
+       'Mosaic · '+payload.startDate+' to '+payload.endDate):
       'Initializing nationwide imagery…'}
    </p>
    <p className="mt-1 text-[9px] leading-4 text-content-soft">
-    Qatar-wide mosaic · scene cloud cover below 35%. Cloud, shadow and no-data
-    areas may remain. NDMI describes vegetation moisture, not soil moisture.
+    {payload?.mode==='stac-scenes'?'Regional Sentinel-2 scene coverage':'Qatar-wide mosaic'} ·
+    scene cloud cover below 35%. Areas not covered by valid scenes stay transparent.
+    Clouds, shadows and no-data pixels may remain. NDMI is not soil moisture.
    </p>
    {error&&<button type="button" onClick={()=>setRetry(x=>x+1)}
     className="mt-2 inline-flex items-center gap-1 text-[10px] font-semibold text-sage-700 underline">
