@@ -3,6 +3,8 @@
 import { type ComponentType, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { buildWeatherDashboardParams } from '@/lib/dashboard/weather-url'
+import {WeatherCommandCenter} from '@/components/dashboard/weather-command-center'
+import type {WeatherReading,WeatherHistory} from '@/lib/weather/operational-screen'
 import {
   BarChart3,
   CloudRain,
@@ -597,8 +599,17 @@ export function WeatherWorkspace() {
     const nextLongitude = searchParams.get('weatherLng') || ''
     const nextRequestedAt =
       searchParams.get('weatherRequestedAt') || searchParams.get('requested_at') || DEFAULT_REQUESTED_AT
+    if (!nextLatitude && !nextLongitude) {
+      // Initial operational view: documented location, NOT invented weather.
+      // The map and the analysis must share one actual selected coordinate.
+      const params = buildWeatherDashboardParams(searchParams, {
+        lat: 25.2854, lng: 51.5310, zoom: 10, requestedAt: nextRequestedAt,
+      })
+      router.replace(`/dashboard?${params.toString()}`, { scroll: false })
+      return
+    }
     applyWeatherSelection(nextLatitude, nextLongitude, nextRequestedAt)
-  }, [applyWeatherSelection, searchParams])
+  }, [applyWeatherSelection, router, searchParams])
 
   useEffect(() => {
     const handleGridSelect = (event: Event) => {
@@ -638,6 +649,26 @@ export function WeatherWorkspace() {
     loadWeatherFor(latitude, longitude, requestedAt)
   }, [latitude, loadWeatherFor, longitude, requestedAt, router, searchParams])
 
+  const jumpToWeatherLocation = useCallback((lat: number, lng: number) => {
+    const params = buildWeatherDashboardParams(searchParams, {
+      lat, lng, zoom: 10, requestedAt: '',
+    })
+    // Preset selection always requests latest observations.
+    params.delete('weatherRequestedAt')
+    router.replace(`/dashboard?${params.toString()}`, { scroll: false })
+  }, [router, searchParams])
+  const openWeatherTrend = useCallback((key: string) => {
+    setSelectedMetricKey(key)
+    setChartModalOpen(true)
+    if (latitude.trim() && longitude.trim()) {
+      const cacheKey = getHistoryCacheKey(latitude, longitude, requestedAt)
+      const cached = historyCacheRef.current[cacheKey]
+      if (cached) {
+        setHistoryPoints(cached)
+        setHistoryError(null)
+      } else void loadHistory(latitude, longitude, requestedAt)
+    }
+  }, [getHistoryCacheKey, latitude, loadHistory, longitude, requestedAt])
   const hasSelection = Boolean(latitude.trim() && longitude.trim())
   const summary = useMemo(() => {
     const displayLatitude = reading?.coordinate?.latitude ?? toNumber(latitude)
@@ -659,20 +690,24 @@ export function WeatherWorkspace() {
 
   return (
     <div className="growa h-full overflow-y-auto overscroll-contain space-y-4 bg-background p-6 text-content">
-      <InvestigationContextHeader
-        eyebrow={tr('Intelligence · climate')}
-        title={tr('Weather intelligence')}
-        description={tr('Qatar 5 km weather grid with ET0, VPD, heat stress and irrigation indicators. Select a grid cell on the map to investigate local conditions.')}
-        icon={CloudSun}
-        meta={[
-          { label: tr('Grid'), value: '5 km', accent: true },
-          { label: tr('Cells'), value: '510' },
-          { label: tr('Selection'), value: hasSelection ? summary.cellId : tr('None') },
-          { label: tr('Signals'), value: String(watchtower.signals.length), accent: watchtower.signals.length > 0 },
-        ]}
+      <WeatherCommandCenter
+        reading={reading as WeatherReading | null}
+        history={historyPoints as WeatherHistory[]}
+        loading={loading}
+        historyLoading={historyLoading}
+        location={hasSelection ? (Math.abs(Number(latitude)-25.2854)<.008 &&
+          Math.abs(Number(longitude)-51.531)<.008 ? 'Doha' : summary.cellId) : 'Doha'}
+        coordinates={hasSelection ? summary.coordinate : ''}
+        onLocationChange={jumpToWeatherLocation}
+        onRefresh={() => void loadWeatherFor(latitude, longitude, requestedAt)}
+        onHistoryMetricClick={openWeatherTrend}
       />
-
       <OperationalContextBanner />
+      <details className="rounded-xl border border-line bg-card">
+        <summary className="cursor-pointer p-4 text-[13px] font-semibold text-sage-700">
+          {tr('Advanced weather investigation')} · {tr('grid diagnostics, agronomy, forecast and signals')}
+        </summary>
+        <div className="space-y-4 p-4">
 
       {/* The weather cell and its metric tiles are the module itself: they
           used to sit in a half-width box scrolling at 300px, with the
@@ -784,6 +819,8 @@ export function WeatherWorkspace() {
           </div>
         }
       />
+        </div>
+      </details>
 
       {chartModalOpen && (
         <div className="fixed inset-0 z-[2600] flex items-center justify-center p-6" style={{ background: 'rgba(17,30,19,.45)' }} role="dialog" aria-modal="true" aria-label={selectedMetric ? tr(selectedMetric.label) : tr('Metric trend')}>
