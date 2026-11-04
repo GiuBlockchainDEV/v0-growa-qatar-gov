@@ -62,7 +62,7 @@ describe('Qatar country intelligence records',()=>{
   const api=load('app/api/analytics/qatar-country/route.ts')
   expect(page).toContain('<QatarCountryCommand growa={{')
   expect(page).toContain('Growa operational deep dive')
-  expect(command).toContain('Qatar Food System')
+  expect(command).toContain('<h2>Qatar <em>Food System</em>')
   expect(command).toContain('Qatar Open Data')
   expect(command).toContain('World Bank')
   expect(command).toContain('market?.instruments')
