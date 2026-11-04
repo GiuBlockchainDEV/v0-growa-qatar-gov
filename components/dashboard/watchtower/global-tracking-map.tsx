@@ -212,7 +212,7 @@ export function GlobalTrackingMap({ assets, historyAssets, alerts, riskZones, ch
             color:trusted?'#72967A':'#77848A',weight:selected?4:2.1,
             opacity:selected?0.95:0.62,dashArray:'2 7',
           }).bindTooltip(label(
-            'ORIGIN → POSITION reference, NOT an observed completed '+(asset.kind==='aircraft'?'flight':'voyage')+
+            'ORIGIN → POSITION reference, NOT an observed completed voyage'+
             '. '+origin.name+' to latest fix. '+i.description,
           )).on('click',()=>select.current(asset.id)).addTo(group)
         }
