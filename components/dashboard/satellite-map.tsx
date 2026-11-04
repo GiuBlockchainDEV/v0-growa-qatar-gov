@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Crosshair, Minus, Plus, Search, X } from 'lucide-react'
+import { Crosshair, Eye, EyeOff, Minus, Plus, Search, X } from 'lucide-react'
 import type { Layer, LeafletMouseEvent } from 'leaflet'
 
 type LeafletModule = typeof import('leaflet')
@@ -239,6 +239,7 @@ export function SatelliteMap({
   const [mapForReadout, setMapForReadout] = useState<MapController | null>(null)
   const [customPoints, setCustomPoints] = useState<CustomPoint[]>([])
   const [nationalFarmMarkers, setNationalFarmMarkers] = useState<MapMarker[]>([])
+  const [showFarmOverlays,setShowFarmOverlays]=useState(true)
   const [intelligenceSignals, setIntelligenceSignals] = useState<IntelligenceSignal[]>([])
   const [operationsFarmTarget, setOperationsFarmTarget] = useState<OperationsFarmTarget | null>(null)
   const [pointPolygons, setPointPolygons] = useState<PointPolygonsMap>({})
@@ -1379,7 +1380,10 @@ export function SatelliteMap({
       return
     }
 
-    markerInstancesRef.current = mapMarkers.map((marker) => {
+    markerInstancesRef.current = mapMarkers.filter(marker=>
+      !spectralEnabled||showFarmOverlays||
+      (marker.type!=='farm'&&!pointPolygons[marker.id]?.length)
+    ).map((marker) => {
       const customPoint = customPointById.get(marker.id) || null
       const markerInstance = L.marker([marker.lat, marker.lng], {
         icon: createMarkerIcon(marker.type, marker.id),
@@ -1424,6 +1428,9 @@ export function SatelliteMap({
     alwaysShowRegisteredFarms,
     farmsLayerEnabled,
     layerVisibility,
+    spectralEnabled,
+    showFarmOverlays,
+    pointPolygons,
     tr,
   ])
 
@@ -1493,6 +1500,7 @@ export function SatelliteMap({
     harvestFieldLayerInstancesRef.current = []
 
     if (harvestFields.length === 0) return
+    if (spectralEnabled && !showFarmOverlays) return
     if (layerVisibility && !layerVisibility.showFields) return
 
     const hasRasterOverlay = Boolean(harvestRasterOverlay?.imageUrl)
@@ -1542,6 +1550,8 @@ export function SatelliteMap({
     harvestFields,
     harvestRasterOverlay,
     layerVisibility?.showFields,
+    spectralEnabled,
+    showFarmOverlays,
     mapReady,
     onHarvestFieldClick,
     selectedHarvestParcelId,
@@ -1757,6 +1767,7 @@ export function SatelliteMap({
     draftVertexInstancesRef.current = []
 
     if (layerVisibility && !layerVisibility.showPolygons) return
+    if (spectralEnabled && !showFarmOverlays) return
     if (weatherGridPoints.length > 0 || harvestFields.length > 0) return
 
     const polygonsToRender = normalizedCropFilter
@@ -1891,6 +1902,8 @@ export function SatelliteMap({
     pointPolygons,
     polygonDrawPointId,
     harvestFields,
+    spectralEnabled,
+    showFarmOverlays,
     tr,
     weatherGridPoints,
   ])
@@ -2288,6 +2301,19 @@ export function SatelliteMap({
       {wellsEnabled&&<QatarWellsLayers map={mapForReadout}/>}
 
       <div className="absolute bottom-6 end-6 z-[1000] flex flex-col gap-2">
+        {spectralEnabled && (
+          <button
+            type="button"
+            onClick={() => setShowFarmOverlays(visible => !visible)}
+            aria-pressed={showFarmOverlays}
+            aria-label={showFarmOverlays ? 'Hide farms and polygons' : 'Show farms and polygons'}
+            title={showFarmOverlays ? 'Hide farms and polygons' : 'Show farms and polygons'}
+            className="flex min-h-10 items-center justify-center gap-2 rounded-lg border border-line bg-card px-3 text-[12px] font-semibold text-content shadow-panel transition-colors hover:bg-stone-100"
+          >
+            {showFarmOverlays ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+            {showFarmOverlays ? 'Hide farms & polygons' : 'Show farms & polygons'}
+          </button>
+        )}
         {isGrowaAdmin && (
           <>
             <button
