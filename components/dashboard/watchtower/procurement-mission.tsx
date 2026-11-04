@@ -78,21 +78,23 @@ export function WatchtowerProcurementMission({posture}:{posture:FoodPosture}){
  const org=posture.organizationId
  const selectedCommodity=commodity?.commodityId??''
  const target=Number(targetText)
- const chosen=contracts.filter(item=>shortlist.includes(item.id))
- const selectedAllocations:Allocation[]=chosen.flatMap(item=>{
+ const chosen=useMemo(()=>contracts.filter(item=>shortlist.includes(item.id)),
+  [contracts,shortlist])
+ const selectedAllocations=useMemo<Allocation[]>(()=>chosen.flatMap(item=>{
   const value=Number(allocations[item.id]??0)
   return value>0?[{contractId:item.id,tonnes:value}]:[]
- })
+ }),[chosen,allocations])
  const allocationError=validateAllocations(chosen,selectedAllocations,target)
- const origins=[...new Set(selectedAllocations.map(a=>
-  contracts.find(c=>c.id===a.contractId)?.countryCode).filter((x):x is string=>Boolean(x)))].filter(x=>x!=='QA')
+ const origins=useMemo(()=>[...new Set(selectedAllocations.map(a=>
+  contracts.find(c=>c.id===a.contractId)?.countryCode)
+  .filter((x):x is string=>Boolean(x)))].filter(x=>x!=='QA'),
+  [selectedAllocations,contracts])
  const logisticsValid=validRouteChoices(selectedAllocations,contracts,routeSelected,routes)
  const totalGoods=estimatedGoodsValue(contracts,selectedAllocations)
  const latestSubmitted=useMemo(()=>submission.filter(x=>x.status==='pending'),[submission])
  const completed=decisions.filter(x=>x.decision==='approved').length
  const selectedLeadRows=leadRows.slice(0,80)
  const approvedChoices=contracts.filter(c=>c.availableTonnes>0)
- const associatedNames=new Set(contracts.map(c=>c.supplierName?.toLowerCase().trim()).filter(Boolean))
  const dateLabel=posture.fromDate+' → '+posture.toDate
 
  // Scope, source and selected-commodity updates invalidate previous local gates.
@@ -171,8 +173,7 @@ export function WatchtowerProcurementMission({posture}:{posture:FoodPosture}){
   })
   setRoutes(next);setRouteErrors(issues)
   setRouteStatus(issues.length===origins.length?'error':issues.length?'partial':'ready')
- },[origins.join('|'),selectedAllocations.map(a=>a.contractId+':'+a.tonnes).join('|'),
-  contracts,org,selectedCommodity,supported])
+ },[origins,selectedAllocations,contracts,org,selectedCommodity,supported])
  useEffect(()=>{
   if(stage===4&&routeStatus==='idle')void fetchCorridors()
  },[stage,routeStatus,fetchCorridors])
@@ -206,7 +207,7 @@ export function WatchtowerProcurementMission({posture}:{posture:FoodPosture}){
  const reject=()=>{
   if(busy||submitted||stage===0)return
   const returnTo=previousMissionStep(stage)
-  setDecisions(prev=>[...prev.filter(x=>MISSION_STEPS.findIndex(s=>s.id)<returnTo),
+  setDecisions(prev=>[...prev.filter(x=>MISSION_STEPS.findIndex(s=>s.id===x.stage)<returnTo),
    {stage:MISSION_STEPS[stage].id,decision:'rejected',at:new Date().toISOString(),
     note:reason.trim()||'User requested revision'}])
   if(returnTo<=3){setRoutes({});setRouteSelected({});setRouteStatus('idle')}
