@@ -27,6 +27,12 @@ describe('Source-backed Watchtower observations', () => {
     expect(() => parseAircraft({ ...air(), now: NOW + 120000 }, NOW)).toThrow()
     expect(() => parseAircraft({ now: NOW, error: 'unavailable' }, NOW)).toThrow()
   })
+  it('classifies dedicated freighter evidence but not mixed airlines', () => {
+    expect(parseAircraft(air({ flight: 'AZG123' }), NOW)[0].cargo).toBe('operator_inferred')
+    expect(parseAircraft(air({ flight: 'QTR123', ownOp: 'Qatar Airways Cargo' }), NOW)[0].cargo).toBe('operator_inferred')
+    expect(parseAircraft(air({ flight: 'QTR123', desc: 'Boeing 777 freighter' }), NOW)[0].cargo).toBe('airframe_inferred')
+    expect(parseAircraft(air({ flight: 'QTR123', desc: 'Boeing 777-300ER' }), NOW)[0].cargo).toBe('unverified')
+  })
   it('recognizes AIS cargo class without fabricating food manifests', () => {
     const asset = parseVessels(ship(), NOW)[0]
     expect(asset.heading).toBe(25)
