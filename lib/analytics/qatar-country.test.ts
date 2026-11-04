@@ -4,7 +4,7 @@ import {join} from 'node:path'
 import {
  parseQatarProduction,parseQatarFarms,parseQatarSufficiency,
  parseWorldBank,sumLatestProduction,farmsByMunicipality,parseYear,
- WORLD_BANK_INDICATORS,sourceCoverage,selfSufficiencyBarPercent,
+ WORLD_BANK_INDICATORS,sourceCoverage,selfSufficiencyBarPercent,QATAR_VERIFIED_SUFFICIENCY_2025,
 } from './qatar-country'
 const load=(p:string)=>readFileSync(join(process.cwd(),p),'utf8')
 describe('Qatar country intelligence records',()=>{
@@ -43,6 +43,20 @@ describe('Qatar country intelligence records',()=>{
   expect(selfSufficiencyBarPercent(118)).toBe(100)
   expect(selfSufficiencyBarPercent(-3)).toBe(0)
  })
+ it('uses validated 2025 Ministry results instead of suspicious 0.x percent ratios',()=>{
+  const values=QATAR_VERIFIED_SUFFICIENCY_2025
+  expect(values).toHaveLength(6)
+  expect(values.every(r=>r.year===2025)).toBe(true)
+  expect(Object.fromEntries(values.map(x=>[x.product,x.ratioPercent]))).toEqual({
+   'Fresh poultry':99,
+   'Fresh milk & dairy':99,
+   'Fresh fish':67,
+   'Basic vegetables':47,
+   'Table eggs':27,
+   'Red meat':19,
+  })
+  expect(values.every(r=>r.ratioPercent>=19&&r.sourceUrl.startsWith('https://'))).toBe(true)
+ })
  it('parses World Bank population with missing observations retained as absent',()=>{
   const parsed=parseWorldBank([{page:1,pages:1},[
    {countryiso3code:'QAT',indicator:{id:WORLD_BANK_INDICATORS.population.code},
@@ -77,7 +91,11 @@ describe('Qatar country intelligence records',()=>{
    command.indexOf('<AnnualTrend series={selected}/>')
   )
   expect(command).toContain('selfSufficiencyBarPercent(row.ratioPercent)')
-  expect(command).toContain('What does self-sufficiency mean?')
+  expect(command).not.toContain('What does self-sufficiency mean?')
+  expect(command).not.toContain('suffExplanation')
+  expect(command).toContain('Ministry of Municipality')
+  expect(api).toContain('QATAR_VERIFIED_SUFFICIENCY_2025')
+  expect(api).not.toContain("publicDataset('sufficiency',parseQatarSufficiency)")
   expect(command).toContain('onClick={()=>setSelectedYear(p.year)}')
   expect(command).toContain('aria-pressed={active.year===p.year}')
   expect(command).not.toContain('DATA COVERAGE')
