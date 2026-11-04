@@ -532,6 +532,7 @@ export function GlobalWatchtower() {
     ]
     return [...aircraft,...vessels]
   },[openSea,globalAis,openWaters,snapshot,maritimeFeed,gccRadar,regionalAir])
+  const cargoCandidateCount=allAssets.filter(a=>a.kind==='aircraft'&&inside(a)&&a.cargo!=='unverified').length
   const assets = useMemo(() => allAssets.filter(a =>
     inside(a) &&
     (a.kind==='vessel'
@@ -732,6 +733,10 @@ export function GlobalWatchtower() {
         onClick={()=>setFreightFlightsOnly(value=>!value)}>
         <span><Plane size={13}/>Only possible cargo aircraft</span><i className={styles.switch}/>
       </button>
+      <p className={styles.controlSummary}>
+        <strong>{cargoCandidateCount.toLocaleString('en-US')}</strong> possible cargo aircraft in selected area
+        <span> · Source classification only, not verified cargo manifests</span>
+      </p>
       <button className={styles.toggle} aria-pressed={layers.risks||layers.production}
         onClick={()=>setLayers(current=>({...current,
           risks:!(current.risks||current.production),
