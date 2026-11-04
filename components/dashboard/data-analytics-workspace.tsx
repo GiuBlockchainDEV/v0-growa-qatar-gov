@@ -24,6 +24,7 @@ import {
 } from '@/components/dashboard/intelligence-workspace-ui'
 import { useMapNavigation } from '@/components/dashboard/intelligence-metrics-shared'
 import { OperationalContextBanner } from '@/components/dashboard/operational-context-banner'
+import { QatarCountryCommand } from '@/components/dashboard/qatar-country-command'
 import { sharedFetch } from '@/lib/client/shared-fetch'
 import { useI18n } from '@/lib/i18n'
 
@@ -389,23 +390,20 @@ export function DataAnalyticsWorkspace() {
 
   return (
     <IntelligenceWorkspaceRoot layout="scroll">
-      <IntelligenceWorkspaceHeader>
-      <IntelligenceHero
-        eyebrow={tr('Operational intelligence layer')}
-        title={tr('Data analytics command')}
-        description={tr('Unified command view for crop performance, resource pressure, and producer efficiency across all mapped farm points.')}
-        icon={BarChart3}
-        statusItems={[
-          { label: tr('Status'), value: tr('Live'), accent: true },
-          { label: tr('Grid'), value: tr('Online') },
-          { label: tr('Signal'), value: formatScore(analyticsMeta.avgPolygonScore) },
-          { label: tr('Polygons'), value: String(polygons.length) },
-        ]}
-      />
-
-      </IntelligenceWorkspaceHeader>
-
+      <QatarCountryCommand growa={{
+        producers:headline.producerCount,
+        crops:headline.cropCount,
+        tonnes:headline.totalProduction,
+        waterM3:headline.totalWater,
+        energyKwh:headline.totalEnergy,
+        polygons:polygons.length,
+      }}/>
       <OperationalContextBanner />
+      <details className="rounded-xl border border-line bg-card">
+        <summary className="cursor-pointer px-5 py-4 text-[13px] font-semibold text-sage-700">
+          Growa operational deep dive · crop intelligence, farm resources, producer rankings & AI
+        </summary>
+        <div className="space-y-4 p-4">
 
       {loading ? (
         <IntelligenceLoadingState message={tr('Loading analytics…')} />
@@ -579,6 +577,8 @@ export function DataAnalyticsWorkspace() {
           </IntelligenceWorkspaceCommand>
         </IntelligenceWorkspaceBody>
       )}
+        </div>
+      </details>
     </IntelligenceWorkspaceRoot>
   )
 }
