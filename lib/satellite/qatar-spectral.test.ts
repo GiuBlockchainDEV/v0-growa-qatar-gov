@@ -22,6 +22,8 @@ describe('Qatar nationwide Microsoft Planetary Computer spectral imagery',()=>{
   expect(spectralTileParams('ndvi').getAll('assets')).toEqual(['B08','B04'])
   expect(spectralTileParams('ndmi').getAll('assets')).toEqual(['B08','B11'])
   expect(spectralTileParams('ndvi').get('asset_as_band')).toBe('true')
+  expect(spectralTileParams('ndvi').get('rescale')).toBe('-0.05,0.65')
+  expect(spectralTileParams('ndmi').get('rescale')).toBe('-0.6,0.6')
  })
  it('accepts only the trusted Planetary Computer mosaic image template',()=>{
   const base='https://planetarycomputer.microsoft.com/api/data/v1/mosaic/abc123/tiles/WebMercatorQuad/{z}/{x}/{y}.png'
