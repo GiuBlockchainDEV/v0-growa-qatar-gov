@@ -87,6 +87,8 @@ export interface SatelliteMapProps {
   onHarvestFieldRingsChange?: (rings: PolygonVertex[][]) => void
   onHarvestFieldVerticesChange?: (vertices: PolygonVertex[]) => void
   activeMapLayers?: string[]
+  /** Qatar-wide NDVI and NDMI from Sentinel-2 on the full-screen Live Map only. */
+  spectralEnabled?: boolean
   /** Live map surfaces always show registered org farms, regardless of layer toggles. */
   alwaysShowRegisteredFarms?: boolean
 }
