@@ -1,19 +1,32 @@
 'use client'
+
 import {useEffect,useRef,useState} from 'react'
 import {Layers3,RefreshCw} from 'lucide-react'
-import type {TileLayer} from 'leaflet'
+import type {GridLayer} from 'leaflet'
 import type {MapController} from '@/components/dashboard/map/map-model'
-import {QATAR_SPECTRAL_BBOX,SPECTRAL_INDEX_CONFIG,type SpectralIndex,type SpectralTile} from '@/lib/satellite/qatar-spectral'
+import {QATAR_SPECTRAL_BBOX,SPECTRAL_INDEX_CONFIG,type SpectralIndex} from '@/lib/satellite/qatar-spectral'
+import {clipTileToQatar} from '@/lib/satellite/qatar-clip'
 
 type TilePayload={
- index:SpectralIndex;url:string;startDate:string;endDate:string;notice:string
- mode?:'mosaic'|'stac-scenes';tiles?:SpectralTile[]
+ index:SpectralIndex
+ url:string
+ startDate:string
+ endDate:string
+ notice:string
+ mode:'mosaic'
 }
 const NDVI_COLORS=['#a50026','#f46d43','#ffffbf','#a6d96a','#006837']
 const NDMI_COLORS=['#a50026','#f46d43','#f7f7f7','#abd9e9','#313695']
 
-/** Live-map-only Leaflet imagery, scoped to the Qatar nationwide STAC search.
- * One rendered spectral index at a time to avoid mixing incompatible legends.
+function tileUrl(template:string,coords:{x:number;y:number;z:number}){
+ // Microsoft TileJSON may percent-encode Leaflet's coordinate placeholders.
+ return template.replace(/(?:\{|%7B)(z|x|y)(?:\}|%7D)/gi,(_,axis:string)=>
+  String(coords[axis as keyof typeof coords]))
+}
+
+/** A single canvas GridLayer; each tile is clipped in true WebMercator pixel
+ * coordinates BEFORE its satellite pixels are composited on the map. The
+ * national boundary includes islands and handles polygon holes.
  */
 export function QatarSpectralLayers({map}:{map:MapController|null}){
  const [index,setIndex]=useState<SpectralIndex|null>(null)
@@ -23,23 +36,28 @@ export function QatarSpectralLayers({map}:{map:MapController|null}){
  const [rendered,setRendered]=useState(false)
  const [error,setError]=useState<string|null>(null)
  const [retry,setRetry]=useState(0)
- const overlays=useRef<TileLayer[]>([])
+ const overlay=useRef<GridLayer|null>(null)
 
  useEffect(()=>{
-  if(!index){setPayload(null);setBusy(false);setRendered(false);setError(null);return}
+  if(!index){
+   setPayload(null);setBusy(false);setRendered(false);setError(null)
+   return
+  }
   const controller=new AbortController()
   setPayload(null);setError(null);setBusy(true);setRendered(false)
   void fetch('/api/satellite/qatar-spectral?index='+index,{
    signal:controller.signal,cache:'no-store',
   }).then(async response=>{
    const body=await response.json() as Partial<TilePayload>&{error?:string;detail?:string}
-   if(!response.ok)throw Error([body.error??'Microsoft service unavailable',body.detail].filter(Boolean).join(' · '))
-   if(!body.url||body.index!==index||!body.startDate||!body.endDate)
-    throw Error('Sentinel-2 tiles have no valid metadata')
+   if(!response.ok)throw Error([body.error??'Microsoft service unavailable',
+    body.detail].filter(Boolean).join(' · '))
+   if(!body.url||body.index!==index||body.mode!=='mosaic'||
+    !body.startDate||!body.endDate)
+    throw Error('A single valid Sentinel-2 mosaic was not returned')
    if(!controller.signal.aborted)setPayload(body as TilePayload)
-  }).catch(err=>{
+  }).catch(reason=>{
    if(!controller.signal.aborted){
-    setError(err instanceof Error?err.message:'Spectral service unavailable')
+    setError(reason instanceof Error?reason.message:'Spectral imagery unavailable')
     setBusy(false)
    }
   })
@@ -47,63 +65,87 @@ export function QatarSpectralLayers({map}:{map:MapController|null}){
  },[index,retry])
 
  useEffect(()=>{
-  overlays.current.forEach(layer=>layer.remove())
-  overlays.current=[]
+  overlay.current?.remove()
+  overlay.current=null
   if(!map||!index||!payload||payload.index!==index)return
-  let cancelled=false
-  const layers:TileLayer[]=[]
-  let loaded=0,failures=0
+  let disposed=false
+  let layer:GridLayer|null=null
   void import('leaflet').then(module=>{
-   if(cancelled)return
+   if(disposed)return
    const L=module.default
-   const tiles=payload.tiles?.length?payload.tiles:[{
-    url:payload.url,bbox:[...QATAR_SPECTRAL_BBOX] as [number,number,number,number],
-    sceneDate:payload.endDate,
-   }]
-   for(const item of tiles){
-    if(cancelled)break
-    const bounds=L.latLngBounds(
-     [item.bbox[1],item.bbox[0]],
-     [item.bbox[3],item.bbox[2]],
-    )
-    const layer=L.tileLayer(item.url,{
-     bounds,opacity,maxZoom:19,maxNativeZoom:14,
-     attribution:'ESA Sentinel-2 L2A · Microsoft Planetary Computer',
-     crossOrigin:true,
-    }).addTo(map)
-    layer.setZIndex(300+layers.length)
-    layers.push(layer)
-    layer.on('tileload',()=>{
-     if(!cancelled){
-      loaded+=1
-      setRendered(true)
-      setBusy(false)
+   const bounds=L.latLngBounds(
+    [QATAR_SPECTRAL_BBOX[1],QATAR_SPECTRAL_BBOX[0]],
+    [QATAR_SPECTRAL_BBOX[3],QATAR_SPECTRAL_BBOX[2]],
+   )
+   const Raster=L.GridLayer.extend({
+    createTile(coords:L.Coords,done:(error:Error|null,tile:HTMLElement)=>void){
+     const canvas=document.createElement('canvas')
+     canvas.width=256;canvas.height=256
+     const context=canvas.getContext('2d')
+     if(!context){
+      done(new Error('Canvas rendering not supported'),canvas)
+      return canvas
      }
-    })
-    layer.on('tileerror',()=>{
-     failures+=1
-     // Some edge tiles may legitimately have no pixels. Do not call a
-     // partially rendered national STAC mosaic a total failure.
-     if(!cancelled&&loaded===0&&failures>=12){
-      setBusy(false)
-      setError('Satellite tiles failed to render. Try Retry or select OFF.')
+     const image=new Image()
+     image.crossOrigin='anonymous'
+     image.onload=()=>{
+      if(disposed)return
+      try{
+       context.save()
+       clipTileToQatar(context,(lon,lat)=>{
+        const world=map.project(L.latLng(lat,lon),coords.z)
+        return {x:world.x-coords.x*256,y:world.y-coords.y*256}
+       })
+       context.drawImage(image,0,0,256,256)
+       context.restore()
+       done(null,canvas)
+      }catch(err){
+       context.restore()
+       done(err instanceof Error?err:new Error('Clipping failed'),canvas)
+      }
      }
-    })
-   }
-   overlays.current=layers
+     image.onerror=()=>{if(!disposed)done(new Error('Sentinel-2 tile unavailable'),canvas)}
+     image.src=tileUrl(payload.url,coords)
+     return canvas
+    },
+   })
+   layer=new Raster({
+    bounds,opacity,tileSize:256,maxZoom:19,maxNativeZoom:14,
+    attribution:'ESA Sentinel-2 L2A · Microsoft Planetary Computer · Natural Earth',
+    updateWhenIdle:true,keepBuffer:2,
+   }) as GridLayer
+   layer.addTo(map)
+   const container=layer.getContainer()
+   if(container)container.style.opacity=String(opacity)
+   layer.setZIndex(300)
+   overlay.current=layer
+   let failures=0
+   layer.on('tileload',()=>{
+    if(!disposed){setRendered(true);setBusy(false)}
+   })
+   layer.on('tileerror',()=>{
+    failures+=1
+    if(!disposed&&failures>=8){
+     setBusy(false)
+     setError('The mosaic tiles cannot be rendered. Check Planetary Computer and retry.')
+    }
+   })
   }).catch(()=>{
-   if(!cancelled){setError('Unable to initialize the satellite raster');setBusy(false)}
+   if(!disposed){setBusy(false);setError('Unable to initialize the Qatar mask')}
   })
   return ()=>{
-   cancelled=true
-   layers.forEach(layer=>layer.remove())
-   overlays.current=overlays.current.filter(layer=>!layers.includes(layer))
+   disposed=true
+   layer?.remove()
+   if(overlay.current===layer)overlay.current=null
   }
-  // Keep opacity independent of STAC search or raster creation.
+  // Opacity is a separate layer property and must not create new raster tiles.
   // eslint-disable-next-line react-hooks/exhaustive-deps
  },[map,index,payload])
 
- useEffect(()=>{overlays.current.forEach(layer=>layer.setOpacity(opacity))},[opacity,payload])
+ useEffect(()=>{
+  const container=overlay.current?.getContainer()
+  if(container)container.style.opacity=String(opacity)
+ },[opacity,payload])
 
  const toggle=(choice:SpectralIndex|null)=>{
   setIndex(choice===index?null:choice)
@@ -148,17 +190,13 @@ export function QatarSpectralLayers({map}:{map:MapController|null}){
    </div>
    <p role="status" className="mt-2 text-[10px] leading-4 text-content-soft">
     {error?'Satellite service: '+error:
-     busy?'Retrieving Sentinel-2 imagery…':
-     payload&&rendered?
-      (payload.mode==='stac-scenes'?
-       'STAC fallback · '+(payload.tiles?.length??1)+' satellite scene(s) · '+payload.startDate+' to '+payload.endDate:
-       'Mosaic · '+payload.startDate+' to '+payload.endDate):
-      'Initializing nationwide imagery…'}
+     busy?'Retrieving and clipping Sentinel-2 imagery…':
+     payload&&rendered?'Qatar boundary mask · '+payload.startDate+' to '+payload.endDate:
+     'Initializing the national satellite mosaic…'}
    </p>
    <p className="mt-1 text-[9px] leading-4 text-content-soft">
-    {payload?.mode==='stac-scenes'?'Regional Sentinel-2 scene coverage':'Qatar-wide mosaic'} ·
-    scene cloud cover below 35%. Areas not covered by valid scenes stay transparent.
-    Clouds, shadows and no-data pixels may remain. NDMI is not soil moisture.
+    Single mosaic, geographically clipped to Qatar including islands.
+    Cloud, shadow and no-data pixels may remain. NDMI is not soil moisture.
    </p>
    {error&&<button type="button" onClick={()=>setRetry(x=>x+1)}
     className="mt-2 inline-flex items-center gap-1 text-[10px] font-semibold text-sage-700 underline">

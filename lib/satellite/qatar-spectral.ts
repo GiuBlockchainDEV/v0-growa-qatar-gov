@@ -48,7 +48,7 @@ export function isMicrosoftTileUrl(url:string):boolean{
  try{
   const parsed=new URL(url)
   return parsed.protocol==='https:'&&parsed.hostname==='planetarycomputer.microsoft.com'&&
-   /^\/api\/data\/v1\/(?:mosaic\/tiles\/[a-z0-9-]+|mosaic\/[a-z0-9-]+\/tiles|item\/tiles)\/(?:WebMercatorQuad\/)?\{z\}\/\{x\}\/\{y\}(?:@\d+x)?(?:\.(?:png|jpg|jpeg|webp))?$/i.test(decodeURIComponent(parsed.pathname))
+   /^\/api\/data\/v1\/(?:mosaic\/tiles\/[a-z0-9-]+|mosaic\/[a-z0-9-]+\/tiles|mosaic\/collections\/[a-z0-9-]+\/tiles|mosaic\/searches\/[a-z0-9-]+\/tiles|item\/tiles)\/(?:WebMercatorQuad\/)?\{z\}\/\{x\}\/\{y\}(?:@\d+x)?(?:\.(?:png|jpg|jpeg|webp))?$/i.test(decodeURIComponent(parsed.pathname))
  }catch{return false}
 }
 
