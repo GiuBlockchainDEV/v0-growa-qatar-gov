@@ -1,3 +1,4 @@
+import type { UtilityNationalAiContext } from '@/lib/analytics/qatar-utility-agent-context'
 import type { QatarCountrySnapshot } from '@/lib/analytics/qatar-country'
 import type { CommodityMarketsSnapshot } from '@/lib/watchtower/commodity-markets'
 import type {
@@ -272,6 +273,7 @@ export interface QatarCountryGrowaAnalysisContext {
 }
 
 export type GrowaAnalysisContext =
+  | UtilityNationalAiContext
   | QatarCountryGrowaAnalysisContext
   | GrowaFarmAnalysisContext
   | HarvestGrowaAnalysisContext
@@ -295,9 +297,15 @@ export function isQatarCountryGrowaContext(
   return context.module === 'data-analytics' && 'scope' in context && context.scope === 'qatar-country'
 }
 
+export function isNationalUtilityGrowaContext(
+  context:GrowaAnalysisContext
+):context is UtilityNationalAiContext{
+  return (context.module==='water-intelligence'||context.module==='energy-intelligence')
+    && 'scope' in context && context.scope==='qatar-national'
+}
 export function isFarmGrowaContext(context: GrowaAnalysisContext): context is GrowaFarmAnalysisContext {
   return context.module !== 'harvest' && context.module !== 'watchtower' &&
-    !isQatarCountryGrowaContext(context)
+    !isQatarCountryGrowaContext(context) && !isNationalUtilityGrowaContext(context)
 }
 
 export interface GrowaChatMessage {
