@@ -1,11 +1,10 @@
-import type { Metadata } from 'next'
-import { NfiiOperationsWorkspace } from '@/components/dashboard/nfii-ops/operations-workspace'
+import { redirect } from 'next/navigation'
 
-export const metadata: Metadata = {
-  title: 'Strategic Reserves | NFII',
-  description: 'Warehouse, batch and reserve release operations',
-}
-
-export default function Page() {
-  return <NfiiOperationsWorkspace focus="reserves" />
+/**
+ * Strategic Reserves has been retired from the user interface.
+ * Preserve the legacy URL for bookmarks without rendering an empty module.
+ * Operational inventory records and authorized APIs remain unchanged.
+ */
+export default function RetiredReservesRedirect(){
+  redirect('/dashboard?module=watchtower#watchtower-operations')
 }

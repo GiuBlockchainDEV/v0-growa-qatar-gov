@@ -223,7 +223,6 @@ function OperationsHeader({focus,organizationName}:{
     {href:'/dashboard?module=watchtower',en:'Watchtower',ar:'برج المراقبة',icon:Layers,active:false},
     {href:'/dashboard/procurement',en:'Procurement',ar:'المشتريات',icon:ShoppingCart,active:focus==='procurement'},
     {href:'/dashboard/logistics',en:'Logistics',ar:'الخدمات اللوجستية',icon:Ship,active:focus==='logistics'},
-    {href:'/dashboard/reserves',en:'Strategic reserves',ar:'الاحتياطيات',icon:Warehouse,active:focus==='reserves'},
   ]
   const config=AREA[focus]
   return <header className="space-y-3">

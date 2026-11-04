@@ -189,7 +189,6 @@ export function WatchtowerAgentOperationsRoom(){
    {verdict&&<div className={styles.flowHandoffs}>
     <Link href="/dashboard/procurement">Procurement <ArrowRight size={14}/></Link>
     <Link href="/dashboard/logistics">Logistics <ArrowRight size={14}/></Link>
-    <Link href="/dashboard/reserves">Strategic reserves <ArrowRight size={14}/></Link>
    </div>}
    <div className={styles.flowFoot}>This page provides deterministic, read-only scenario analysis.
     No live LLM agent execution, procurement approvals, purchases or reserve transfers occur here.</div>

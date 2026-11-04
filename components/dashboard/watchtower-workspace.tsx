@@ -42,7 +42,7 @@ export function WatchtowerWorkspace() {
     <nav aria-label="Watchtower sections" className="flex shrink-0 items-center gap-1 overflow-x-auto border-b border-line bg-card px-3 py-2">
       {sections.map(section => <button key={section.id} type="button" aria-pressed={section.id === activeSection} onClick={() => selectSection(section.id)}
         className={'inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-pill border px-3 py-1.5 text-[12px] font-medium transition-colors ' + (section.id === activeSection ? 'border-line-accent bg-cream-100 text-sage-700' : 'border-transparent text-content-soft hover:bg-muted hover:text-content')}><section.icon size={13} />{section.label}</button>)}
-      <div className="ms-auto flex shrink-0 gap-1 ps-4">{[['/dashboard/procurement', 'Procurement'], ['/dashboard/logistics', 'Logistics'], ['/dashboard/reserves', 'Reserves'], ['/dashboard?module=commodities', 'Commodities']].map(([href, label]) =>
+      <div className="ms-auto flex shrink-0 gap-1 ps-4">{[['/dashboard/procurement', 'Procurement'], ['/dashboard/logistics', 'Logistics'], ['/dashboard?module=commodities', 'Commodities']].map(([href, label]) =>
         <Link key={href} href={href} className="inline-flex items-center gap-1 rounded-pill px-3 py-2 text-[11px] text-content-soft transition-colors hover:bg-cream-100 hover:text-sage-700">{label}<ArrowUpRight size={11} /></Link>)}</div>
     </nav>
     {activeSection === 'map' ? <div className="min-h-0 flex-1"><GlobalWatchtower /></div> :

@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
-import { ArrowUpRight, Boxes, ClipboardCheck, RefreshCw, Ship, ShoppingBag } from 'lucide-react'
+import { ArrowUpRight, ClipboardCheck, RefreshCw, Ship, ShoppingBag } from 'lucide-react'
 import { useOrganization } from '@/hooks/use-organization'
 import { useI18n } from '@/lib/i18n'
 import {
@@ -91,13 +91,6 @@ export function WatchtowerOperationsPulse(){
       value:metrics?String(metrics.inTransit):null,
       unitEn:'active / delayed',unitAr:'نشطة / متأخرة',
     },
-    {
-      href:'/dashboard/reserves',en:'Strategic reserves',ar:'الاحتياطيات الاستراتيجية',
-      detailEn:'Delivered shipment → approved lot → release',
-      detailAr:'شحنة مستلمة ← دفعة معتمدة ← صرف',icon:Boxes,
-      value:metrics?pretty(metrics.uncommittedTonnes):null,
-      unitEn:'t uncommitted',unitAr:'طن غير مخصص',
-    },
   ] as const
 
   return (
@@ -151,7 +144,7 @@ export function WatchtowerOperationsPulse(){
       {error&&<p role="alert" className="mt-3 rounded-md border border-warning-line p-3 text-[11px] text-warning-strong">
         {error}
       </p>}
-      <div className="mt-4 grid gap-3 md:grid-cols-3">
+      <div className="mt-4 grid gap-3 md:grid-cols-2">
         {modules.map(item=>{
           const Icon=item.icon
           return <Link key={item.href} href={item.href}

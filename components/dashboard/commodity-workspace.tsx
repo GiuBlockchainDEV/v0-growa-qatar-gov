@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
 import {
   ArrowRight, ArrowUpRight, Bot, Database, FileCheck2,
-  RefreshCw, ShieldCheck, Ship, ShoppingBasket, Warehouse,
+  RefreshCw, ShieldCheck, Ship, ShoppingBasket,
 } from 'lucide-react'
 import { PageHeader } from '@/components/brand/layout'
 import { FoodSourceIntake } from '@/components/dashboard/food-source-intake'
@@ -275,7 +275,7 @@ export function CommodityWorkspace(){
                 {tx('Procurement contracts, delivered shipments and reserve lots may describe the same goods. These records are NOT added to the food balance.',
                   'قد تشير العقود والشحنات والدفعات إلى البضائع نفسها؛ لا تُضاف مرة أخرى إلى الميزان الغذائي.')}
               </p>
-              <div className="mt-4 grid gap-3 sm:grid-cols-3">
+              <div className="mt-4 grid gap-3 sm:grid-cols-2">
                 {[
                   {href:'/dashboard/procurement',icon:ShoppingBasket,
                     en:'Procurement',ar:'المشتريات',
@@ -287,11 +287,6 @@ export function CommodityWorkspace(){
                     total:links.deliveredTonnes,unit:'t',
                     detail:tx(links.activeShipments+' active · '+links.delayedShipments+' delayed',
                       links.activeShipments+' نشطة · '+links.delayedShipments+' متأخرة')},
-                  {href:'/dashboard/reserves',icon:Warehouse,
-                    en:'Strategic reserves',ar:'الاحتياطي الاستراتيجي',
-                    total:links.availableReserveTonnes,unit:'t',
-                    detail:tx(links.lots.length+' linked lots · '+links.committedReleaseTonnes+' t reserved',
-                      links.lots.length+' دفعات · '+number(links.committedReleaseTonnes)+' طن مخصصة')},
                 ].map(item=>{
                   const Icon=item.icon
                   return <Link key={item.href} href={item.href}
