@@ -236,3 +236,13 @@
 .quantityConfirmation input{width:15px;height:15px;flex:none;accent-color:var(--growa-sage-700)}
 .routeSummaryName{font-size:12px!important;overflow-wrap:anywhere}
 .freightTotal{font-size:clamp(17px,2vw,24px)!important;font-weight:780!important;color:var(--growa-ink)!important;font-variant-numeric:tabular-nums}
+
+/* Quantity-specific cost evidence: contractual goods vs non-binding freight. */
+.costSummary{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px;min-width:0}
+.costItem{display:grid;align-content:start;gap:8px;min-width:0;padding:14px;border:1px solid var(--border-subtle);border-radius:10px;background:var(--growa-stone-50)}
+.costItem[data-kind='combined']{border-color:var(--growa-cream-300);background:var(--growa-cream-50)}
+.costItem small{font-size:10px;font-weight:750;color:var(--growa-sage-700);line-height:1.4}
+.costItem strong{font-size:clamp(15px,1.6vw,21px);color:var(--growa-ink);font-weight:780;line-height:1.22;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+.costItem p,.costDisclaimer{font-size:10px;line-height:1.55;color:var(--growa-stone-600)}
+.costDisclaimer{padding:8px 12px;border:1px solid var(--border-subtle);border-radius:8px;background:var(--growa-stone-50)}
+@media(max-width:850px){.costSummary{grid-template-columns:1fr}}

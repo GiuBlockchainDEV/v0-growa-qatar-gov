@@ -5,6 +5,7 @@ import Link from 'next/link'
 import {ProcurementRouteDesk} from './procurement-route-desk'
 import {ProcurementQualificationDesk} from './procurement-qualification-desk'
 import {type CorridorPayload,routeOptionReport,mapRouteEvidence} from '@/lib/watchtower/procurement-route-evidence'
+import {routeCostSummary} from '@/lib/watchtower/procurement-costs'
 import {
  ArrowLeft,ArrowUpRight,Bot,Check,ClipboardCheck,Copy,
  PackageCheck,Play,RefreshCw,ShieldCheck,Terminal,XCircle,
@@ -88,7 +89,14 @@ export function WatchtowerProcurementMission({posture}:{posture:FoodPosture}){
  const runId=useRef(0)
  const requestController=useRef<AbortController|null>(null)
  const logId=useRef(0)
- const logBottom=useRef<HTMLDivElement|null>(null)
+ const logViewport=useRef<HTMLDivElement|null>(null)
+ const consoleSection=useRef<HTMLElement|null>(null)
+ const supplierSection=useRef<HTMLElement|null>(null)
+ const strategySection=useRef<HTMLElement|null>(null)
+ const decisionSection=useRef<HTMLElement|null>(null)
+ const strategyGate=useRef<HTMLDivElement|null>(null)
+ const orderGate=useRef<HTMLDivElement|null>(null)
+ const [scrollNext,setScrollNext]=useState<'strategy-gate'|'order-gate'|null>(null)
  const [follow,setFollow]=useState(true)
  const log=(agent:string,text:string,state:LogEntry['state']='complete')=>{
   setLogs(prev=>[...prev,{id:++logId.current,agent,text,state,when:nowLabel()}])
@@ -116,8 +124,37 @@ export function WatchtowerProcurementMission({posture}:{posture:FoodPosture}){
   return ()=>{runId.current+=1;requestController.current?.abort()}
  },[posture])
  useEffect(()=>{
-  if(follow)logBottom.current?.scrollIntoView({behavior:'smooth',block:'nearest'})
+  // Only scroll the log, never its parent workspace after an approval.
+  if(follow&&logViewport.current)
+   logViewport.current.scrollTo({top:logViewport.current.scrollHeight,behavior:'auto'})
  },[logs.length,follow])
+ const scrollToStage=(target:HTMLElement|null)=>{
+  const viewport=target?.closest<HTMLElement>('[data-watchtower-flow-scroll]')
+  if(!target||!viewport)return
+  const top=viewport.scrollTop+target.getBoundingClientRect().top-
+   viewport.getBoundingClientRect().top-16
+  const reduced=window.matchMedia('(prefers-reduced-motion: reduce)').matches
+  viewport.scrollTo({top:Math.max(0,top),behavior:reduced?'auto':'smooth'})
+ }
+ useEffect(()=>{
+  // Keep progression in the visible sequence: analysis, suppliers, routes, decision.
+  const target=phase==='researching'?consoleSection.current:
+   phase==='shortlist'?supplierSection.current:
+   phase==='plan_approval'?strategySection.current:
+   phase==='approved'?decisionSection.current:null
+  if(!target)return
+  const frame=window.requestAnimationFrame(()=>scrollToStage(target))
+  return ()=>window.cancelAnimationFrame(frame)
+ },[phase])
+ useEffect(()=>{
+  if(!scrollNext)return
+  const target=scrollNext==='strategy-gate'?strategyGate.current:orderGate.current
+  const frame=window.requestAnimationFrame(()=>{
+   scrollToStage(target)
+   setScrollNext(null)
+  })
+  return ()=>window.cancelAnimationFrame(frame)
+ },[scrollNext,phase,logisticsApprovals.length,orders.length])
  const changeCommodity=(id:string)=>{
   reset();setCommodityId(id);setQuantity('');setQuantityConfirmed(false)
  }
@@ -238,6 +275,17 @@ export function WatchtowerProcurementMission({posture}:{posture:FoodPosture}){
  const approvedGoodsValue=purchasePlan.lines.reduce((sum,line)=>
   sum+line.tonnes*line.priceQarPerTonne,0)
  const prospectCount=chosen.filter(x=>!x.approved).length
+ const pricedTonnes=purchasePlan.lines.reduce((sum,line)=>sum+line.tonnes,0)
+ const confirmedRoute=report&&logisticsApprovals.length===1?
+  Object.entries(report.corridors).flatMap(([country,result])=>
+   mapRouteEvidence(country,result)).find(x=>x.key===logisticsApprovals[0])??null:null
+ const selectedRouteCosts=routeCostSummary(confirmedRoute,report?.corridors??{},
+  chosen,report?.origins??[],requiredQty)
+ const oneOrigin=Boolean(confirmedRoute&&purchasePlan.lines.length&&
+  purchasePlan.lines.every(line=>chosen.some(candidate=>
+   candidate.contractId===line.contractId&&candidate.country===confirmedRoute.country)))
+ const fullOrderTotal=purchasePlan.ready&&oneOrigin&&
+  selectedRouteCosts.coversRequestedQuantity&&selectedRouteCosts.freight!==null
  const approveShortlist=()=>{
   if(!chosen.length){setNotice('Choose at least one documented candidate.');return}
   log('Human checkpoint','Approved '+chosen.length+
@@ -297,6 +345,7 @@ export function WatchtowerProcurementMission({posture}:{posture:FoodPosture}){
    setOrders([...saved])
   }
   setSubmitting(false)
+  if(saved.some(item=>item.status==='pending'))setScrollNext('order-gate')
   setNotice('Only successfully created Pending proposals require reviewer approval. '+
    'Failed submissions were not retried automatically.')
  }
@@ -315,6 +364,7 @@ export function WatchtowerProcurementMission({posture}:{posture:FoodPosture}){
    const ids=new Set(activeOrders.map(x=>x.id))
    setApprovalRecords((snapshot?.approvals??[]).filter(x=>
     x.target_type==='purchase_order'&&ids.has(x.target_id??'')))
+   if(activeOrders.length)setScrollNext('order-gate')
    setNotice(activeOrders.length?
     activeOrders.map(x=>x.order_ref+': '+x.status).join(' · '):
     'No matching orders returned. Check the official Procurement approval queue.')
@@ -335,6 +385,7 @@ export function WatchtowerProcurementMission({posture}:{posture:FoodPosture}){
    if(!response.ok)throw Error(errorPayload(data,'Reviewer authorization failed'))
    log('Governance agent','Independent reviewer recorded: '+decision.toUpperCase(),'approval')
    await refreshReviews()
+   if(decision==='approve')setScrollNext('order-gate')
    if(decision==='reject'){
     setPhase('plan_approval');setBrief('');setOrders([])
     log('Strategy agent','Rejected order returns to plan approval; an existing rejected order cannot be edited.','gap')
@@ -426,23 +477,22 @@ export function WatchtowerProcurementMission({posture}:{posture:FoodPosture}){
      </div>)}
    </div>
   </section>
-  <section className={styles.agentConsole} aria-label="Live sourcing operations log">
+  <section ref={consoleSection} className={styles.agentConsole} aria-label="Live sourcing operations log">
    <div className={styles.agentHeader}><div><Terminal size={15}/>
     <strong>Live agent operations</strong><small>{logs.length} recorded observations</small></div>
     <span data-running={phase==='researching'} className={styles.agentState}>
      <i/>{phase==='researching'?'RESEARCH IN PROGRESS':phase==='idle'?'IDLE':'HUMAN REVIEW'}</span>
    </div>
-   <div className={styles.agentLog} role="log" aria-live="polite" aria-relevant="additions">
+   <div ref={logViewport} className={styles.agentLog} role="log" aria-live="polite" aria-relevant="additions">
     {!logs.length&&<p className={styles.muted}>Start sourcing to see source checks and agent conclusions as each response arrives.</p>}
     {logs.map(row=><div key={row.id} className={styles.agentLine} data-state={row.state}>
      <time>{row.when}</time><span>{row.agent}</span><p>{row.text}</p>
     </div>)}
-    <div ref={logBottom}/>
    </div>
    <label className={styles.followCheck}><input type="checkbox" checked={follow}
     onChange={e=>setFollow(e.target.checked)}/> Follow active analysis</label>
   </section>
-  {report&&<section className={styles.analysisResults}>
+  {report&&<section ref={supplierSection} className={styles.analysisResults}>
    <div className={styles.heading}><span>AGENT EVIDENCE & OPTIONS</span>
     <h4>{tx('Supplier intelligence','ذكاء الموردين')}</h4>
     <p>{report.candidates.length} sourced candidates across {
@@ -494,7 +544,7 @@ export function WatchtowerProcurementMission({posture}:{posture:FoodPosture}){
      disabled={phase==='approved'}><ArrowLeft size={14}/> Reject / revise</button>
    </div>
   </section>}
-  {(phase==='plan_approval'||phase==='approved')&&<section className={styles.analysisResults}>
+  {(phase==='plan_approval'||phase==='approved')&&<section ref={strategySection} className={styles.analysisResults}>
    <div className={styles.heading}><span>STRATEGY ORCHESTRATOR</span>
     <h4>Multiple procurement pathways</h4>
     <p>Evidence-backed alternatives for selected candidates. Estimated routes are not
@@ -515,6 +565,7 @@ export function WatchtowerProcurementMission({posture}:{posture:FoodPosture}){
     </button>)}
    </div>
    {report&&<ProcurementRouteDesk corridors={report.corridors}
+    candidates={chosen} origins={report.origins} requestedTonnes={requiredQty}
     locale={ar?'ar':'en'}
     confirmed={logisticsApprovals}
     onInvalidate={()=>setLogisticsApprovals([])}
@@ -523,6 +574,7 @@ export function WatchtowerProcurementMission({posture}:{posture:FoodPosture}){
      log('Logistics governance','Reviewed '+keys.length+
       ' selected source-backed corridors. No carrier services booked.','approval')
      setNotice('Selected logistics evidence approved for planning.')
+     setScrollNext('strategy-gate')
     }}/>}
    {selectedScenario&&<div className={styles.analysisGrid}>
     <div className={styles.summary}>
@@ -541,7 +593,7 @@ export function WatchtowerProcurementMission({posture}:{posture:FoodPosture}){
      {!selectedScenario.blockers.length&&<p>Review legal and operational conditions before committing.</p>}
     </div>
    </div>}
-   {phase==='plan_approval'&&<div className={styles.gate}>
+   {phase==='plan_approval'&&<div ref={strategyGate} className={styles.gate}>
     <div><strong><ShieldCheck size={14}/> Strategy approval gate</strong>
      <p>Approve to prepare a sourcing/RFQ brief and, only where eligible, a Pending order plan.</p></div>
     <button className={styles.primary} onClick={approvePlan} type="button"
@@ -550,7 +602,7 @@ export function WatchtowerProcurementMission({posture}:{posture:FoodPosture}){
      <XCircle size={14}/> Reject · return to shortlist</button>
    </div>}
   </section>}
-  {phase==='approved'&&<section className={styles.analysisResults}>
+  {phase==='approved'&&<section ref={decisionSection} className={styles.analysisResults}>
    <div className={styles.orderJourney}>
     {['Supplier investigation','Quality / identity','Quotation / contract',
      'Transport risk selection','Quantity allocation','Purchase-order draft',
@@ -588,6 +640,37 @@ export function WatchtowerProcurementMission({posture}:{posture:FoodPosture}){
       duties and insurance excluded until independently quoted.</p>}
     </div>
    </div>
+   <div className={styles.costSummary} aria-label="Purchase cost breakdown">
+    <div className={styles.costItem}>
+     <small>01 · Merchandise / approved contract value</small>
+     <strong>{purchasePlan.lines.length?money(approvedGoodsValue):'Not yet quoted'}</strong>
+     <p>{purchasePlan.lines.length?fmt(pricedTonnes)+' t covered by approved contract portions':
+      'Documented prospects are not binding supplier quotations.'}</p>
+     {requiredQty!==null&&<p>Target: {fmt(requiredQty)} t ·
+      {purchasePlan.ready?' full contractual coverage':' remaining quantity not fully contracted'}</p>}
+    </div>
+    <div className={styles.costItem}>
+     <small>02 · Shipping / selected route</small>
+     <strong>{selectedRouteCosts.freight?
+      money(selectedRouteCosts.freight.minQar)+' – '+money(selectedRouteCosts.freight.maxQar):
+      'Awaiting route cost'}</strong>
+     <p>{selectedRouteCosts.evaluatedTonnes===null?'No approved route quantity':
+      'Screened for '+fmt(selectedRouteCosts.evaluatedTonnes)+' t'+
+      (selectedRouteCosts.coversRequestedQuantity?' (full target)':' (not full target)')}</p>
+     <p>{selectedRouteCosts.freight?.source??'Carrier quotation not available'} · non-binding.</p>
+    </div>
+    <div className={styles.costItem} data-kind="combined">
+     <small>03 · Merchandise + shipping · provisional subtotal</small>
+     <strong>{fullOrderTotal&&selectedRouteCosts.freight?
+      money(approvedGoodsValue+selectedRouteCosts.freight.minQar)+' – '+
+      money(approvedGoodsValue+selectedRouteCosts.freight.maxQar):
+      'Not yet calculable'}</strong>
+     <p>{fullOrderTotal?
+      'Only one approved origin, same full quantity; transport is still an estimate.':
+      'Requires priced full contract allocation and one matching, fully screened route.'}</p>
+     <p>Excludes duties, insurance, actual delivery fees and taxes. Check Incoterms to avoid counting freight twice.</p>
+    </div>
+   </div>
    {chosen.some(c=>!c.approved)&&<ProcurementQualificationDesk
     candidates={chosen} commodity={selectedCommodity}
     organizationId={posture.organizationId} requiredTonnes={requiredQty}
@@ -613,7 +696,7 @@ export function WatchtowerProcurementMission({posture}:{posture:FoodPosture}){
      Qualify vendors using the workflow above, then refresh sourcing.
      Unquoted transport, customs, inspection and handling remain unresolved.</p>}
    </div>
-   {purchasePlan.ready&&<div className={styles.orderGate}>
+   {purchasePlan.ready&&<div ref={orderGate} className={styles.orderGate}>
     <h5><PackageCheck size={16}/> Final human authorization: submit PENDING proposals</h5>
     <p>Independent order approval is still mandatory. No binding supplier confirmation,
      logistics booking or payment is executed.</p>

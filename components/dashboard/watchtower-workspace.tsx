@@ -48,7 +48,7 @@ export function WatchtowerWorkspace() {
         <Link key={href} href={href} className="inline-flex items-center gap-1 rounded-pill px-3 py-2 text-[11px] text-content-soft transition-colors hover:bg-cream-100 hover:text-sage-700">{label}<ArrowUpRight size={11} /></Link>)}</div>
     </nav>
     {activeSection === 'map' ? <div className="min-h-0 flex-1"><GlobalWatchtower /></div> :
-      <div className="min-h-0 flex-1 overflow-y-auto"><div className="mx-auto max-w-[1600px] space-y-4 p-4 pb-12 sm:p-6">
+      <div data-watchtower-flow-scroll className="min-h-0 flex-1 overflow-y-auto"><div className="mx-auto max-w-[1600px] space-y-4 p-4 pb-12 sm:p-6">
         {activeSection === 'markets' && <CommodityMarkets />}
         {activeSection === 'food' && <WatchtowerFoodCommandCenter />}
         {activeSection === 'operations' && <WatchtowerOperationsPulse />}

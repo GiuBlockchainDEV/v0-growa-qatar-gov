@@ -3,6 +3,8 @@ import {useMemo,useState} from 'react'
 import dynamic from 'next/dynamic'
 import {ArrowUpRight,Check,MapPinned,ShieldAlert,Ship,Truck,Plane} from 'lucide-react'
 import type {RouteMapOverlay} from '@/lib/nfii/logistics-route-map'
+import type {Candidate,OriginReference} from '@/lib/watchtower/sourcing-autopilot'
+import {routeCostSummary} from '@/lib/watchtower/procurement-costs'
 import {
  mapRouteEvidence,orderRouteAlternatives,routePassages,routeOptionReport,
  preferredCorridor,displayFreight,
@@ -17,9 +19,12 @@ const LogisticsRouteMap=dynamic(
 )
 const fmt=(n:number)=>n.toLocaleString('en-US',{maximumFractionDigits:2})
 export function ProcurementRouteDesk({
- corridors,onConfirm,onInvalidate,confirmed,locale,
+ corridors,candidates,origins,requestedTonnes,onConfirm,onInvalidate,confirmed,locale,
 }:{
  corridors:Readonly<Record<string,CorridorPayload>>
+ candidates:readonly Candidate[]
+ origins:readonly OriginReference[]
+ requestedTonnes:number|null
  onConfirm:(routeKeys:string[])=>void
  onInvalidate:()=>void
  confirmed:readonly string[]
@@ -54,7 +59,8 @@ export function ProcurementRouteDesk({
  const riskByRoute=useMemo(()=>Object.fromEntries(all.map(x=>[
   x.key,x.risk.band,
  ])) as Record<string,'elevated'|'attention'|'screened'|'unknown'>,[all])
- const currentCost=selected?displayCost(selected):null
+ const costs=routeCostSummary(selected,corridors,candidates,origins,requestedTonnes)
+ const currentCost=costs.freight
  return <section className={styles.routeDecision} aria-label="Route risk and logistics decision room">
   <header className={styles.heading}>
    <span>LOGISTICS INTELLIGENCE / ONE PRIMARY ROUTE</span>
@@ -145,6 +151,46 @@ export function ProcurementRouteDesk({
      </div>)}
     </div>
    </div>}
+   {selected&&<div className={styles.costSummary} aria-label="Selected route cost breakdown">
+    <div className={styles.costItem}>
+     <small>01 · Merchandise price reference</small>
+     <strong>{costs.goods?fmt(costs.goods.totalQar)+' QAR':'Supplier price unavailable'}</strong>
+     <p>{costs.goods?fmt(costs.goods.unitQarPerTonne)+' QAR/t · '+costs.goods.source:
+      'An unqualified supplier lead is not a quotation.'}</p>
+     <p>{costs.goods?.kind==='historical_import'?
+      'Historical import customs value is normally CIF-like and may already include freight. NOT a current supplier offer.':
+      costs.goods?.kind==='approved_contract'?
+      'Approved contract value; verify Incoterms and price inclusions.':
+      'Obtain a firm supplier quote before committing.'}</p>
+    </div>
+    <div className={styles.costItem}>
+     <small>02 · Shipping / freight estimate</small>
+     <strong>{costs.freight?fmt(costs.freight.minQar)+' – '+
+      fmt(costs.freight.maxQar)+' QAR':'Unavailable'}</strong>
+     <p>{costs.freight?
+      fmt(costs.freight.perTonneMin)+' – '+fmt(costs.freight.perTonneMax)+' QAR/t':
+      'Request a quantity-specific carrier quotation.'}</p>
+     <p>{costs.freight?.source??'No supported freight evidence'} · non-binding estimate.</p>
+    </div>
+    <div className={styles.costItem} data-kind="combined">
+     <small>03 · Goods + freight · provisional only</small>
+     <strong>{costs.subtotal?
+      fmt(costs.subtotal.minQar)+' – '+fmt(costs.subtotal.maxQar)+' QAR':
+      'Cannot sum reliably'}</strong>
+     <p>{costs.subtotal?
+      'Arithmetic screening range, NOT a confirmed landed cost.':
+      'Historical CIF-like unit values must not be added to freight; obtain actual supplier terms.'}</p>
+     <p>Excludes duty, insurance, taxes and local delivery. Contract Incoterms may already include shipping.</p>
+    </div>
+   </div>}
+   {selected&&<p className={styles.costDisclaimer}>
+    Cost screening covers {costs.evaluatedTonnes===null?'unverified tonnage':
+     fmt(costs.evaluatedTonnes)+' t'}{requestedTonnes!==null?
+     ' of '+fmt(requestedTonnes)+' t requested':''}.
+    {costs.coversRequestedQuantity?
+     ' Quantity matched; carrier pricing still requires confirmation.':
+     ' Partial screening only: these figures are NOT full-order shipping costs.'}
+   </p>}
    <div className={styles.gate}>
     <div><strong><Check size={15}/> Logistics approval checkpoint</strong>
      <p>Approve the selected primary corridor only. Commercial rates, customs,
