@@ -80,7 +80,7 @@ describe('Organization resilience multi-agent rehearsal',()=>{
     expect(tsx).toContain('Agent operations stream')
     expect(tsx).toContain('buildAgentPlaybackEvents(trace)')
     expect(tsx).toContain('setEventCursor(nextCursor)')
-    expect(tsx).toContain('visibleEvents.some(v=>v.stageId===viewStage.id')
+    expect(tsx).toContain('visibleEvents.some(v=>v.stageId===viewedStage.id')
     expect(tsx).toContain('setFollowActive(false)')
     expect(tsx).toContain('emittedAt:null,expanded:true')
     expect(css).toContain('.liveConsole{')

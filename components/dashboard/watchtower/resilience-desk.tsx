@@ -15,6 +15,7 @@ import {
 } from '@/lib/watchtower/resilience-agent-trace'
 import {buildAgentPlaybackEvents,activeAgentStage,completedAgentStages,
   revealedAgentFinding,type AgentPlaybackLog} from '@/lib/watchtower/resilience-agent-playback'
+import {WatchtowerProcurementMission} from './procurement-mission'
 import styles from './resilience-desk.module.css'
 
 function commodityHref(id:string,organizationId:string){
@@ -124,6 +125,11 @@ export function WatchtowerResilienceDesk({posture}:{posture:FoodPosture}){
   return <section id="watchtower-response" className={styles.room}
     aria-label={tx('Resilience and procurement decision desk','مكتب قرارات المرونة والمشتريات')}
     dir={ar?'rtl':'ltr'}>
+    <WatchtowerProcurementMission key={posture.organizationId+':'+posture.generatedAt} posture={posture}/>
+    <details className={styles.legacyAudit}>
+      <summary>{tx('Diagnostic agent audit · source validation playback',
+        'تدقيق الوكلاء التشخيصي · مراجعة التحقق من المصادر')}</summary>
+      <div className={styles.legacyAuditContent}>
     <div className={styles.hero}>
       <div className={styles.heroTop}>
         <div>
@@ -428,5 +434,7 @@ export function WatchtowerResilienceDesk({posture}:{posture:FoodPosture}){
       <Link href="/dashboard?module=data-health">{tx('Data governance & source health','حوكمة البيانات وصحة المصادر')}
         <ArrowUpRight size={12}/></Link>
     </footer>
+    </div>
+    </details>
   </section>
 }
