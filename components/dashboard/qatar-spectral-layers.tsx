@@ -152,7 +152,7 @@ export function QatarSpectralLayers({map}:{map:MapController|null}){
       const successful=loadedScenes.filter(
        (x):x is PromiseFulfilledResult<{
         pixels:Uint8ClampedArray;box:typeof available[number]['box']
-        cloudCover?:number
+        cloudCover:number|undefined
        }>=>x.status==='fulfilled',
       ).map(x=>x.value)
       if(successful.length===0){
