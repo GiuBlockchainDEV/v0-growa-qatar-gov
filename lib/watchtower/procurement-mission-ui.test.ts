@@ -16,7 +16,7 @@ describe('Growa sourcing autopilot: multi-source analysis and human governance',
   expect(ui).toContain('/api/watchtower/procurement-agent?')
   expect(ui).toContain('/api/nfii/procurement/origin-prices?')
   expect(ui).toContain('/api/nfii/logistics/corridors?')
-  expect(ui).toContain("supplierScope:'documented'")
+  expect(ui).toContain("supplierScope:documented?'documented':approved?'approved'")
   expect(ui).toContain('Promise.allSettled')
   expect(ui).toContain('rankSourcingCandidates(leads,contracts,origins)')
   expect(ui).toContain('buildSourcingScenarios(candidates,routes,origins,requiredQty)')
