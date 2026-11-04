@@ -4,7 +4,7 @@ import {join} from 'node:path'
 import {
  parseQatarProduction,parseQatarFarms,parseQatarSufficiency,
  parseWorldBank,sumLatestProduction,farmsByMunicipality,parseYear,
- WORLD_BANK_INDICATORS,sourceCoverage,
+ WORLD_BANK_INDICATORS,sourceCoverage,selfSufficiencyBarPercent,
 } from './qatar-country'
 const load=(p:string)=>readFileSync(join(process.cwd(),p),'utf8')
 describe('Qatar country intelligence records',()=>{
@@ -36,6 +36,13 @@ describe('Qatar country intelligence records',()=>{
   expect(rows).toHaveLength(2)
   expect(rows[0]).toMatchObject({product:'Eggs',ratioPercent:66,year:2023})
  })
+ it('uses a strict, common 100-percent reference for all self-sufficiency bars',()=>{
+  expect(selfSufficiencyBarPercent(1.7)).toBe(1.7)
+  expect(selfSufficiencyBarPercent(25)).toBe(25)
+  expect(selfSufficiencyBarPercent(100)).toBe(100)
+  expect(selfSufficiencyBarPercent(118)).toBe(100)
+  expect(selfSufficiencyBarPercent(-3)).toBe(0)
+ })
  it('parses World Bank population with missing observations retained as absent',()=>{
   const parsed=parseWorldBank([{page:1,pages:1},[
    {countryiso3code:'QAT',indicator:{id:WORLD_BANK_INDICATORS.population.code},
@@ -66,6 +73,11 @@ describe('Qatar country intelligence records',()=>{
   expect(command).toContain('Qatar Open Data')
   expect(command).toContain('World Bank')
   expect(command).toContain('<GrowaIntelligencePanel module="data-analytics" context={assistantContext}/>')
+  expect(command.indexOf('className={styles.assistantRegion}')).toBeGreaterThan(
+   command.indexOf('<AnnualTrend series={selected}/>')
+  )
+  expect(command).toContain('selfSufficiencyBarPercent(row.ratioPercent)')
+  expect(command).toContain('What does self-sufficiency mean?')
   expect(command).toContain('onClick={()=>setSelectedYear(p.year)}')
   expect(command).toContain('aria-pressed={active.year===p.year}')
   expect(command).not.toContain('DATA COVERAGE')
