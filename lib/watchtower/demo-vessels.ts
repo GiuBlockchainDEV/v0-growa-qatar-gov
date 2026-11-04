@@ -6,7 +6,7 @@
  */
 import type {TrackingAsset} from './global-tracking'
 
-export type DemoVesselZone='red_sea'|'gulf_of_aden'|'arabian_sea'
+export type DemoVesselZone='red_sea'|'gulf_of_aden'|'arabian_sea'|'karachi_offshore'
 export type DemoVessel={
   id:string
   region:DemoVesselZone
@@ -44,6 +44,8 @@ const zones:readonly Zone[]=[
     positions:[[12.8,45.7,85],[12.4,47.7,257],[12.1,49.5,95],[12.6,51.5,270]]},
   {id:'arabian_sea',name:'Arabian Sea',bounds:[14,54.2,23.2,74],
     positions:ARABIAN_SCENARIO_POSITIONS},
+  {id:'karachi_offshore',name:'Karachi offshore',bounds:[23.5,65.5,24.7,67.8],
+    positions:[[24.43,66.75,245],[24.18,66.91,78],[23.94,66.48,265],[24.32,67.19,104]]},
 ]
 export const DEMO_VESSEL_MARKERS:readonly DemoVessel[]=zones.flatMap(zone=>
   zone.positions.map(([lat,lon,heading],index)=>({
