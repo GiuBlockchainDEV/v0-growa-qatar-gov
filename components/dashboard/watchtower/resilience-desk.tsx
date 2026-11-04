@@ -1,11 +1,11 @@
 'use client'
 
-import {useEffect,useMemo,useState} from 'react'
+import {useEffect,useMemo,useRef,useState} from 'react'
 import Link from 'next/link'
 import {
   Activity,ArrowRight,ArrowUpRight,Bot,Check,ChevronRight,ClipboardCheck,
   Database,FastForward,FileCheck2,FileWarning,LockKeyhole,Play,RefreshCw,
-  RotateCcw,ShieldAlert,ShieldCheck,Workflow,
+  RotateCcw,ShieldAlert,ShieldCheck,Terminal,Radio,Workflow,
 } from 'lucide-react'
 import {useI18n} from '@/lib/i18n'
 import type {FoodPosture} from '@/lib/watchtower/food-posture'
@@ -13,6 +13,8 @@ import {buildResilienceDecisionQueue} from '@/lib/watchtower/resilience-queue'
 import {
   simulateResilienceAgentTrace,type ResilienceAgentTrace,type AgentTraceStage,
 } from '@/lib/watchtower/resilience-agent-trace'
+import {buildAgentPlaybackEvents,activeAgentStage,completedAgentStages,
+  revealedAgentFinding,type AgentPlaybackLog} from '@/lib/watchtower/resilience-agent-playback'
 import styles from './resilience-desk.module.css'
 
 function commodityHref(id:string,organizationId:string){
@@ -39,7 +41,10 @@ export function WatchtowerResilienceDesk({posture}:{posture:FoodPosture}){
     queue.evidenceReview[0]?.commodityId??posture.commodities[0]?.commodityId??''
   const [selectedCommodity,setSelectedCommodity]=useState(initial)
   const [session,setSession]=useState<Session|null>(null)
-  const [revealed,setRevealed]=useState(0)
+  const [eventCursor,setEventCursor]=useState(0)
+  const [eventLog,setEventLog]=useState<AgentPlaybackLog[]>([])
+  const [followActive,setFollowActive]=useState(true)
+  const logEndRef=useRef<HTMLDivElement|null>(null)
   const [running,setRunning]=useState(false)
   const [selectedStage,setSelectedStage]=useState(0)
   const [reviewChoice,setReviewChoice]=useState<'acknowledged'|'deferred'|null>(null)
@@ -49,49 +54,73 @@ export function WatchtowerResilienceDesk({posture}:{posture:FoodPosture}){
   const effectiveCommodity=selectionExists?selectedCommodity:initial
   const trace=session&&session.snapshot===posture&&
     session.commodityId===effectiveCommodity?session.trace:null
-  const completed=Boolean(trace)&&revealed===(trace?.steps.length??0)
+  const playbackEvents=useMemo(()=>trace?buildAgentPlaybackEvents(trace):[],[trace])
+  const visibleEvents=useMemo(()=>playbackEvents.slice(0,eventCursor),[playbackEvents,eventCursor])
+  const revealed=completedAgentStages(visibleEvents)
+  const activeIndex=activeAgentStage(visibleEvents,trace?.steps.length??0)
+  const completed=Boolean(trace)&&eventCursor===playbackEvents.length
+  const viewedStage=trace?.steps[selectedStage]??null
+  const viewedHasStarted=visibleEvents.some(event=>event.stageIndex===selectedStage)
+  const viewedIsReady=Boolean(viewedStage&&revealedAgentFinding(visibleEvents,viewedStage.id))
+  const doneCount=trace?Math.min(revealed,trace.steps.length):0
+  const activeStep=trace?.steps[activeIndex]??null
+  const currentMessage=eventLog.at(-1)??null
+
   useEffect(()=>{
-    setSession(null)
-    setRunning(false)
-    setRevealed(0)
-    setSelectedStage(0)
-    setReviewChoice(null)
+    setSession(null);setRunning(false);setEventCursor(0);setEventLog([])
+    setSelectedStage(0);setFollowActive(true);setReviewChoice(null)
   },[posture])
 
+  // Timed disclosure of precomputed, source-backed messages.
+  // This is audit playback, not actual processing time or LLM thought.
   useEffect(()=>{
     if(!running||!trace)return
-    if(revealed>=trace.steps.length){
-      setRunning(false)
-      return
-    }
+    if(eventCursor>=playbackEvents.length){setRunning(false);return}
     const timeout=setTimeout(()=>{
-      setRevealed(value=>Math.min(value+1,trace.steps.length))
-      setSelectedStage(value=>Math.min(value+1,trace.steps.length-1))
-    },720)
+      const event=playbackEvents[eventCursor]
+      if(!event)return
+      const nextCursor=eventCursor+1
+      setEventLog(current=>[...current,{...event,emittedAt:Date.now()}])
+      setEventCursor(nextCursor)
+      if(followActive)setSelectedStage(activeAgentStage(
+        playbackEvents.slice(0,nextCursor),trace.steps.length))
+      if(nextCursor===playbackEvents.length)setRunning(false)
+    },eventCursor===0?250:340)
     return ()=>clearTimeout(timeout)
-  },[running,revealed,trace])
+  },[running,eventCursor,trace,playbackEvents,followActive])
+
+  useEffect(()=>{
+    if(running&&followActive)logEndRef.current?.scrollIntoView({
+      behavior:'smooth',block:'nearest',
+    })
+  },[eventLog.length,running,followActive])
 
   const reset=()=>{
-    setRunning(false);setSession(null);setRevealed(0)
-    setSelectedStage(0);setReviewChoice(null)
+    setRunning(false);setSession(null);setEventCursor(0);setEventLog([])
+    setSelectedStage(0);setFollowActive(true);setReviewChoice(null)
   }
   const changeCommodity=(id:string)=>{setSelectedCommodity(id);reset()}
   const begin=()=>{
     if(!effectiveCommodity)return
     const built=simulateResilienceAgentTrace(posture,effectiveCommodity)
     setSession({snapshot:posture,commodityId:effectiveCommodity,trace:built})
-    setRunning(true);setRevealed(0);setSelectedStage(0);setReviewChoice(null)
+    setRunning(true);setEventCursor(0);setEventLog([])
+    setSelectedStage(0);setFollowActive(true);setReviewChoice(null)
   }
   const skip=()=>{
     if(!trace)return
-    setRevealed(trace.steps.length)
-    setSelectedStage(trace.steps.length-1)
-    setRunning(false)
+    setEventLog(current=>[...current,...playbackEvents.slice(eventCursor)
+      .map(event=>({...event,emittedAt:null,expanded:true}))])
+    setEventCursor(playbackEvents.length)
+    setSelectedStage(trace.steps.length-1);setFollowActive(true);setRunning(false)
   }
-  const viewStage=trace?.steps[selectedStage]??null
-  const viewedIsReady=Boolean(viewStage&&selectedStage<revealed)
-  const doneCount=trace?Math.min(revealed,trace.steps.length):0
-
+  const inspectStage=(index:number)=>{setSelectedStage(index);setFollowActive(false)}
+  const returnToLive=()=>{setFollowActive(true);setSelectedStage(activeIndex)}
+  const formatLogTime=(log:AgentPlaybackLog)=>
+    log.emittedAt===null?tx('Expanded','موسع'):
+      new Date(log.emittedAt).toLocaleTimeString(ar?'ar-QA':'en-GB',{
+        hour:'2-digit',minute:'2-digit',second:'2-digit',
+      })
   return <section id="watchtower-response" className={styles.room}
     aria-label={tx('Resilience and procurement decision desk','مكتب قرارات المرونة والمشتريات')}
     dir={ar?'rtl':'ltr'}>
@@ -142,7 +171,7 @@ export function WatchtowerResilienceDesk({posture}:{posture:FoodPosture}){
           <div className={styles.eyebrow}><Workflow size={13}/>
             {tx('SPECIALIST WORKFLOW','سير عمل المختصين')}</div>
           <h4>{tx('Run the analysis sequence','تشغيل تسلسل التحليل')}</h4>
-          <p>{tx('11 transparent checks with recorded inputs, operations, outputs and handoffs. Results appear only after you start.',
+          <p>{tx('11 source-backed specialist checks, unfolding as progressive input, validation, findings and handoffs after you start.',
             '11 فحصاً واضحاً للمدخلات والعمليات والمخرجات والتسليم. لا تظهر النتائج قبل التشغيل.')}</p>
         </div>
         <div className={styles.controls}>
@@ -170,14 +199,15 @@ export function WatchtowerResilienceDesk({posture}:{posture:FoodPosture}){
         <span className={styles.runLabel} role="status" aria-live="polite">
           {running&&<RefreshCw size={12} className="animate-spin"/>}
           {trace?doneCount+' / '+trace.steps.length+' '+
-            tx('checks processed','فحوصات منفذة'):
+            tx('stages complete','مراحل مكتملة')+' · '+eventCursor+'/'+playbackEvents.length+' '+
+            tx('audit events','أحداث تدقيق'):
             tx('Awaiting user initiation','بانتظار بدء المستخدم')}
         </span>
       </div>
       {trace&&<div className={styles.progressTrack} role="progressbar"
-        aria-valuemin={0} aria-valuemax={trace.steps.length} aria-valuenow={doneCount}
+        aria-valuemin={0} aria-valuemax={playbackEvents.length} aria-valuenow={eventCursor}
         aria-label={tx('Completed simulation stages','مراحل المحاكاة المكتملة')}>
-        <span style={{width:(doneCount/trace.steps.length*100)+'%'}}/>
+        <span style={{width:(playbackEvents.length?eventCursor/playbackEvents.length*100:0)+'%'}}/>
       </div>}
       {!trace&&<div className={styles.idle}>
         <Bot size={27}/>
@@ -188,6 +218,66 @@ export function WatchtowerResilienceDesk({posture}:{posture:FoodPosture}){
       </div>}
     </div>
 
+    {trace&&<section className={styles.liveConsole}
+      aria-label={tx('Live agent audit console','وحدة تدقيق الوكلاء المباشرة')}>
+      <div className={styles.liveConsoleHead}>
+        <div className={styles.liveConsoleHeading}>
+          <Terminal size={15}/>
+          <div><strong>{tx('Agent operations stream','تدفق عمليات الوكلاء')}</strong>
+            <small>{tx('Source-backed replay · visual timestamps, not measured compute time',
+              'إعادة عرض مبنية على المصادر · أوقات العرض ليست وقت الحوسبة')}</small>
+          </div>
+        </div>
+        <div className={styles.liveConsoleActions}>
+          <span className={styles.liveStatus} data-running={running}>
+            <i/>{running?tx('REPLAYING','جارٍ العرض'):
+              completed?tx('REPLAY COMPLETE','اكتمل العرض'):tx('PAUSED','متوقف')}</span>
+          <button className={styles.followButton} type="button" onClick={returnToLive}
+            aria-pressed={followActive}><Radio size={12}/>
+            {tx('Follow active','متابعة الحالي')}</button>
+        </div>
+      </div>
+      <div className={styles.activeOperation}>
+        <span className={styles.activeOperationIcon}><Bot size={18}/></span>
+        <div>
+          <small>{running?tx('CURRENT SPECIALIST','الوكيل الحالي'):
+            completed?tx('WORKFLOW REPLAY COMPLETE','اكتملت إعادة العرض'):
+              tx('WAITING','بانتظار')}</small>
+          <strong>{activeStep?(ar?activeStep.agentAr:activeStep.agent):
+            tx('Scope controller','مراقب النطاق')}</strong>
+          <span>{currentMessage?(ar?currentMessage.textAr:currentMessage.text):
+            tx('Preparing the first documented check…','تحضير أول فحص موثق…')}</span>
+        </div>
+        <span className={styles.activeOperationPulse} data-active={running}>
+          <Activity size={16}/></span>
+      </div>
+      <div className={styles.logScroll} role="log"
+        aria-label={tx('Progressive audit events','أحداث التدقيق التدريجية')}
+        aria-live="off" aria-relevant="additions text">
+        {eventLog.length===0&&<p className={styles.emptyLog}>
+          {tx('Awaiting the first documented audit event…','بانتظار أول حدث تدقيق موثق…')}</p>}
+        {eventLog.map((log,index)=><div key={log.id} className={styles.logLine}
+          data-kind={log.kind} data-state={log.resultState}
+          data-expanded={log.expanded===true}>
+          <time dateTime={log.emittedAt===null?undefined:new Date(log.emittedAt).toISOString()}>
+            {formatLogTime(log)}</time>
+          <span className={styles.logIndex}>{String(index+1).padStart(3,'0')}</span>
+          <span className={styles.logKind}>{log.kind.toUpperCase()}</span>
+          <span className={styles.logText}>{ar?log.textAr:log.text}</span>
+        </div>)}
+        {running&&<div className={styles.logCursor}>
+          <span className={styles.cursorBlock}/>
+          {tx('Replaying next documented check…','عرض الفحص الموثق التالي…')}
+        </div>}
+        <div ref={logEndRef}/>
+      </div>
+      <div className={styles.liveConsoleFoot}>
+        <span>{eventCursor} / {playbackEvents.length} {tx('events displayed','حدث معروض')}</span>
+        <span>{tx('No external LLM, supplier or route services invoked',
+          'لم تُستدع خدمات نماذج AI أو الموردين أو المسارات الخارجية')}</span>
+      </div>
+    </section>}
+
     {trace&&<div className={styles.workArea}>
       <section className={styles.pipeline}>
         <div className={styles.sectionTop}><strong><Workflow size={14}/>
@@ -197,11 +287,11 @@ export function WatchtowerResilienceDesk({posture}:{posture:FoodPosture}){
         <div className={styles.timeline}>
           {trace.steps.map((step,index)=>{
             const shown=index<doneCount
-            const active=running&&index===doneCount
+            const active=running&&index===activeIndex
             return <button type="button" key={step.id}
               className={styles.timelineRow} data-selected={selectedStage===index}
               data-status={shown?'done':active?'running':'queued'}
-              disabled={!shown&&!active} onClick={()=>setSelectedStage(index)}>
+              disabled={!shown&&!active} onClick={()=>inspectStage(index)}>
               <span className={styles.timelineIndex}>{shown?<Check size={12}/>:index+1}</span>
               <div className={styles.timelineContent}>
                 <strong>{ar?step.titleAr:step.title}</strong>
@@ -221,35 +311,40 @@ export function WatchtowerResilienceDesk({posture}:{posture:FoodPosture}){
           {tx('Process inspector','مفتش العمليات')}</strong>
           <small>{tx('Stage','المرحلة')} {selectedStage+1}/{trace.steps.length}</small>
         </div>
-        {!viewedIsReady||!viewStage?
+        {!viewedHasStarted||!viewStage?
           <div className={styles.waiting}><RefreshCw size={23}/>
-            {tx('Awaiting completion of this specialist check.',
-              'بانتظار إكمال الفحص المتخصص.')}</div>:
+            {tx('Awaiting this specialist stage and its audit events.',
+              'بانتظار هذه المرحلة وأحداث التدقيق.')}</div>:
           <div className={styles.stageBody}>
             <div>
               <div className={styles.stepEyebrow}>{ar?viewStage.agentAr:viewStage.agent}
-                {' · '}{statusName(viewStage.state,ar)}</div>
+                {' · '}{viewedIsReady?statusName(viewStage.state,ar):
+                  tx('Inspecting inputs','فحص المدخلات')}</div>
               <h4 className={styles.stepTitle}>{ar?viewStage.titleAr:viewStage.title}</h4>
               <p className={styles.stepDescription}>
                 {ar?viewStage.operationAr:viewStage.operation}</p>
             </div>
-            <div className={styles.finding} data-state={viewStage.state}>
+            <div className={styles.finding} data-state={viewedIsReady?viewStage.state:'pending'}>
               <span>{tx('OBSERVED RESULT / LIMITATION','النتيجة / الحدود')}</span>
-              <p>{ar?viewStage.findingAr:viewStage.finding}</p>
+              <p>{viewedIsReady?(ar?viewStage.findingAr:viewStage.finding):
+                tx('Inspecting documented source inputs…','فحص مدخلات المصدر الموثقة…')}</p>
             </div>
             <div className={styles.traceGrid}>
               <div className={styles.traceBox}><h5><Database size={12}/>
                 {tx('INPUTS INSPECTED','المدخلات المفحوصة')}</h5>
-                <ul>{viewStage.input.map((v,i)=><li key={i}>{v}</li>)}</ul>
+                <ul>{visibleEvents.filter(v=>v.stageId===viewStage.id&&v.kind==='input')
+                  .map((v,i)=><li key={i}>{ar?v.textAr:v.text}</li>)}</ul>
               </div>
               <div className={styles.traceBox}><h5><FileCheck2 size={12}/>
                 {tx('OUTPUTS & EVIDENCE','المخرجات والأدلة')}</h5>
-                <ul>{viewStage.output.map((v,i)=><li key={i}>{v}</li>)}</ul>
+                <ul>{visibleEvents.filter(v=>v.stageId===viewStage.id&&v.kind==='output')
+                  .map((v,i)=><li key={i}>{ar?v.textAr:v.text}</li>)}</ul>
               </div>
             </div>
-            <div className={styles.handoff}><ArrowRight size={14}/>
-              <span><strong>{tx('Agent handoff: ','التسليم بين الوكلاء: ')}</strong>
-                {ar?viewStage.handoffAr:viewStage.handoff}</span></div>
+            {visibleEvents.some(v=>v.stageId===viewStage.id&&v.kind==='handoff')&&
+              <div className={styles.handoff}><ArrowRight size={14}/>
+                <span><strong>{tx('Agent handoff: ','التسليم بين الوكلاء: ')}</strong>
+                  {ar?viewStage.handoffAr:viewStage.handoff}</span></div>}
           </div>}
       </section>
     </div>}

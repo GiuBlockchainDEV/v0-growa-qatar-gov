@@ -108,3 +108,61 @@
 @media(max-width:1120px){.workArea{grid-template-columns:1fr}.timeline{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));max-height:none}.heroMetrics{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:690px){.heroTop{padding:18px 15px 14px;flex-wrap:wrap}.heroMetrics{padding:0 15px 15px}.heroFoot{padding:10px 15px}.controls,.controls label,.controls select{width:100%;max-width:none}.console{padding:14px}.timeline{grid-template-columns:1fr}.traceGrid,.backlogGrid{grid-template-columns:1fr}.runLabel{width:100%;margin-inline-start:0}.heroMode{margin-top:1px}}
 @media(prefers-reduced-motion:reduce){.progressTrack>span,.primaryButton,.secondaryButton{transition:none}}
+
+/* Agent operations playback: restrained Growa terminal with auditable progressive
+   events. UI emission times are never presented as true agent execution latency. */
+.liveConsole{border:1px solid var(--growa-ink-700);border-radius:14px;background:var(--growa-ink);color:var(--growa-white);overflow:hidden;box-shadow:0 7px 20px rgba(17,30,19,.10)}
+.liveConsoleHead{display:flex;justify-content:space-between;align-items:center;gap:13px;flex-wrap:wrap;padding:14px 17px;border-bottom:1px solid var(--border-inverse)}
+.liveConsoleHeading{display:flex;gap:10px;align-items:center}
+.liveConsoleHeading>svg{color:var(--growa-cream);flex:none}
+.liveConsoleHeading div{display:grid;gap:4px}
+.liveConsoleHeading strong{font-size:12px;font-weight:750}
+.liveConsoleHeading small{font-size:9px;color:var(--growa-stone-300)}
+.liveConsoleActions{display:flex;align-items:center;gap:9px;flex-wrap:wrap}
+.liveStatus{display:inline-flex;align-items:center;gap:7px;color:var(--growa-stone-300);font-size:9px;letter-spacing:.7px;font-weight:750}
+.liveStatus i{height:7px;width:7px;border-radius:50%;background:var(--growa-stone-500)}
+.liveStatus[data-running='true'] i{background:var(--growa-cream);animation:agentPulse 1.4s ease-in-out infinite}
+.followButton{display:inline-flex;align-items:center;gap:5px;border:1px solid var(--border-inverse);border-radius:7px;padding:7px 9px;font-size:10px;font-weight:700;color:var(--growa-stone-300);cursor:pointer}
+.followButton[aria-pressed='true']{background:var(--growa-ink-800);color:var(--growa-cream)}
+.followButton:hover{color:var(--growa-white)}
+.activeOperation{display:flex;align-items:center;gap:13px;margin:12px 16px 11px;padding:12px 13px;background:var(--growa-ink-800);border:1px solid var(--border-inverse);border-radius:10px}
+.activeOperationIcon{width:36px;height:36px;display:grid;place-items:center;border:1px solid var(--border-inverse);border-radius:9px;color:var(--growa-cream);flex:none}
+.activeOperation>div{min-width:0;flex:1;display:grid;gap:5px}
+.activeOperation small{font-size:8px;color:var(--growa-stone-300);font-weight:750;letter-spacing:.8px}
+.activeOperation strong{font-size:12px;color:var(--growa-white);font-weight:750}
+.activeOperation div>span{font-size:10px;color:var(--growa-cream);line-height:1.45;overflow-wrap:anywhere}
+.activeOperationPulse{flex:none;color:var(--growa-stone-500)}
+.activeOperationPulse[data-active='true']{color:var(--growa-cream);animation:agentPulse 1.6s ease-in-out infinite}
+.logScroll{margin:0 16px 11px;max-height:300px;min-height:112px;overflow-y:auto;border:1px solid var(--border-inverse);border-radius:9px;background:#122018;scrollbar-color:var(--growa-stone-500) transparent;padding:7px 4px}
+.logLine{display:grid;grid-template-columns:72px 29px 70px minmax(0,1fr);align-items:start;gap:7px;padding:6px 8px;border-bottom:1px solid rgba(238,244,201,.075);font-size:10px;line-height:1.5;animation:agentReveal .18s ease-out both}
+.logLine:last-of-type{border-bottom:0}
+.logLine time,.logIndex{font-size:9px;color:var(--growa-stone-300);font-variant-numeric:tabular-nums}
+.logKind{font-size:8px;letter-spacing:.4px;color:var(--growa-stone-300);font-weight:800}
+.logText{font-size:10px;color:var(--growa-white);overflow-wrap:anywhere}
+.logLine[data-kind='input'] .logKind,.logLine[data-kind='output'] .logKind{color:var(--growa-cream)}
+.logLine[data-kind='handoff']{background:rgba(238,244,201,.045)}
+.logLine[data-kind='handoff'] .logKind{color:var(--growa-cream)}
+.logLine[data-kind='finding'][data-state='blocked'] .logKind,.logLine[data-kind='finding'][data-state='gate'] .logKind{color:#E2B4A9}
+.logLine[data-kind='finding'][data-state='attention'] .logKind{color:#E2C18A}
+.logLine[data-expanded='true']{opacity:.78}
+.logCursor{display:flex;align-items:center;gap:8px;padding:9px;color:var(--growa-stone-300);font-size:10px}
+.cursorBlock{width:7px;height:13px;background:var(--growa-cream);animation:agentBlink .9s step-end infinite}
+.emptyLog{padding:18px 12px;color:var(--growa-stone-300);font-size:10px}
+.liveConsoleFoot{display:flex;justify-content:space-between;align-items:center;gap:7px 20px;flex-wrap:wrap;padding:10px 17px;border-top:1px solid var(--border-inverse);color:var(--growa-stone-300);font-size:9px}
+.finding[data-state='pending']{border-inline-start-color:var(--growa-stone-300);background:var(--growa-stone-50)}
+.timelineRow[data-status='running']{border-color:var(--growa-cream-300);background:var(--growa-cream-50)}
+.timelineRow[data-status='running'] .timelineIndex{animation:agentPulse 1.4s ease-in-out infinite}
+@keyframes agentPulse{0%,100%{opacity:1}50%{opacity:.4}}
+@keyframes agentBlink{50%{opacity:0}}
+@keyframes agentReveal{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:translateY(0)}}
+@media(max-width:690px){
+  .liveConsoleHead{padding:12px}
+  .activeOperation{margin:10px 11px}
+  .logScroll{margin:0 11px 10px}
+  .logLine{grid-template-columns:59px 53px minmax(0,1fr);gap:5px;padding:6px}
+  .logIndex{display:none}
+  .liveConsoleFoot{padding:10px 12px}
+}
+@media(prefers-reduced-motion:reduce){
+  .liveStatus i,.activeOperationPulse,.cursorBlock,.timelineRow[data-status='running'] .timelineIndex,.logLine{animation:none}
+}
