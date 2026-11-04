@@ -1,10 +1,12 @@
 'use client'
 
 import Link from 'next/link'
+import {ReserveStrategyDesk} from './reserve-strategy-desk'
+import {reserveDemandWindow} from '@/lib/nfii/reserve-planning'
 import {useRouter} from 'next/navigation'
 import {useEffect,useMemo,useRef,useState} from 'react'
 import {AlertTriangle,ArrowRight,BarChart3,Bot,
-  Database,FileSearch,PackageCheck,RefreshCw,Warehouse} from 'lucide-react'
+  Database,FileSearch,RefreshCw,Warehouse} from 'lucide-react'
 import {useI18n} from '@/lib/i18n'
 import {resolveCommodity} from '@/lib/platform/commodity-catalog'
 import type {FoodBalanceResult} from '@/lib/food-security/balance'
@@ -325,11 +327,15 @@ export function StrategicReservesCommand({
     abortRef.current=abort
     setReport(null);setError(null);setBusy(true)
     try{
+      const window=reserveDemandWindow(today,30)
       const codes=portfolio.commodities.map(c=>c.id).filter(code=>Boolean(resolveCommodity(code)))
       // Nine known commodities maximum, from the actual lot registry only.
       const results=await Promise.all(codes.map(async code=>{
         try{
-          const params=new URLSearchParams({organizationId,commodityId:code,days:'30',mode:'live',from:today})
+          const params=new URLSearchParams({
+            organizationId,commodityId:code,days:String(window.days),
+            mode:'live',from:window.from,
+          })
           const res=await fetch('/api/food-security/balance?'+params,{
             cache:'no-store',signal:abort.signal,
           })
@@ -337,7 +343,9 @@ export function StrategicReservesCommand({
           const json=await res.json() as {balance?:FoodBalanceResult;dataSource?:string}
           const b=json.balance
           if(json.dataSource!=='LIVE'||!b||b.sourceMode!=='live'||
-            b.commodityId!==code||b.days!==30||b.status!=='complete'||
+            b.commodityId!==code||b.days!==30||
+            b.fromDate!==window.from||b.toDate!==window.through||
+            b.status!=='complete'||
             b.totals.consumptionTonnes===null)return null
           return {commodityCode:code,consumptionTonnes:b.totals.consumptionTonnes,
             days:b.days,sourceRefs:b.evidence.sourceRefs,
@@ -382,29 +390,9 @@ export function StrategicReservesCommand({
   ]
   const registered=portfolio.totalLotRecords>0
   return <div className="space-y-4">
-    <div className="nfii-panel flex flex-wrap items-start justify-between gap-3 p-4">
-      <div>
-        <p className="text-[11px] font-semibold uppercase tracking-wide text-sage-700">
-          Reserve command · organizational operations
-        </p>
-        <h2 className="mt-1 text-[19px] font-semibold text-content">Inventory readiness & release control</h2>
-        <p className="mt-1 max-w-[85ch] text-[12px] leading-relaxed text-content-soft">
-          One source-backed view of warehouse holdings, batch expiries, allocations and approval workload.
-          Administrative reserve lots are NOT added to the national food balance.
-        </p>
-        <p className="mt-2 text-[10px] text-content-soft">
-          Snapshot {portfolio.asOfDate} (Asia/Qatar) · {portfolio.totalLotRecords} loaded lots · read-only analytics
-        </p>
-      </div>
-      <div className="flex flex-wrap gap-2">
-        <button type="button" onClick={onRefresh} className="nfii-button nfii-button-secondary">
-          <RefreshCw className="h-4 w-4"/> Refresh data
-        </button>
-        <button type="button" onClick={()=>onOpenRegister('lots')} className="nfii-button">
-          <PackageCheck className="h-4 w-4"/> Manage lots
-        </button>
-      </div>
-    </div>
+    <ReserveStrategyDesk portfolio={portfolio} report={report} busy={busy}
+      error={error} onRun={()=>void run()} onRefresh={onRefresh}
+      onOpenRegister={onOpenRegister}/>
     {portfolio.partial&&<div role="alert" className="rounded-lg border border-warning-line bg-warning-soft p-3 text-[12px] text-warning-strong">
       <AlertTriangle className="me-2 inline h-4 w-4"/>
       Partial operational ledger: {portfolio.truncated.join(', ')} exceeded the 150-row display cap.
@@ -416,6 +404,12 @@ export function StrategicReservesCommand({
       {canEdit&&<button className="ms-2 font-semibold text-sage-700 underline" type="button"
         onClick={()=>onOpenRegister('warehouses')}>Open warehouse registration</button>}
     </div>}
+    <details className="nfii-panel group overflow-hidden">
+      <summary className="cursor-pointer border-b border-line p-4 text-[12px] font-semibold text-sage-700">
+        Detailed reserve accounting · warehouse charts · batch watchlist · agent evidence
+        <span className="ms-2 text-[10px] font-normal text-content-soft">(expand when needed)</span>
+      </summary>
+      <div className="space-y-4 p-4">
     <section className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6"
       aria-label="Reserve command key indicators">
       {cards.map(card=><div key={card.name} className="nfii-kpi min-w-0">
@@ -503,5 +497,7 @@ export function StrategicReservesCommand({
       Stock quantities are lot administrative entries and are not reconciled to physical sensor counts,
       customs telemetry, national reserves, or other organizations. No fabricated historical chart is shown.
     </p>
+      </div>
+    </details>
   </div>
 }
