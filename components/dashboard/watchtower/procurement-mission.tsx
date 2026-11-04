@@ -75,6 +75,8 @@ export function WatchtowerProcurementMission({posture}:{posture:FoodPosture}){
  const [submission,setSubmission]=useState<Submitted[]>([])
  const [submitted,setSubmitted]=useState(false)
  const [reviewRows,setReviewRows]=useState<ReviewStatus[]>([])
+ const [orderStates,setOrderStates]=useState<Array<{id:string;order_ref:string;status:string}>>([])
+ const [reviewBusy,setReviewBusy]=useState<string|null>(null)
  const org=posture.organizationId
  const selectedCommodity=commodity?.commodityId??''
  const target=Number(targetText)
