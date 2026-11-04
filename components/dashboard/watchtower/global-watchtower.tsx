@@ -517,14 +517,21 @@ export function GlobalWatchtower() {
     ]
     // Regional AIS can contain >1,500 actual ship positions. Do not impose
     // the port-page scanner's 48-vessel ceiling on the combined map.
-    const allVessels=mergeAssets(incoming.filter(asset=>asset.kind==='vessel'))
-      .sort((a,b)=>Number((b.speedKnots??0)>=1.5)-Number((a.speedKnots??0)>=1.5)||
-        b.observedAt.localeCompare(a.observedAt))
-    // Reserve capacity for actual AIS reports outside Hormuz, so a huge Gulf
-    // snapshot does not displace the Red Sea/Gulf of Aden or global coverage.
-    const outsideGulf=allVessels.filter(a=>!(a.lat>=22&&a.lat<=31&&a.lon>=47&&a.lon<=61))
-    const gulf=allVessels.filter(a=>a.lat>=22&&a.lat<=31&&a.lon>=47&&a.lon<=61)
-    const vessels=[...outsideGulf.slice(0,1100),...gulf.slice(0,800)]
+    // Deduplicate by MMSI inside each geographic group BEFORE applying
+    // mergeAssets' 3,500-fix cap. Otherwise dense Gulf/European receiver
+    // clusters can evict every valid Suez/Red Sea position.
+    const reported=incoming.filter(a=>a.kind==='vessel')
+    const isSuez=(a:TrackingAsset)=>a.lat>=29.35&&a.lat<=31.65&&a.lon>=31.9&&a.lon<=33.8
+    const isRedSea=(a:TrackingAsset)=>a.lat>=11&&a.lat<29.35&&a.lon>=32&&a.lon<=46
+    const isGulf=(a:TrackingAsset)=>a.lat>=22&&a.lat<=31&&a.lon>=47&&a.lon<=61
+    const priority=(input:TrackingAsset[])=>mergeAssets(input).sort((a,b)=>
+      Number((b.speedKnots??0)>=1.5)-Number((a.speedKnots??0)>=1.5)||
+      b.observedAt.localeCompare(a.observedAt))
+    const suez=priority(reported.filter(isSuez)).slice(0,350)
+    const redSea=priority(reported.filter(a=>!isSuez(a)&&isRedSea(a))).slice(0,600)
+    const elsewhere=priority(reported.filter(a=>!isSuez(a)&&!isRedSea(a)&&!isGulf(a))).slice(0,650)
+    const gulf=priority(reported.filter(a=>!isSuez(a)&&!isRedSea(a)&&isGulf(a))).slice(0,800)
+    const vessels=[...suez,...redSea,...elsewhere,...gulf]
     const aircraftCandidates=mergeAssets(incoming.filter(asset=>asset.kind==='aircraft'))
     const aircraft=[
       ...aircraftCandidates.filter(a=>a.lat>=7&&a.lat<=42&&a.lon>=25&&a.lon<=80).slice(0,2600),
