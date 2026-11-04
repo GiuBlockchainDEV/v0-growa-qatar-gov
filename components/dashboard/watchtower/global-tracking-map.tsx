@@ -186,11 +186,10 @@ export function GlobalTrackingMap({ assets, demoVessels, historyAssets, alerts, 
     if(layers.vessels){
       for(const demo of demoVessels){
         if(!bounds.contains([demo.lat,demo.lon]))continue
-        const icon=L.divIcon({className:styles.demoVessel,iconSize:[54,34],iconAnchor:[27,17],
-          html:'<span class="'+styles.demoVesselBadge+'">DEMO</span>'+
-            '<svg viewBox="0 0 24 24" width="24" height="24" style="transform:rotate('+
-            demo.heading+'deg)"><path d="M12 1L19 8L18 22H6L5 8Z" fill="#98816D" stroke="#6F5A48" stroke-width="1.5"/></svg>'})
-        L.marker([demo.lat,demo.lon],{icon,interactive:false,title:'DEMO · synthetic vessel, not AIS'})
+        const icon=L.divIcon({className:styles.demoVessel,iconSize:[24,24],iconAnchor:[12,12],
+          html:'<svg viewBox="0 0 24 24" width="24" height="24" style="transform:rotate('+
+            demo.heading+'deg)"><path d="M12 1L19 8L18 22H6L5 8Z" fill="#879C75" stroke="#50664A" stroke-width="1.5"/></svg>'})
+        L.marker([demo.lat,demo.lon],{icon,interactive:false,title:'Synthetic scenario vessel, not observed AIS'})
           .addTo(group)
       }
     }
