@@ -5,7 +5,6 @@ import { scoreToRampColor } from '@/lib/watchtower/map-layer-colors'
 import { useEffect, useMemo, useState } from 'react'
 import { Activity, Cpu, Droplets, Flame, Gauge, Leaf, TrendingDown, TrendingUp } from 'lucide-react'
 import { buildGrowaContext } from '@/lib/ai/build-growa-context'
-import { GrowaIntelligencePanel } from '@/components/dashboard/growa-intelligence-panel'
 import {
   IntelligenceCommandLayout,
   IntelligenceDataTable,
@@ -388,7 +387,7 @@ export function DataAnalyticsWorkspace() {
 
   return (
     <IntelligenceWorkspaceRoot layout="scroll">
-      <QatarCountryCommand growa={{
+      <QatarCountryCommand growaContext={growaContext} growa={{
         producers:headline.producerCount,
         crops:headline.cropCount,
         tonnes:headline.totalProduction,
@@ -399,7 +398,7 @@ export function DataAnalyticsWorkspace() {
       <OperationalContextBanner />
       <details className="rounded-xl border border-line bg-card">
         <summary className="cursor-pointer px-5 py-4 text-[13px] font-semibold text-sage-700">
-          Growa operational deep dive · crop intelligence, farm resources, producer rankings & AI
+          Growa operational deep dive · crop intelligence, farm resources, producer rankings
         </summary>
         <div className="space-y-4 p-4">
 
@@ -570,7 +569,7 @@ export function DataAnalyticsWorkspace() {
                 </IntelligencePanel>
               </>
             }
-            assistant={<GrowaIntelligencePanel module="data-analytics" context={growaContext} />}
+            assistant={<div className="p-4 text-[12px] text-content-soft">Growa Assistant is now located above the national analytics dashboards.</div>}
           />
           </IntelligenceWorkspaceCommand>
         </IntelligenceWorkspaceBody>
