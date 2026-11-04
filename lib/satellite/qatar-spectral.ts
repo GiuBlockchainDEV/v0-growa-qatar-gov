@@ -11,7 +11,7 @@ export const SPECTRAL_INDEX_CONFIG={
   label:'NDVI',bands:['B08','B04'] as const,
   expression:'(B08-B04)/(B08+B04)',
   description:'Vegetation greenness · near infrared vs red',
-  palette:'rdylgn',rescale:'-0.2,0.9',
+  palette:'rdylgn',rescale:'-0.05,0.65',
  },
  ndmi:{
   label:'NDMI',bands:['B08','B11'] as const,
