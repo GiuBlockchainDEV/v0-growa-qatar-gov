@@ -642,8 +642,16 @@
 .intelSignalCard[data-kind='food'] { border-inline-start:3px solid var(--high); }
 .intelSignalCard:not([data-kind]):has(.intelType[data-kind='attention']) { border-inline-start:3px solid var(--warning); }
 
-/* DEMO vessels have dedicated sepia visuals and permanent DEMO labels, distinct
- * from source-backed AIS markers. No click targets or operational data. */
-.demoVessel { border:0; background:none; display:flex !important; align-items:center; flex-direction:column; opacity:.87; pointer-events:none; }
-.demoVessel svg { display:block; filter:drop-shadow(0 1px 1px #111e1370); }
-.demoVesselBadge { display:block; background:#F1E4D2; color:#6F513A; border:1px solid #A68C72; border-radius:3px; padding:1px 3px; font-size:8px; font-weight:800; letter-spacing:.4px; line-height:1; text-align:center; }
+/* Synthetic markers use a normal-sized vessel glyph, but a permanent
+ * global disclosure distinguishes them from genuine AIS observations. */
+.demoVessel { border:0; background:none; opacity:.82; pointer-events:none; }
+.demoVessel svg { display:block; filter:drop-shadow(0 1px 2px #111e1380); }
+.scenarioBanner {
+  position:absolute; z-index:435; inset-inline-start:50%; transform:translateX(-50%);
+  bottom:48px; max-width:calc(100% - 28px); width:max-content;
+  padding:7px 13px; border:1px solid #A68C72; border-radius:8px;
+  background:rgba(255,247,230,.96); color:#664A2F;
+  box-shadow:0 2px 12px #111e1322; text-align:center;
+  font-size:10px; line-height:1.3; font-weight:800; letter-spacing:.2px;
+  pointer-events:none;
+}
