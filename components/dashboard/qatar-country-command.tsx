@@ -10,6 +10,9 @@ import type {
 import {sumLatestProduction,farmsByMunicipality,sourceCoverage,latestYear,
  WORLD_BANK_INDICATORS,DATASET_URL} from '@/lib/analytics/qatar-country'
 import type {CommodityMarketsSnapshot} from '@/lib/watchtower/commodity-markets'
+import type {GrowaFarmAnalysisContext} from '@/lib/ai/growa-types'
+import {buildQatarCountryAssistantContext} from '@/lib/analytics/qatar-assistant-context'
+import {GrowaIntelligencePanel} from '@/components/dashboard/growa-intelligence-panel'
 import styles from './qatar-country-command.module.css'
 
 type Scope={producers:number;crops:number;tonnes:number;waterM3:number;energyKwh:number;polygons:number}
@@ -93,7 +96,7 @@ function MarketSpark({points}:{points:{date:string;priceUsdTonne:number}[]}){
 function SourceLink({href,children}:{href:string;children:React.ReactNode}){
  return <a href={href} target="_blank" rel="noopener noreferrer">{children}<ExternalLink size={12}/></a>
 }
-export function QatarCountryCommand({growa}:{growa:Scope}){
+export function QatarCountryCommand({growa,growaContext}:{growa:Scope;growaContext:GrowaFarmAnalysisContext|null}){
  const [snapshot,setSnapshot]=useState<QatarCountrySnapshot|null>(null)
  const [market,setMarket]=useState<CommodityMarketsSnapshot|null>(null)
  const [countryError,setCountryError]=useState<string|null>(null)
@@ -138,8 +141,9 @@ export function QatarCountryCommand({growa}:{growa:Scope}){
  const wbPopulation=resolveIndicator(snapshot,'population')
  const wbImport=resolveIndicator(snapshot,'foodImportShare')
  const selected=resolveIndicator(snapshot,selectedIndicator)
- const sourceStats=sourceCoverage(snapshot?.sources??[])
- const coverage=(snapshot?.sources??[]).length?sourceStats.present+'/'+sourceStats.total:'0/4'
+ const assistantContext=useMemo(()=>buildQatarCountryAssistantContext(
+  snapshot,market,growaContext,{country:countryError,markets:marketError},
+ ),[snapshot,market,growaContext,countryError,marketError])
  const trackedMarkets=(market?.instruments??[]).filter(x=>
   ['wheat','corn','rice','barley','soybeans','poultry','sugar','palm-oil'].includes(x.id))
  const cards=[
@@ -169,20 +173,10 @@ export function QatarCountryCommand({growa}:{growa:Scope}){
      <p>A country-level view of agricultural production, food self-sufficiency, farm geography, demographics and international commodity exposure, with every metric linked to its actual source.</p>
      <div className={styles.heroSignals}>
       <span><ShieldCheck size={12}/> Official published statistics</span>
-      <span><Database size={12}/> {coverage} national sources responding</span>
       <span><Activity size={12}/> {market?.available??'N/A'} commodity benchmarks</span>
      </div>
     </div>
-    <div className={styles.dataIntegrity}>
-     <div><strong>DATA COVERAGE</strong>
-      <button type="button" aria-label="Refresh national analytics"
-       disabled={countryLoading||marketLoading} onClick={()=>setReload(x=>x+1)}>
-       <RefreshCw size={15} className={countryLoading||marketLoading?'animate-spin':''}/>
-      </button></div>
-     <strong>{countryLoading?'LOADING':coverage}</strong>
-     <p>Official data is annual and not a real-time national inventory. Different metrics may have different reference years.</p>
-     {countryError&&<p className={styles.warning}>{countryError}</p>}
-    </div>
+
    </div>
    <div className={styles.kpis}>
     {cards.map(c=><div className={styles.kpi} key={c.name}>
@@ -192,6 +186,23 @@ export function QatarCountryCommand({growa}:{growa:Scope}){
      {c.source&&<SourceLink href={c.source}>Source</SourceLink>}
     </div>)}
    </div>
+  </div>
+  <div className={styles.assistantRegion}>
+   <div className={styles.assistantHeading}>
+    <div><span className={styles.kicker}>GROWA · AI COUNTRY ANALYST</span>
+     <h3>Ask Growa about the whole country</h3>
+     <p>National production, self-sufficiency, World Bank trends, commodity markets and your Growa operations in one conversation.</p>
+    </div>
+    <button type="button" onClick={()=>setReload(x=>x+1)}
+     disabled={countryLoading||marketLoading} aria-label="Refresh national datasets"
+     className={styles.refreshButton}><RefreshCw size={16}/> Refresh evidence</button>
+   </div>
+   <div className={styles.assistantPanel}>
+    <GrowaIntelligencePanel module="data-analytics" context={assistantContext}/>
+   </div>
+   {(countryError||marketError)&&<p className={styles.warning} role="status">
+    Some data providers are unavailable. Growa will identify source gaps instead of inventing values.
+   </p>}
   </div>
   <nav className={styles.sections} aria-label="Country analytics views">
    {sections.map(s=><button type="button" key={s.key}
