@@ -1,5 +1,5 @@
 import type { GrowaAnalysisContext, GrowaFarmAnalysisContext, GrowaModule } from './growa-types'
-import { isFarmGrowaContext, isHarvestGrowaContext } from './growa-types'
+import { isFarmGrowaContext, isHarvestGrowaContext, isQatarCountryGrowaContext } from './growa-types'
 
 export interface GrowaPromptOption {
   id: string
@@ -242,6 +242,16 @@ export function getGrowaPrompts(module: GrowaModule, context?: GrowaAnalysisCont
     case 'watchtower':
       return FALLBACK_PROMPTS.watchtower
     case 'data-analytics':
+      if (isQatarCountryGrowaContext(context)) return [
+        { id:'country-briefing',label:'Qatar food security briefing',
+          prompt:'Analyze the Qatar national food system using published country indicators, crop production, product self-sufficiency, registered farms by municipality, international commodity benchmarks and Growa operations. Cite sources and periods, flag missing evidence, and recommend measurable priorities.' },
+        { id:'supply-exposure',label:'Import and commodity exposure',
+          prompt:'Compare available World Bank food-trade indicators with IMF/FRED commodity benchmark prices, including dates and QAR per tonne. Do not interpret global benchmarks as Qatar procurement quotes or calculate an import-dependency rate without consumption data.' },
+        { id:'agricultural-capacity',label:'National production and gaps',
+          prompt:'Examine national crop production, self-sufficiency by product and registered farms by municipality. Identify where national data is incomplete and how Growa farm measurements might support planning without treating monitored farms as the country total.' },
+        { id:'cross-source-priorities',label:'Cross-source priorities',
+          prompt:'Create an evidence-based set of national food system monitoring priorities that connects published Qatar production and population, World Bank metrics, market movements and Growa operational records. Separate observations from recommendations.' },
+      ]
     default:
       // A watchtower context under a farm module used to reach the farm prompt builders.
       return isFarmGrowaContext(context) ? dataAnalyticsPrompts(context) : FALLBACK_PROMPTS[module]
