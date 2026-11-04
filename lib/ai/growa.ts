@@ -1,6 +1,6 @@
 import { GoogleGenerativeAI, type Part } from '@google/generative-ai'
 import type { GrowaAnalyzeRequest } from './growa-types'
-import { isHarvestGrowaContext, isWatchtowerGrowaContext } from './growa-types'
+import { isHarvestGrowaContext, isWatchtowerGrowaContext, isQatarCountryGrowaContext } from './growa-types'
 import { getGrowaModuleTitle } from './growa-prompts'
 import { getModuleAnalysisFramework } from './growa-digest'
 
@@ -59,6 +59,17 @@ ${digest}`
 function buildStructuredData(request: GrowaAnalyzeRequest) {
   const context = request.context
 
+  if (isQatarCountryGrowaContext(context)) {
+    return {
+      scope: context.scope,
+      headline: context.headline,
+      national: context.national,
+      markets: context.markets,
+      growaOperations: context.growaOperations,
+      dataGaps: context.dataGaps,
+    }
+  }
+
   if (isHarvestGrowaContext(context)) {
     return {
       view: context.view,
@@ -99,7 +110,13 @@ function buildStructuredData(request: GrowaAnalyzeRequest) {
 function buildFirstUserMessage(request: GrowaAnalyzeRequest) {
   const structuredData = buildStructuredData(request)
 
-  const harvestInstructions = isHarvestGrowaContext(request.context)
+  const harvestInstructions = isQatarCountryGrowaContext(request.context)
+    ? `- Answer using all country, market, and signed-in Growa sections available in the source-attributed dataset.
+- Cite exact source, observation year/month, and metric unit for all national statistics.
+- Never present global monthly benchmark prices as supplier quotes or Qatar imports.
+- Distinguish signed-in Growa farm estimates from national aggregates.
+- If a requested statistic is missing, explicitly report the source gap. Do not extrapolate.`
+    : isHarvestGrowaContext(request.context)
     ? `- Quote at least 8 concrete Harvest metrics (with units) and at least 3 named fields when available.
 - Explain whether the active mode is observed (current) or forecast (predict).
 - If fieldDetail.raster is present and an image is attached, describe visible spatial patterns and relate them to KPI/trend data.
