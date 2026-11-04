@@ -7,7 +7,7 @@
  */
 import {isPointInQatar} from '@/lib/satellite/qatar-clip'
 
-export type WellOrigin='openstreetmap'|'growa-map-point'
+export type WellOrigin='openstreetmap'|'un-gis'|'growa-map-point'
 export type WellKind='water_well'|'water_borehole'
 export type QatarWell={
  id:string
@@ -17,6 +17,8 @@ export type QatarWell={
  origin:WellOrigin
  kind:WellKind
  osmUrl:string|null
+ sourceName?:string|null
+ sourceUrl?:string|null
  operator:string|null
  reference:string|null
  drinkingWater:'yes'|'no'|null
@@ -25,16 +27,17 @@ export type QatarWell={
  liveTelemetry:false
  lastSensorUpdate:null
 }
-export type WellsSourceStatus='available'|'unavailable'|'stale'
+export type WellsSourceStatus='available'|'partial'|'unavailable'|'stale'
 export type QatarWellsPayload={
  wells:QatarWell[]
  sourceStatus:WellsSourceStatus
- source:'OpenStreetMap / Overpass'
+ source:'Public GIS / OpenStreetMap'
  sourceUpdatedAt:string|null
  fetchedAt:string
  total:number
  note:string
  attribution:string
+ providerStatuses?:Array<{id:string;name:string;state:'available'|'unavailable';count:number;detail?:string}>
 }
 export type OsmWellElement={
  type?:unknown
@@ -148,6 +151,7 @@ export function wellsSummary(wells:readonly QatarWell[]){
  return {
   mapped:wells.length,
   osm:wells.filter(x=>x.origin==='openstreetmap').length,
+  gis:wells.filter(x=>x.origin==='un-gis').length,
   userMapped:wells.filter(x=>x.origin==='growa-map-point').length,
   withDepth:wells.filter(x=>x.depthM!==null).length,
   withPumpTag:wells.filter(x=>x.pump!==null).length,
