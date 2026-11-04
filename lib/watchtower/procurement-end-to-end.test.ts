@@ -43,7 +43,7 @@ describe('Procurement end-to-end agentic workbench',()=>{
  })
  it('preserves separation of preliminary sourcing and legally binding orders',()=>{
   expect(mission).toContain('NO BINDING QUOTE')
-  expect(mission).toContain('not a legally placed order')
+  expect(mission).toContain('NOT a legally placed order')
   expect(onboarding).toContain('not merely a search listing')
   expect(map).toContain('not scheduled flights')
   expect(map).toContain('not freight booking')
