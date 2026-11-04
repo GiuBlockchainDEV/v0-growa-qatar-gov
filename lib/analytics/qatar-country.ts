@@ -34,6 +34,38 @@ export type FarmMunicipality={
 export type SelfSufficiency={
  year:number;product:string;group:string;quantityTonnes:number|null;ratioPercent:number
 }
+/**
+ * Qatar Ministry of Municipality, 2025 self-sufficiency indicators,
+ * reported by Qatar News Agency on 15 October 2026, and reported ministry
+ * figures for table eggs and red meat in The Peninsula on 2 January 2026.
+ *
+ * These are curated, product-specific officially attributed 2025 indicators,
+ * NOT the incompatible/ambiguous raw 2013–2023 data.gov.qa API series.
+ * Do not combine with seasonal (100% peak) vegetables or 2024 values.
+ */
+export const QATAR_VERIFIED_SUFFICIENCY_SOURCES={
+ ministry:'https://qna.org.qa/en/news/news-details?date=15%2F10%2F2026&id=qatar-targets-sustainable-food-production-as-self-sufficiency-reaches-99-for-fresh-poultry-and-dairy',
+ other:'https://thepeninsulaqatar.com/article/02/01/2026/local-vegetable-output-hits-75000-tonnes-in-2025',
+} as const
+export type VerifiedSufficiency=SelfSufficiency & {
+ sourceUrl:string
+ sourceLabel:string
+ publicationDate:string
+}
+export const QATAR_VERIFIED_SUFFICIENCY_2025:readonly VerifiedSufficiency[]=[
+ {year:2025,product:'Fresh poultry',group:'Meat',quantityTonnes:null,ratioPercent:99,
+  sourceUrl:QATAR_VERIFIED_SUFFICIENCY_SOURCES.ministry,sourceLabel:'Ministry of Municipality / QNA',publicationDate:'2026-10-15'},
+ {year:2025,product:'Fresh milk & dairy',group:'Dairy',quantityTonnes:null,ratioPercent:99,
+  sourceUrl:QATAR_VERIFIED_SUFFICIENCY_SOURCES.ministry,sourceLabel:'Ministry of Municipality / QNA',publicationDate:'2026-10-15'},
+ {year:2025,product:'Fresh fish',group:'Fish',quantityTonnes:null,ratioPercent:67,
+  sourceUrl:QATAR_VERIFIED_SUFFICIENCY_SOURCES.ministry,sourceLabel:'Ministry of Municipality / QNA',publicationDate:'2026-10-15'},
+ {year:2025,product:'Basic vegetables',group:'Vegetables',quantityTonnes:null,ratioPercent:47,
+  sourceUrl:QATAR_VERIFIED_SUFFICIENCY_SOURCES.ministry,sourceLabel:'Ministry of Municipality / QNA',publicationDate:'2026-10-15'},
+ {year:2025,product:'Table eggs',group:'Eggs',quantityTonnes:null,ratioPercent:27,
+  sourceUrl:QATAR_VERIFIED_SUFFICIENCY_SOURCES.other,sourceLabel:'Ministry figures / The Peninsula',publicationDate:'2026-01-02'},
+ {year:2025,product:'Red meat',group:'Meat',quantityTonnes:null,ratioPercent:19,
+  sourceUrl:QATAR_VERIFIED_SUFFICIENCY_SOURCES.other,sourceLabel:'Ministry figures / The Peninsula',publicationDate:'2026-01-02'},
+]
 export type SourceHealth={
  id:'world-bank'|QatarDataset
  label:string;status:'available'|'unavailable'
