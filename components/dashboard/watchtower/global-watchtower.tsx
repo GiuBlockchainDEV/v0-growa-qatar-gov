@@ -14,7 +14,7 @@ import {MONITORED_MARITIME_PORTS,type GccRadarSnapshot} from '@/lib/watchtower/m
 import type {HormuzNowFeed} from '@/lib/watchtower/hormuz-now'
 import type {OpenSeaFeedSnapshot} from '@/lib/watchtower/openseafeed'
 import type {OpenWatersSnapshot} from '@/lib/watchtower/open-waters-ais'
-import {visibleUnderwayVessel} from '@/lib/watchtower/visible-vessels'
+import {visibleUnderwayVessel,visibleObservedVessel} from '@/lib/watchtower/visible-vessels'
 import type {IpcRiskSnapshot} from '@/lib/watchtower/ipc-food-security'
 import type {PublicFoodSnapshot} from '@/lib/watchtower/public-food-intelligence'
 import {REGIONAL_AIR_BATCH_COUNT,type RegionalAirBatch} from '@/lib/watchtower/regional-air-shared'
@@ -34,7 +34,7 @@ const REGIONS = {
   americas: { name: 'Americas', lat: 15, lon: -80, zoom: 3, box: [-60, -180, 80, -30] },
 } as const
 type Region = keyof typeof REGIONS
-type ShipView = 'moving' | 'cargoMoving'
+type ShipView = 'moving' | 'cargoMoving' | 'observed' | 'cargoObserved'
 const count = (n: number | null) => n === null ? '—' : n.toLocaleString('en-US')
 function utc(value: string | null) {
   if (!value || !Number.isFinite(Date.parse(value))) return 'Not provided'
@@ -72,7 +72,7 @@ export function GlobalWatchtower() {
   const [busy, setBusy] = useState(false), [refresh, setRefresh] = useState(0), [paused, setPaused] = useState(false), [now, setNow] = useState(Date.now)
   const [mobile, setMobile] = useState(false), [filtersOpen, setFiltersOpen] = useState(false), [alertsOpen, setAlertsOpen] = useState(true), [fullscreen, setFullscreen] = useState(false)
   const [query, setQuery] = useState(''), [region, setRegion] = useState<Region>('gulf')
-  const [shipView,setShipView]=useState<ShipView>('moving')
+  const [shipView,setShipView]=useState<ShipView>('observed')
   const [ipcRisk,setIpcRisk]=useState<IpcRiskSnapshot|null>(null)
   const [ipcError,setIpcError]=useState('')
   const [publicFood,setPublicFood]=useState<PublicFoodSnapshot|null>(null)
@@ -533,11 +533,25 @@ export function GlobalWatchtower() {
     return [...aircraft,...vessels]
   },[openSea,globalAis,openWaters,snapshot,maritimeFeed,gccRadar,regionalAir])
   const cargoCandidateCount=allAssets.filter(a=>a.kind==='aircraft'&&inside(a)&&a.cargo!=='unverified').length
+  const corridorCounts=useMemo(()=>{
+    const areas=[
+      {id:'suez',name:'Suez / Port Said',south:29.35,west:31.9,north:31.65,east:33.8},
+      {id:'red_sea',name:'Red Sea',south:12.2,west:32,north:29.35,east:45},
+    ]
+    return areas.map(area=>{
+      const matches=allAssets.filter(a=>a.kind==='vessel'&&a.lat>=area.south&&
+        a.lat<=area.north&&a.lon>=area.west&&a.lon<=area.east&&
+        visibleObservedVessel(a,now))
+      return {id:area.id,name:area.name,observed:matches.length,
+        underway:matches.filter(a=>visibleUnderwayVessel(a,now)).length}
+    })
+  },[allAssets,now])
   const assets = useMemo(() => allAssets.filter(a =>
     inside(a) &&
     (a.kind==='vessel'
-      ? visibleUnderwayVessel(a,now)&&
-        (shipView!=='cargoMoving'||a.cargo==='ais_cargo_class')
+      ? (shipView==='moving'||shipView==='cargoMoving'
+          ? visibleUnderwayVessel(a,now):visibleObservedVessel(a,now))&&
+        (shipView!=='cargoMoving'&&shipView!=='cargoObserved'||a.cargo==='ais_cargo_class')
       : (!freightFlightsOnly||a.cargo!=='unverified')) &&
     (!query || (a.label+' '+a.id+' '+(a.destination??'')).toLowerCase().includes(query.toLowerCase())),
   ),[allAssets,inside,shipView,freightFlightsOnly,query,now])
@@ -710,9 +724,20 @@ export function GlobalWatchtower() {
         value={region} onChange={e=>setView(e.target.value as Region)}>
         {Object.entries(REGIONS).map(([key,value])=><option key={key} value={key}>{value.name}</option>)}
       </select>
+      <p className={styles.controlSummary}>
+        {corridorCounts.map(area=><span key={area.id} style={{display:'block'}}>
+          <strong>{area.name}: {area.observed}</strong> reported fixes ≤12h
+          {' '}({area.underway} reporting underway)
+        </span>)}
+        {openWaters?.state==='unconfigured'&&<span style={{display:'block'}}>
+          Suez / Red Sea licensed AIS unavailable: Open Waters commercial access is not enabled.
+        </span>}
+      </p>
       <label className={styles.label} htmlFor="watchtower-ship-mode">Vessels</label>
       <select id="watchtower-ship-mode" className={styles.input} value={shipView}
         onChange={e=>setShipView(e.target.value as ShipView)}>
+        <option value="observed">All source-observed ships (≤12h)</option>
+        <option value="cargoObserved">Cargo-class observed ships (≤12h)</option>
         <option value="moving">Ships underway (SOG ≥1.5 kn)</option>
         <option value="cargoMoving">Cargo-class ships underway</option>
       </select>
@@ -751,7 +776,7 @@ export function GlobalWatchtower() {
         }))}>
         <span><Layers size={13}/>Available routes & tracks</span><i className={styles.switch}/>
       </button>
-      <p className={styles.controlNote}>Stationary and port-berthed ships are hidden. Positions are source-observed, sometimes delayed by up to 12 hours; reported speed does not prove a voyage.</p>
+      <p className={styles.controlNote}>The default displays source-observed ship fixes up to 12 hours old, including stopped and speed-unknown vessels. Use the underway filters to hide port traffic. A last position does not prove the ship is still there; historical positions are not live tracking.</p>
       <details className={styles.sourcesDetails}>
         <summary>Data sources & freshness</summary>
         <div className={styles.sourceBody}>
@@ -777,9 +802,13 @@ export function GlobalWatchtower() {
           <p><strong>OpenSeaFeed:</strong> {globalAis?.state??'loading'} · {globalAis?.accepted??'N/A'} mapped,
             {globalAis?.regional??'N/A'} regional. {globalAisError}
           </p>
+          <p><strong>Suez and Gulf of Suez AIS:</strong> {openWaters?.areas.filter(a=>a.id.startsWith('suez_')).map(a=>
+            a.name+': '+a.state+' ('+a.vessels+' positions'+(a.reason?', '+a.reason:'')+')').join(' · ')||
+            (openWaters?.state==='unconfigured'?'Commercial access not configured':'Pending area coverage')}.
+          </p>
           <p><strong>Red Sea / Arabian Sea / Indian Ocean AIS:</strong> {openWaters?.state??'loading'}.
             {' '}{openWaters?.vessels??'N/A'} source-observed vessels across
-            {' '}{openWaters?.areas.filter(a=>a.state==='available').length??0}/15 regions.
+            {' '}{openWaters?.areas.filter(a=>a.state==='available').length??0}/17 regions.
             {' '}{openWaters?.detail??''} {openWatersError}
           </p>
           {openWaters?.areas.filter(a=>a.state==='unavailable').map(a=><p key={a.id}>
