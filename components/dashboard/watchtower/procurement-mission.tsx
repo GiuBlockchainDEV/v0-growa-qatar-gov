@@ -1,565 +1,579 @@
 'use client'
 
-import {useCallback,useEffect,useMemo,useState} from 'react'
+import {useEffect,useMemo,useRef,useState} from 'react'
 import Link from 'next/link'
 import {
-  ArrowLeft,ArrowUpRight,Check,CheckCircle2,ClipboardCheck,
-  FileCheck2,Globe2,PackageCheck,RefreshCw,
-  ShieldCheck,Ship,Truck,XCircle,
+ ArrowLeft,ArrowUpRight,Bot,Check,ClipboardCheck,Copy,
+ PackageCheck,Play,RefreshCw,ShieldCheck,Terminal,XCircle,
 } from 'lucide-react'
 import {useI18n} from '@/lib/i18n'
 import type {FoodPosture} from '@/lib/watchtower/food-posture'
-import {CARGO_SPECS} from '@/lib/nfii/logistics-lanes'
 import {
-  MISSION_STEPS,validateAllocations,estimatedGoodsValue,validRouteChoices,
-  previousMissionStep,nextMissionStep,
-  type ContractOption,type SourceLead,type Allocation,type RouteCandidate,
-  type MissionAction,
-} from '@/lib/watchtower/procurement-mission'
+ rankSourcingCandidates,diverseShortlist,buildSourcingScenarios,
+ planApprovedOrders,sourcingBrief,
+ type SourcingLead,type EligibleContract,type OriginReference,type RouteReview,
+ type Candidate,type SourcingScenario,
+} from '@/lib/watchtower/sourcing-autopilot'
+import {CARGO_SPECS} from '@/lib/nfii/logistics-lanes'
 import styles from './procurement-mission.module.css'
 
-type ApprovedResponse={
-  organizationId:string;commodity:string;source:'organization_procurement_ledger'
-  available:boolean;options:ContractOption[];error?:string
+type LedgerResult={options:EligibleContract[];available:boolean;error?:string}
+type LeadsResult={results:SourcingLead[];researchStatus:string;error?:string}
+type OriginResult={shortlist:OriginReference[];dataStatus:string;error?:string}
+type RouteResult={routes:RouteReview[];error?:string}
+type ReviewRecord={id:string;status:string;target_id?:string;target_type?:string}
+type OrderRecord={id:string;order_ref:string;status:string}
+type Submitted={ref:string;contractId:string;tonnes:number;status:'pending'|'failed';detail:string}
+type LogEntry={id:number;agent:string;text:string;state:'working'|'complete'|'gap'|'approval';when:string}
+type Phase='idle'|'researching'|'shortlist'|'planning'|'plan_approval'|'approved'
+type WorkflowReport={
+ candidates:Candidate[]
+ origins:OriginReference[]
+ routes:Record<string,RouteReview[]>
+ scenarios:SourcingScenario[]
+ errors:string[]
 }
-type LeadResponse={
-  results:SourceLead[];researchStatus:string;note?:string
-  error?:string
+const money=(n:number)=>n.toLocaleString('en-US',{maximumFractionDigits:2})+' QAR'
+const fmt=(n:number)=>n.toLocaleString('en-US',{maximumFractionDigits:1})
+const errorText=(cause:unknown)=>cause instanceof Error?cause.message:'Source unavailable'
+const errorPayload=(body:unknown,fallback:string):string=>
+ body&&typeof body==='object'&&'error'in body&&typeof body.error==='string'?
+ body.error:fallback
+async function getJson(url:string,signal:AbortSignal):Promise<unknown>{
+ const response=await fetch(url,{cache:'no-store',signal})
+ const payload:unknown=await response.json()
+ if(!response.ok)throw Error(errorPayload(payload,'Provider returned '+response.status))
+ return payload
 }
-type CorridorResponse={routes:RouteCandidate[];context?:{country:string};error?:string}
-type Submitted={contractId:string;quantity:number;orderRef:string;status:'pending'|'error';message:string}
-type ReviewStatus={id:string;status:string;target_type?:string;target_id?:string}
-const number=(n:number,dp=1)=>n.toLocaleString('en-US',{maximumFractionDigits:dp})
-const gateText=[
- ['Confirm demand','تأكيد الطلب'],
- ['Approve supplier research','الموافقة على البحث عن الموردين'],
- ['Approve shortlist','الموافقة على القائمة المختصرة'],
- ['Approve quantity allocation','الموافقة على توزيع الكميات'],
- ['Approve logistics scenarios','الموافقة على السيناريوهات اللوجستية'],
- ['Approve commercial review','الموافقة على المراجعة التجارية'],
- ['Submit for independent PO approval','إرسال الطلب للموافقة المستقلة'],
-] as const
-function errorText(error:unknown){
- return error instanceof Error?error.message:'A verified source is unavailable'
-}
-function formatPrice(n:number){return number(n,2)+' QAR'}
-function responseError(payload:unknown,fallback:string){
- if(payload&&typeof payload==='object'&&'error'in payload&&
-  typeof payload.error==='string')return payload.error
- return fallback
-}
+function nowLabel(){return new Date().toLocaleTimeString('en-GB',{hour12:false})}
+
 export function WatchtowerProcurementMission({posture}:{posture:FoodPosture}){
  const {locale}=useI18n()
  const ar=locale==='ar'
  const tx=(en:string,arabic:string)=>ar?arabic:en
  const [commodityId,setCommodityId]=useState(posture.commodities[0]?.commodityId??'')
- const validCommodity=posture.commodities.find(x=>x.commodityId===commodityId)
- const commodity=validCommodity??posture.commodities[0]
- const supported=Boolean(commodity&&CARGO_SPECS[commodity.commodityId])
- const [stage,setStage]=useState(0)
- const [targetText,setTargetText]=useState('')
- const [leadRows,setLeadRows]=useState<SourceLead[]>([])
- const [contracts,setContracts]=useState<ContractOption[]>([])
- const [shortlist,setShortlist]=useState<string[]>([])
- const [allocations,setAllocations]=useState<Record<string,string>>({})
- const [routes,setRoutes]=useState<Record<string,RouteCandidate[]>>({})
- const [routeSelected,setRouteSelected]=useState<Record<string,string>>({})
- const [researchStatus,setResearchStatus]=useState<'idle'|'loading'|'ready'|'partial'|'error'>('idle')
- const [routeStatus,setRouteStatus]=useState<'idle'|'loading'|'ready'|'partial'|'error'>('idle')
- const [sourceErrors,setSourceErrors]=useState<string[]>([])
- const [routeErrors,setRouteErrors]=useState<string[]>([])
- const [decisions,setDecisions]=useState<MissionAction[]>([])
- const [busy,setBusy]=useState(false)
- const [message,setMessage]=useState('')
- const [reason,setReason]=useState('')
- const [submission,setSubmission]=useState<Submitted[]>([])
- const [submitted,setSubmitted]=useState(false)
- const [reviewRows,setReviewRows]=useState<ReviewStatus[]>([])
- const [orderStates,setOrderStates]=useState<Array<{id:string;order_ref:string;status:string}>>([])
- const [reviewBusy,setReviewBusy]=useState<string|null>(null)
- const org=posture.organizationId
+ const commodity=posture.commodities.find(c=>c.commodityId===commodityId)??
+  posture.commodities[0]
  const selectedCommodity=commodity?.commodityId??''
- const target=Number(targetText)
- const chosen=useMemo(()=>contracts.filter(item=>shortlist.includes(item.id)),
-  [contracts,shortlist])
- const selectedAllocations=useMemo<Allocation[]>(()=>chosen.flatMap(item=>{
-  const value=Number(allocations[item.id]??0)
-  return value>0?[{contractId:item.id,tonnes:value}]:[]
- }),[chosen,allocations])
- const allocationError=validateAllocations(chosen,selectedAllocations,target)
- const origins=useMemo(()=>[...new Set(selectedAllocations.map(a=>
-  contracts.find(c=>c.id===a.contractId)?.countryCode)
-  .filter((x):x is string=>Boolean(x)))].filter(x=>x!=='QA'),
-  [selectedAllocations,contracts])
- const logisticsValid=validRouteChoices(selectedAllocations,contracts,routeSelected,routes)
- const totalGoods=estimatedGoodsValue(contracts,selectedAllocations)
- const latestSubmitted=useMemo(()=>submission.filter(x=>x.status==='pending'),[submission])
- const completed=decisions.filter(x=>x.decision==='approved').length
- const selectedLeadRows=leadRows.slice(0,80)
- const approvedChoices=contracts.filter(c=>c.availableTonnes>0)
- const dateLabel=posture.fromDate+' → '+posture.toDate
-
- // Scope, source and selected-commodity updates invalidate previous local gates.
- const resetMission=()=>{
-  setStage(0);setTargetText('');setLeadRows([]);setContracts([])
-  setShortlist([]);setAllocations({});setRoutes({});setRouteSelected({})
-  setResearchStatus('idle');setRouteStatus('idle');setSourceErrors([])
-  setRouteErrors([]);setDecisions([]);setBusy(false);setMessage('')
-  setReason('');setSubmission([]);setSubmitted(false);setReviewRows([]);setOrderStates([]);setReviewBusy(null)
+ const supported=Boolean(selectedCommodity&&CARGO_SPECS[selectedCommodity])
+ const verifiedDemand=commodity?.status==='complete'&&
+  commodity.deficitTonnes!==null&&commodity.deficitTonnes>0?
+  commodity.deficitTonnes:null
+ const [quantity,setQuantity]=useState('')
+ const requiredQty=quantity.trim()!==''&&Number.isFinite(Number(quantity))&&
+  Number(quantity)>0&&Number(quantity)<=600?Number(quantity):verifiedDemand
+ const [phase,setPhase]=useState<Phase>('idle')
+ const [report,setReport]=useState<WorkflowReport|null>(null)
+ const [selectedIds,setSelectedIds]=useState<string[]>([])
+ const [scenarioId,setScenarioId]=useState<SourcingScenario['id']>('diversified')
+ const [logs,setLogs]=useState<LogEntry[]>([])
+ const [notice,setNotice]=useState('')
+ const [reviewNote,setReviewNote]=useState('')
+ const [brief,setBrief]=useState('')
+ const [orders,setOrders]=useState<Submitted[]>([])
+ const [orderStates,setOrderStates]=useState<OrderRecord[]>([])
+ const [approvalRecords,setApprovalRecords]=useState<ReviewRecord[]>([])
+ const [submitting,setSubmitting]=useState(false)
+ const [reviewBusy,setReviewBusy]=useState(false)
+ const runId=useRef(0)
+ const requestController=useRef<AbortController|null>(null)
+ const logId=useRef(0)
+ const logBottom=useRef<HTMLDivElement|null>(null)
+ const [follow,setFollow]=useState(true)
+ const log=(agent:string,text:string,state:LogEntry['state']='complete')=>{
+  setLogs(prev=>[...prev,{id:++logId.current,agent,text,state,when:nowLabel()}])
  }
- useEffect(()=>{resetMission()},[posture])
- const changeCommodity=(id:string)=>{setCommodityId(id);resetMission()}
- const fetchSuppliers=useCallback(async()=>{
+ const cancel=()=>{
+  runId.current+=1
+  requestController.current?.abort()
+  requestController.current=null
+ }
+ const reset=()=>{
+  cancel();setPhase('idle');setReport(null);setSelectedIds([])
+  setScenarioId('diversified');setLogs([]);setBrief('');setNotice('')
+  setReviewNote('');setOrders([]);setOrderStates([]);setApprovalRecords([])
+  setSubmitting(false);setReviewBusy(false)
+ }
+ useEffect(()=>{
+  // A new authorized organization snapshot must never inherit prior analyses.
+  runId.current+=1;requestController.current?.abort()
+  // Reset via state setters only; no network calls.
+  setPhase('idle');setReport(null);setSelectedIds([])
+  setLogs([]);setBrief('');setOrders([]);setOrderStates([])
+  setApprovalRecords([]);setQuantity('');setNotice('')
+  return ()=>{runId.current+=1;requestController.current?.abort()}
+ },[posture])
+ useEffect(()=>{
+  if(follow)logBottom.current?.scrollIntoView({behavior:'smooth',block:'nearest'})
+ },[logs.length,follow])
+ const changeCommodity=(id:string)=>{
+  reset();setCommodityId(id);setQuantity('')
+ }
+ const run=async()=>{
   if(!supported||!selectedCommodity)return
-  setResearchStatus('loading');setSourceErrors([])
-  const base={organizationId:org,commodity:selectedCommodity}
-  const urls=[
-   '/api/watchtower/procurement-agent?'+new URLSearchParams(base),
-   '/api/nfii/procurement/crop-producers?'+new URLSearchParams({
-    ...base,research:'curated',
-   }),
+  cancel()
+  const id=runId.current
+  const controller=new AbortController()
+  requestController.current=controller
+  const signal=controller.signal
+  setPhase('researching');setReport(null);setSelectedIds([])
+  setOrders([]);setLogs([]);setNotice('');setBrief('')
+  setOrderStates([]);setApprovalRecords([])
+  log('Orchestrator','Authorized organization snapshot and commodity: '+selectedCommodity)
+  log('Demand agent',requiredQty!==null?
+   'Planning target '+fmt(requiredQty)+' tonnes. Source: '+
+    (quantity.trim()? 'operator-supplied quantity':'reviewed projected deficit'):
+   'No verified demand volume. Discovery and RFQ research will continue without inventing tonnage.',
+   requiredQty!==null?'complete':'gap')
+  const org=posture.organizationId
+  const base=new URLSearchParams({organizationId:org,commodity:selectedCommodity})
+  const discovery=[
+   {name:'Supplier registry',url:'/api/nfii/procurement/crop-producers?'+
+     new URLSearchParams({...Object.fromEntries(base),research:'curated'})},
+   {name:'Authorized contracts',url:'/api/watchtower/procurement-agent?'+base},
+   {name:'Trade intelligence',url:'/api/nfii/procurement/origin-prices?'+base},
   ]
-  const responses=await Promise.allSettled(urls.map(async url=>{
-   const response=await fetch(url,{cache:'no-store'})
-   const body:unknown=await response.json()
-   if(!response.ok)throw Error(responseError(body,'Supplier source unavailable'))
-   return body
-  }))
-  const issues:string[]=[]
-  const approved=responses[0].status==='fulfilled'?
-   responses[0].value as ApprovedResponse:null
-  const leads=responses[1].status==='fulfilled'?
-   responses[1].value as LeadResponse:null
-  if(!approved||!Array.isArray(approved.options)){
-   issues.push(responses[0].status==='rejected'?errorText(responses[0].reason):
-    'Approved contracts unavailable')
+  log('Research orchestrator','Querying three independent sourcing evidence feeds.','working')
+  const sources=await Promise.allSettled(discovery.map(async x=>getJson(x.url,signal)))
+  if(signal.aborted||runId.current!==id)return
+  const errors:string[]=[]
+  const source=<T,>(index:number,name:string):T|null=>{
+   const item=sources[index]
+   if(item.status==='rejected'){
+    errors.push(name+': '+errorText(item.reason))
+    log(name,'Source unavailable: '+errorText(item.reason),'gap')
+    return null
+   }
+   log(name,'Source response received and validated.','complete')
+   return item.value as T
   }
-  if(!leads||!Array.isArray(leads.results)){
-   issues.push(responses[1].status==='rejected'?errorText(responses[1].reason):
-    'Public crop-sector leads unavailable')
-  }
-  setContracts(approved?.options??[])
-  setLeadRows(leads?.results??[])
-  setSourceErrors(issues)
-  setResearchStatus(issues.length===2?'error':issues.length?'partial':'ready')
- },[org,selectedCommodity,supported])
- useEffect(()=>{
-  if(stage===1&&researchStatus==='idle')void fetchSuppliers()
- },[stage,researchStatus,fetchSuppliers])
-
- const fetchCorridors=useCallback(async()=>{
-  if(!supported||!origins.length){setRoutes({});setRouteStatus('ready');return}
-  if(!selectedAllocations.length){setRouteStatus('error');return}
-  setRouteStatus('loading');setRouteErrors([])
-  const results=await Promise.allSettled(origins.map(async country=>{
-   const tonnes=selectedAllocations.filter(a=>
-    contracts.find(x=>x.id===a.contractId)?.countryCode===country)
-    .reduce((sum,a)=>sum+a.tonnes,0)
-   if(tonnes<0.1||tonnes>200)throw Error(country+': country volume must be between 0.1 and 200 tonnes')
-   const limitDays=CARGO_SPECS[selectedCommodity]?.maxTransitDays??60
-   const params=new URLSearchParams({
-    organizationId:org,commodity:selectedCommodity,country,
-    tonnes:String(tonnes),limitDays:String(limitDays),supplierScope:'approved',
-   })
-   const response=await fetch('/api/nfii/logistics/corridors?'+params,{cache:'no-store'})
-   const body:unknown=await response.json()
-   if(!response.ok)throw Error(country+': '+responseError(body,'Corridor not available'))
-   const payload=body as CorridorResponse
-   if(!Array.isArray(payload.routes))throw Error(country+': Invalid route response')
-   return {country,routes:payload.routes}
-  }))
-  const next:Record<string,RouteCandidate[]>={},issues:string[]=[]
-  results.forEach((result,index)=>{
-   if(result.status==='fulfilled')next[result.value.country]=result.value.routes
-   else issues.push(origins[index]+': '+errorText(result.reason))
-  })
-  setRoutes(next);setRouteErrors(issues)
-  setRouteStatus(issues.length===origins.length?'error':issues.length?'partial':'ready')
- },[origins,selectedAllocations,contracts,org,selectedCommodity,supported])
- useEffect(()=>{
-  if(stage===4&&routeStatus==='idle')void fetchCorridors()
- },[stage,routeStatus,fetchCorridors])
-
- const approve=()=>{
-  if(busy||submitted)return
-  const error=stage===0?
-   (!Number.isFinite(target)||target<0.1||target>600?
-    'Set required quantity between 0.1 and 600 tonnes.':null):
-   stage===1?
-    (researchStatus==='loading'||researchStatus==='idle'?'Supplier research is running.':
-     researchStatus==='error'?'Supplier sources unavailable.':
-     !leadRows.length&&!approvedChoices.length?'No sourced candidates to review.':null):
-   stage===2?
-    (!shortlist.length?'Select multiple or at least one approved contract.':
-     shortlist.some(id=>!contracts.some(c=>c.id===id))?'Invalid selection.':null):
-   stage===3?allocationError:
-   stage===4?
-    (routeStatus==='loading'||routeStatus==='idle'?'Route screening is running.':
-     !logisticsValid?'Select a valid screened route for each origin.':null):
-   stage===5?
-    (!logisticsValid?'Route screening must be approved first.':allocationError):null
-  if(error){setMessage(error);return}
-  setMessage('')
-  setDecisions(prev=>[...prev.filter(x=>MISSION_STEPS.findIndex(s=>s.id===x.stage)<stage),
-   {stage:MISSION_STEPS[stage].id,decision:'approved',at:new Date().toISOString(),
-    note:'Approved local planning checkpoint, not an NFII legal authorization.'}])
-  if(stage===3){setRouteStatus('idle');setRoutes({});setRouteSelected({})}
-  setStage(nextMissionStep(stage))
+  const registry=source<LeadsResult>(0,'Supplier registry')
+  const ledger=source<LedgerResult>(1,'Authorized contracts')
+  const origin=source<OriginResult>(2,'Trade intelligence')
+  const leads=Array.isArray(registry?.results)?registry.results:[]
+  const contracts=Array.isArray(ledger?.options)?ledger.options:[]
+  const origins=Array.isArray(origin?.shortlist)?origin.shortlist:[]
+  if(registry&&registry.researchStatus!=='available'&&
+   registry.researchStatus!=='not_requested')
+   log('Registry auditor','Publisher coverage: '+registry.researchStatus,'gap')
+  log('Supplier qualification agent',leads.length+' documented unqualified leads; '+
+   contracts.length+' active approved contract positions.')
+  const candidates=rankSourcingCandidates(leads,contracts,origins)
+  const shortlist=diverseShortlist(candidates,8)
+  log('Candidate ranking agent',shortlist.length+' diverse sourcing candidates prepared. '+
+   'Lead ranking considers source strength and historical Qatar import evidence.')
+  const countries=[...new Set(shortlist.map(x=>x.country).filter(x=>x!=='QA'))].slice(0,5)
+  const routes:Record<string,RouteReview[]>={}
+  if(countries.length){
+   log('Logistics orchestrator','Screening up to '+countries.length+
+    ' candidate origins in parallel, without assuming bookings.','working')
+   const perOrigin=await Promise.allSettled(countries.map(async country=>{
+    const tonnes=requiredQty===null?20:Math.min(200,Math.max(.1,requiredQty))
+    const params=new URLSearchParams({
+     organizationId:org,commodity:selectedCommodity,country,
+     tonnes:String(tonnes),
+     limitDays:String(CARGO_SPECS[selectedCommodity].maxTransitDays),
+     supplierScope:'documented',
+    })
+    const result=await getJson('/api/nfii/logistics/corridors?'+params,signal) as RouteResult
+    if(!Array.isArray(result.routes))throw Error('Invalid route evidence')
+    return {country,routes:result.routes}
+   }))
+   if(signal.aborted||runId.current!==id)return
+   for(const [index,response] of perOrigin.entries()){
+    const country=countries[index]
+    if(response.status==='fulfilled'){
+     routes[country]=response.value.routes
+     log('Corridor agent',country+': '+routes[country].length+
+      ' route alternatives screened. These are not booked shipments.')
+    }else{
+     const detail=country+': '+errorText(response.reason)
+     errors.push(detail);log('Corridor agent',detail,'gap')
+    }
+   }
+  }else log('Logistics orchestrator',
+   'No validated documented foreign-origin candidates to route.','gap')
+  if(signal.aborted||runId.current!==id)return
+  const scenarios=buildSourcingScenarios(candidates,routes,origins,requiredQty)
+  log('Strategy agent',scenarios.length+
+   ' evidence-limited sourcing strategies assembled; no supplier capacity inferred.')
+  if(!contracts.length)
+   log('Governance agent','No approved contracts: RFQ and qualification pathways remain available. '+
+    'Direct purchase orders are correctly blocked until approval.','approval')
+  if(!candidates.length)
+   log('Evidence auditor','No source-backed candidates available. Research coverage is incomplete.','gap')
+  setReport({candidates,origins,routes,scenarios,errors})
+  setSelectedIds(shortlist.map(x=>x.id))
+  setScenarioId(scenarios[0]?.id??'diversified')
+  setPhase('shortlist')
+  log('Governance gate','Supplier shortlist available for human approval or rejection.','approval')
  }
- const reject=()=>{
-  if(busy||submitted||stage===0)return
-  const returnTo=previousMissionStep(stage)
-  setDecisions(prev=>[...prev.filter(x=>MISSION_STEPS.findIndex(s=>s.id===x.stage)<returnTo),
-   {stage:MISSION_STEPS[stage].id,decision:'rejected',at:new Date().toISOString(),
-    note:reason.trim()||'User requested revision'}])
-  if(returnTo<=3){setRoutes({});setRouteSelected({});setRouteStatus('idle')}
-  setStage(returnTo);setMessage('Returned to the previous checkpoint for revision.')
-  setReason('')
+ const chosen=useMemo(()=>report?.candidates.filter(x=>selectedIds.includes(x.id))??[],
+  [report,selectedIds])
+ const scenarios=useMemo(()=>report?buildSourcingScenarios(chosen,report.routes,
+  report.origins,requiredQty):[],[report,chosen,requiredQty])
+ const selectedScenario=scenarios.find(x=>x.id===scenarioId)??scenarios[0]??null
+ const approvedContracts=chosen.filter(x=>x.approved)
+ const purchasePlan=planApprovedOrders(report?.candidates??[],selectedIds,requiredQty)
+ const approvedGoodsValue=purchasePlan.lines.reduce((sum,line)=>
+  sum+line.tonnes*line.priceQarPerTonne,0)
+ const prospectCount=chosen.filter(x=>!x.approved).length
+ const approveShortlist=()=>{
+  if(!chosen.length){setNotice('Choose at least one documented candidate.');return}
+  log('Human checkpoint','Approved '+chosen.length+
+   ' candidates for sourcing analysis, not for legal supplier qualification.','approval')
+  log('Strategy agent',scenarios.length+
+   ' approaches recalculated using the approved shortlist.','complete')
+  setPhase('plan_approval');setNotice('')
  }
- const updateAllocation=(contractId:string,v:string)=>{
-  setAllocations(prev=>({...prev,[contractId]:v}))
-  setRouteStatus('idle');setRoutes({});setRouteSelected({})
+ const rejectShortlist=()=>{
+  log('Human checkpoint','Shortlist rejected. Research remains visible for re-selection.','approval')
+  setNotice('Shortlist returned for revision.')
  }
- const createPendingOrders=async()=>{
-  if(submitted||busy)return
-  if(stage!==6||!selectedAllocations.length||allocationError||!logisticsValid){
-   setMessage('Complete all reviewed allocation and logistics checkpoints first.')
-   return
-  }
-  if(decisions.filter(x=>x.decision==='approved').length!==6){
-   setMessage('One or more intermediate approvals are missing.');return
-  }
-  const note=reason.trim()
-  if(note.length<8){setMessage('Provide an 8-character minimum submission justification.');return}
-  setBusy(true);setMessage('Submitting individual purchase order proposals…')
+ const rejectPlan=()=>{
+  log('Human checkpoint','Commercial strategy rejected. Returning to shortlist and re-evaluation.','approval')
+  setPhase('shortlist');setBrief('');setNotice('Revise and approve a new shortlist.')
+ }
+ const approvePlan=()=>{
+  if(!selectedScenario){setNotice('No defensible sourcing scenario available.');return}
+  const draft=sourcingBrief(commodity.name,requiredQty,chosen,selectedScenario)
+  setBrief(draft);setPhase('approved');setNotice('')
+  log('Human checkpoint','Sourcing strategy approved for RFQ preparation; no external requests sent.','approval')
+  log('Procurement agent',purchasePlan.ready?
+   'Approved contracts can support pending purchase-order proposals after explicit submission.':
+   'No fully funded approved-contract allocation. Supplier qualification and RFQ required.','complete')
+ }
+ const submitPending=async()=>{
+  if(submitting||orders.length||!purchasePlan.ready||!brief||
+   reviewNote.trim().length<8)return
+  setSubmitting(true);setNotice('')
+  log('Order agent','Submitting '+purchasePlan.lines.length+
+   ' separate purchase-order proposals as PENDING, never as approved.','working')
   const saved:Submitted[]=[]
-  // Deliberately serial to avoid duplicate writes on repeated clicks and to
-  // clearly display partial results. No bulk order or auto approval.
-  for(const [index,allocation] of selectedAllocations.entries()){
-   const ref='GRW-'+Date.now().toString(36).toUpperCase()+'-'+
-    String(index+1).padStart(2,'0')
+  for(const [index,line] of purchasePlan.lines.entries()){
+   const ref='GROW-'+Date.now().toString(36).toUpperCase()+'-'+String(index+1).padStart(2,'0')
    try{
     const response=await fetch('/api/nfii/operations',{
      method:'POST',headers:{'Content-Type':'application/json'},
-     body:JSON.stringify({organizationId:org,kind:'purchase_order',data:{
-      contractId:allocation.contractId,orderRef:ref,orderedTonnes:allocation.tonnes,
+     body:JSON.stringify({organizationId:posture.organizationId,kind:'purchase_order',data:{
+      contractId:line.contractId,orderRef:ref,orderedTonnes:line.tonnes,
      }}),
     })
     const body:unknown=await response.json()
-    if(!response.ok)throw Error(responseError(body,'PO proposal rejected by server'))
-    saved.push({contractId:allocation.contractId,quantity:allocation.tonnes,
-     orderRef:ref,status:'pending',message:'Created in pending independent approval'})
+    if(!response.ok)throw Error(errorPayload(body,'PO proposal rejected'))
+    saved.push({ref,contractId:line.contractId,tonnes:line.tonnes,
+     status:'pending',detail:'Created, awaiting independent approval'})
+    log('Order agent',ref+' submitted in PENDING status.','approval')
    }catch(error){
-    saved.push({contractId:allocation.contractId,quantity:allocation.tonnes,
-     orderRef:ref,status:'error',message:errorText(error)})
+    saved.push({ref,contractId:line.contractId,tonnes:line.tonnes,
+     status:'failed',detail:errorText(error)})
+    log('Order agent',ref+': '+errorText(error),'gap')
    }
-   setSubmission([...saved])
+   setOrders([...saved])
   }
-  const success=saved.filter(x=>x.status==='pending').length
-  if(success){
-   setDecisions(prev=>[...prev,{stage:'submission',decision:'approved',
-    note:note.slice(0,400),at:new Date().toISOString()}])
-  }
-  setSubmitted(true);setBusy(false)
-  setMessage(success+' / '+selectedAllocations.length+
-   ' proposals submitted as PENDING. Independent authorized approval is required.')
+  setSubmitting(false)
+  setNotice('Only successfully created Pending proposals require reviewer approval. '+
+   'Failed submissions were not retried automatically.')
  }
- const reviewOrder=async(approvalId:string,decision:'approve'|'reject')=>{
-  if(reviewBusy||reason.trim().length<8){
-   setMessage('A review note of at least 8 characters is required.');return
+ const refreshReviews=async()=>{
+  try{
+   const response=await fetch('/api/nfii/operations?'+new URLSearchParams({
+    organizationId:posture.organizationId,
+   }),{cache:'no-store'})
+   const data:unknown=await response.json()
+   if(!response.ok)throw Error(errorPayload(data,'Operational register unavailable'))
+   const snapshot=(data as {snapshot?:{
+    purchaseOrders?:OrderRecord[];approvals?:ReviewRecord[]}}).snapshot
+   const refs=new Set(orders.filter(o=>o.status==='pending').map(o=>o.ref))
+   const activeOrders=(snapshot?.purchaseOrders??[]).filter(o=>refs.has(o.order_ref))
+   setOrderStates(activeOrders)
+   const ids=new Set(activeOrders.map(x=>x.id))
+   setApprovalRecords((snapshot?.approvals??[]).filter(x=>
+    x.target_type==='purchase_order'&&ids.has(x.target_id??'')))
+   setNotice(activeOrders.length?
+    activeOrders.map(x=>x.order_ref+': '+x.status).join(' · '):
+    'No matching orders returned. Check the official Procurement approval queue.')
+  }catch(error){setNotice(errorText(error))}
+ }
+ const handleReview=async(id:string,decision:'approve'|'reject')=>{
+  if(reviewBusy||reviewNote.trim().length<8){
+   setNotice('Independent reviewer must document at least 8 characters.');return
   }
-  setReviewBusy(approvalId);setMessage('Submitting independent review…')
+  setReviewBusy(true)
   try{
    const response=await fetch('/api/nfii/operations/action',{
     method:'POST',headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({
-     organizationId:org,kind:'approval',id:approvalId,action:decision,note:reason.trim(),
-    }),
+    body:JSON.stringify({organizationId:posture.organizationId,kind:'approval',
+     id,action:decision,note:reviewNote.trim()}),
    })
-   const body:unknown=await response.json()
-   if(!response.ok)throw Error(responseError(body,
-    'Independent approval refused. A proposer cannot approve their own order.'))
-   setMessage('Review recorded by the authorized independent reviewer.')
+   const data:unknown=await response.json()
+   if(!response.ok)throw Error(errorPayload(data,'Reviewer authorization failed'))
+   log('Governance agent','Independent reviewer recorded: '+decision.toUpperCase(),'approval')
+   await refreshReviews()
    if(decision==='reject'){
-    // A rejected persisted order cannot be edited in place. Go back
-    // to commercial review and require a newly approved proposal.
-    setStage(previousMissionStep(6));setSubmitted(false)
-    setSubmission([]);setDecisions(prev=>prev.filter(x=>x.stage!=='submission'))
+    setPhase('plan_approval');setBrief('');setOrders([])
+    log('Strategy agent','Rejected order returns to plan approval; an existing rejected order cannot be edited.','gap')
    }
-   await refreshApprovals()
-  }catch(error){setMessage(errorText(error))}
-  finally{setReviewBusy(null)}
+  }catch(error){setNotice(errorText(error))}
+  setReviewBusy(false)
  }
- const refreshApprovals=async()=>{
-  try{
-   const response=await fetch('/api/nfii/operations?'+new URLSearchParams({
-    organizationId:org,
-   }),{cache:'no-store'})
-   const raw:unknown=await response.json()
-   if(!response.ok)throw Error(responseError(raw,'Review register unavailable'))
-   const body=raw as {snapshot?:{purchaseOrders?:Array<{
-    id:string;order_ref?:string;status?:string
-   }> ;approvals?:ReviewStatus[]}}
-   const refs=new Set(latestSubmitted.map(s=>s.orderRef))
-   const orders=body.snapshot?.purchaseOrders?.filter(o=>o.order_ref&&refs.has(o.order_ref))??[]
-   setReviewRows((body.snapshot?.approvals??[]).filter(a=>orders.some(o=>o.id===a.target_id)))
-   setOrderStates(orders.filter((o):o is {id:string;order_ref:string;status:string}=>
-    typeof o.order_ref==='string'&&typeof o.status==='string'))
-   setMessage(orders.map(o=>o.order_ref+': '+o.status).join(' · ')||
-    'No matching orders returned; confirm approval status in Procurement.')
-  }catch(error){setMessage(errorText(error))}
+ const copyBrief=()=>{
+  if(!brief)return
+  void navigator.clipboard.writeText(brief).then(()=>{
+   setNotice('Qualification / RFQ brief copied. It has not been sent.')
+  }).catch(()=>setNotice('Copy failed; select the brief text manually.'))
  }
- if(!commodity)return <div className={styles.empty}>No commodities in the reviewed organization snapshot.</div>
- const unit=commodity.deficitTonnes!==null&&commodity.status==='complete'?
-  commodity.deficitTonnes:null
- return <section className={styles.mission} aria-label="Growa sourcing-to-order multi-agent mission">
-  <div className={styles.hero}>
-   <div><span className={styles.eyebrow}><Globe2 size={14}/> GROWA / PROCUREMENT ORCHESTRATION</span>
-    <h3>{tx('Source → plan → approve → order','المصدر ← التخطيط ← الموافقة ← الطلب')}</h3>
-    <p>{tx('A guided, multi-supplier food security sourcing mission. Human gates stop each stage; live provider results are never fabricated.',
-      'مسار توريد لعدة موردين مع توقف إلزامي عند كل موافقة دون اختلاق بيانات.')}</p>
+ if(!commodity)return <div className={styles.empty}>No reviewed commodities available.</div>
+ return <section className={styles.mission} dir={ar?'rtl':'ltr'}
+  aria-label={tx('Automated food sourcing and procurement','المشتريات والتوريد الآلي')}>
+  <header className={styles.hero}>
+   <div><span className={styles.eyebrow}><Bot size={15}/>
+    GROWA / SUPPLY AUTOPILOT</span>
+    <h3>{tx('From supply gap to procurement decision',
+      'من فجوة الإمداد إلى قرار الشراء')}</h3>
+    <p>{tx('Source-backed supplier discovery, multi-origin logistics and autonomous scenario research. Human approval is required for sourcing decisions and purchase commitments.',
+      'البحث عن الموردين وتحليل الخيارات اللوجستية والسيناريوهات تلقائياً مع اعتماد بشري للقرارات.')}</p>
    </div>
-   <span className={styles.missionMode}>SOURCE-BACKED · APPROVAL GATED</span>
-  </div>
+   <span className={styles.missionMode}>AUTOMATED RESEARCH · HUMAN GOVERNANCE</span>
+  </header>
   <div className={styles.metrics}>
-   <div><small>Current commodity</small><strong>{commodity.name}</strong>
-    <span>{dateLabel}</span></div>
-   <div><small>Verified projected deficit</small><strong>
-    {unit===null?'—':number(unit)+' t'}</strong><span>
-     {unit===null?'Not assessed':'Period-end forecast'}</span></div>
-   <div><small>Selected suppliers / contracts</small><strong>{shortlist.length}</strong>
-    <span>{contracts.length} eligible contract options</span></div>
-   <div><small>Planning checkpoints</small><strong>{completed} / 7</strong>
-    <span>Independent order approval separate</span></div>
+   <div><small>Commodity</small><strong>{ar?commodity.nameAr:commodity.name}</strong>
+    <span>Organization-scoped · {posture.days} days</span></div>
+   <div><small>Reviewed shortage</small><strong>{verifiedDemand===null?'—':fmt(verifiedDemand)+' t'}</strong>
+    <span>{verifiedDemand===null?'Not independently established':'Period-end forecast'}</span></div>
+   <div><small>Discovered options</small><strong>{report?.candidates.length??'—'}</strong>
+    <span>{report?report.candidates.filter(x=>x.approved).length+
+     ' approved contracts · '+report.candidates.filter(x=>!x.approved).length+' leads':
+      'Run research to populate'}</span></div>
+   <div><small>Strategies evaluated</small><strong>{report?.scenarios.length??'—'}</strong>
+    <span>{phase==='researching'?'Analyzing source feeds…':phase==='idle'?'Not started':'Evidence-limited models'}</span></div>
   </div>
-  <div className={styles.stageStrip} role="group" aria-label="Procurement stages">
-   {MISSION_STEPS.map((step,index)=><div key={step.id} className={styles.stage}
-     data-active={stage===index} data-complete={decisions.some(d=>d.stage===step.id&&d.decision==='approved')}>
-    <span>{index+1}</span>
-    <strong>{step.title}</strong>
-   </div>)}
-  </div>
-  <div className={styles.workArea}>
-   <div className={styles.heading}>
-    <span>CHECKPOINT {stage+1} / {MISSION_STEPS.length}</span>
-    <h4>{MISSION_STEPS[stage].title}</h4>
-    <p>{MISSION_STEPS[stage].details}</p>
-   </div>
-   {stage===0&&<div className={styles.section}>
-    <label>Food commodity
-     <select value={commodity.commodityId} onChange={e=>changeCommodity(e.target.value)}>
-      {posture.commodities.map(row=><option value={row.commodityId} key={row.commodityId}>
+  <section className={styles.autopilotControl}>
+   <div className={styles.autopilotInputs}>
+    <label>Commodity
+     <select value={selectedCommodity} onChange={e=>changeCommodity(e.target.value)}
+      disabled={phase==='researching'||submitting}>
+      {posture.commodities.map(row=><option key={row.commodityId} value={row.commodityId}>
        {ar?row.nameAr:row.name}</option>)}
      </select>
     </label>
-    <div className={styles.gridTwo}>
-     <div className={styles.summary}><strong>Reviewed food balance</strong>
-      <p>Deficit: {unit===null?'Not verified':number(unit)+' t'}</p>
-      <p>Coverage: {commodity.coverageDays===null?'Not available':
-       number(commodity.coverageDays)+' days'}</p>
-      <p>Evidence: {commodity.evidenceSourceRefs.length} reviewed references</p>
-     </div>
-     <label>Required procurement quantity · tonnes
-      <input value={targetText} type="number" min="0.1" max="600" step="0.1"
-       placeholder={unit!==null&&unit>0?String(unit):'Enter verified requirement'}
-       onChange={e=>setTargetText(e.target.value)}/>
-      <small>Manually confirmed requirement; it is never inferred from missing records.</small>
-     </label>
-    </div>
-    {!supported&&<div className={styles.warning}>No supported shipping profile for this food.
-      Select a supported commodity for global routing and procurement.</div>}
-   </div>}
-   {stage===1&&<div className={styles.section}>
-    <div className={styles.actions}>
-     <span>Directory research + organization-approved contracts</span>
-     <button type="button" className={styles.secondary}
-      disabled={researchStatus==='loading'} onClick={()=>void fetchSuppliers()}>
-      <RefreshCw size={14}/> Refresh sources</button>
-    </div>
-    {researchStatus==='loading'&&<p className={styles.status}><RefreshCw size={14} className="animate-spin"/>
-      Retrieving supplier evidence…</p>}
-    {sourceErrors.map((e,i)=><p className={styles.warning} key={i}>{e}</p>)}
-    <div className={styles.gridTwo}>
-     <div className={styles.summary}><strong>{leadRows.length} documented leads</strong>
-      <p>Public evidence only. No available tonnage or export eligibility confirmed.</p></div>
-     <div className={styles.summary}><strong>{approvedChoices.length} contracted options</strong>
-      <p>Only approved supplier + current approved contract can proceed to PO drafting.</p></div>
-    </div>
-    <div className={styles.leads}>
-     {selectedLeadRows.slice(0,25).map(lead=><div className={styles.lead} key={lead.recordId}>
-      <div><strong>{lead.organizationName}</strong><small>{lead.countryName} · {lead.matchedProduct}
-       </small></div><a href={lead.sourceUrl} target="_blank" rel="noopener noreferrer">
-       Source <ArrowUpRight size={12}/></a>
-     </div>)}
-    </div>
-    {leadRows.length>25&&<p className={styles.muted}>
-     Showing first 25 sourced leads. Use Procurement for extended qualification.</p>}
-   </div>}
-   {stage===2&&<div className={styles.section}>
-    <p>Select several approved supplier-contract options. Documented public leads cannot be
-     used for purchase orders until registered and independently approved.</p>
-    {approvedChoices.length===0?<div className={styles.warning}>
-     No eligible approved contracts with available quantities. Qualify more suppliers in Procurement.
-     <Link href="/dashboard/procurement">Open Procurement <ArrowUpRight size={12}/></Link>
-    </div>:<div className={styles.options}>
-     {approvedChoices.map(option=><label className={styles.option} key={option.id}
-       data-selected={shortlist.includes(option.id)}>
-       <input type="checkbox" checked={shortlist.includes(option.id)}
-        onChange={e=>setShortlist(prev=>e.target.checked?
-         [...prev,option.id]:prev.filter(id=>id!==option.id))}/>
-       <div><strong>{option.supplierName??'Approved supplier'}</strong>
-        <small>{option.countryCode} · Contract {option.contractRef??option.id.slice(0,8)}
-        </small><span>Remaining: {number(option.availableTonnes)} t ·
-         {formatPrice(option.priceQarPerTonne)}/t · Through {option.validTo}</span></div>
-       <ShieldCheck size={17}/>
-      </label>)}
-    </div>}
-    <p className={styles.muted}>{shortlist.length} contract options shortlisted for allocation.</p>
-   </div>}
-   {stage===3&&<div className={styles.section}>
-    <p>Allocate the approved demand across several selected suppliers.
-     Only available contractual capacity is permitted.</p>
-    {chosen.map(option=><div className={styles.allocation} key={option.id}>
-     <div><strong>{option.supplierName}</strong>
-      <small>{option.countryCode} · Up to {number(option.availableTonnes)} t</small></div>
-     <label>Tonnes
-      <input type="number" min="0" max={option.availableTonnes}
-       step="0.1" value={allocations[option.id]??''}
-       onChange={e=>updateAllocation(option.id,e.target.value)}/>
-     </label>
-    </div>)}
-    <div className={styles.totals}>
-     <span>Target: {number(target)} t</span>
-     <span>Allocated: {number(selectedAllocations.reduce((sum,x)=>sum+x.tonnes,0))} t</span>
-     <strong>Goods value: {formatPrice(totalGoods)}</strong>
-    </div>
-    {allocationError&&<p className={styles.warning}>{allocationError}</p>}
-   </div>}
-   {stage===4&&<div className={styles.section}>
-    <p>Comparing modeled transport corridors for each selected origin.
-     Carrier booking, customs clearance and arrival are not confirmed.</p>
-    {routeStatus==='loading'&&<div className={styles.status}><RefreshCw size={14} className="animate-spin"/>
-     Retrieving logistics corridors, freight benchmarks and source-backed advisories…</div>}
-    {routeErrors.map((e,i)=><p className={styles.warning} key={i}>{e}</p>)}
-    {origins.length===0&&<p className={styles.summary}>Qatar local supply selected. International corridor screening not required.</p>}
-    {origins.map(country=><div className={styles.country} key={country}>
-     <h5><Ship size={14}/> Origin: {country}</h5>
-     <div className={styles.routeList}>
-      {(routes[country]??[]).map(route=><label className={styles.route} key={route.id}
-       data-selected={routeSelected[country]===route.id}>
-       <input type="radio" name={'route-'+country} value={route.id}
-        checked={routeSelected[country]===route.id} onChange={()=>
-         setRouteSelected(prev=>({...prev,[country]:route.id}))}/>
-       <div><strong>{route.mode.toUpperCase()}{route.via?' via '+route.via:''}</strong>
-        <span>{route.estimatedDays===null?'ETA unavailable':
-         number(route.estimatedDays)+' planning days'} ·
-         {route.costEstimate?
-          formatPrice(route.costEstimate.minQar)+'–'+formatPrice(route.costEstimate.maxQar):
-          'Carrier price unavailable'}</span>
-        <small>Exposure {route.exposure.index===null?'not assessed':
-         route.exposure.index+'/100 (index)'} ·
-         {route.feasibleBeforeDeadline===false?'Exceeds planning deadline':
-          'No carrier booking confirmed'}</small></div>
-       <Truck size={16}/>
-      </label>)}
-     </div>
-     {!routes[country]?.length&&routeStatus!=='loading'&&
-      <p className={styles.warning}>No screened corridors available for this origin.</p>}
-    </div>)}
-   </div>}
-   {stage===5&&<div className={styles.section}>
-    <p>Compare the selected suppliers, quantities, source-backed routing alternatives and
-     uncovered procurement terms before preparing a pending order.</p>
-    <div className={styles.compare}>
-     {selectedAllocations.map(a=>{
-      const option=contracts.find(x=>x.id===a.contractId)
-      if(!option)return null
-      const route=routes[option.countryCode]?.find(x=>x.id===routeSelected[option.countryCode])
-      return <div key={a.contractId} className={styles.compareRow}>
-       <div><strong>{option.supplierName}</strong><small>
-        {option.countryCode} · {number(a.tonnes)} t</small></div>
-       <div>Goods <strong>{formatPrice(a.tonnes*option.priceQarPerTonne)}</strong>
-        <small>{route?route.mode+' / '+(route.estimatedDays??'N/A')+' planning days':
-         option.countryCode==='QA'?'Local':'Route unavailable'}</small></div>
-       <div>{route?.costEstimate?
-        'Freight benchmark: '+formatPrice(route.costEstimate.minQar)+'–'+
-        formatPrice(route.costEstimate.maxQar):'Freight quote not verified'}
-       </div>
-      </div>
-     })}
-    </div>
-    <div className={styles.warning}>Estimated logistics costs are not carrier offers.
-     The purchase order uses approved contract goods prices only.
-     Obtain binding freight rates, quality certificates, delivery and Incoterms separately.</div>
-    <div className={styles.totals}><span>Suppliers: {selectedAllocations.length}</span>
-     <span>Total: {number(target)} t</span><strong>Goods: {formatPrice(totalGoods)}</strong></div>
-   </div>}
-   {stage===6&&<div className={styles.section}>
-    <div className={styles.summary}><strong>Proposed purchase orders</strong>
-     <p>One PENDING purchase order for each allocated approved contract.
-      Submission is a real database write and requires supply.edit permission;
-      independent decisions.approve permission is needed to approve it.</p>
-     <p>Total {number(target)} t · Goods contract value {formatPrice(totalGoods)}</p>
-    </div>
-    {selectedAllocations.map(a=>{
-     const contract=contracts.find(c=>c.id===a.contractId)
-     return <div className={styles.lead} key={a.contractId}>
-      <div><strong>{contract?.supplierName??a.contractId}</strong>
-       <small>{number(a.tonnes)} t · {contract?formatPrice(contract.priceQarPerTonne*a.tonnes):'N/A'}</small></div>
-       <FileCheck2 size={16}/>
-      </div>
-    })}
-    <label>Final submission justification
-     <textarea rows={2} value={reason} disabled={submitted||busy}
-      onChange={e=>setReason(e.target.value)}
-      placeholder="Explain the need and supporting source records (8 characters minimum)"/>
+    <label>Required tonnes <small>Defaults to reviewed deficit if available</small>
+     <input type="number" value={quantity} min=".1" max="600" step=".1"
+      placeholder={verifiedDemand===null?'Unknown · research still possible':fmt(verifiedDemand)}
+      disabled={phase==='researching'||submitting}
+      onChange={e=>setQuantity(e.target.value)}/>
     </label>
-    {!submitted?<button type="button" className={styles.primary}
-     disabled={busy||Boolean(allocationError)||!logisticsValid}
-     onClick={()=>void createPendingOrders()}>
-     {busy?<RefreshCw size={15} className="animate-spin"/>:<PackageCheck size={15}/>}
-     Submit pending order proposals</button>:
-     <div className={styles.submission}>
-      {submission.map(item=><div key={item.orderRef}>
-       {item.status==='pending'?<CheckCircle2 size={15}/>:<XCircle size={15}/>}
-       <strong>{item.orderRef}</strong><span>{item.message}</span>
-      </div>)}
-      <button type="button" className={styles.secondary} onClick={()=>void refreshApprovals()}>
-       <RefreshCw size={13}/> Refresh independent approval status</button>
-      {orderStates.map(order=>{
-       const approval=reviewRows.find(a=>a.target_id===order.id&&
-        a.target_type==='purchase_order')
-       return <div className={styles.reviewOrder} key={order.id}>
-        <strong>{order.order_ref} · {order.status.toUpperCase()}</strong>
-        {approval?.status==='pending'&&<>
-         <button type="button" className={styles.primary}
-          disabled={Boolean(reviewBusy)} onClick={()=>void reviewOrder(approval.id,'approve')}>
-          <Check size={13}/> Approve (authorized reviewer)</button>
-         <button type="button" className={styles.reject}
-          disabled={Boolean(reviewBusy)} onClick={()=>void reviewOrder(approval.id,'reject')}>
-          <XCircle size={13}/> Reject & return</button>
-        </>}
+    <button className={styles.primary} type="button" disabled={!supported||phase==='researching'}
+     onClick={()=>void run()}>
+     {phase==='researching'?<RefreshCw size={15} className="animate-spin"/>:<Play size={15}/>}
+     {phase==='researching'?'Agents analyzing…':report?'Rerun sourcing agents':'Launch autonomous research'}
+    </button>
+   </div>
+   {!supported&&<p className={styles.warning}>This commodity has no supported routing profile.
+    No inferred trade routes or supplier availability will be generated.</p>}
+   <div className={styles.autopilotSteps}>
+    {[
+     ['01','Demand','Inspect verified shortage'],
+     ['02','Supplier intelligence','Query actual sources'],
+     ['03','Trade analysis','Review origin records'],
+     ['04','Transport','Compare screened routes'],
+     ['05','Synthesis','Produce strategy options'],
+     ['06','Governance','Approve or return'],
+    ].map(([id,title,description],i)=><div key={id} data-active={
+     phase==='researching'&&i<=4||phase==='shortlist'&&i===5||
+      phase==='plan_approval'&&i===5||phase==='approved'&&i===5}
+     className={styles.autopilotStep}>
+      <span>{id}</span><div><strong>{title}</strong><small>{description}</small></div>
+     </div>)}
+   </div>
+  </section>
+  <section className={styles.agentConsole} aria-label="Live sourcing operations log">
+   <div className={styles.agentHeader}><div><Terminal size={15}/>
+    <strong>Live agent operations</strong><small>{logs.length} recorded observations</small></div>
+    <span data-running={phase==='researching'} className={styles.agentState}>
+     <i/>{phase==='researching'?'RESEARCH IN PROGRESS':phase==='idle'?'IDLE':'HUMAN REVIEW'}</span>
+   </div>
+   <div className={styles.agentLog} role="log" aria-live="polite" aria-relevant="additions">
+    {!logs.length&&<p className={styles.muted}>Start sourcing to see source checks and agent conclusions as each response arrives.</p>}
+    {logs.map(row=><div key={row.id} className={styles.agentLine} data-state={row.state}>
+     <time>{row.when}</time><span>{row.agent}</span><p>{row.text}</p>
+    </div>)}
+    <div ref={logBottom}/>
+   </div>
+   <label className={styles.followCheck}><input type="checkbox" checked={follow}
+    onChange={e=>setFollow(e.target.checked)}/> Follow active analysis</label>
+  </section>
+  {report&&<section className={styles.analysisResults}>
+   <div className={styles.heading}><span>AGENT EVIDENCE & OPTIONS</span>
+    <h4>{tx('Supplier intelligence','ذكاء الموردين')}</h4>
+    <p>{report.candidates.length} sourced candidates across {
+     new Set(report.candidates.map(x=>x.country)).size} countries.
+     The system distinguishes approved contracts from unqualified producer leads.</p>
+   </div>
+   {report.errors.length>0&&<div className={styles.warning}>
+    Partial coverage: {report.errors.slice(0,4).join(' · ')}
+   </div>}
+   {report.candidates.length===0&&<div className={styles.warning}>
+    No source-backed supplier candidates were available. This is a coverage gap,
+    not proof that global suppliers do not exist.
+   </div>}
+   <div className={styles.sourceComparison}>
+    {report.candidates.slice(0,18).map(candidate=>
+     <label className={styles.candidateCard} data-selected={selectedIds.includes(candidate.id)}
+      key={candidate.id}>
+      <input type="checkbox" checked={selectedIds.includes(candidate.id)}
+       disabled={phase==='approved'||submitting||phase==='researching'}
+       onChange={e=>{
+        setSelectedIds(prev=>e.target.checked?
+         [...prev,candidate.id]:prev.filter(x=>x!==candidate.id))
+        if(phase==='plan_approval')setPhase('shortlist')
+       }}/>
+      <div><div className={styles.candidateTop}>
+        <strong>{candidate.name}</strong>
+        <span data-qualified={candidate.approved}>
+         {candidate.approved?'APPROVED CONTRACT':'SOURCE LEAD · UNQUALIFIED'}
+        </span></div>
+       <small>{candidate.countryName} · Source relevance {candidate.relevance}/100 (evidence ranking, not vendor reliability)</small>
+       <p>{candidate.evidence}</p>
+       <div className={styles.candidateFacts}>
+        <span>Capacity: {candidate.capacityTonnes===null?'Unverified':fmt(candidate.capacityTonnes)+' t'}</span>
+        <span>Price: {candidate.priceQarPerTonne===null?'No quote':money(candidate.priceQarPerTonne)+'/t'}</span>
        </div>
-      })}
-      <Link href="/dashboard/procurement">Open approval queue <ArrowUpRight size={12}/></Link>
-     </div>}
+       {candidate.sourceUrl&&<a href={candidate.sourceUrl} target="_blank" rel="noopener noreferrer"
+        onClick={event=>event.stopPropagation()}>Original source <ArrowUpRight size={12}/></a>}
+      </div>
+     </label>)}
+   </div>
+   <div className={styles.gate}>
+    <div><strong><ClipboardCheck size={14}/> Supplier shortlist checkpoint</strong>
+     <p>The agent recommends multiple origins. Approval confirms a research shortlist,
+      not certification or a purchase decision.</p></div>
+    <button className={styles.primary} type="button" onClick={approveShortlist}
+     disabled={!selectedIds.length||phase==='approved'}>
+     <Check size={14}/> Approve shortlist & evaluate</button>
+    <button className={styles.reject} type="button" onClick={rejectShortlist}
+     disabled={phase==='approved'}><ArrowLeft size={14}/> Reject / revise</button>
+   </div>
+  </section>}
+  {(phase==='plan_approval'||phase==='approved')&&<section className={styles.analysisResults}>
+   <div className={styles.heading}><span>STRATEGY ORCHESTRATOR</span>
+    <h4>Multiple procurement pathways</h4>
+    <p>Evidence-backed alternatives for selected candidates. Estimated routes are not
+     carrier bookings; historical customs prices are not supplier quotations.</p>
+   </div>
+   <div className={styles.strategyGrid}>
+    {scenarios.map(s=><button key={s.id} type="button" className={styles.scenario}
+     data-selected={selectedScenario?.id===s.id}
+     disabled={phase==='approved'}
+     onClick={()=>setScenarioId(s.id)}>
+     <strong>{s.title}</strong><p>{s.description}</p>
+     <span>{s.countries.join(' · ')}</span>
+     <div><small>Screened ETA</small><strong>{s.estimatedDays===null?'N/A':fmt(s.estimatedDays)+' days'}</strong></div>
+     <div><small>Historical import value</small><strong>{
+      s.historicalUnitValueQarKg===null?'N/A':money(s.historicalUnitValueQarKg)+'/kg'
+     }</strong></div>
+     <small>{s.blockers.length} unresolved evidence / contractual conditions</small>
+    </button>)}
+   </div>
+   {selectedScenario&&<div className={styles.analysisGrid}>
+    <div className={styles.summary}>
+     <strong>Proposed sourcing allocation</strong>
+     {selectedScenario.allocation.map(a=>{
+      const candidate=chosen.find(x=>x.id===a.candidateId)
+      return <p key={a.candidateId}>{candidate?.name??a.candidateId} · {
+       a.plannedTonnes===null?'Quantity pending':fmt(a.plannedTonnes)+' t planning share'
+      }</p>
+     })}
+     <small>Any unapproved supplier allocation is conditional, never a stock commitment.</small>
+    </div>
+    <div className={styles.summary}>
+     <strong>Approval conditions</strong>
+     {selectedScenario.blockers.map(x=><p key={x}>• {x}</p>)}
+     {!selectedScenario.blockers.length&&<p>Review legal and operational conditions before committing.</p>}
+    </div>
    </div>}
-   {message&&<p className={styles.status} role="status">{message}</p>}
-   {!submitted&&<div className={styles.gate}>
-    <div><strong><ClipboardCheck size={15}/> Human review checkpoint</strong>
-     <p>Nothing advances without an explicit Approve. Rejected returns to the
-      previous stage and invalidates downstream choices.</p></div>
-    {stage<6&&<button type="button" className={styles.primary}
-     disabled={busy||researchStatus==='loading'&&stage===1||routeStatus==='loading'&&stage===4}
-     onClick={approve}><Check size={15}/>{ar?gateText[stage][1]:gateText[stage][0]}</button>}
-    {stage>0&&<button type="button" className={styles.reject} onClick={reject}
-     disabled={busy}><ArrowLeft size={14}/> Reject / Return</button>}
+   {phase==='plan_approval'&&<div className={styles.gate}>
+    <div><strong><ShieldCheck size={14}/> Strategy approval gate</strong>
+     <p>Approve to prepare a sourcing/RFQ brief and, only where eligible, a Pending order plan.</p></div>
+    <button className={styles.primary} onClick={approvePlan} type="button"
+     disabled={!selectedScenario}><Check size={14}/> Approve strategy</button>
+    <button className={styles.reject} onClick={rejectPlan} type="button">
+     <XCircle size={14}/> Reject · return to shortlist</button>
    </div>}
-  </div>
+  </section>}
+  {phase==='approved'&&<section className={styles.analysisResults}>
+   <div className={styles.heading}><span>DECISION PACK / GOVERNANCE</span>
+    <h4>RFQ and purchase-order readiness</h4>
+    <p>Qualified contracts and new prospects have different routes.
+     Neither creates an order automatically.</p>
+   </div>
+   <div className={styles.gridTwo}>
+    <div className={styles.summary}>
+     <strong>Supplier qualification / RFQ brief</strong>
+     <p>{prospectCount} shortlisted unqualified producer leads. Verify
+      legal entity, product quality, firm capacity, export authorization and pricing.</p>
+     <textarea value={brief} readOnly rows={7}
+      aria-label="Copyable source-backed sourcing RFQ brief"/>
+     <button type="button" className={styles.secondary} onClick={copyBrief}>
+      <Copy size={13}/> Copy research brief</button>
+     <Link href="/dashboard/procurement">Supplier onboarding & approvals <ArrowUpRight size={12}/></Link>
+    </div>
+    <div className={styles.summary}>
+     <strong>Direct pending order eligibility</strong>
+     <p>{approvedContracts.length} eligible contract options ·
+      {requiredQty===null?'Quantity unavailable':fmt(requiredQty)+' t'} demand.</p>
+     <p>{purchasePlan.ready?
+      purchasePlan.lines.length+' bounded pending purchase-order proposals supported.':
+      'No complete approved-contract allocation. Sourcing and RFQ remain actionable.'}</p>
+     <p>Uncovered quantity: {purchasePlan.shortfall===null?
+      'Not established':fmt(purchasePlan.shortfall)+' t'}</p>
+     {purchasePlan.ready&&<p>Goods value: {money(approvedGoodsValue)}. Freight,
+      duties and insurance excluded until independently quoted.</p>}
+    </div>
+   </div>
+   {purchasePlan.ready&&<div className={styles.orderGate}>
+    <h5><PackageCheck size={16}/> Final human authorization: submit PENDING proposals</h5>
+    <p>Independent order approval is still mandatory. No binding supplier confirmation,
+     logistics booking or payment is executed.</p>
+    <label>Documented justification (minimum eight characters)
+     <textarea value={reviewNote} rows={2}
+      onChange={e=>setReviewNote(e.target.value)}
+      placeholder="Review need, evidence, and contractual basis…"/>
+    </label>
+    <button type="button" className={styles.primary}
+     disabled={submitting||Boolean(orders.length)||reviewNote.trim().length<8}
+     onClick={()=>void submitPending()}>
+     {submitting?<RefreshCw size={14} className="animate-spin"/>:<PackageCheck size={14}/>}
+     Submit proposals for independent review
+    </button>
+    {orders.map(o=><p key={o.ref}>{o.ref} · {o.status.toUpperCase()} · {o.detail}</p>)}
+    {orders.some(x=>x.status==='pending')&&
+     <button type="button" className={styles.secondary}
+      onClick={()=>void refreshReviews()}>
+      <RefreshCw size={13}/> Check independent approval queue</button>}
+    {orderStates.map(order=>{
+     const approval=approvalRecords.find(a=>a.target_id===order.id&&
+      a.target_type==='purchase_order')
+     return <div key={order.id} className={styles.reviewOrder}>
+      <strong>{order.order_ref} · {order.status}</strong>
+      {approval?.status==='pending'&&<>
+       <button type="button" className={styles.primary} disabled={reviewBusy}
+        onClick={()=>void handleReview(approval.id,'approve')}>
+        Approve (authorized reviewer)</button>
+       <button type="button" className={styles.reject} disabled={reviewBusy}
+        onClick={()=>void handleReview(approval.id,'reject')}>
+        Reject · return to plan</button>
+      </>}
+     </div>
+    })}
+   </div>}
+  </section>}
+  {notice&&<div className={styles.status} role="status">{notice}</div>}
   <footer className={styles.foot}>
-   <span>Planning-stage approvals are local only. Independent server-side
-    approval remains mandatory before an order can become approved.</span>
-   <Link href="/dashboard/procurement">Procurement operations <ArrowUpRight size={12}/></Link>
+   <span>Research and screening run automatically on requested data sources.
+    Supplier quotes, actual capacity and legal approvals are never inferred.
+    No live LLM model is executing hidden reasoning in this module.</span>
+   <Link href="/dashboard/procurement">Procurement workspace <ArrowUpRight size={12}/></Link>
   </footer>
  </section>
 }
