@@ -20,8 +20,8 @@ type TilePayload={
  notice:string
  mode:'mosaic'|'stac-composite'
 }
-const NDVI_COLORS=['#A50026','#F46D43','#FFFFBF','#66C24A','#006837']
-const NDMI_COLORS=['#a50026','#f46d43','#f7f7f7','#abd9e9','#313695']
+const NDVI_COLORS=['#a50026','#f46d43','#ffffbf','#a6d96a','#006837']
+const NDMI_COLORS=['#A50026','#F46D43','#F7F7F7','#64B5D7','#163C8C']
 const TILE_SIZE=256
 
 function tileUrl(template:string,coords:{x:number;y:number;z:number}){
@@ -65,7 +65,7 @@ function validTiles(payload:TilePayload):Array<SpectralTile&{cloudCover?:number}
  */
 export function QatarSpectralLayers({map}:{map:MapController|null}){
  const [index,setIndex]=useState<SpectralIndex|null>(null)
- const [opacity,setOpacity]=useState(.9)
+ const [opacity,setOpacity]=useState(.7)
  const [payload,setPayload]=useState<TilePayload|null>(null)
  const [busy,setBusy]=useState(false)
  const [rendered,setRendered]=useState(false)
@@ -236,7 +236,7 @@ export function QatarSpectralLayers({map}:{map:MapController|null}){
   setError(null)
  }
  const colors=index==='ndvi'?NDVI_COLORS:NDMI_COLORS
- const spectralRange=index==='ndvi'?['≤−0.05','0.13','0.30','0.48','≥0.65']:['−0.60','−0.30','0','0.30','0.60']
+ const spectralRange=index==='ndvi'?['−0.20','0.08','0.35','0.63','0.90']:['≤−0.35','−0.18','0','0.18','≥0.35']
  return <div className="absolute start-1/2 top-4 z-[1150] w-[min(33rem,calc(100%-7rem))] -translate-x-1/2 rounded-xl border border-line bg-card/95 p-3 shadow-panel backdrop-blur-md"
   role="group" aria-label="Qatar-wide satellite spectral indices">
   <div className="flex items-center justify-between gap-2">
@@ -273,7 +273,7 @@ export function QatarSpectralLayers({map}:{map:MapController|null}){
     {spectralRange.map((value,i)=><span key={i}>{value}</span>)}
    </div>
    <p className="mt-1 text-[9px] leading-4 text-content-soft">
-    {index==='ndvi'?'Enhanced visual contrast · NDVI values remain Sentinel-2 observations; the color scale is clipped to −0.05…0.65.':'Drier to wetter vegetation · NDMI is not soil moisture.'}
+    {index==='ndvi'?'NDVI · Sentinel-2 observations with original color scale −0.20…0.90.':'Enhanced NDMI contrast · clipped color scale −0.35…0.35, with original Sentinel-2 index values. NDMI is not soil moisture.'}
    </p>
    <p role="status" className="mt-2 text-[10px] leading-4 text-content-soft">
     {error?'Satellite service: '+error:
