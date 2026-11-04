@@ -311,40 +311,40 @@ export function WatchtowerResilienceDesk({posture}:{posture:FoodPosture}){
           {tx('Process inspector','مفتش العمليات')}</strong>
           <small>{tx('Stage','المرحلة')} {selectedStage+1}/{trace.steps.length}</small>
         </div>
-        {!viewedHasStarted||!viewStage?
+        {!viewedHasStarted||!viewedStage?
           <div className={styles.waiting}><RefreshCw size={23}/>
             {tx('Awaiting this specialist stage and its audit events.',
               'بانتظار هذه المرحلة وأحداث التدقيق.')}</div>:
           <div className={styles.stageBody}>
             <div>
-              <div className={styles.stepEyebrow}>{ar?viewStage.agentAr:viewStage.agent}
-                {' · '}{viewedIsReady?statusName(viewStage.state,ar):
+              <div className={styles.stepEyebrow}>{ar?viewedStage.agentAr:viewedStage.agent}
+                {' · '}{viewedIsReady?statusName(viewedStage.state,ar):
                   tx('Inspecting inputs','فحص المدخلات')}</div>
-              <h4 className={styles.stepTitle}>{ar?viewStage.titleAr:viewStage.title}</h4>
+              <h4 className={styles.stepTitle}>{ar?viewedStage.titleAr:viewedStage.title}</h4>
               <p className={styles.stepDescription}>
-                {ar?viewStage.operationAr:viewStage.operation}</p>
+                {ar?viewedStage.operationAr:viewedStage.operation}</p>
             </div>
-            <div className={styles.finding} data-state={viewedIsReady?viewStage.state:'pending'}>
+            <div className={styles.finding} data-state={viewedIsReady?viewedStage.state:'pending'}>
               <span>{tx('OBSERVED RESULT / LIMITATION','النتيجة / الحدود')}</span>
-              <p>{viewedIsReady?(ar?viewStage.findingAr:viewStage.finding):
+              <p>{viewedIsReady?(ar?viewedStage.findingAr:viewedStage.finding):
                 tx('Inspecting documented source inputs…','فحص مدخلات المصدر الموثقة…')}</p>
             </div>
             <div className={styles.traceGrid}>
               <div className={styles.traceBox}><h5><Database size={12}/>
                 {tx('INPUTS INSPECTED','المدخلات المفحوصة')}</h5>
-                <ul>{visibleEvents.filter(v=>v.stageId===viewStage.id&&v.kind==='input')
+                <ul>{visibleEvents.filter(v=>v.stageId===viewedStage.id&&v.kind==='input')
                   .map((v,i)=><li key={i}>{ar?v.textAr:v.text}</li>)}</ul>
               </div>
               <div className={styles.traceBox}><h5><FileCheck2 size={12}/>
                 {tx('OUTPUTS & EVIDENCE','المخرجات والأدلة')}</h5>
-                <ul>{visibleEvents.filter(v=>v.stageId===viewStage.id&&v.kind==='output')
+                <ul>{visibleEvents.filter(v=>v.stageId===viewedStage.id&&v.kind==='output')
                   .map((v,i)=><li key={i}>{ar?v.textAr:v.text}</li>)}</ul>
               </div>
             </div>
-            {visibleEvents.some(v=>v.stageId===viewStage.id&&v.kind==='handoff')&&
+            {visibleEvents.some(v=>v.stageId===viewedStage.id&&v.kind==='handoff')&&
               <div className={styles.handoff}><ArrowRight size={14}/>
                 <span><strong>{tx('Agent handoff: ','التسليم بين الوكلاء: ')}</strong>
-                  {ar?viewStage.handoffAr:viewStage.handoff}</span></div>}
+                  {ar?viewedStage.handoffAr:viewedStage.handoff}</span></div>}
           </div>}
       </section>
     </div>}
