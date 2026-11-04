@@ -1,8 +1,8 @@
 'use client'
 
 import {useEffect,useMemo,useState} from 'react'
-import {Activity,ArrowUpRight,BarChart3,BookOpen,Database,Droplets,ExternalLink,
- Globe2,RefreshCcw,ShieldAlert,ShieldCheck,SlidersHorizontal,Sparkles,Zap} from 'lucide-react'
+import {BarChart3,BookOpen,Database,Droplets,ExternalLink,
+ RefreshCcw,ShieldAlert,ShieldCheck,SlidersHorizontal,Sparkles,Zap} from 'lucide-react'
 import {GrowaIntelligencePanel} from '@/components/dashboard/growa-intelligence-panel'
 import {buildUtilityAiContext} from '@/lib/analytics/qatar-utility-agent-context'
 import {findSeries,latestPoint,utilityFindings,utilityScenario,yearChange,
@@ -51,7 +51,7 @@ function AnnualLine({series}:{series:UtilitySeries|null}){
  const low=Math.min(...points.map(p=>p.value)),high=Math.max(...points.map(p=>p.value))
  const x=(year:number)=>xmin+(year-lowYear)/Math.max(1,highYear-lowYear)*(xmax-xmin)
  const y=(value:number)=>ymax-(value-low)/Math.max(.001,high-low)*(ymax-ymin)
- const segments:typeof points=[]
+ const segments:(typeof points)[]=[]
  let group:typeof points=[]
  for(const p of points){
   if(group.length&&p.year-group.at(-1)!.year>1){segments.push(group);group=[]}
