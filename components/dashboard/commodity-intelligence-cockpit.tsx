@@ -15,7 +15,6 @@ import {CommodityImportPrices} from './commodity-import-prices'
 const fmt=(v:number|null|undefined,digits=1)=>
  v===null||v===undefined||!Number.isFinite(v)?'N/A':
  v.toLocaleString('en-US',{maximumFractionDigits:digits})
-const pct=(v:number|null|undefined)=>v===null||v===undefined?'N/A':fmt(v*100,1)+'%'
 const icons:Record<string,string>={
  tomato:'🍅',cucumber:'🥒',pepper:'🫑',lettuce:'🥬',date:'🌴',
  barley:'🌾',milk:'🥛',rice:'🍚',wheat:'🌾',

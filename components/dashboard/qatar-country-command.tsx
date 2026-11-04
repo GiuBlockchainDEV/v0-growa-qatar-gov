@@ -1,16 +1,15 @@
 'use client'
 import {useEffect,useMemo,useState} from 'react'
 import {
- Activity,ArrowUpRight,BarChart3,ChartNoAxesCombined,CloudSun,
- Database,ExternalLink,Globe2,Leaf,RefreshCw,ShieldCheck,
- Sprout,TrendingUp,Warehouse,Droplets,Landmark,
+ Activity,ChartNoAxesCombined,Database,ExternalLink,Globe2,
+ Leaf,RefreshCw,ShieldCheck,Sprout,TrendingUp,
 } from 'lucide-react'
 import type {
- QatarCountrySnapshot,IndicatorSeries,CropProduction,SelfSufficiency,
+ QatarCountrySnapshot,IndicatorSeries,
 } from '@/lib/analytics/qatar-country'
 import {sumLatestProduction,farmsByMunicipality,sourceCoverage,latestYear,
  WORLD_BANK_INDICATORS,DATASET_URL} from '@/lib/analytics/qatar-country'
-import type {CommodityMarketsSnapshot,MarketInstrument} from '@/lib/watchtower/commodity-markets'
+import type {CommodityMarketsSnapshot} from '@/lib/watchtower/commodity-markets'
 import styles from './qatar-country-command.module.css'
 
 type Scope={producers:number;crops:number;tonnes:number;waterM3:number;energyKwh:number;polygons:number}
@@ -24,8 +23,6 @@ const signed=(n:number|null|undefined)=>
  n===null||n===undefined?'N/A':(n>0?'+':'')+fmt(n,1)+'%'
 const resolveIndicator=(data:QatarCountrySnapshot|null,key:keyof typeof WORLD_BANK_INDICATORS)=>
  data?.indicators.find(s=>s.key===key)??null
-const toDate=(iso:string)=>Number.isFinite(Date.parse(iso))?
- new Date(iso).toLocaleString('en-GB',{day:'2-digit',month:'short',year:'numeric',timeZone:'Asia/Qatar'}):'Unknown'
 const numberLine=(year:number|null,detail:string)=>year===null?'No published observation':
  detail+' · '+year
 
@@ -140,12 +137,9 @@ export function QatarCountryCommand({growa}:{growa:Scope}){
  const selfRows=(snapshot?.sufficiency??[]).filter(x=>x.year===suffYear)
  const wbPopulation=resolveIndicator(snapshot,'population')
  const wbImport=resolveIndicator(snapshot,'foodImportShare')
- const wbLand=resolveIndicator(snapshot,'agriculturalLand')
- const wbAgr=resolveIndicator(snapshot,'agricultureGdp')
  const selected=resolveIndicator(snapshot,selectedIndicator)
  const sourceStats=sourceCoverage(snapshot?.sources??[])
  const coverage=(snapshot?.sources??[]).length?sourceStats.present+'/'+sourceStats.total:'0/4'
- const availableMarkets=(market?.instruments??[]).filter(x=>!x.stale)
  const trackedMarkets=(market?.instruments??[]).filter(x=>
   ['wheat','corn','rice','barley','soybeans','poultry','sugar','palm-oil'].includes(x.id))
  const cards=[

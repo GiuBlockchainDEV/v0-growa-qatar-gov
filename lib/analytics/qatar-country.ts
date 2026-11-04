@@ -117,13 +117,13 @@ export function parseWorldBank(payload:unknown):IndicatorSeries[]{
  if(!Array.isArray(payload)||!Array.isArray(payload[1]))throw Error('Invalid World Bank API response')
  const rows=payload[1] as unknown[]
  const byCode=new Map<string,TimePoint[]>()
- const knownCodes=Object.values(WORLD_BANK_INDICATORS).map(v=>v.code)
+ const knownCodes=new Set<string>(Object.values(WORLD_BANK_INDICATORS).map(v=>v.code))
  for(const raw of rows){
   const row=record(raw);if(!row)continue
   const iso=textValue(row.countryiso3code)
   if(iso&&iso!=='QAT')continue
   const ind=record(row.indicator),code=textValue(ind?.id)
-  if(!knownCodes.includes(code))continue
+  if(!knownCodes.has(code))continue
   const year=parseYear(row.date),value=numeric(row.value)
   if(!year||value===null)continue
   const arr=byCode.get(code)??[]

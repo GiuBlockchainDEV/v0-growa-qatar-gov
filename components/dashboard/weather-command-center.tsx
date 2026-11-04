@@ -4,7 +4,7 @@ import {useMemo,useState} from 'react'
 import {
  Activity,ArrowUpRight,CloudSun,Droplets,MapPin,RefreshCw,
  ShieldAlert,ShieldCheck,SunMedium,ThermometerSun,Wind,ChartNoAxesCombined,
- Waves,Clock3,
+ Waves,
 } from 'lucide-react'
 import {
  assessWeatherOperations,historyQuality,observationStatus,weatherNumber,
@@ -127,7 +127,7 @@ export function WeatherCommandCenter({
     <div className={styles.headerText}>
      <span className={styles.eyebrow}><CloudSun size={16}/> GROWA / ENVIRONMENTAL INTELLIGENCE</span>
      <h2>Weather <em>Command Center</em></h2>
-     <p>From Qatar's weather grid to practical field decisions. One location, verified conditions and transparent operational screening.</p>
+     <p>From Qatar&apos;s weather grid to practical field decisions. One location, verified conditions and transparent operational screening.</p>
      <div className={styles.locationControls}>
       {LOCATIONS.map(city=><button key={city.name} type="button"
        aria-pressed={Math.abs(Number(coordinates.split(',')[0])-city.lat)<.008&&

@@ -5,7 +5,7 @@ import {useRouter} from 'next/navigation'
 import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import {
   ArrowUpRight, Check, ClipboardCheck, FileCheck2,
-  Layers, Plus, RefreshCw, Ship, ShoppingCart, Warehouse, X,
+  Layers, Plus, RefreshCw, Ship, ShoppingCart, X,
 } from 'lucide-react'
 import { useAuth } from '@/hooks/use-auth'
 import { useOrganization } from '@/hooks/use-organization'

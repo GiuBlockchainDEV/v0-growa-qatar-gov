@@ -8,7 +8,6 @@ import type {WeatherReading,WeatherHistory} from '@/lib/weather/operational-scre
 import {
   BarChart3,
   CloudRain,
-  CloudSun,
   Compass,
   Loader2,
   MapPin,
@@ -25,7 +24,6 @@ import { Card, EmptyState, ErrorState, LoadingState, Notice } from '@/components
 import { Button, Field, Tag } from '@/components/brand/ui'
 import {
   IntelligenceInvestigationLayout,
-  InvestigationContextHeader,
 } from '@/components/dashboard/intelligence-investigation-layout'
 import {
   IntelligenceMapHint,

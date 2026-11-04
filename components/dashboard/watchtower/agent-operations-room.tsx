@@ -2,7 +2,7 @@
 import Link from 'next/link'
 import {useCallback,useMemo,useRef,useState,useEffect} from 'react'
 import {ArrowRight,ArrowUpRight,Bot,CheckCircle2,Database,
- FileCheck2,RefreshCw,ShieldAlert,Ship,ShoppingBasket,Warehouse,
+ FileCheck2,RefreshCw,ShieldAlert,Warehouse,
  Activity,PlayCircle} from 'lucide-react'
 import {CommodityAgentLab,type AgentMissionTelemetry} from '@/components/dashboard/commodity-agent-lab'
 import {useCommodityCase} from '@/hooks/use-commodity-case'

@@ -3,14 +3,13 @@
 import { scoreToRampColor } from '@/lib/watchtower/map-layer-colors'
 
 import { useEffect, useMemo, useState } from 'react'
-import { Activity, BarChart3, Cpu, Droplets, Flame, Gauge, Leaf, TrendingDown, TrendingUp } from 'lucide-react'
+import { Activity, Cpu, Droplets, Flame, Gauge, Leaf, TrendingDown, TrendingUp } from 'lucide-react'
 import { buildGrowaContext } from '@/lib/ai/build-growa-context'
 import { GrowaIntelligencePanel } from '@/components/dashboard/growa-intelligence-panel'
 import {
   IntelligenceCommandLayout,
   IntelligenceDataTable,
   IntelligenceErrorState,
-  IntelligenceHero,
   IntelligenceKpiCard,
   IntelligenceLoadingState,
   IntelligencePanel,
@@ -19,7 +18,6 @@ import {
   IntelligenceTableHead,
   IntelligenceWorkspaceBody,
   IntelligenceWorkspaceCommand,
-  IntelligenceWorkspaceHeader,
   IntelligenceWorkspaceRoot,
 } from '@/components/dashboard/intelligence-workspace-ui'
 import { useMapNavigation } from '@/components/dashboard/intelligence-metrics-shared'
