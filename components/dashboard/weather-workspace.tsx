@@ -441,23 +441,26 @@ export function WeatherWorkspace() {
       latValue: string,
       lonValue: string,
       requestedAtValue: string,
-      options: { prefetch?: boolean; signal?: AbortSignal } = {}
+      options: { signal?: AbortSignal } = {}
     ) => {
       const cacheKey = getHistoryCacheKey(latValue, lonValue, requestedAtValue)
+      // When a cell changes, an older request must never populate the new
+      // cell's graph (including after an abort / slow cache response).
+      const active = () =>
+        activeHistoryKeyRef.current === cacheKey && !options.signal?.aborted
       const cached = historyCacheRef.current[cacheKey]
       if (cached) {
-        if (!options.prefetch) {
+        if (active()) {
           setHistoryPoints(cached)
           setHistoryError(null)
+          setHistoryLoading(false)
         }
         return cached
       }
-
-      if (!options.prefetch) {
+      if (active()) {
         setHistoryLoading(true)
         setHistoryError(null)
       }
-
       try {
         const params = new URLSearchParams({
           latitude: latValue.trim(),
@@ -473,32 +476,40 @@ export function WeatherWorkspace() {
         })
         const payload = await response.json().catch(() => null)
         if (!response.ok) {
-          const message = asRecord(payload)?.error
-          throw new Error(typeof message === 'string' ? message : 'Failed to load weather history')
+          const record = asRecord(payload)
+          const message = record?.error
+          const details = record?.details
+          throw new Error(
+            (typeof message === 'string' ? message : 'Failed to load weather history') +
+            (typeof details === 'string' ? ': ' + details : '')
+          )
         }
-        const points = Array.isArray(asRecord(payload)?.points) ? (asRecord(payload)?.points as HistoryPoint[]) : []
+        if (!active()) return []
+        const points = Array.isArray(asRecord(payload)?.points)
+          ? (asRecord(payload)?.points as HistoryPoint[])
+          : []
 
-        if (options.prefetch && activeHistoryKeyRef.current !== cacheKey) {
-          return []
-        }
-
-        historyCacheRef.current[cacheKey] = points
-        if (!options.prefetch) {
-          setHistoryPoints(points)
-          if (points.length === 0) setHistoryError('No historical readings returned for this cell yet.')
-        }
+        // Empty results are not cached permanently. An upstream Weather API
+        // failure or missing collection must remain retryable.
+        if (points.length > 0) historyCacheRef.current[cacheKey] = points
+        setHistoryPoints(points)
+        setHistoryError(
+          points.length === 0
+            ? 'No historical readings returned for this cell. Try again or select another location.'
+            : null
+        )
         return points
       } catch (historyLoadError) {
-        if (options.signal?.aborted) return []
-        if (!options.prefetch) {
-          setHistoryPoints([])
-          setHistoryError(historyLoadError instanceof Error ? historyLoadError.message : 'Failed to load last 24h readings')
-        }
+        if (!active()) return []
+        setHistoryPoints([])
+        setHistoryError(
+          historyLoadError instanceof Error
+            ? historyLoadError.message
+            : 'Failed to load the last 24 hours of readings'
+        )
         return []
       } finally {
-        if (!options.prefetch) {
-          setHistoryLoading(false)
-        }
+        if (active()) setHistoryLoading(false)
       }
     },
     [getHistoryCacheKey]
@@ -508,19 +519,17 @@ export function WeatherWorkspace() {
     (latValue: string, lonValue: string, requestedAtValue: string) => {
       const cacheKey = getHistoryCacheKey(latValue, lonValue, requestedAtValue)
       activeHistoryKeyRef.current = cacheKey
-      if (historyCacheRef.current[cacheKey]) return
-
       historyPrefetchAbortRef.current?.abort()
       const controller = new AbortController()
       historyPrefetchAbortRef.current = controller
+      // This is NOT a background-only prefetch. The Command Center displays
+      // these same observed points, so always publish them to React state.
       void loadHistory(latValue, lonValue, requestedAtValue, {
-        prefetch: true,
         signal: controller.signal,
       })
     },
     [getHistoryCacheKey, loadHistory]
   )
-
 
   const loadWeatherFor = useCallback(
     async (latValue: string, lonValue: string, requestedAtValue: string) => {
@@ -564,11 +573,13 @@ export function WeatherWorkspace() {
         setHistoryError(null)
         prefetchHistory(latValue, lonValue, requestedAtValue)
       } catch (loadError) {
-        setError(loadError instanceof Error ? loadError.message : 'Failed to load weather data')
-        setReading(null)
-        setHistoryPoints([])
+        if (activeHistoryKeyRef.current === selectionKey) {
+          setError(loadError instanceof Error ? loadError.message : 'Failed to load weather data')
+          setReading(null)
+          setHistoryPoints([])
+        }
       } finally {
-        setLoading(false)
+        if (activeHistoryKeyRef.current === selectionKey) setLoading(false)
       }
     },
     [getHistoryCacheKey, prefetchHistory]
@@ -695,6 +706,13 @@ export function WeatherWorkspace() {
         history={historyPoints as WeatherHistory[]}
         loading={loading}
         historyLoading={historyLoading}
+        historyError={historyError}
+        onRetryHistory={() => {
+          if (!latitude.trim() || !longitude.trim()) return
+          const key = getHistoryCacheKey(latitude, longitude, requestedAt)
+          delete historyCacheRef.current[key]
+          prefetchHistory(latitude, longitude, requestedAt)
+        }}
         location={hasSelection ? (Math.abs(Number(latitude)-25.2854)<.008 &&
           Math.abs(Number(longitude)-51.531)<.008 ? 'Doha' : summary.cellId) : 'Doha'}
         coordinates={hasSelection ? summary.coordinate : ''}
