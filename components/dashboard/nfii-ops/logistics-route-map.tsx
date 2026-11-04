@@ -11,10 +11,13 @@ type Props={
   selectedId:string|null
   onSelect:(id:string)=>void
   locale:'en'|'ar'
+  riskByRoute?:Record<string,'elevated'|'attention'|'screened'|'unknown'>
 }
 const colors={sea:'#2F5D50',air:'#C9A227',road:'#B4644A'}
+const riskColors={elevated:'#B4644A',attention:'#C29A59',
+  screened:'#58796A',unknown:'#92948D'} as const
 const format=(v:GeoPointTuple):Leaflet.LatLngTuple=>[v[0],v[1]]
-export function LogisticsRouteMap({routes,selectedId,onSelect,locale}:Props){
+export function LogisticsRouteMap({routes,selectedId,onSelect,locale,riskByRoute}:Props){
   const holder=useRef<HTMLDivElement>(null)
   const map=useRef<Leaflet.Map|null>(null)
   const lib=useRef<typeof Leaflet|null>(null)
@@ -66,13 +69,14 @@ export function LogisticsRouteMap({routes,selectedId,onSelect,locale}:Props){
         const points=path.map(format)
         positions.push(...points)
         const line=L.polyline(points,{
-          color:colors[route.mode],
+          color:riskByRoute?.[route.id]?riskColors[riskByRoute[route.id]]:colors[route.mode],
           weight:selected?5:3,
           opacity:selected?1:route.mode==='air'?0.8:0.55,
           dashArray:route.mode==='air'?'8 9':
             route.fidelity==='illustrative'?'7 9':undefined,
         }).addTo(layers)
         line.bindTooltip((route.from+' → '+route.to+
+          (riskByRoute?.[route.id]?' · Exposure: '+riskByRoute[route.id]:'')+
           (route.via?' · '+route.via:'')+
           (route.mode==='air'?' · great-circle reference; NOT a verified flight track':
           route.fidelity==='modeled_geometry'?' · computed ocean-grid estimate':
@@ -83,7 +87,8 @@ export function LogisticsRouteMap({routes,selectedId,onSelect,locale}:Props){
       const show=selected
       if(show){
         L.circleMarker(format(route.origin),{
-          radius:7,color:colors[route.mode],weight:2,fillOpacity:0.9,
+          radius:7,color:riskByRoute?.[route.id]?
+            riskColors[riskByRoute[route.id]]:colors[route.mode],weight:2,fillOpacity:0.9,
         }).bindTooltip(route.from).addTo(layers)
         L.circleMarker(format(route.destination),{
           radius:7,color:'#2F5D50',weight:2,fillColor:'#ffffff',fillOpacity:1,
@@ -100,7 +105,7 @@ export function LogisticsRouteMap({routes,selectedId,onSelect,locale}:Props){
       map.current.setView([25,51.6],5)
     }
     window.requestAnimationFrame(()=>map.current?.invalidateSize())
-  },[routes,selectedId,ready])
+  },[routes,selectedId,ready,riskByRoute])
 
   return <div className="relative">
     <div ref={holder} role="img"

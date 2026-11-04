@@ -223,3 +223,11 @@
 .draftLines strong{font-size:11px;font-weight:740}
 .draftLines small,.draftLines span{font-size:10px;color:var(--growa-stone-600)}
 @media(max-width:760px){.routeAlternatives,.routeInspector,.qualificationGrid{grid-template-columns:1fr}.routeSummary{grid-template-columns:repeat(2,minmax(0,1fr))}.orderJourney{grid-template-columns:repeat(2,minmax(0,1fr))}}
+
+.riskLegend{display:flex;align-items:center;flex-wrap:wrap;gap:10px 18px}
+.riskLegend span{display:inline-flex;align-items:center;gap:7px;font-size:10px;color:var(--growa-stone-600)}
+.riskLegend i{width:18px;height:4px;border-radius:3px;background:var(--growa-stone-500)}
+.riskLegend i[data-risk='screened']{background:#58796A}
+.riskLegend i[data-risk='attention']{background:#C29A59}
+.riskLegend i[data-risk='elevated']{background:#B4644A}
+.riskLegend i[data-risk='unknown']{background:#92948D}

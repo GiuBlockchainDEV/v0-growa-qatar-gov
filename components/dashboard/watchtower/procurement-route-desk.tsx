@@ -53,6 +53,9 @@ export function ProcurementRouteDesk({
  const icon=(mode:string)=>mode==='sea'?<Ship size={14}/>:
   mode==='air'?<Plane size={14}/>:<Truck size={14}/>
  const overlaySelected:RouteMapOverlay[]=mapped
+ const riskByRoute=useMemo(()=>Object.fromEntries(all.map(x=>[
+  x.key,x.risk.band,
+ ])) as Record<string,'elevated'|'attention'|'screened'|'unknown'>,[all])
  return <section className={styles.routeDecision} aria-label="Route risk and logistics decision room">
   <header className={styles.heading}>
    <span>LOGISTICS INTELLIGENCE / REAL SOURCE GEOMETRY</span>
@@ -72,7 +75,13 @@ export function ProcurementRouteDesk({
    for the current supplier shortlist. No routes were invented.</p>:<>
    <div className={styles.routeMap}>
     <LogisticsRouteMap routes={overlaySelected} selectedId={selected?.key??null}
-     onSelect={id=>setFocused(id)} locale={locale}/>
+     riskByRoute={riskByRoute} onSelect={id=>setFocused(id)} locale={locale}/>
+   </div>
+   <div className={styles.riskLegend}>
+    <span><i data-risk="screened"/>Lower screened exposure</span>
+    <span><i data-risk="attention"/>Review exposure</span>
+    <span><i data-risk="elevated"/>Elevated exposure</span>
+    <span><i data-risk="unknown"/>No risk evidence</span>
    </div>
    <div className={styles.routeToolbar}>
     <label>Compare routes by
