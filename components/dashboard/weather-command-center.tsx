@@ -85,13 +85,15 @@ function Trend({points,unit,digits}:{points:ReturnType<typeof weatherTrend>;unit
  </div>
 }
 export function WeatherCommandCenter({
- reading,history,loading,historyLoading,location,coordinates,
+ reading,history,loading,historyLoading,historyError,onRetryHistory,location,coordinates,
  onLocationChange,onRefresh,onHistoryMetricClick,
 }:{
  reading:WeatherReading|null
  history:WeatherHistory[]
  loading:boolean
  historyLoading:boolean
+ historyError:string|null
+ onRetryHistory:()=>void
  location:string
  coordinates:string
  onLocationChange:(lat:number,lng:number)=>void
@@ -216,6 +218,10 @@ export function WeatherCommandCenter({
     </div>
     {historyLoading?<div className={styles.trendEmpty}>Retrieving historical observations…</div>:
      <Trend points={trend} unit={active.unit} digits={active.digits}/>}
+    {historyError&&<div role="alert" className={styles.trendError}>
+      <span>{historyError}</span>
+      <button type="button" onClick={onRetryHistory}><RefreshCw size={13}/> Retry 24-hour history</button>
+    </div>}
     <button type="button" className={styles.detailLink}
      onClick={()=>onHistoryMetricClick(trendKey)}>
      Open detailed history <ArrowUpRight size={14}/></button>
