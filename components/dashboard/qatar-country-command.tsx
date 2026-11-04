@@ -33,10 +33,12 @@ const numberLine=(year:number|null,detail:string)=>year===null?'No published obs
  * correspond to distinct recorded observations. Missing years stay gaps.
  */
 function AnnualTrend({series}:{series:IndicatorSeries|null}){
+ const [selectedYear,setSelectedYear]=useState<number|null>(null)
  if(!series||series.history.length<2)return <p className={styles.chartEmpty}>
   At least two source observations are needed for a trend.
  </p>
  const points=series.history.slice(-15)
+ const active=points.find(p=>p.year===selectedYear)??points.at(-1)!
  const width=560,height=165,minX=24,maxX=width-18,minY=20,maxY=height-24
  const lo=Math.min(...points.map(p=>p.value)),hi=Math.max(...points.map(p=>p.value))
  const y=(v:number)=>maxY-(v-lo)/Math.max(hi-lo,.01)*(maxY-minY)
@@ -60,11 +62,32 @@ function AnnualTrend({series}:{series:IndicatorSeries|null}){
     points={group.map(p=>x(p.year)+','+y(p.value)).join(' ')}
     stroke="#8eb276" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"
     fill="none"/>)}
-   {points.map(p=><circle key={p.year} cx={x(p.year)} cy={y(p.value)}
-    r="3.5" fill="#8eb276"><title>{p.year}: {fmt(p.value,1)} {series.unit}</title></circle>)}
+   <line x1={x(active.year)} x2={x(active.year)} y1={minY} y2={maxY}
+    stroke="#789c61" strokeWidth="1.5" strokeDasharray="4 4" opacity=".65"/>
+   {points.map(p=><g key={p.year}>
+    <circle cx={x(p.year)} cy={y(p.value)} r={active.year===p.year?7:4}
+     fill={active.year===p.year?'#deebc7':'#8eb276'}
+     stroke={active.year===p.year?'#567647':'none'} strokeWidth="2" pointerEvents="none"/>
+    <circle cx={x(p.year)} cy={y(p.value)} r="15" fill="transparent"
+     role="button" tabIndex={0} className={styles.chartPoint}
+     aria-label={`${series.label} in ${p.year}: ${fmt(p.value,2)} ${series.unit}`}
+     aria-pressed={active.year===p.year}
+     onClick={()=>setSelectedYear(p.year)}
+     onKeyDown={event=>{if(event.key==='Enter'||event.key===' '){
+      event.preventDefault();setSelectedYear(p.year)
+     }}}>
+     <title>{p.year}: {fmt(p.value,2)} {series.unit}</title>
+    </circle>
+   </g>)}
   </svg>
   <div className={styles.axis}><span>{points[0].year}</span>
-   <span>{series.unit}</span><span>{points.at(-1)!.year}</span></div>
+   <span>Select a point to inspect</span><span>{points.at(-1)!.year}</span></div>
+  <div className={styles.observation} role="status">
+   <div><small>SELECTED OBSERVATION</small>
+    <strong>{fmt(active.value,2)} <span>{series.unit}</span></strong></div>
+   <div><small>REFERENCE YEAR</small><strong>{active.year}</strong></div>
+   <SourceLink href={series.url}>World Bank source</SourceLink>
+  </div>
  </div>
 }
 function Bars({rows,max=6,percent=false}:{rows:Array<{name:string;value:number;note?:string}>;max?:number;percent?:boolean}){
