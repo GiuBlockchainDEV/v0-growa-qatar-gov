@@ -7,8 +7,13 @@ export const REGIONAL_AIR_BATCH_COUNT=12
 export const AIR_GRID_LATITUDES=[10,16,22,28,34,40] as const
 export const AIR_GRID_LONGITUDES=[27.75,33.25,38.75,44.25,49.75,55.25,60.75,66.25,71.75,77.25] as const
 /** Every point in the box is <=250 NM from at least one centre (max 244 NM). */
+const CARGO_HUBS=[{lat:25.3,lon:51.5},{lat:25.25,lon:55.36},{lat:24.45,lon:54.65},{lat:24.96,lon:46.7},{lat:23.59,lon:58.28},{lat:21.67,lon:39.15},{lat:24.91,lon:67.16},{lat:30.12,lon:31.41}]
+const proximity=(lat:number,lon:number)=>Math.min(...CARGO_HUBS.map(h=>{const x=(lon-h.lon)*Math.cos(lat*Math.PI/180),y=lat-h.lat;return x*x+y*y}))
+// Query Gulf cargo corridors first, without shrinking the 60-circle footprint.
 export const REGIONAL_AIR_CENTERS=AIR_GRID_LATITUDES.flatMap((lat,row)=>
-  AIR_GRID_LONGITUDES.map((lon,col)=>({lat,lon,batch:row*2+Math.floor(col/5),index:row*10+col})))
+  AIR_GRID_LONGITUDES.map((lon,col)=>({lat,lon,index:row*10+col})))
+  .sort((a,b)=>proximity(a.lat,a.lon)-proximity(b.lat,b.lon)||a.index-b.index)
+  .map((center,order)=>({...center,batch:Math.floor(order/5)}))
 export type RegionalAirBatch={
   source:'ADSB.lol regional grid'
   batch:number
