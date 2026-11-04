@@ -13,6 +13,13 @@ describe('Commodity command intelligence UI',()=>{
   expect(cockpit).toContain('links.pendingApprovals')
   expect(cockpit).toContain('COMMODITY COMMAND INTELLIGENCE')
  })
+ it('uses sourced yearly customs values when monthly market series do not exist',()=>{
+  const evidence=get('components/dashboard/commodity-import-prices.tsx')
+  expect(cockpit).toContain('<CommodityImportPrices commodity={commodity.id}/>')
+  expect(evidence).toContain('/api/watchtower/commodity-price-evidence?')
+  expect(evidence).toContain('years.length>=2')
+  expect(evidence).toContain('data.originPrices.length>=2')
+ })
  it('only charts published monthly commodity prices with provenance',()=>{
   expect(cockpit).toContain('/api/watchtower/commodity-markets')
   expect(cockpit).toContain('market?.instruments.find(i=>i.id===commodity.id)')

@@ -10,6 +10,7 @@ import type {MarketInstrument,CommodityMarketsSnapshot} from '@/lib/watchtower/c
 import {buildCommoditySignal} from '@/lib/nfii/commodity-intelligence'
 import {useI18n} from '@/lib/i18n'
 import styles from './commodity-intelligence-cockpit.module.css'
+import {CommodityImportPrices} from './commodity-import-prices'
 
 const fmt=(v:number|null|undefined,digits=1)=>
  v===null||v===undefined||!Number.isFinite(v)?'N/A':
@@ -192,8 +193,9 @@ export function CommodityIntelligenceCockpit({commodity,balance,links,onAgents,o
     <div className={styles.panelTop}><div><div className={styles.cardEyebrow}><TrendingUp size={14}/> COMMODITY PRICE INTELLIGENCE</div>
      <h3>Published market signals</h3></div>
      <Link href="/dashboard?module=watchtower#watchtower-markets">Global markets <ArrowUpRight size={13}/></Link></div>
-    <PriceTrend instrument={instrument}/>
-    {marketError&&<p className={styles.dataAlert}>Market provider unavailable; no values have been inferred.</p>}
+    {instrument?<PriceTrend instrument={instrument}/>:
+     <CommodityImportPrices commodity={commodity.id}/>}
+    {marketError&&<p className={styles.dataAlert}>Monthly market benchmark unavailable. Showing customs source evidence when available.</p>}
    </div>
    <div className={styles.executionPanel}>
     <div className={styles.cardEyebrow}><ShieldCheck size={14}/> ACTION READINESS</div>
