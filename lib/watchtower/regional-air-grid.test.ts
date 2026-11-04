@@ -35,3 +35,5 @@ describe('Geographic coverage of the full Watchtower screenshot',()=>{
       expect(REGIONAL_AIR_CENTERS.filter(c=>c.batch===batch)).toHaveLength(5)
   })
 })
+
+// Geographic priority does not create aircraft; the API still returns only ADS-B fixes.
