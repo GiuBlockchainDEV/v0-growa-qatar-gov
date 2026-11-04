@@ -399,6 +399,7 @@ export default function DashboardPage() {
         targetCropFilter={targetCropFilter}
         activeMapLayers={opCtx?.activeMapLayers}
         spectralEnabled={moduleKey === 'live-map'}
+        wellsEnabled={moduleKey === 'live-map'}
         alwaysShowRegisteredFarms
       />
     )

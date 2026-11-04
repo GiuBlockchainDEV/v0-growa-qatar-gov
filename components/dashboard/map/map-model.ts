@@ -89,6 +89,8 @@ export interface SatelliteMapProps {
   activeMapLayers?: string[]
   /** Qatar-wide NDVI and NDMI from Sentinel-2 on the full-screen Live Map only. */
   spectralEnabled?: boolean
+  /** Public mapped wells and expressly named saved wells on the full Live Map. */
+  wellsEnabled?: boolean
   /** Live map surfaces always show registered org farms, regardless of layer toggles. */
   alwaysShowRegisteredFarms?: boolean
 }

@@ -7,6 +7,7 @@ import type { Layer, LeafletMouseEvent } from 'leaflet'
 type LeafletModule = typeof import('leaflet')
 import { createHarvestRasterLayer } from '@/components/dashboard/harvest-raster-layer'
 import {QatarSpectralLayers} from '@/components/dashboard/qatar-spectral-layers'
+import {QatarWellsLayers} from '@/components/dashboard/qatar-wells-layers'
 import { usePlatformCapabilities } from '@/hooks/use-platform-capabilities'
 import { useOrganization } from '@/hooks/use-organization'
 import type { IntelligenceSignal } from '@/lib/domain/types'
@@ -156,6 +157,7 @@ export function SatelliteMap({
   onHarvestFieldVerticesChange: onHarvestFieldVerticesChangeProp,
   activeMapLayers,
   spectralEnabled = false,
+  wellsEnabled = false,
   alwaysShowRegisteredFarms = false,
 }: SatelliteMapProps) {
   const { tr } = useI18n()
@@ -2283,6 +2285,7 @@ export function SatelliteMap({
     <div className="growa absolute inset-0">
       <div ref={mapRef} className="h-full w-full" />
       {spectralEnabled&&<QatarSpectralLayers map={mapForReadout}/>}
+      {wellsEnabled&&<QatarWellsLayers map={mapForReadout}/>}
 
       <div className="absolute bottom-6 end-6 z-[1000] flex flex-col gap-2">
         {isGrowaAdmin && (
