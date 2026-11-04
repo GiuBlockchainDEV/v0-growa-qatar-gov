@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Bot, Send, Trash2 } from 'lucide-react'
 import type { GrowaAnalysisContext, GrowaChatMessage, GrowaModule } from '@/lib/ai/growa-types'
-import { isHarvestGrowaContext, isWatchtowerGrowaContext, isQatarCountryGrowaContext } from '@/lib/ai/growa-types'
+import { isHarvestGrowaContext, isWatchtowerGrowaContext, isQatarCountryGrowaContext, isNationalUtilityGrowaContext } from '@/lib/ai/growa-types'
 import { getGrowaPrompts } from '@/lib/ai/growa-prompts'
 import dynamic from 'next/dynamic'
 
@@ -23,6 +23,8 @@ interface GrowaIntelligencePanelProps {
 
 function contextSessionKey(context: GrowaAnalysisContext | null) {
   if (!context) return 'empty'
+
+  if (isNationalUtilityGrowaContext(context)) return context.module+':qatar-national'
 
   if (isQatarCountryGrowaContext(context)) {
     return 'qatar-country:session'
@@ -149,6 +151,8 @@ export function GrowaIntelligencePanel({ module, context, disabled = false }: Gr
             domains: context.headline.criticalDomains,
             timeframe: tr(context.timeframe),
           })
+        : isNationalUtilityGrowaContext(context)
+          ? `${context.headline.metricCount} national metrics · ${context.headline.availableSources}/${context.headline.sourceCount} sources · cross-resource ${context.headline.crossDomainAvailable ? 'available' : 'unavailable'}`
         : isQatarCountryGrowaContext(context)
           ? `${context.headline.officialIndicatorCount} national indicators · ${context.headline.benchmarkCount} market benchmarks · Growa operations ${context.headline.growaRecordsAvailable ? 'connected' : 'unavailable'}`
         : tr('{crops} crops · {producers} producers · {polygons} polygons', {
