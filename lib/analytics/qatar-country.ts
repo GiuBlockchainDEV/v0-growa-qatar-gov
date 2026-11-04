@@ -99,20 +99,36 @@ export function parseQatarFarms(payload:unknown):FarmMunicipality[]{
   return [{year,municipality,farmType,farms:farms!,areaHa:valid(area)?area:null}]
  }).sort((a,b)=>b.year-a.year||a.municipality.localeCompare(b.municipality))
 }
+/** Returns the self-sufficiency percentage exactly as published by NPC.
+ * Values are already percentages (e.g. 1.7 means 1.7%, not 170%).
+ * A value above 100% can reflect production above estimated domestic use.
+ * Very large, implausible ratios are withheld pending source review.
+ */
 export function parseQatarSufficiency(payload:unknown):SelfSufficiency[]{
  const seen=new Set<string>()
  return rowsOf(payload).flatMap(r=>{
-  const year=parseYear(r.year),product=textValue(r.product),group=textValue(r.product_group)
-  const tonnes=numeric(r.quantity),ratio=numeric(r.self_sufficiency_ratio)
-  if(!year||!product||!group||isTotal(product)||!valid(ratio)||
-   ratio!>200)return []
+  const year=parseYear(r.year)
+  const product=textValue(r.product)
+  const group=textValue(r.product_group)
+  const tonnes=numeric(r.quantity)
+  const ratio=numeric(r.self_sufficiency_ratio)
+  if(year===null||!product||!group||isTotal(product)||
+   ratio===null||ratio<0||ratio>300)return []
   const key=duplicateKey(year,group,product)
   if(seen.has(key))return []
   seen.add(key)
   return [{year,product,group,quantityTonnes:valid(tonnes)?tonnes:null,
-   ratioPercent:ratio!}]
- }).sort((a,b)=>b.year-a.year||b.ratioPercent-a.ratioPercent)
+   ratioPercent:ratio}]
+ }).sort((a,b)=>b.year-a.year||a.group.localeCompare(b.group)||a.product.localeCompare(b.product))
 }
+
+/** A reference scale of 100% is always fixed. Unlike a max-relative chart,
+ * 40% will fill precisely 40% of the bar even when 40% is the top product.
+ */
+export function selfSufficiencyBarPercent(ratioPercent:number):number{
+ return Number.isFinite(ratioPercent)?Math.min(100,Math.max(0,ratioPercent)):0
+}
+
 export function parseWorldBank(payload:unknown):IndicatorSeries[]{
  if(!Array.isArray(payload)||!Array.isArray(payload[1]))throw Error('Invalid World Bank API response')
  const rows=payload[1] as unknown[]
