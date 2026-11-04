@@ -1,7 +1,7 @@
 import type {TrackingAsset} from './global-tracking'
 
 /** Operational visibility contract: only verified source-aged fixes from the last hour. */
-export const MIN_MAPPED_VESSEL_KNOTS=3
+export const MIN_MAPPED_VESSEL_KNOTS=5.1
 export const MAX_MAPPED_VESSEL_AGE_MS=60*60*1000
 
 /** A provider's polling timestamp is not an individual ship position fix.

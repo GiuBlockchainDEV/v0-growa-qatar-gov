@@ -18,29 +18,30 @@ OpenSeaFeed /v1/snapshot is filtered over the whole screenshot rectangle
 and is supplemented by the regional hormuz.now feed, data-tracking.net,
 and an optional licensed VesselFinder feed. Public provider coverage
 is incomplete; a blank area is unknown, not proof of zero traffic.
-The map shows only source-observed vessels with valid AIS speed at least 3 knots.
-Ships below 3 knots and unknown-speed vessels are always hidden, including in
-cargo-class view. Most positions expire from the map after 12 hours.
-When the public Bab el-Mandeb feed is delayed, up to seven-day-old last-known
-source-dated positions may be shown only as faded, explicitly stale observations.
-Their timestamp is preserved; they are not live ship positions.
+The real AIS map shows only source-observed vessels reporting at least 5.1 knots.
+Ships below 5.1 knots and vessels with unknown speeds are hidden in every real
+AIS mode, including cargo-class view. Genuine individual position timestamps
+must be within the last hour. Delayed Bab el-Mandeb AIS fixes are excluded.
 AIS vessel class and SOG do not verify contents, voyages or food shipments.
 Aircraft display no green past-position trails or origin-to-fix tail lines;
 the destination reference may still be shown when available.
 
 ## Operations and rights
-No positions, movement, AIS routes or maritime coverage are generated.
+No real AIS positions, actual routes or maritime coverage are fabricated.
+Illustrative scenario markers are generated separately, explicitly identified
+as synthetic in Map Controls, and never used in operational data.
 Attribution: ADSB.lol ODbL 1.0; hormuz.now and data-tracking.net CC BY 4.0;
 other providers under their own terms. All provider requests are cached
 and bounded, with failures visible independently in source diagnostics.
 
 ## One-hour real AIS versus optional demo ships
 The operational map now requires an individual source-dated fix no older than
-60 minutes, a speed of at least 3 knots, and no page-capture or poll-only
+60 minutes, a speed of at least 5.1 knots, and no page-capture or poll-only
 pseudo-timestamp. The old seven-day Bab el-Mandeb last-known exception is
-removed. Three underserved regions (Red Sea, Gulf of Aden and Arabian Sea)
-have a **separate, visibly labelled DEMO ONLY layer**, with a small bounded
-collection of fixed synthetic map positions, no fake MMSI or AIS timestamps.
+removed. Underserved regions (Red Sea, Gulf of Aden, Arabian Sea and Karachi offshore)
+have a separate, explicitly identified synthetic scenario layer in Map Controls,
+with fixed illustrative positions and no fake MMSI or AIS timestamps. Scenario
+markers have no AIS speed; the real-AIS 5.1-kn threshold is not applied to them.
 Each demo marker is non-interactive, is never stored as a TrackingAsset, and
 never enters real counts, routes, historical tracks or risk/intelligence outputs.
 Demo markers can be toggled off in Map Controls. They are not a fallback AIS

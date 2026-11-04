@@ -32,11 +32,12 @@ describe('Watchtower real-vessel visibility',()=>{
     expect(visibleObservedVessel(ship({observationBasis:'snapshot_poll'}),now)).toBe(false)
     expect(visibleObservedVessel(ship({observedAt:new Date(now+120000).toISOString()}),now)).toBe(false)
   })
-  it('requires source-reported speed at least 3 kn, not zero/unknown',()=>{
-    expect(MIN_MAPPED_VESSEL_KNOTS).toBe(3)
-    for(const speedKnots of [null,0,0.1,1.5,2.99])
+  it('requires source-reported speed at least 5.1 kn, not zero/unknown',()=>{
+    expect(MIN_MAPPED_VESSEL_KNOTS).toBe(5.1)
+    for(const speedKnots of [null,0,0.1,1.5,2.99,3,4.5,5.09])
       expect(visibleUnderwayVessel(ship({speedKnots}),now)).toBe(false)
-    expect(visibleUnderwayVessel(ship({speedKnots:3}),now)).toBe(true)
+    expect(visibleUnderwayVessel(ship({speedKnots:5.1}),now)).toBe(true)
+    expect(visibleUnderwayVessel(ship({speedKnots:5.11}),now)).toBe(true)
     expect(visibleUnderwayVessel(ship({speedKnots:12}),now)).toBe(true)
     expect(visibleUnderwayVessel(ship({speedKnots:56}),now)).toBe(false)
   })

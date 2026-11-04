@@ -527,7 +527,7 @@ export function GlobalWatchtower() {
     const isRedSea=(a:TrackingAsset)=>a.lat>=11&&a.lat<29.35&&a.lon>=32&&a.lon<=46
     const isGulf=(a:TrackingAsset)=>a.lat>=22&&a.lat<=31&&a.lon>=47&&a.lon<=61
     const priority=(input:TrackingAsset[])=>mergeAssets(input).sort((a,b)=>
-      Number((b.speedKnots??0)>=3)-Number((a.speedKnots??0)>=3)||
+      Number((b.speedKnots??0)>=5.1)-Number((a.speedKnots??0)>=5.1)||
       b.observedAt.localeCompare(a.observedAt))
     const suez=priority(reported.filter(isSuez)).slice(0,350)
     const redSea=priority(reported.filter(a=>!isSuez(a)&&isRedSea(a))).slice(0,600)
@@ -742,7 +742,7 @@ export function GlobalWatchtower() {
             Bab el-Mandeb AIS source is delayed. Only ship-specific fixes within the last hour are displayed.
           </span>}
         {corridorCounts.map(area=><span key={area.id} style={{display:'block'}}>
-          <strong>{area.name}: {area.underway}</strong> real vessels ≥3 kn, observed ≤1h
+          <strong>{area.name}: {area.underway}</strong> real vessels ≥5.1 kn, observed ≤1h
           {' '}({area.observed} time-qualified reported positions)
         </span>)}
         {openWaters?.state==='unconfigured'&&<span style={{display:'block'}}>
@@ -752,12 +752,12 @@ export function GlobalWatchtower() {
       <label className={styles.label} htmlFor="watchtower-ship-mode">Vessels</label>
       <select id="watchtower-ship-mode" className={styles.input} value={shipView}
         onChange={e=>setShipView(e.target.value as ShipView)}>
-        <option value="moving">Ships moving (AIS SOG ≥3 kn)</option>
-        <option value="cargoMoving">Cargo-class ships (AIS SOG ≥3 kn)</option>
+        <option value="moving">Ships moving (AIS SOG ≥5.1 kn)</option>
+        <option value="cargoMoving">Cargo-class ships (AIS SOG ≥5.1 kn)</option>
       </select>
       <p className={styles.controlSummary}>
         <strong>{assets.filter(a=>a.kind==='vessel').length.toLocaleString('en-US')}</strong> vessels shown
-        <span> · AIS SOG ≥3 kn; last-hour position fixes only</span>
+        <span> · AIS SOG ≥5.1 kn; last-hour position fixes only</span>
       </p>
       <button className={styles.toggle} aria-pressed={showDemoVessels}
         onClick={()=>setShowDemoVessels(value=>!value)}>
@@ -795,7 +795,7 @@ export function GlobalWatchtower() {
         }))}>
         <span><Layers size={13}/>Available routes & tracks</span><i className={styles.switch}/>
       </button>
-      <p className={styles.controlNote}>Real ship markers require an actual source-reported position in the last 60 minutes and AIS SOG ≥3 kn. Old, undated and unknown-speed fixes are hidden; synthetic vessels are a separately disclosed scenario layer.</p>
+      <p className={styles.controlNote}>Real ship markers require an actual source-reported position in the last 60 minutes and AIS SOG ≥5.1 kn. Old, undated and unknown-speed fixes are hidden; synthetic vessels are a separately disclosed scenario layer.</p>
       <details className={styles.sourcesDetails}>
         <summary>Data sources & freshness</summary>
         <div className={styles.sourceBody}>

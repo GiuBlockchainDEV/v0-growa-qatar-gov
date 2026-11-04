@@ -11,9 +11,10 @@ Server-only REST: `GET https://ais.openwaters.io/v1/vessels?bbox=s,w,n,e`.
 The adapter in `lib/watchtower/open-waters-ais.ts` partitions 17
 maritime operating zones into <=100-square-degree boxes. Every returned
 ship must have an actual GeoJSON coordinate and observed timestamp. The
-frontend merges real positions with existing AIS. The default map now shows
-all source-observed positions up to 12 hours old, including stopped vessels;
-an optional SOG >=1.5kn filter shows only reported underway vessels.
+frontend merges real positions with existing AIS. The operational map shows
+individual source-dated positions only within the last hour and with a reported
+speed over ground of at least 5.1 kn. Stopped and unknown-speed vessels are
+hidden. Synthetic scenario vessels are handled by a separate visual layer.
 The northern Red Sea is supplemented by dedicated Suez Canal/Port Said and
 Gulf of Suez boxes, which remain unavailable until commercial access is
 approved. No paid coverage is bypassed. Region failures and attribution are surfaced separately.
