@@ -1,6 +1,6 @@
 import {describe,it,expect} from 'vitest'
 import {mapRouteEvidence,orderRouteAlternatives,routePassages,
- riskAssessment,routeKey,routeOptionReport,type CorridorOption} from './procurement-route-evidence'
+ riskAssessment,routeKey,routeOptionReport,displayFreight,preferredCorridor,type CorridorOption} from './procurement-route-evidence'
 import type {CorridorPayload} from './procurement-route-evidence'
 const route=(id:string,index:number|null,band:CorridorOption['riskBand']='no_nearby_reported_alert'):CorridorOption=>({
  id,country:'IN',mode:'sea',via:id.includes('via')?'Salalah transfer candidate':null,
@@ -33,6 +33,21 @@ describe('Evidence-led multi-route mapping and risk',()=>{
   expect(orderRouteAlternatives(details,'eta')[0].route.id).toBe('fast')
   expect(riskAssessment(route('unavailable',null)).band).toBe('unknown')
   expect(riskAssessment(route('alert',31,'reported_alert')).band).toBe('elevated')
+ })
+ it('shows indicative QAR freight totals and QAR per tonne, respecting quantity',()=>{
+  const r=route('sea_direct',44)
+  const shown=displayFreight(r,20,20)
+  expect(shown?.minQar).toBe(2500)
+  expect(shown?.maxQar).toBe(5300)
+  expect(shown?.perTonneMin).toBe(125)
+  expect(shown?.perTonneMax).toBe(265)
+  expect(displayFreight(r,40,20)).toBeNull()
+  expect(displayFreight({...r,costEstimate:null},20,20)).toBeNull()
+ })
+ it('recommends one primary feasible evidenced route rather than all routes',()=>{
+  const routes=mapRouteEvidence('IN',{routes:[route('a',66),route('b',33)],
+   mapRoutes:[],generatedAt:'x'})
+  expect(preferredCorridor(routes)?.key).toBe('IN:b')
  })
  it('shows origin, transshipment, Qatar, customs and warehouse with truthful status',()=>{
   const stages=routePassages(route('sea_via',57))

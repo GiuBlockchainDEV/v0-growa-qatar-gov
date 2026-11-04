@@ -1,5 +1,6 @@
 import type {RouteMapOverlay} from '@/lib/nfii/logistics-route-map'
 import type {RouteReview} from './sourcing-autopilot'
+import type {FreightCostEstimate} from '@/lib/nfii/logistics-cost-estimator'
 
 /** All coordinates are returned by the corridor provider. No guessed sea lines. */
 export type CorridorOption=RouteReview & {
@@ -7,10 +8,12 @@ export type CorridorOption=RouteReview & {
  riskBand:'reported_alert'|'no_nearby_reported_alert'|'unavailable'
  riskDrivers:string[];quality:'route_api'|'model_only'
  sourceUrl:string|null;distanceKm:number;timeBasis:string
+ costEstimate:(RouteReview['costEstimate'] & Partial<FreightCostEstimate>)|null
 }
 export type CorridorPayload={
  routes:CorridorOption[];mapRoutes:RouteMapOverlay[]
  generatedAt:string
+ context?:{tonnes:number}
  dataWarnings?:string[]
  pricesDisclaimer?:string;scheduleDisclaimer?:string
 }
@@ -100,4 +103,43 @@ export function routeOptionReport(routes:readonly RouteDetail[]){
   lowestExposure:values.length?Math.min(...values):null,
   routableCount:routes.filter(x=>x.route.feasibleBeforeDeadline!==false).length,
  }
+}
+
+export type DisplayFreight={
+  minQar:number;maxQar:number;perTonneMin:number;perTonneMax:number;
+  source:string;kind:'carrier_benchmark'|'planning_model'|'entered_rate';
+  caveat:string
+}
+export function displayFreight(
+ route:CorridorOption,selectedQuantity:number,
+ evaluatedQuantity:number,
+):DisplayFreight|null {
+ const estimate=route.costEstimate
+ if(!estimate||!Number.isFinite(evaluatedQuantity)||evaluatedQuantity<=0||
+  !Number.isFinite(selectedQuantity)||selectedQuantity<=0)return null
+ // Container/truck pricing is not linear; do not rescale an old quote.
+ if(Math.abs(evaluatedQuantity-selectedQuantity)>.001)return null
+ const lower=estimate.minQar,upper=estimate.maxQar
+ if(!Number.isFinite(lower)||!Number.isFinite(upper)||lower<=0||upper<lower)
+  return null
+ return {
+  minQar:lower,maxQar:upper,
+  perTonneMin:Math.round(lower/evaluatedQuantity*100)/100,
+  perTonneMax:Math.round(upper/evaluatedQuantity*100)/100,
+  source:estimate.sourceLabel??'Freight planning estimate',
+  kind:estimate.source==='marketplace_benchmark'?'carrier_benchmark':
+   estimate.source==='entered_rate'?'entered_rate':'planning_model',
+  caveat:estimate.source==='marketplace_benchmark'?
+   'Marketplace benchmark, not a binding carrier quotation':
+   estimate.source==='entered_rate'?
+   'User-entered rate, not independently verified':
+   'Distance-based planning model, not a confirmed freight tariff',
+ }
+}
+/** One primary option per plan, never an undocumented blend of routes. */
+export function preferredCorridor(rows:readonly RouteDetail[]):RouteDetail|null{
+ const feasible=rows.filter(x=>x.route.feasibleBeforeDeadline!==false)
+ const mapped=feasible.filter(x=>x.overlay?.paths.some(p=>p.length>=2))
+ const options=mapped.length?mapped:feasible
+ return orderRouteAlternatives(options,'exposure')[0]??null
 }

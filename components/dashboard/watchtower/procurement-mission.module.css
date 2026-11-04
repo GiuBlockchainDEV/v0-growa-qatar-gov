@@ -231,3 +231,8 @@
 .riskLegend i[data-risk='attention']{background:#C29A59}
 .riskLegend i[data-risk='elevated']{background:#B4644A}
 .riskLegend i[data-risk='unknown']{background:#92948D}
+
+.quantityConfirmation{display:flex;align-items:center;gap:9px;flex:1 1 100%;padding:8px 11px;background:var(--growa-cream-50);border:1px solid var(--growa-cream-300);border-radius:9px;font-size:10px;color:var(--growa-ink);font-weight:550}
+.quantityConfirmation input{width:15px;height:15px;flex:none;accent-color:var(--growa-sage-700)}
+.routeSummaryName{font-size:12px!important;overflow-wrap:anywhere}
+.freightTotal{font-size:clamp(17px,2vw,24px)!important;font-weight:780!important;color:var(--growa-ink)!important;font-variant-numeric:tabular-nums}

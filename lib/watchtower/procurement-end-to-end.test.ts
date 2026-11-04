@@ -18,15 +18,15 @@ describe('Procurement end-to-end agentic workbench',()=>{
   expect(map).toContain('routePassages')
   expect(map).toContain('Lower risk index first')
   expect(map).toContain('Shortest theoretical ETA first')
-  expect(map).toContain('Lower freight estimate first')
+  expect(map).toContain('Lower estimated freight first')
   expect(paths).toContain('No guessed sea lines')
   expect(css).toContain('.routeMap{')
  })
  it('blocks strategy finalization pending route evidence approval',()=>{
   expect(mission).toContain('logisticsApprovals.length')
   expect(mission).toContain('Review geographic routes, risks and pass-through steps')
-  expect(map).toContain('Approve selected logistics alternatives')
-  expect(map).toContain('selectedOrigins.has(code)')
+  expect(map).toContain('Approve selected logistics alternative')
+  expect(map).toContain('preferredCorridor(all)')
  })
  it('covers real supplier onboarding, contractual review and official order status',()=>{
   expect(mission).toContain('<ProcurementQualificationDesk')

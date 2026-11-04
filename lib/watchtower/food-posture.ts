@@ -21,6 +21,7 @@ export interface FoodPostureCommodity {
   projectedBalanceTonnes: number | null
   deficitTonnes: number | null
   coverageDays: number | null
+  consumptionTonnes?: number | null
   domesticProductionTonnes: number | null
   confirmedImportsTonnes: number | null
   importShareOfInflowsPercent: number | null
@@ -110,6 +111,7 @@ export function buildFoodPosture(input: {
       projectedBalanceTonnes: balance.totals.projectedBalanceTonnes,
       deficitTonnes: balance.totals.deficitTonnes,
       coverageDays: balance.totals.projectedCoverageDays,
+      consumptionTonnes: balance.totals.consumptionTonnes,
       domesticProductionTonnes: production,
       confirmedImportsTonnes: imports,
       importShareOfInflowsPercent: totalInflows !== null && totalInflows > 0

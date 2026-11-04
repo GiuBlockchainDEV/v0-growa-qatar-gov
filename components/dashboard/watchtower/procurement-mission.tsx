@@ -11,6 +11,7 @@ import {
 } from 'lucide-react'
 import {useI18n} from '@/lib/i18n'
 import type {FoodPosture} from '@/lib/watchtower/food-posture'
+import {suggestProcurementQuantity,parseRequestedTonnes} from '@/lib/watchtower/procurement-quantity'
 import {
  rankSourcingCandidates,diverseShortlist,buildSourcingScenarios,
  planApprovedOrders,sourcingBrief,
@@ -64,8 +65,12 @@ export function WatchtowerProcurementMission({posture}:{posture:FoodPosture}){
   commodity.deficitTonnes!==null&&commodity.deficitTonnes>0?
   commodity.deficitTonnes:null
  const [quantity,setQuantity]=useState('')
- const requiredQty=quantity.trim()!==''&&Number.isFinite(Number(quantity))&&
-  Number(quantity)>0&&Number(quantity)<=600?Number(quantity):verifiedDemand
+ const [quantityConfirmed,setQuantityConfirmed]=useState(false)
+ const suggestedQty=commodity?suggestProcurementQuantity(
+  commodity,posture.days,posture.sourceMode):null
+ const requiredQty=quantity.trim()===''?
+  suggestedQty?.tonnes??null:parseRequestedTonnes(quantity)
+ const needsQuantityConfirmation=Boolean(suggestedQty&&!suggestedQty.verifiedDemand)
  const [phase,setPhase]=useState<Phase>('idle')
  const [report,setReport]=useState<WorkflowReport|null>(null)
  const [selectedIds,setSelectedIds]=useState<string[]>([])
@@ -98,6 +103,7 @@ export function WatchtowerProcurementMission({posture}:{posture:FoodPosture}){
   setScenarioId('diversified');setLogs([]);setBrief('');setNotice('')
   setReviewNote('');setOrders([]);setOrderStates([]);setApprovalRecords([])
   setSubmitting(false);setReviewBusy(false);setLogisticsApprovals([])
+  setQuantityConfirmed(false)
  }
  useEffect(()=>{
   // A new authorized organization snapshot must never inherit prior analyses.
@@ -106,13 +112,14 @@ export function WatchtowerProcurementMission({posture}:{posture:FoodPosture}){
   setPhase('idle');setReport(null);setSelectedIds([])
   setLogs([]);setBrief('');setOrders([]);setOrderStates([])
   setApprovalRecords([]);setQuantity('');setNotice('');setLogisticsApprovals([])
+  setQuantityConfirmed(false)
   return ()=>{runId.current+=1;requestController.current?.abort()}
  },[posture])
  useEffect(()=>{
   if(follow)logBottom.current?.scrollIntoView({behavior:'smooth',block:'nearest'})
  },[logs.length,follow])
  const changeCommodity=(id:string)=>{
-  reset();setCommodityId(id);setQuantity('')
+  reset();setCommodityId(id);setQuantity('');setQuantityConfirmed(false)
  }
  const run=async()=>{
   if(!supported||!selectedCommodity)return
@@ -127,7 +134,8 @@ export function WatchtowerProcurementMission({posture}:{posture:FoodPosture}){
   log('Orchestrator','Authorized organization snapshot and commodity: '+selectedCommodity)
   log('Demand agent',requiredQty!==null?
    'Planning target '+fmt(requiredQty)+' tonnes. Source: '+
-    (quantity.trim()? 'operator-supplied quantity':'reviewed projected deficit'):
+    (quantity.trim()? 'operator-edited quantity':
+     suggestedQty?.label??'unverified assumption'):
    'No verified demand volume. Discovery and RFQ research will continue without inventing tonnage.',
    requiredQty!==null?'complete':'gap')
   const org=posture.organizationId
@@ -262,7 +270,7 @@ export function WatchtowerProcurementMission({posture}:{posture:FoodPosture}){
  }
  const submitPending=async()=>{
   if(submitting||orders.length||!purchasePlan.ready||!brief||
-   reviewNote.trim().length<8)return
+   (needsQuantityConfirmation&&!quantityConfirmed)||reviewNote.trim().length<8)return
   setSubmitting(true);setNotice('')
   log('Order agent','Submitting '+purchasePlan.lines.length+
    ' separate purchase-order proposals as PENDING, never as approved.','working')
@@ -374,18 +382,32 @@ export function WatchtowerProcurementMission({posture}:{posture:FoodPosture}){
        {ar?row.nameAr:row.name}</option>)}
      </select>
     </label>
-    <label>Required tonnes <small>Defaults to reviewed deficit if available</small>
-     <input type="number" value={quantity} min=".1" max="600" step=".1"
-      placeholder={verifiedDemand===null?'Unknown · research still possible':fmt(verifiedDemand)}
+    <label>Growa suggested tonnes · editable
+     <small>{suggestedQty?.label??'No available quantity evidence'}</small>
+     <input type="number" value={quantity===''?String(suggestedQty?.tonnes??''):quantity}
+      min=".1" max="600" step=".1" aria-label="Editable suggested procurement tonnes"
       disabled={phase==='researching'||submitting}
-      onChange={e=>setQuantity(e.target.value)}/>
+      onChange={e=>{
+       const value=e.target.value
+       if(report||phase!=='idle')reset()
+       setQuantity(value);setQuantityConfirmed(false)
+      }}/>
+     <small>{suggestedQty?.explanation}</small>
     </label>
-    <button className={styles.primary} type="button" disabled={!supported||phase==='researching'}
+    <button className={styles.primary} type="button" disabled={!supported||phase==='researching'||requiredQty===null}
      onClick={()=>void run()}>
      {phase==='researching'?<RefreshCw size={15} className="animate-spin"/>:<Play size={15}/>}
      {phase==='researching'?'Agents analyzing…':report?'Rerun sourcing agents':'Launch autonomous research'}
     </button>
    </div>
+   {needsQuantityConfirmation&&<label className={styles.quantityConfirmation}>
+    <input type="checkbox" checked={quantityConfirmed}
+     disabled={phase==='researching'||submitting}
+     onChange={e=>setQuantityConfirmed(e.target.checked)}/>
+    Confirm planning quantity before any real purchase order. This is not a verified deficit.
+   </label>}
+   {requiredQty===null&&<p className={styles.warning}>
+    Enter a valid quantity between 0.1 and 600 tonnes.</p>}
    {!supported&&<p className={styles.warning}>This commodity has no supported routing profile.
     No inferred trade routes or supplier availability will be generated.</p>}
    <div className={styles.autopilotSteps}>
@@ -495,6 +517,7 @@ export function WatchtowerProcurementMission({posture}:{posture:FoodPosture}){
    {report&&<ProcurementRouteDesk corridors={report.corridors}
     locale={ar?'ar':'en'}
     confirmed={logisticsApprovals}
+    onInvalidate={()=>setLogisticsApprovals([])}
     onConfirm={keys=>{
      setLogisticsApprovals(keys)
      log('Logistics governance','Reviewed '+keys.length+
@@ -600,7 +623,8 @@ export function WatchtowerProcurementMission({posture}:{posture:FoodPosture}){
       placeholder="Review need, evidence, and contractual basis…"/>
     </label>
     <button type="button" className={styles.primary}
-     disabled={submitting||Boolean(orders.length)||reviewNote.trim().length<8}
+     disabled={submitting||Boolean(orders.length)||reviewNote.trim().length<8||
+      (needsQuantityConfirmation&&!quantityConfirmed)}
      onClick={()=>void submitPending()}>
      {submitting?<RefreshCw size={14} className="animate-spin"/>:<PackageCheck size={14}/>}
      Submit proposals for independent review
