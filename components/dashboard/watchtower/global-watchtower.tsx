@@ -537,7 +537,7 @@ export function GlobalWatchtower() {
     (a.kind==='vessel'
       ? visibleUnderwayVessel(a,now)&&
         (shipView!=='cargoMoving'||a.cargo==='ais_cargo_class')
-      : (!freightFlightsOnly||a.cargo==='operator_inferred')) &&
+      : (!freightFlightsOnly||a.cargo!=='unverified')) &&
     (!query || (a.label+' '+a.id+' '+(a.destination??'')).toLowerCase().includes(query.toLowerCase())),
   ),[allAssets,inside,shipView,freightFlightsOnly,query,now])
   // Risk overlays are worldwide, independent from the transport/asset
@@ -677,7 +677,7 @@ export function GlobalWatchtower() {
         </div>
       </div>
       <div className={styles.stats}>{[
-        { label: 'Aircraft observations', value: (known(airSource?.state)||regionalAir.some(b=>b.succeeded>0)) ? assets.filter(a => a.kind === 'aircraft').length : null, note: freightFlightsOnly?'Freight-operator candidates only':'Regional ADS-B, all observed classes', icon: Plane },
+        { label: 'Aircraft observations', value: (known(airSource?.state)||regionalAir.some(b=>b.succeeded>0)) ? assets.filter(a => a.kind === 'aircraft').length : null, note: freightFlightsOnly?'Possible cargo aircraft, not verified shipments':'Regional ADS-B, all observed classes', icon: Plane },
         { label: 'Vessel observations', value: (openWaters?.state==='available'||openWaters?.state==='partial'||globalAis?.state==='partial'||globalAis?.state==='stale'||openSea?.state==='available'||openSea?.state==='stale'||known(seaSource?.state)||Boolean(maritimeFeed?.chokepoints.some(point=>point.state==='partial'||point.state==='stale'))||Boolean(gccRadar?.configured)) ? assets.filter(a => a.kind === 'vessel').length : null, note: (openWaters?.state==='available'||openWaters?.state==='partial')?'Multi-region Open Waters AIS':globalAis?.state==='partial'?'OpenSeaFeed global AIS + regional sources':openSea?.state==='available'?'hormuz.now regional AIS + other sources':openSea?.state==='stale'?'Regional AIS delayed':maritimeFeed?'data-tracking.net AIS + port samples':'Awaiting regional AIS coverage', icon: Ship },
         { label: 'Worldwide risk reports', value: riskReadable ? externalRiskAlerts.length : null, note: 'Worldwide reports, not viewport-limited', icon: AlertTriangle },
         { label: 'Countries requiring assistance',
@@ -730,7 +730,7 @@ export function GlobalWatchtower() {
         </button>)}
       <button className={styles.toggle} aria-pressed={freightFlightsOnly}
         onClick={()=>setFreightFlightsOnly(value=>!value)}>
-        <span><Plane size={13}/>Only freight-operator candidates</span><i className={styles.switch}/>
+        <span><Plane size={13}/>Only possible cargo aircraft</span><i className={styles.switch}/>
       </button>
       <button className={styles.toggle} aria-pressed={layers.risks||layers.production}
         onClick={()=>setLayers(current=>({...current,
