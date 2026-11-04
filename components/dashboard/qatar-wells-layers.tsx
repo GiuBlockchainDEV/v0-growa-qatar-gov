@@ -1,8 +1,9 @@
 'use client'
 import {useEffect,useMemo,useRef,useState} from 'react'
-import {Droplets,MapPin,RefreshCw,Search,WifiOff,X} from 'lucide-react'
+import {Droplets,MapPin,Plus,RefreshCw,Search,WifiOff,X} from 'lucide-react'
 import type {CircleMarker,LayerGroup} from 'leaflet'
 import type {MapController} from '@/components/dashboard/map/map-model'
+import {isPointInQatar} from '@/lib/satellite/qatar-clip'
 import {
  normalizeUserMappedWells,wellsSummary,
  type QatarWell,type QatarWellsPayload,
@@ -23,6 +24,12 @@ export function QatarWellsLayers({map}:{map:MapController|null}){
  const [selectedId,setSelectedId]=useState<string|null>(null)
  const [filter,setFilter]=useState('')
  const [reload,setReload]=useState(0)
+ const [adding,setAdding]=useState(false)
+ const [wellName,setWellName]=useState('')
+ const [latitude,setLatitude]=useState('')
+ const [longitude,setLongitude]=useState('')
+ const [saving,setSaving]=useState(false)
+ const [saveError,setSaveError]=useState<string|null>(null)
  const groupRef=useRef<LayerGroup|null>(null)
  const marksRef=useRef<Map<string,CircleMarker>>(new Map())
 
@@ -63,6 +70,30 @@ export function QatarWellsLayers({map}:{map:MapController|null}){
   return [...publicWells,...savedWells]
  },[publicData,saved,showPublic,showSaved])
  const stats=useMemo(()=>wellsSummary(visible),[visible])
+ const publicUnavailable=publicData?.sourceStatus==='unavailable'||(!publicData&&!loading)
+ const saveWell=async()=>{
+  const lat=Number(latitude),lng=Number(longitude),label=wellName.trim()
+  if(!label||!latitude.trim()||!longitude.trim()||
+   !Number.isFinite(lat)||!Number.isFinite(lng)||!isPointInQatar(lng,lat)){
+   setSaveError('Provide a name and valid GPS coordinates inside Qatar.')
+   return
+  }
+  setSaving(true);setSaveError(null)
+  try{
+   const response=await fetch('/api/operations/custom-map-points',{
+    method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({id:crypto.randomUUID(),label:'Well '+label,
+     lat,lng,pointType:'custom'}),
+   })
+   if(!response.ok){
+    const body=await response.json() as {error?:string}
+    throw Error(body.error??'Unable to save well')
+   }
+   setAdding(false);setWellName('');setLatitude('');setLongitude('')
+   setReload(v=>v+1)
+  }catch(error){setSaveError(error instanceof Error?error.message:'Unable to save well')}
+  finally{setSaving(false)}
+ }
  const selected=visible.find(w=>w.id===selectedId)??null
  const matching=useMemo(()=>{
   const query=filter.trim().toLowerCase()
@@ -85,9 +116,9 @@ export function QatarWellsLayers({map}:{map:MapController|null}){
    for(const well of visible){
     const monitored=well.liveTelemetry
     const marker=L.circleMarker([well.lat,well.lng],{
-     radius:well.origin==='growa-map-point'?8:5,
+     radius:well.origin==='growa-map-point'?8:well.origin==='un-gis'?6:5,
      color:monitored?'#4f834f':well.origin==='growa-map-point'?'#b08a39':'#edf6e2',
-     fillColor:monitored?'#78a25a':well.origin==='growa-map-point'?'#dbb969':'#608357',
+     fillColor:monitored?'#78a25a':well.origin==='growa-map-point'?'#dbb969':well.origin==='un-gis'?'#4c7068':'#608357',
      fillOpacity:.9,weight:2,
     }).addTo(layer)
     marker.on('click',()=>setSelectedId(well.id))
@@ -128,14 +159,15 @@ export function QatarWellsLayers({map}:{map:MapController|null}){
       onClick={()=>{setOpen(false);setSelectedId(null)}}
       aria-label="Close Wells layer"><X size={16}/></button>
     </div>
-    <div className="mt-4 grid grid-cols-3 gap-2">
+    <div className="mt-4 grid grid-cols-4 gap-1">
      {[
-      {label:'MAPPED',value:stats.mapped},
-      {label:'PUBLIC OSM',value:stats.osm},
-      {label:'MY WELLS',value:stats.userMapped},
-     ].map(item=><div key={item.label} className="rounded-xl bg-stone-50 p-3">
+      {label:'MAPPED',value:publicUnavailable&&stats.userMapped===0?'N/A':String(stats.mapped)},
+      {label:'GIS',value:publicUnavailable?'N/A':String(stats.gis)},
+      {label:'OSM',value:publicUnavailable?'N/A':String(stats.osm)},
+      {label:'SAVED',value:String(stats.userMapped)},
+     ].map(item=><div key={item.label} className="rounded-xl bg-stone-50 p-2">
       <p className="text-[9px] font-bold tracking-wide text-content-soft">{item.label}</p>
-      <p className="mt-1 text-[23px] font-bold tabular-nums">{item.value}</p>
+      <p className="mt-1 text-[20px] font-bold tabular-nums">{item.value}</p>
      </div>)}
     </div>
     <div className="mt-4 flex items-center justify-between gap-2">
@@ -155,14 +187,41 @@ export function QatarWellsLayers({map}:{map:MapController|null}){
      </button>
     </div>
     <p role="status" className="mt-3 text-[10px] text-content-soft">
-     {loading?'Retrieving verified well locations…':
-      publicData?.sourceStatus==='available'?
-       'OpenStreetMap / Overpass · '+stats.osm+' mapped features':
-      publicData?.sourceStatus==='stale'?
-       'Previously retrieved OSM records; source temporarily unavailable':
-      fetchError??'Public well source is currently unavailable'}
+     {loading?'Loading public GIS and OSM records…':
+      publicData?.sourceStatus==='available'?'GIS and OSM sources available':
+      publicData?.sourceStatus==='partial'?'Partial source coverage; some providers failed':
+      publicData?.sourceStatus==='stale'?'Cached public records; providers currently unavailable':
+      'Public source coverage unavailable · total unknown'}
     </p>
     {fetchError&&<p className="mt-1 text-[10px] text-critical">{fetchError}</p>}
+    {publicData?.providerStatuses&&<details className="mt-2 rounded-lg border border-line p-2">
+     <summary className="cursor-pointer text-[10px] font-semibold">Data providers · coverage</summary>
+     <div className="mt-2 space-y-1">{publicData.providerStatuses.map(source=>
+      <div key={source.id} className="flex justify-between gap-2 text-[10px]">
+       <span>{source.name}</span>
+       <strong>{source.state==='available'?source.count+' records':'Unavailable'}</strong>
+      </div>)}</div>
+    </details>}
+    <button type="button" onClick={()=>setAdding(x=>!x)}
+     className="mt-3 flex w-full items-center justify-center gap-2 rounded-lg bg-ink p-2.5 text-[11px] font-semibold text-white">
+     <Plus size={14}/> Register a well by GPS
+    </button>
+    {adding&&<div className="mt-2 space-y-2 rounded-xl border border-line p-3">
+     <input className="w-full rounded-md border border-line p-2 text-[11px]" placeholder="Well name / reference"
+      value={wellName} onChange={e=>setWellName(e.target.value)}/>
+     <div className="grid grid-cols-2 gap-2">
+      <input type="number" step="any" className="min-w-0 rounded-md border border-line p-2 text-[11px]"
+       placeholder="Latitude" value={latitude} onChange={e=>setLatitude(e.target.value)}/>
+      <input type="number" step="any" className="min-w-0 rounded-md border border-line p-2 text-[11px]"
+       placeholder="Longitude" value={longitude} onChange={e=>setLongitude(e.target.value)}/>
+     </div>
+     {saveError&&<p className="text-[10px] text-critical">{saveError}</p>}
+     <button type="button" disabled={saving} onClick={()=>void saveWell()}
+      className="rounded-lg bg-sage-700 px-3 py-2 text-[11px] font-semibold text-white disabled:opacity-40">
+      {saving?'Saving…':'Save GPS well'}
+     </button>
+     <p className="text-[10px] text-content-soft">Only the supplied GPS position is stored, without inferred telemetry.</p>
+    </div>}
     <div className="mt-3 flex items-center gap-2 rounded-lg border border-line bg-background p-2">
      <Search size={14} className="text-content-soft"/>
      <input type="search" value={filter} onChange={e=>setFilter(e.target.value)}
@@ -185,10 +244,10 @@ export function QatarWellsLayers({map}:{map:MapController|null}){
       <div>Live telemetry: <strong>Unavailable</strong></div>
      </div>
      <p className="mt-2 text-[10px] text-content-soft">
-      Source: {selected.origin==='openstreetmap'?'OpenStreetMap contributor':'Your saved map point'}
+      Source: {selected.sourceName??(selected.origin==='openstreetmap'?'OpenStreetMap contributor':'Your saved map point')}
       {selected.reference?' · '+selected.reference:''}
      </p>
-     {selected.osmUrl&&<a href={selected.osmUrl} target="_blank" rel="noopener noreferrer"
+     {(selected.sourceUrl||selected.osmUrl)&&<a href={selected.sourceUrl??selected.osmUrl??'#'} target="_blank" rel="noopener noreferrer"
       className="mt-2 inline-block text-[11px] font-bold text-sage-700 underline">
       View original mapped feature
      </a>}
@@ -200,11 +259,11 @@ export function QatarWellsLayers({map}:{map:MapController|null}){
        <MapPin size={13} className="shrink-0 text-sage-700"/>
        <span className="min-w-0 truncate text-[11px] font-semibold">{w.name}</span>
       </span>
-      <span className="shrink-0 text-[9px] text-content-soft">{w.origin==='openstreetmap'?'OSM':'SAVED'}</span>
+      <span className="shrink-0 text-[9px] text-content-soft">{w.origin==='openstreetmap'?'OSM':w.origin==='un-gis'?'GIS':'SAVED'}</span>
      </button>)}
      {!loading&&matching.length===0&&<div className="rounded-xl border border-dashed border-line p-4 text-center text-[11px] text-content-soft">
       <WifiOff className="mx-auto mb-2" size={18}/>
-      No documented wells match this filter. The map will not fabricate locations.
+      {publicUnavailable?'Public sources are down. You can register a verified GPS well above.':'No documented wells match this filter.'}
      </div>}
     </div>
     {visible.length>40&&<p className="mt-2 text-[10px] text-content-soft">
