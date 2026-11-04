@@ -3,7 +3,7 @@
 import { useMemo } from 'react'
 import { Droplets, Gauge, Target, Waves } from 'lucide-react'
 import { buildGrowaContext } from '@/lib/ai/build-growa-context'
-import { GrowaIntelligencePanel } from '@/components/dashboard/growa-intelligence-panel'
+import { QatarUtilitiesCommand } from '@/components/dashboard/qatar-utilities-command'
 import {
   IntelligenceInvestigationLayout,
   InvestigationContextHeader,
@@ -119,6 +119,13 @@ export function WaterIntelligenceWorkspace() {
 
   return (
     <IntelligenceWorkspaceRoot layout="scroll">
+      <div className="space-y-4 p-4">
+        <QatarUtilitiesCommand domain="water" />
+        <details className="rounded-2xl border border-line bg-card">
+          <summary className="cursor-pointer px-5 py-4 text-[13px] font-semibold text-sage-700">
+            Growa operational deep dive · monitored farms, crop intensity, producer rankings and field signals
+          </summary>
+          <div className="space-y-4 p-4">
       <IntelligenceWorkspaceHeader>
         <InvestigationContextHeader
           eyebrow={tr('Intelligence · resources')}
@@ -261,7 +268,7 @@ export function WaterIntelligenceWorkspace() {
                 domain="climate"
               />
             }
-            aiAnalysis={<GrowaIntelligencePanel module="water-intelligence" context={growaContext} />}
+            aiAnalysis={null}
             actions={
               <IntelligenceModuleActions
                 module="water-intelligence"
@@ -271,6 +278,9 @@ export function WaterIntelligenceWorkspace() {
           />
         </IntelligenceWorkspaceBody>
       )}
+          </div>
+        </details>
+      </div>
     </IntelligenceWorkspaceRoot>
   )
 }
