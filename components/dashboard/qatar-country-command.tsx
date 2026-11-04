@@ -8,7 +8,7 @@ import type {
  QatarCountrySnapshot,IndicatorSeries,
 } from '@/lib/analytics/qatar-country'
 import {sumLatestProduction,farmsByMunicipality,latestYear,
- WORLD_BANK_INDICATORS,DATASET_URL} from '@/lib/analytics/qatar-country'
+ WORLD_BANK_INDICATORS,DATASET_URL,selfSufficiencyBarPercent} from '@/lib/analytics/qatar-country'
 import type {CommodityMarketsSnapshot} from '@/lib/watchtower/commodity-markets'
 import type {GrowaFarmAnalysisContext} from '@/lib/ai/growa-types'
 import {buildQatarCountryAssistantContext} from '@/lib/analytics/qatar-assistant-context'
@@ -210,23 +210,6 @@ export function QatarCountryCommand({growa,growaContext}:{growa:Scope;growaConte
     </div>)}
    </div>
   </div>
-  <div className={styles.assistantRegion}>
-   <div className={styles.assistantHeading}>
-    <div><span className={styles.kicker}>GROWA · AI COUNTRY ANALYST</span>
-     <h3>Ask Growa about the whole country</h3>
-     <p>National production, self-sufficiency, World Bank trends, commodity markets and your Growa operations in one conversation.</p>
-    </div>
-    <button type="button" onClick={()=>setReload(x=>x+1)}
-     disabled={countryLoading||marketLoading} aria-label="Refresh national datasets"
-     className={styles.refreshButton}><RefreshCw size={16}/> Refresh evidence</button>
-   </div>
-   <div className={styles.assistantPanel}>
-    <GrowaIntelligencePanel module="data-analytics" context={assistantContext}/>
-   </div>
-   {(countryError||marketError)&&<p className={styles.warning} role="status">
-    Some data providers are unavailable. Growa will identify source gaps instead of inventing values.
-   </p>}
-  </div>
   <nav className={styles.sections} aria-label="Country analytics views">
    {sections.map(s=><button type="button" key={s.key}
     aria-pressed={section===s.key} onClick={()=>setSection(s.key)}>{s.label}</button>)}
@@ -252,9 +235,37 @@ export function QatarCountryCommand({growa,growaContext}:{growa:Scope;growaConte
     </>}
     {view==='self-sufficiency'&&<>
      <div className={styles.subhead}>Published product-level self-sufficiency · {suffYear??'N/A'}</div>
-     <Bars percent rows={[...selfRows].sort((a,b)=>b.ratioPercent-a.ratioPercent)
-      .map(x=>({name:x.product,value:x.ratioPercent}))}/>
-     <p className={styles.disclaimer}>The ratio is product-specific; it is not an overall national food security score. This source may lag recent production.</p>
+     <div className={styles.suffExplanation}>
+      <div className={styles.suffExplanationTitle}>
+       <strong>What does self-sufficiency mean?</strong>
+       <span>100% = domestic production meets estimated domestic demand</span>
+      </div>
+      <p>Self-sufficiency compares domestic production with estimated domestic use of the same food product in the reported year. For example, 25% means roughly one-quarter of that product's estimated domestic requirement was covered locally, not 25% of all Qatar food.</p>
+      <p>Every bar uses the same <strong>0–100% scale</strong>, rather than scaling to the highest observed product. Figures above 100% can occur when production exceeds estimated domestic use and are identified separately. These are historical official statistics, not live readings.</p>
+     </div>
+     <div className={styles.suffRows} aria-label="Self-sufficiency by product">
+      {[...selfRows].sort((a,b)=>b.ratioPercent-a.ratioPercent).map(row=>
+       <div key={row.group+':'+row.product+':'+row.year} className={styles.suffRow}>
+        <div className={styles.suffLabel}>
+         <div><strong>{row.product}</strong><span>{row.group} · {row.year}</span></div>
+         <strong>{fmt(row.ratioPercent,1)}%</strong>
+        </div>
+        <div className={styles.suffTrack} role="meter"
+         aria-label={row.product+' self-sufficiency in '+row.year}
+         aria-valuemin={0} aria-valuemax={100}
+         aria-valuenow={selfSufficiencyBarPercent(row.ratioPercent)}>
+         <span style={{width:selfSufficiencyBarPercent(row.ratioPercent)+'%'}}/>
+         <i title="100% domestic requirement"/>
+        </div>
+        {row.ratioPercent>100&&<small className={styles.suffOver}>
+         Production exceeds estimated demand by {fmt(row.ratioPercent-100,1)} percentage points
+        </small>}
+       </div>)}
+      {!selfRows.length&&<p className={styles.chartEmpty}>
+       No verified source percentages available for these product groups.
+      </p>}
+     </div>
+     <p className={styles.disclaimer}>Formula: self-sufficiency (%) = domestic production ÷ estimated domestic use × 100. The ratio is product-specific and depends on the source's consumption methodology.</p>
     </>}
     {view==='farms'&&<>
      <div className={styles.subhead}>Registered farms by municipality · {farmYear??'N/A'}</div>
@@ -295,6 +306,23 @@ export function QatarCountryCommand({growa,growaContext}:{growa:Scope;growaConte
    </article>
   </div>}
 
+  <div className={styles.assistantRegion}>
+   <div className={styles.assistantHeading}>
+    <div><span className={styles.kicker}>GROWA · AI COUNTRY ANALYST</span>
+     <h3>Ask Growa about the whole country</h3>
+     <p>National production, self-sufficiency, World Bank trends, commodity markets and your Growa operations in one conversation.</p>
+    </div>
+    <button type="button" onClick={()=>setReload(x=>x+1)}
+     disabled={countryLoading||marketLoading} aria-label="Refresh national datasets"
+     className={styles.refreshButton}><RefreshCw size={16}/> Refresh evidence</button>
+   </div>
+   <div className={styles.assistantPanel}>
+    <GrowaIntelligencePanel module="data-analytics" context={assistantContext}/>
+   </div>
+   {(countryError||marketError)&&<p className={styles.warning} role="status">
+    Some data providers are unavailable. Growa will identify source gaps instead of inventing values.
+   </p>}
+  </div>
   {(section==='overview'||section==='trade')&&<div className={styles.tradePanel}>
    <div className={styles.cardHead}>
     <div><span className={styles.kicker}><TrendingUp size={15}/> GLOBAL EXPOSURE</span>
