@@ -75,16 +75,18 @@ function StepBadge({step,active,ar}:{step:AgentStep;active:boolean;ar:boolean}){
 }
 
 export function CommodityAgentLab({
-  balance,operations,today,onTelemetry,
+  balance,operations,today,onTelemetry,mode='standard',
 }:{
   balance:FoodBalanceResult|null
   operations:OperationsSnapshot
   today:string
   onTelemetry?:(telemetry:AgentMissionTelemetry)=>void
+  mode?:'standard'|'watchtower'
 }){
   const {locale}=useI18n()
   const ar=locale==='ar'
   const tx=(en:string,arabic:string)=>ar?arabic:en
+  const inWatchtower=mode==='watchtower'
   const [shocks,setShocks]=useState<FoodScenarioAdjustments>({...ZERO_FOOD_SCENARIO})
   const [revealed,setRevealed]=useState(0)
   const [playing,setPlaying]=useState(false)
@@ -152,99 +154,8 @@ export function CommodityAgentLab({
     setDecision(null);setRevealed(result.steps.length);setPlaying(false)
   }
 
-  return (
-    <section id="commodity-agent-lab" className="space-y-4" aria-label={tx('Agent operations simulation','محاكاة عمليات الوكلاء')}>
-      <div className="rounded-xl border border-line bg-card p-4 md:p-5">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div className="flex items-start gap-3">
-            <span className="rounded-lg bg-cream-100 p-2.5"><Bot className="h-5 w-5 text-sage-700" aria-hidden="true"/></span>
-            <div>
-              <p className="text-[11px] font-semibold uppercase tracking-[.12em] text-sage-700">
-                {tx('Multi-agent operations simulator','محاكي عمليات الوكلاء المتعددين')}
-              </p>
-              <h2 className="mt-1 text-[20px] font-medium text-content">
-                {tx('From commodity risk to human decision','من مخاطر السلعة إلى القرار البشري')}
-              </h2>
-              <p className="mt-1 max-w-[75ch] text-[12px] leading-relaxed text-content-soft">
-                {tx('Run a transparent, step-by-step rehearsal of NFII specialist agents. Each agent shows the data it checks, its findings and any hand-off. No AI service, database write or real purchasing is triggered.',
-                  'محاكاة واضحة خطوة بخطوة لعمل وكلاء NFII المتخصصين. يظهر كل وكيل البيانات والنتيجة والتسليم للوكيل التالي. لا يُستدعى نموذج AI ولا تُنفذ عمليات شراء أو كتابة في قاعدة البيانات.')}
-              </p>
-            </div>
-          </div>
-          <span className="inline-flex items-center gap-1.5 rounded-full border border-warning-line bg-warning-soft px-3 py-1.5 text-[10px] font-semibold text-warning-strong">
-            <Sparkles className="h-3 w-3" aria-hidden="true"/>
-            {tx('SIMULATION · READ ONLY','محاكاة · للقراءة فقط')}
-          </span>
-        </div>
-
-        <div className="mt-4 flex flex-wrap gap-2">
-          {PRESETS.map(preset=>{
-            const selected=CONTROLS.every(control=>shocks[control.key]===preset.shocks[control.key])
-            return <button key={preset.id} type="button" onClick={()=>choose(preset.shocks)}
-              aria-pressed={selected}
-              className={'rounded-full border px-3 py-2 text-[12px] transition-colors '+
-                (selected?'border-ink bg-ink text-white':'border-line bg-card text-content hover:border-line-strong')}>
-              {tx(preset.en,preset.ar)}
-            </button>
-          })}
-        </div>
-
-        <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          {CONTROLS.map(control=>(
-            <label key={control.key} className="rounded-lg border border-line bg-background p-3">
-              <span className="flex items-start justify-between gap-2 text-[12px] text-content">
-                <span>{tx(control.en,control.ar)}</span>
-                <strong className="tabular-nums text-sage-700">{shocks[control.key]}%</strong>
-              </span>
-              <input type="range" min={0} max={100} step={5} value={shocks[control.key]}
-                className="mt-3 w-full accent-sage-700"
-                onChange={e=>adjust(control.key,Number(e.target.value))}
-                aria-label={tx(control.en,control.ar)}/>
-            </label>
-          ))}
-        </div>
-
-        {workflowComplete && result && <div className="mt-4 grid grid-cols-2 gap-2 lg:grid-cols-4">
-          {[
-            {en:'Baseline closing stock',ar:'المخزون الأساسي النهائي',
-              value:fmt(balance?.totals.projectedClosingStockTonnes),unit:'t'},
-            {en:'Scenario closing stock',ar:'المخزون النهائي في السيناريو',
-              value:fmt(result.scenario.totals.scenarioClosingStockTonnes),unit:'t'},
-            {en:'Scenario shortage',ar:'العجز في السيناريو',
-              value:fmt(result.scenario.totals.scenarioDeficitTonnes),unit:'t'},
-            {en:'Days of coverage',ar:'أيام التغطية',
-              value:fmt(result.scenario.totals.scenarioCoverageDays),unit:tx('days','يوم')},
-          ].map(kpi=>(
-            <div key={kpi.en} className="rounded-lg border border-line bg-muted/30 p-3">
-              <p className="text-[11px] text-content-soft">{tx(kpi.en,kpi.ar)}</p>
-              <p className="mt-1 text-[22px] font-medium tabular-nums text-content">{kpi.value}
-                <span className="ms-1 text-[11px] font-normal text-content-soft">{kpi.unit}</span></p>
-            </div>
-          ))}
-        </div>}
-
-        <div className="mt-4 flex flex-wrap items-center gap-2">
-          <button type="button" disabled={!balance} onClick={start}
-            className="inline-flex min-h-10 items-center gap-2 rounded-full bg-ink px-5 py-2 text-[12px] font-medium text-white disabled:opacity-40">
-            <Play className="h-4 w-4" aria-hidden="true"/>
-            {result?tx('Restart simulation','إعادة تشغيل المحاكاة'):tx('Run agent sequence','تشغيل تسلسل الوكلاء')}
-          </button>
-          <button type="button" disabled={!result || workflowComplete} onClick={complete}
-            className="inline-flex min-h-10 items-center gap-2 rounded-full border border-line-strong bg-card px-4 py-2 text-[12px] text-content hover:bg-muted disabled:opacity-40">
-            <FastForward className="h-4 w-4" aria-hidden="true"/>
-            {tx('Complete active simulation','إكمال المحاكاة الجارية')}
-          </button>
-          <button type="button" onClick={()=>choose(ZERO_FOOD_SCENARIO)}
-            className="inline-flex min-h-10 items-center gap-2 px-3 text-[12px] text-content-soft hover:text-content">
-            <RotateCcw className="h-3.5 w-3.5" aria-hidden="true"/>
-            {tx('Reset','إعادة ضبط')}
-          </button>
-          {result&&<span role="status" aria-live="polite" className="ms-auto text-[11px] tabular-nums text-content-soft">
-            {revealed} / {result.steps.length} {tx('stages','مراحل')}
-          </span>}
-        </div>
-      </div>
-
+  const resultDetails=(
+    <>
       {recommendation && workflowComplete && (
         <CommodityAgentVerdict
           recommendation={recommendation}
@@ -419,6 +330,146 @@ export function CommodityAgentLab({
           </div>
         </div>
       )}
+    </>
+  )
+  return (
+    <section id="commodity-agent-lab" className="space-y-4" aria-label={tx('Agent operations simulation','محاكاة عمليات الوكلاء')}>
+      <div className="rounded-xl border border-line bg-card p-4 md:p-5">
+        {!inWatchtower&&<div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="flex items-start gap-3">
+            <span className="rounded-lg bg-cream-100 p-2.5"><Bot className="h-5 w-5 text-sage-700" aria-hidden="true"/></span>
+            <div>
+              <p className="text-[11px] font-semibold uppercase tracking-[.12em] text-sage-700">
+                {tx('Multi-agent operations simulator','محاكي عمليات الوكلاء المتعددين')}
+              </p>
+              <h2 className="mt-1 text-[20px] font-medium text-content">
+                {tx('From commodity risk to human decision','من مخاطر السلعة إلى القرار البشري')}
+              </h2>
+              <p className="mt-1 max-w-[75ch] text-[12px] leading-relaxed text-content-soft">
+                {tx('Run a transparent, step-by-step rehearsal of NFII specialist agents. Each agent shows the data it checks, its findings and any hand-off. No AI service, database write or real purchasing is triggered.',
+                  'محاكاة واضحة خطوة بخطوة لعمل وكلاء NFII المتخصصين. يظهر كل وكيل البيانات والنتيجة والتسليم للوكيل التالي. لا يُستدعى نموذج AI ولا تُنفذ عمليات شراء أو كتابة في قاعدة البيانات.')}
+              </p>
+            </div>
+          </div>
+          <span className="inline-flex items-center gap-1.5 rounded-full border border-warning-line bg-warning-soft px-3 py-1.5 text-[10px] font-semibold text-warning-strong">
+            <Sparkles className="h-3 w-3" aria-hidden="true"/>
+            {tx('SIMULATION · READ ONLY','محاكاة · للقراءة فقط')}
+          </span>
+        </div>}
+
+        {inWatchtower&&<div className="mb-3 flex items-center justify-between gap-3">
+          <div><p className="text-[10px] font-semibold uppercase tracking-[.12em] text-sage-700">
+            {tx('Choose your assumptions','اختر فرضياتك')}
+          </p><p className="mt-1 text-[12px] text-content-soft">
+            {tx('Start from a preset, or open the advanced controls below.',
+              'اختر سيناريو جاهزاً أو افتح الإعدادات المتقدمة أدناه.')}
+          </p></div>
+          <span className="rounded-full bg-cream-100 px-3 py-1 text-[10px] font-semibold text-sage-700">
+            {tx('READ ONLY','للقراءة فقط')}
+          </span>
+        </div>}
+        <div className={inWatchtower?'flex flex-wrap gap-2':'mt-4 flex flex-wrap gap-2'}>
+          {PRESETS.map(preset=>{
+            const selected=CONTROLS.every(control=>shocks[control.key]===preset.shocks[control.key])
+            return <button key={preset.id} type="button" onClick={()=>choose(preset.shocks)}
+              aria-pressed={selected}
+              className={'rounded-full border px-3 py-2 text-[12px] transition-colors '+
+                (selected?'border-ink bg-ink text-white':'border-line bg-card text-content hover:border-line-strong')}>
+              {tx(preset.en,preset.ar)}
+            </button>
+          })}
+        </div>
+
+        {inWatchtower?(
+          <details className="mt-4 rounded-lg border border-line bg-background p-3 text-[12px]">
+            <summary className="cursor-pointer font-semibold text-sage-700">
+              {tx('Fine-tune shock assumptions','تعديل افتراضات الصدمات')}
+            </summary>
+            <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              {CONTROLS.map(control=>(
+                <label key={control.key} className="rounded-lg border border-line bg-background p-3">
+                  <span className="flex items-start justify-between gap-2 text-[12px] text-content">
+                    <span>{tx(control.en,control.ar)}</span>
+                    <strong className="tabular-nums text-sage-700">{shocks[control.key]}%</strong>
+                  </span>
+                  <input type="range" min={0} max={100} step={5} value={shocks[control.key]}
+                    className="mt-3 w-full accent-sage-700"
+                    onChange={e=>adjust(control.key,Number(e.target.value))}
+                    aria-label={tx(control.en,control.ar)}/>
+                </label>
+              ))}
+            </div>
+          </details>
+        ):(
+          <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            {CONTROLS.map(control=>(
+              <label key={control.key} className="rounded-lg border border-line bg-background p-3">
+                <span className="flex items-start justify-between gap-2 text-[12px] text-content">
+                  <span>{tx(control.en,control.ar)}</span>
+                  <strong className="tabular-nums text-sage-700">{shocks[control.key]}%</strong>
+                </span>
+                <input type="range" min={0} max={100} step={5} value={shocks[control.key]}
+                  className="mt-3 w-full accent-sage-700"
+                  onChange={e=>adjust(control.key,Number(e.target.value))}
+                  aria-label={tx(control.en,control.ar)}/>
+              </label>
+            ))}
+          </div>
+        )}
+
+        {!inWatchtower&&workflowComplete && result && <div className="mt-4 grid grid-cols-2 gap-2 lg:grid-cols-4">
+          {[
+            {en:'Baseline closing stock',ar:'المخزون الأساسي النهائي',
+              value:fmt(balance?.totals.projectedClosingStockTonnes),unit:'t'},
+            {en:'Scenario closing stock',ar:'المخزون النهائي في السيناريو',
+              value:fmt(result.scenario.totals.scenarioClosingStockTonnes),unit:'t'},
+            {en:'Scenario shortage',ar:'العجز في السيناريو',
+              value:fmt(result.scenario.totals.scenarioDeficitTonnes),unit:'t'},
+            {en:'Days of coverage',ar:'أيام التغطية',
+              value:fmt(result.scenario.totals.scenarioCoverageDays),unit:tx('days','يوم')},
+          ].map(kpi=>(
+            <div key={kpi.en} className="rounded-lg border border-line bg-muted/30 p-3">
+              <p className="text-[11px] text-content-soft">{tx(kpi.en,kpi.ar)}</p>
+              <p className="mt-1 text-[22px] font-medium tabular-nums text-content">{kpi.value}
+                <span className="ms-1 text-[11px] font-normal text-content-soft">{kpi.unit}</span></p>
+            </div>
+          ))}
+        </div>}
+
+        <div className="mt-4 flex flex-wrap items-center gap-2">
+          <button type="button" disabled={!balance} onClick={start}
+            className="inline-flex min-h-10 items-center gap-2 rounded-full bg-ink px-5 py-2 text-[12px] font-medium text-white disabled:opacity-40">
+            <Play className="h-4 w-4" aria-hidden="true"/>
+            {inWatchtower?
+              (result?tx('Run a new assessment','إعادة تشغيل التقييم'):tx('Run specialist assessment','تشغيل التقييم المتخصص')):
+              (result?tx('Restart simulation','إعادة تشغيل المحاكاة'):tx('Run agent sequence','تشغيل تسلسل الوكلاء'))}
+          </button>
+          <button type="button" disabled={!result || workflowComplete} onClick={complete}
+            className="inline-flex min-h-10 items-center gap-2 rounded-full border border-line-strong bg-card px-4 py-2 text-[12px] text-content hover:bg-muted disabled:opacity-40">
+            <FastForward className="h-4 w-4" aria-hidden="true"/>
+            {tx('Complete active simulation','إكمال المحاكاة الجارية')}
+          </button>
+          <button type="button" onClick={()=>choose(ZERO_FOOD_SCENARIO)}
+            className="inline-flex min-h-10 items-center gap-2 px-3 text-[12px] text-content-soft hover:text-content">
+            <RotateCcw className="h-3.5 w-3.5" aria-hidden="true"/>
+            {tx('Reset','إعادة ضبط')}
+          </button>
+          {result&&<span role="status" aria-live="polite" className="ms-auto text-[11px] tabular-nums text-content-soft">
+            {revealed} / {result.steps.length} {tx('stages','مراحل')}
+          </span>}
+        </div>
+      </div>
+
+      {inWatchtower ? (result ? (
+        <details className="rounded-xl border border-line bg-card p-4 md:p-5">
+          <summary className="cursor-pointer text-[12px] font-semibold text-sage-700">
+            {tx('Inspect detailed agent evidence, charts and simulated reviewer actions',
+              'فحص أدلة الوكلاء والرسوم البيانية وقرارات المراجعة المحاكية')}
+          </summary>
+          <div className="mt-4 space-y-4">{resultDetails}</div>
+        </details>
+      ) : null) : resultDetails}
+
     </section>
   )
 }
