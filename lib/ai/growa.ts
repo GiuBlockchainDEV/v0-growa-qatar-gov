@@ -1,6 +1,6 @@
 import { GoogleGenerativeAI, type Part } from '@google/generative-ai'
 import type { GrowaAnalyzeRequest } from './growa-types'
-import { isHarvestGrowaContext, isWatchtowerGrowaContext, isQatarCountryGrowaContext } from './growa-types'
+import { isHarvestGrowaContext, isWatchtowerGrowaContext, isQatarCountryGrowaContext, isNationalUtilityGrowaContext } from './growa-types'
 import { getGrowaModuleTitle } from './growa-prompts'
 import { getModuleAnalysisFramework } from './growa-digest'
 
@@ -59,6 +59,11 @@ ${digest}`
 function buildStructuredData(request: GrowaAnalyzeRequest) {
   const context = request.context
 
+  if (isNationalUtilityGrowaContext(context)) {
+    return {scope:context.scope,headline:context.headline,country:context.country,
+      peer:context.peer,analysis:context.analysis,dataGaps:context.dataGaps}
+  }
+
   if (isQatarCountryGrowaContext(context)) {
     return {
       scope: context.scope,
@@ -110,7 +115,9 @@ function buildStructuredData(request: GrowaAnalyzeRequest) {
 function buildFirstUserMessage(request: GrowaAnalyzeRequest) {
   const structuredData = buildStructuredData(request)
 
-  const harvestInstructions = isQatarCountryGrowaContext(request.context)
+  const harvestInstructions = isNationalUtilityGrowaContext(request.context)
+    ? `- Analyze Qatar national water/energy metrics only where source observations are available.\n- Always state source, year, unit, and limitations. Do not confuse national annual statistics with realtime measurements.\n- Analyze cross-utility dependencies without asserting causal links or mixing incomparable units.\n- Do not present deterministic screening as AI discovery or hypothetical scenarios as realized savings.\n- Do not require farm or producer names unless verified in the supplied national dataset.`
+    : isQatarCountryGrowaContext(request.context)
     ? `- Answer using all country, market, and signed-in Growa sections available in the source-attributed dataset.
 - Cite exact source, observation year/month, and metric unit for all national statistics.
 - Never present global monthly benchmark prices as supplier quotes or Qatar imports.
