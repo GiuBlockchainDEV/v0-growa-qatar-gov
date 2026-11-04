@@ -175,7 +175,8 @@ export function GlobalTrackingMap({ assets, historyAssets, alerts, riskZones, ch
         const icon = L.divIcon({ className: styles.asset, iconSize: [24, 24], iconAnchor: [12, 12],
           html: '<svg viewBox="0 0 24 24" width="24" height="24" style="transform:rotate(' + heading + 'deg);opacity:' + (freshAsset(asset, now) ? '1' : '.4') + '"><path d="' + path + '" fill="' + color + '" stroke="' + (asset.id === selectedId ? MARKER.cream : MARKER.ink) + '" stroke-width="1.5"/></svg>' })
         L.marker([asset.lat, asset.lon], { icon, title: asset.label, keyboard: true, zIndexOffset: asset.id === selectedId ? 900 : 100 })
-          .bindTooltip(label(asset.label + ' / ' + asset.source + ' / ' + (freshAsset(asset, now) ? 'recent' : 'stale')))
+          .bindTooltip(label(asset.label + ' / ' + asset.source + ' / ' +
+            (freshAsset(asset, now) ? 'recent fix' : 'LAST KNOWN / ' + asset.observedAt + ' (not live)')))
           .on('click', () => select.current(asset.id)).addTo(group)
       }
     }
@@ -197,17 +198,16 @@ export function GlobalTrackingMap({ assets, historyAssets, alerts, riskZones, ch
         const position={lat:asset.lat,lon:asset.lon}
         // Flight paths: shortest geodesic via observed position, NOT official airways.
         // Ship paths: use land-avoiding ocean geometry only, never sea straightlines.
-        const from=asset.kind==='aircraft'?
-          makeAirGreatCircle([origin.lat!,origin.lon!],[position.lat,position.lon])
-            .flat().map(([lat,lon])=>({lat,lon})):
-          i.modelSeaLegs?.completed??[]
+        // Never draw the green ORIGIN -> POSITION tail for aircraft.
+        // Maritime route references are unaffected.
+        const from=asset.kind==='vessel'?i.modelSeaLegs?.completed??[]:[]
         const to=asset.kind==='aircraft'?
           makeAirGreatCircle([position.lat,position.lon],[dest.lat!,dest.lon!])
             .flat().map(([lat,lon])=>({lat,lon})):
           i.modelSeaLegs?.remaining??[]
         const selected=asset.id===selectedId
         const trusted=i.confidence!=='lookup_unverified'
-        if(layers.trails&&from.length>1){
+        if(asset.kind==='vessel'&&layers.trails&&from.length>1){
           L.polyline(worldCopyPolyline(from,map.getCenter().lng),{
             color:trusted?'#72967A':'#77848A',weight:selected?4:2.1,
             opacity:selected?0.95:0.62,dashArray:'2 7',
@@ -288,8 +288,9 @@ export function GlobalTrackingMap({ assets, historyAssets, alerts, riskZones, ch
     // No artificial 20-minute continuation or short screen-length heading
     // dashes in front of aircraft and vessels. Selecting only highlights.
     if (layers.trails) {
+      // Keep ship AIS histories, never render green aircraft trails.
       const visible = assets.filter(asset =>
-        (asset.kind === 'aircraft' ? layers.aircraft : layers.vessels) &&
+        asset.kind === 'vessel' && layers.vessels &&
         bounds.contains([asset.lat, asset.lon]),
       )
       const routes = automaticRouteEvidence(visible, history.current, now)

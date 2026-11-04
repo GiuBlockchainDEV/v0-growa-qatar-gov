@@ -14,7 +14,7 @@ import {MONITORED_MARITIME_PORTS,type GccRadarSnapshot} from '@/lib/watchtower/m
 import type {HormuzNowFeed} from '@/lib/watchtower/hormuz-now'
 import type {OpenSeaFeedSnapshot} from '@/lib/watchtower/openseafeed'
 import type {OpenWatersSnapshot} from '@/lib/watchtower/open-waters-ais'
-import {visibleUnderwayVessel,visibleObservedVessel} from '@/lib/watchtower/visible-vessels'
+import {isDelayedBabPosition,visibleUnderwayVessel,visibleObservedVessel} from '@/lib/watchtower/visible-vessels'
 import type {IpcRiskSnapshot} from '@/lib/watchtower/ipc-food-security'
 import type {PublicFoodSnapshot} from '@/lib/watchtower/public-food-intelligence'
 import {REGIONAL_AIR_BATCH_COUNT,type RegionalAirBatch} from '@/lib/watchtower/regional-air-shared'
@@ -34,7 +34,7 @@ const REGIONS = {
   americas: { name: 'Americas', lat: 15, lon: -80, zoom: 3, box: [-60, -180, 80, -30] },
 } as const
 type Region = keyof typeof REGIONS
-type ShipView = 'moving' | 'cargoMoving' | 'observed' | 'cargoObserved'
+type ShipView = 'moving' | 'cargoMoving'
 const count = (n: number | null) => n === null ? '—' : n.toLocaleString('en-US')
 function utc(value: string | null) {
   if (!value || !Number.isFinite(Date.parse(value))) return 'Not provided'
@@ -72,7 +72,7 @@ export function GlobalWatchtower() {
   const [busy, setBusy] = useState(false), [refresh, setRefresh] = useState(0), [paused, setPaused] = useState(false), [now, setNow] = useState(Date.now)
   const [mobile, setMobile] = useState(false), [filtersOpen, setFiltersOpen] = useState(false), [alertsOpen, setAlertsOpen] = useState(true), [fullscreen, setFullscreen] = useState(false)
   const [query, setQuery] = useState(''), [region, setRegion] = useState<Region>('gulf')
-  const [shipView,setShipView]=useState<ShipView>('observed')
+  const [shipView,setShipView]=useState<ShipView>('moving')
   const [ipcRisk,setIpcRisk]=useState<IpcRiskSnapshot|null>(null)
   const [ipcError,setIpcError]=useState('')
   const [publicFood,setPublicFood]=useState<PublicFoodSnapshot|null>(null)
@@ -525,7 +525,7 @@ export function GlobalWatchtower() {
     const isRedSea=(a:TrackingAsset)=>a.lat>=11&&a.lat<29.35&&a.lon>=32&&a.lon<=46
     const isGulf=(a:TrackingAsset)=>a.lat>=22&&a.lat<=31&&a.lon>=47&&a.lon<=61
     const priority=(input:TrackingAsset[])=>mergeAssets(input).sort((a,b)=>
-      Number((b.speedKnots??0)>=1.5)-Number((a.speedKnots??0)>=1.5)||
+      Number((b.speedKnots??0)>=3)-Number((a.speedKnots??0)>=3)||
       b.observedAt.localeCompare(a.observedAt))
     const suez=priority(reported.filter(isSuez)).slice(0,350)
     const redSea=priority(reported.filter(a=>!isSuez(a)&&isRedSea(a))).slice(0,600)
@@ -549,16 +549,16 @@ export function GlobalWatchtower() {
       const matches=allAssets.filter(a=>a.kind==='vessel'&&a.lat>=area.south&&
         a.lat<=area.north&&a.lon>=area.west&&a.lon<=area.east&&
         visibleObservedVessel(a,now))
+      const shown=matches.filter(a=>visibleUnderwayVessel(a,now))
       return {id:area.id,name:area.name,observed:matches.length,
-        underway:matches.filter(a=>visibleUnderwayVessel(a,now)).length}
+        underway:shown.length,delayed:shown.filter(a=>isDelayedBabPosition(a,now)).length}
     })
   },[allAssets,now])
   const assets = useMemo(() => allAssets.filter(a =>
     inside(a) &&
     (a.kind==='vessel'
-      ? (shipView==='moving'||shipView==='cargoMoving'
-          ? visibleUnderwayVessel(a,now):visibleObservedVessel(a,now))&&
-        (shipView!=='cargoMoving'&&shipView!=='cargoObserved'||a.cargo==='ais_cargo_class')
+      ? visibleUnderwayVessel(a,now)&&
+        (shipView!=='cargoMoving'||a.cargo==='ais_cargo_class')
       : (!freightFlightsOnly||a.cargo!=='unverified')) &&
     (!query || (a.label+' '+a.id+' '+(a.destination??'')).toLowerCase().includes(query.toLowerCase())),
   ),[allAssets,inside,shipView,freightFlightsOnly,query,now])
@@ -732,9 +732,13 @@ export function GlobalWatchtower() {
         {Object.entries(REGIONS).map(([key,value])=><option key={key} value={key}>{value.name}</option>)}
       </select>
       <p className={styles.controlSummary}>
+        {maritimeFeed?.chokepoints.some(c=>c.id==='bab_el_mandeb'&&c.state==='stale')&&
+          <span style={{display:'block'}}>
+            Bab el-Mandeb AIS is delayed. Faded markers are historical last-known positions, NOT live ships.
+          </span>}
         {corridorCounts.map(area=><span key={area.id} style={{display:'block'}}>
-          <strong>{area.name}: {area.observed}</strong> reported fixes ≤12h
-          {' '}({area.underway} reporting underway)
+          <strong>{area.name}: {area.underway}</strong> vessels ≥3 kn
+          {' '}({area.observed} reported positions; {area.delayed} delayed last-known)
         </span>)}
         {openWaters?.state==='unconfigured'&&<span style={{display:'block'}}>
           Suez / Red Sea licensed AIS unavailable: Open Waters commercial access is not enabled.
@@ -743,14 +747,12 @@ export function GlobalWatchtower() {
       <label className={styles.label} htmlFor="watchtower-ship-mode">Vessels</label>
       <select id="watchtower-ship-mode" className={styles.input} value={shipView}
         onChange={e=>setShipView(e.target.value as ShipView)}>
-        <option value="observed">All source-observed ships (≤12h)</option>
-        <option value="cargoObserved">Cargo-class observed ships (≤12h)</option>
-        <option value="moving">Ships underway (SOG ≥1.5 kn)</option>
-        <option value="cargoMoving">Cargo-class ships underway</option>
+        <option value="moving">Ships moving (AIS SOG ≥3 kn)</option>
+        <option value="cargoMoving">Cargo-class ships (AIS SOG ≥3 kn)</option>
       </select>
       <p className={styles.controlSummary}>
         <strong>{assets.filter(a=>a.kind==='vessel').length.toLocaleString('en-US')}</strong> vessels shown
-        <span> · {assets.filter(a=>a.kind==='vessel'&&a.speedKnots!==null&&a.speedKnots>=1.5).length} with SOG ≥1.5 kn</span>
+        <span> · AIS SOG ≥3 kn; unknown-speed ships hidden</span>
       </p>
       <div className={styles.controlSectionHeading}>Show on map</div>
       {([
@@ -783,7 +785,7 @@ export function GlobalWatchtower() {
         }))}>
         <span><Layers size={13}/>Available routes & tracks</span><i className={styles.switch}/>
       </button>
-      <p className={styles.controlNote}>The default displays source-observed ship fixes up to 12 hours old, including stopped and speed-unknown vessels. Use the underway filters to hide port traffic. A last position does not prove the ship is still there; historical positions are not live tracking.</p>
+      <p className={styles.controlNote}>Only ships reporting AIS SOG ≥3 kn are shown. Most observations older than 12 hours remain hidden; dated Bab el-Mandeb fixes up to 7 days old may appear as faded LAST KNOWN positions, never live traffic. Unknown-speed ships are excluded.</p>
       <details className={styles.sourcesDetails}>
         <summary>Data sources & freshness</summary>
         <div className={styles.sourceBody}>
@@ -930,11 +932,11 @@ export function GlobalWatchtower() {
                   selectedAsset.itinerary.confidence === 'lookup_unverified'?'Unverified callsign lookup':'Crew-reported AIS / last-port data'}.
                 {' '}{selectedAsset.itinerary.description}
               </p>
-              <p>Map: dotted green = origin to latest position <strong>(reference, not proven travel)</strong>;
-                dashed amber = latest position to destination <strong>(reference, not confirmed planned routing)</strong>.
-                Solid green appears only for actual observed fixes.
-                {selectedAsset.kind==='vessel'&&!selectedAsset.itinerary.modelSeaLegs?
-                  ' A navigable maritime line is unavailable without resolved ports and an ocean-network geometry.':''}
+              <p>{selectedAsset.kind==='aircraft'
+              ?'Aircraft history and origin-to-position tail lines are hidden. Any amber destination reference is not a confirmed flight plan.'
+              :'For ships, dotted green is an origin-to-position reference (not proven travel); dashed amber is a destination reference; solid green indicates actual observed fixes.'}
+              {selectedAsset.kind==='vessel'&&!selectedAsset.itinerary.modelSeaLegs?
+                ' A navigable maritime line is unavailable without resolved ports and an ocean-network geometry.':''}
               </p>
               <a href={selectedAsset.itinerary.sourceUrl} target="_blank" rel="noopener noreferrer">
                 Itinerary source <ExternalLink size={11} className="inline"/>
@@ -944,7 +946,9 @@ export function GlobalWatchtower() {
           </div>
           <div className={styles.routeDetail}>
             <h3>Observed track</h3>
-            <p>The solid green line contains only real position updates collected while this page has been open. Origin-to-position and position-to-destination routes are shown as labelled references when provider data is available. No short heading guides or artificial forward projections are drawn.</p>
+            <p>{selectedAsset.kind==='aircraft'
+              ?'Aircraft trails are hidden on the map. Individual ADS-B fixes and source timestamps remain available in details.'
+              :'Solid green vessel tracks use observed fixes collected while this page was open. Reference routes are labelled and are not proven voyages.'}</p>
           </div>
           {selectedAsset.hubId&&<div className={styles.routeDetail}>
             <h3>GCC port radar · MyShipTracking</h3>

@@ -18,8 +18,15 @@ OpenSeaFeed /v1/snapshot is filtered over the whole screenshot rectangle
 and is supplemented by the regional hormuz.now feed, data-tracking.net,
 and an optional licensed VesselFinder feed. Public provider coverage
 is incomplete; a blank area is unknown, not proof of zero traffic.
-The default hides stationary ships based on source-reported SOG <1.5 kn.
+The map shows only source-observed vessels with valid AIS speed at least 3 knots.
+Ships below 3 knots and unknown-speed vessels are always hidden, including in
+cargo-class view. Most positions expire from the map after 12 hours.
+When the public Bab el-Mandeb feed is delayed, up to seven-day-old last-known
+source-dated positions may be shown only as faded, explicitly stale observations.
+Their timestamp is preserved; they are not live ship positions.
 AIS vessel class and SOG do not verify contents, voyages or food shipments.
+Aircraft display no green past-position trails or origin-to-fix tail lines;
+the destination reference may still be shown when available.
 
 ## Operations and rights
 No positions, movement, AIS routes or maritime coverage are generated.
