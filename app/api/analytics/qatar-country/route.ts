@@ -2,7 +2,7 @@ import {NextResponse} from 'next/server'
 import {createClient} from '@/lib/supabase/server'
 import {
  DATASET_URL,QATAR_DATASETS,WORLD_BANK_INDICATORS,
- parseQatarProduction,parseQatarFarms,parseQatarSufficiency,
+ parseQatarProduction,parseQatarFarms,QATAR_VERIFIED_SUFFICIENCY_2025,QATAR_VERIFIED_SUFFICIENCY_SOURCES,
  parseWorldBank,latestYear,type QatarCountrySnapshot,
  type SourceHealth,type IndicatorSeries,
 } from '@/lib/analytics/qatar-country'
@@ -80,12 +80,25 @@ async function worldBank(){
  return {rows:series,status}
 }
 async function collect():Promise<QatarCountrySnapshot>{
- const [production,farms,sufficiency,bank]=await Promise.all([
+ const [production,farms,bank]=await Promise.all([
   publicDataset('production',parseQatarProduction),
   publicDataset('farms',parseQatarFarms),
-  publicDataset('sufficiency',parseQatarSufficiency),
   worldBank(),
  ])
+ // The historic 2013-2023 agricultural-ratio field is incompatible with
+ // verified 2025 ministerial reporting and produced misleading sub-1% values.
+ // Never ingest that raw ratio for the national dashboard or AI context.
+ // Use separately source-attributed 2025 Ministry of Municipality indicators.
+ const sufficiency:{
+  rows:typeof QATAR_VERIFIED_SUFFICIENCY_2025[number][]
+  status:SourceHealth
+ }={
+  rows:[...QATAR_VERIFIED_SUFFICIENCY_2025],
+  status:{id:'sufficiency',label:'Food self-sufficiency',status:'available',
+   url:QATAR_VERIFIED_SUFFICIENCY_SOURCES.ministry,
+   latestYear:2025,count:QATAR_VERIFIED_SUFFICIENCY_2025.length,
+   note:'2025 Ministry of Municipality reported indicators (QNA / The Peninsula); not 2013-2023 raw dataset'},
+ }
  return {generatedAt:new Date().toISOString(),
   production:production.rows as QatarCountrySnapshot['production'],
   farms:farms.rows as QatarCountrySnapshot['farms'],
