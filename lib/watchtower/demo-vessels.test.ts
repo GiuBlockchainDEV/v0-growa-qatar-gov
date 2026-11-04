@@ -14,11 +14,12 @@ const ais=(id:string,lat:number,lon:number):TrackingAsset=>({
 describe('clearly separated demonstration ships',()=>{
   it('keeps marker counts explicit and substantially increases Arabian Sea scenarios',()=>{
     const points=sparseAreaDemoVessels([])
-    expect(points).toHaveLength(29)
+    expect(points).toHaveLength(33)
     for(const id of ['red_sea','gulf_of_aden'])
       expect(points.filter(x=>x.region===id)).toHaveLength(4)
     expect(points.filter(x=>x.region==='arabian_sea')).toHaveLength(21)
-    expect(new Set(points.map(x=>x.id)).size).toBe(29)
+    expect(points.filter(x=>x.region==='karachi_offshore')).toHaveLength(4)
+    expect(new Set(points.map(x=>x.id)).size).toBe(33)
     expect(points.every(x=>x.label.startsWith('DEMO'))).toBe(true)
     expect(DEMO_VESSEL_MARKERS.every(x=>x.id.startsWith('demo:'))).toBe(true)
   })
@@ -38,6 +39,7 @@ describe('clearly separated demonstration ships',()=>{
     expect(result.filter(x=>x.region==='red_sea')).toHaveLength(2)
     expect(result.filter(x=>x.region==='gulf_of_aden')).toHaveLength(3)
     expect(result.filter(x=>x.region==='arabian_sea')).toHaveLength(21)
+    expect(result.filter(x=>x.region==='karachi_offshore')).toHaveLength(4)
   })
   it('keeps synthetic Arabian markers offshore and geographically plausible',()=>{
     const markers=DEMO_VESSEL_MARKERS.filter(x=>x.region==='arabian_sea')
