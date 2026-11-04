@@ -23,7 +23,7 @@ describe('Source-labeled procurement quantity suggestion',()=>{
  })
  it('never treats missing or demo data as verified demand',()=>{
   expect(suggestProcurementQuantity({...base,deficitTonnes:100},30,'demo').tonnes).toBe(20)
-  expect(suggestProcurementQuantity({...base,status:'partial'},30,'live').verifiedDemand).toBe(false)
+  expect(suggestProcurementQuantity({...base,status:'insufficient_data'},30,'live').verifiedDemand).toBe(false)
  })
  it('validates user edits and hard procurement ceiling',()=>{
   expect(parseRequestedTonnes('125.4')).toBe(125.4)
