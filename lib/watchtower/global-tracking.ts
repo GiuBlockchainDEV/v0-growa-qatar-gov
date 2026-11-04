@@ -4,7 +4,7 @@ export type TrackingAsset = {
   id: string; kind: 'aircraft' | 'vessel'; label: string; lat: number; lon: number
   heading: number | null; speedKnots: number | null; altitudeFt: number | null
   observedAt: string; source: string; sourceUrl: string; type: string
-  cargo: 'operator_inferred' | 'ais_cargo_class' | 'unverified'
+  cargo: 'operator_inferred' | 'airframe_inferred' | 'ais_cargo_class' | 'unverified'
   destination: string | null; foodCargoVerified: false
   itinerary?: import('./itinerary-sources').RouteItinerary | null
   /** Public data-tracking.net reporting area, when provided by the source. */
@@ -101,14 +101,15 @@ export function parseAircraft(raw: unknown, now = Date.now()): TrackingAsset[] {
     const observed = timestamp - age * 1000
     if (now - observed > 900000 || observed > now + 60000) return []
     const label = text(row.flight, 24) || text(row.r, 24) || hex.toUpperCase()
-    const freight = /^(FDX|UPS|GTI|CLX|ABW|CKK|ICL|PAC|NCA|MPH|TAY|DHK|BCS|BOX|GEC|CKS|ABR)/.test(label)
+    const freight = /^(?:FDX|UPS|GTI|CLX|ABW|CKK|ICL|PAC|NCA|MPH|TAY|DHK|BCS|BOX|GEC|CKS|ABR|AZG|AZQ|CJT|MFX|KYE|MNB|SRR|NPT)/.test(label.toUpperCase()) || /\b(?:CARGO|FREIGHT|FEDEX|CARGOLUX|KALITTA|UPS AIRLINES|DHL|ATLAS AIR|POLAR AIR)\b/.test(text(row.ownOp, 160).toUpperCase())
+    const freighter = /\b(?:FREIGHTER|CARGO AIRCRAFT|CARGO VERSION)\b/.test(text(row.desc, 160).toUpperCase())
     const altitude = numeric(row.alt_baro)
     return [{ id: 'air:' + hex, kind: 'aircraft', label, ...point,
       heading: bearing(row.track), speedKnots: speed(row.gs, 1500),
       altitudeFt: altitude !== null && altitude >= -1500 && altitude <= 65000 ? altitude : null,
       observedAt: new Date(observed).toISOString(), source: 'ADSB.lol',
       sourceUrl: 'https://www.adsb.lol/?icao=' + hex, type: text(row.t, 12),
-      cargo: freight ? 'operator_inferred' : 'unverified', destination: null, foodCargoVerified: false }]
+      cargo: freight ? 'operator_inferred' : freighter ? 'airframe_inferred' : 'unverified', destination: null, foodCargoVerified: false }]
   }))
 }
 /** AIS type 70-79 identifies cargo vessels, not food on board. */
