@@ -24,6 +24,12 @@ describe('Geographic coverage of the full Watchtower screenshot',()=>{
       }
     expect(worst).toBeLessThan(250)
   })
+  it('prioritises the Gulf without losing the 60 real geographical circles',()=>{
+    const priority=REGIONAL_AIR_CENTERS.filter(c=>c.batch<2)
+    expect(priority).toHaveLength(10)
+    expect(priority.some(c=>c.lat>=20&&c.lat<=30&&c.lon>=49&&c.lon<=61)).toBe(true)
+    expect(new Set(REGIONAL_AIR_CENTERS.map(c=>c.index)).size).toBe(60)
+  })
   it('splits the area into twelve serialized five-query batches',()=>{
     for(let batch=0;batch<REGIONAL_AIR_BATCH_COUNT;batch++)
       expect(REGIONAL_AIR_CENTERS.filter(c=>c.batch===batch)).toHaveLength(5)
