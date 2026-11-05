@@ -68,7 +68,14 @@ export function analyzeUtilityPressure(
   if(!at)continue // RequestedAt / stored_at are NOT proof of time of observation.
   const timestamp=Date.parse(at)
   if(timestamp>now+15*60000||timestamp<now-windowMs-2*3600000)continue
-  const primary=weatherNumber(reading,domain==='water'?'vpd_kpa':'temperature_c')
+  // If the Weather API omits VPD, derive it from simultaneous observed
+  // temperature/RH with the FAO saturation vapour pressure relation.
+  const temperature=weatherNumber(reading,'temperature_c')
+  const humidity=weatherNumber(reading,'humidity_percent')
+  const directVpd=weatherNumber(reading,'vpd_kpa')
+  const derivedVpd=temperature!==null&&humidity!==null&&humidity>=0&&humidity<=100?
+   .6108*Math.exp(17.27*temperature/(temperature+237.3))*(1-humidity/100):null
+  const primary=domain==='water'?(directVpd??derivedVpd):temperature
   if(primary===null||primary<0||primary> (domain==='water'?12:65))continue
   const secondary=weatherNumber(reading,
    domain==='water'?'eto_daily_estimated_mm_day':'thermal_stress_index_0_100')
