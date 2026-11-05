@@ -86,3 +86,70 @@ export function tileScenePixelBox(
 export function intersectsPixelTile(box:SpectralPixelBox,size=256):boolean{
  return box.right>0&&box.bottom>0&&box.left<size&&box.top<size
 }
+
+/**
+ * 2× *visual* spectral reconstruction, using a separable cubic kernel with
+ * contrast limiting to avoid false-color ringing/halos. No ML inference,
+ * new Sentinel-2 observations, or increase in geophysical spatial resolution.
+ *
+ * Transparencies are a strict valid-data mask: interpolated pixels are NEVER
+ * opaque if either adjacent original observation is missing. The source
+ * samples remain identical at even/even output coordinates. In particular,
+ * this must not turn an unobserved farm into a colored NDVI/NDMI value.
+ */
+export function superResolveSpectralTile2x(
+ rgba:Uint8ClampedArray,size=256,
+):Uint8ClampedArray{
+ if(!Number.isInteger(size)||size<1||size>1024||
+  rgba.length!==size*size*4)throw Error('Invalid spectral tile dimensions')
+ const doubled=size*2
+ const horizontal=new Uint8ClampedArray(doubled*size*4)
+ const output=new Uint8ClampedArray(doubled*doubled*4)
+ // Midpoint cubic: (-a+9b+9c-d)/16, clamped between b and c so
+ // false-color ramps stay monotonic and cloud/no-data edges do not halo.
+ const mid=(a:number,b:number,c:number,d:number)=>
+  Math.max(Math.min(b,c),Math.min(Math.max(b,c),
+   (-a+9*b+9*c-d)/16))
+ for(let y=0;y<size;y++){
+  const row=y*size*4
+  const wideRow=y*doubled*4
+  for(let x=0;x<size;x++){
+   const p=row+x*4
+   const q=wideRow+x*8
+   horizontal.set(rgba.subarray(p,p+4),q)
+   const next=x<size-1?p+4:p
+   if(rgba[p+3]===0||rgba[next+3]===0)continue
+   const left=x>0?p-4:p
+   const right=x+2<size?p+8:next
+   for(let c=0;c<4;c++){
+    horizontal[q+4+c]=c===3?
+      (rgba[p+3]+rgba[next+3])/2:
+      mid(rgba[left+3]?rgba[left+c]:rgba[p+c],
+          rgba[p+c],rgba[next+c],
+          rgba[right+3]?rgba[right+c]:rgba[next+c])
+   }
+  }
+ }
+ for(let y=0;y<size;y++){
+  const row=y*doubled*4
+  const outRow=y*2*doubled*4
+  output.set(horizontal.subarray(row,row+doubled*4),outRow)
+  const next=y<size-1?row+doubled*4:row
+  const prev=y>0?row-doubled*4:row
+  const after=y+2<size?row+2*doubled*4:next
+  for(let x=0;x<doubled;x++){
+   const p=row+x*4
+   const n=next+x*4
+   const q=outRow+doubled*4+x*4
+   if(horizontal[p+3]===0||horizontal[n+3]===0)continue
+   for(let c=0;c<4;c++){
+    output[q+c]=c===3?
+      (horizontal[p+3]+horizontal[n+3])/2:
+      mid(horizontal[prev+x*4+3]?horizontal[prev+x*4+c]:horizontal[p+c],
+          horizontal[p+c],horizontal[n+c],
+          horizontal[after+x*4+3]?horizontal[after+x*4+c]:horizontal[n+c])
+   }
+  }
+ }
+ return output
+}
