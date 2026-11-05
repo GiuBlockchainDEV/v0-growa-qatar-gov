@@ -148,6 +148,15 @@ const NAV: ProductNavItem[] = [
     area: 'intelligence',
   },
   {
+    key: 'fertilizer-intelligence',
+    label: 'Fertilizer Intelligence',
+    labelAr: 'ذكاء الأسمدة',
+    path: '/dashboard?module=fertilizer-intelligence',
+    icon: 'FlaskConical',
+    availability: 'live',
+    area: 'intelligence',
+  },
+  {
     key: 'cross-analytics',
     label: 'Cross-domain analytics',
     labelAr: 'التحليلات المتقاطعة',
@@ -448,7 +457,7 @@ export function resolvePlatformRoleProfile(
 export const ROLE_NAV_KEYS: Record<PlatformRoleProfile, string[]> = {
   ministry_admin: [
     'watchtower', 'live-map', 'farms-sites', 'harvest', 'monitoring',
-    'data-analytics', 'production-harvest', 'weather', 'water-intelligence', 'energy-intelligence', 'cross-analytics',
+    'data-analytics', 'production-harvest', 'weather', 'water-intelligence', 'energy-intelligence', 'fertilizer-intelligence', 'cross-analytics',
     'procurement', 'logistics', 'commodities', 'forecast-resilience',
     'alerts-center', 'investigations', 'inspection-dashboard', 'compliance-inspections', 'corrective-actions',
     'programs-policy', 'inter-agency-collaboration', 'reports-center', 'evidence-attachments',
@@ -464,20 +473,20 @@ export const ROLE_NAV_KEYS: Record<PlatformRoleProfile, string[]> = {
   ],
   hassad_supply: [
     'procurement', 'logistics', 'commodities', 'forecast-resilience',
-    'watchtower', 'harvest', 'data-analytics',
+    'watchtower', 'harvest', 'data-analytics', 'fertilizer-intelligence',
     'live-map', 'ai-mission-control',
     'users-roles', 'invitations', 'access-permissions', 'my-profile', 'settings',
   ],
   farm_operations: [
     'farms-sites', 'live-map', 'harvest', 'monitoring',
-    'weather', 'data-analytics', 'water-intelligence',
+    'weather', 'data-analytics', 'water-intelligence', 'fertilizer-intelligence',
     'alerts-center', 'users-roles', 'invitations', 'my-profile', 'settings',
   ],
   finance: [
-    'data-analytics', 'cross-analytics', 'procurement', 'logistics', 'reports-center', 'settings',
+    'data-analytics', 'cross-analytics', 'fertilizer-intelligence', 'procurement', 'logistics', 'reports-center', 'settings',
   ],
   default: [
-    'live-map', 'watchtower', 'harvest', 'weather', 'water-intelligence', 'energy-intelligence',
+    'live-map', 'watchtower', 'harvest', 'weather', 'water-intelligence', 'energy-intelligence', 'fertilizer-intelligence',
     'data-analytics', 'settings',
   ],
 }

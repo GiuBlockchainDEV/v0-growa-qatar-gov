@@ -39,6 +39,7 @@ export const RssFeedWorkspace = dynamic(() => import('@/components/dashboard/rss
 export const DataAnalyticsWorkspace = dynamic(() => import('@/components/dashboard/data-analytics-workspace').then((m) => m.DataAnalyticsWorkspace), { loading: WorkspaceLoading })
 export const WaterIntelligenceWorkspace = dynamic(() => import('@/components/dashboard/water-intelligence-workspace').then((m) => m.WaterIntelligenceWorkspace), { loading: WorkspaceLoading })
 export const EnergyIntelligenceWorkspace = dynamic(() => import('@/components/dashboard/energy-intelligence-workspace').then((m) => m.EnergyIntelligenceWorkspace), { loading: WorkspaceLoading })
+export const FertilizerIntelligence = dynamic(() => import('@/components/dashboard/fertilizer-intelligence').then((m) => m.FertilizerIntelligence), { loading: WorkspaceLoading })
 export const WeatherWorkspace = dynamic(() => import('@/components/dashboard/weather-workspace').then((m) => m.WeatherWorkspace), { loading: WorkspaceLoading })
 export const HarvestWorkspace = dynamic(() => import('@/components/dashboard/harvest-workspace').then((m) => m.HarvestWorkspace), { loading: WorkspaceLoading })
 export const WatchtowerWorkspace = dynamic(() => import('@/components/dashboard/watchtower-workspace').then((m) => m.WatchtowerWorkspace), { loading: WorkspaceLoading })

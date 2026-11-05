@@ -11,6 +11,7 @@ import {
   DataAnalyticsWorkspace,
   WaterIntelligenceWorkspace,
   EnergyIntelligenceWorkspace,
+  FertilizerIntelligence,
   WeatherWorkspace,
   HarvestWorkspace,
   WatchtowerWorkspace,
@@ -511,6 +512,16 @@ export default function DashboardPage() {
       >
         <WaterIntelligenceWorkspace />
       </SlideFromLeftWorkspace>
+    )
+  }
+
+  if (moduleKey === 'fertilizer-intelligence') {
+    return (
+      <div className="h-full w-full overflow-y-auto bg-background p-4 md:p-6">
+        <div className="mx-auto max-w-[1520px]">
+          <FertilizerIntelligence />
+        </div>
+      </div>
     )
   }
 

@@ -49,6 +49,11 @@ const MODULE_STATUS: Record<string, ModuleStatusDefinition> = {
     relatedModules: ['water-intelligence', 'data-analytics'],
     description: 'Energy consumption and intensity analytics.',
   },
+  'fertilizer-intelligence': {
+    status: 'live',
+    relatedModules: ['energy-intelligence', 'procurement', 'commodities'],
+    description: 'National fertilizer reference prices, supply verification and forward risk scenarios.',
+  },
   'data-analytics': {
     status: 'live',
     relatedModules: ['harvest', 'water-intelligence'],

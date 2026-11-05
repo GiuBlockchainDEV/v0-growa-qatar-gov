@@ -15,6 +15,7 @@ export const DASHBOARD_WORKSPACE_MODULES = new Set([
   'data-analytics',
   'water-intelligence',
   'energy-intelligence',
+  'fertilizer-intelligence',
   'weather',
   'harvest',
   'production-harvest',
