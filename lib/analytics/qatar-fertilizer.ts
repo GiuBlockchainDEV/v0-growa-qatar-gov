@@ -36,7 +36,7 @@ export type FertilizerAssessment={
 }
 export const WORLD_BANK_FERTILIZER_SOURCE='https://www.worldbank.org/en/research/commodity-markets'
 export const QATAR_FERTILIZER_TRADE_SOURCE='https://www.data.gov.qa/explore/dataset/trade-data-for-fertilizers/'
-export const QAFCO_REPORT_URL='https://iq.com.qa/media/3tjkd13b/iq-annual-report-2024-en-digital.pdf'
+export const QAFCO_REPORT_URL='https://www.qafco.qa/en/our-plants/'
 export const USD_QAR_REFERENCE=3.64 // illustrative peg-based display, not a live FX transaction quote
 export const FERTILIZER_MONTHS=[
  '2025-11','2025-12','2026-01','2026-02','2026-03','2026-04',
