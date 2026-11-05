@@ -1,6 +1,6 @@
 'use client'
 import {useEffect,useMemo,useState} from 'react'
-import {Activity,AlertTriangle,CalendarDays,RefreshCcw,ShieldAlert} from 'lucide-react'
+import {AlertTriangle,CalendarDays,RefreshCcw,ShieldAlert} from 'lucide-react'
 import {
  analyzeUtilityPressure,historyPressureUrl,PRESSURE_REGIONS,
  type PressureWindow,type PressurePoint,
@@ -85,9 +85,6 @@ export function UtilityPressureMonitor({domain}:{domain:UtilityDomain}){
  return <section className="rounded-2xl border border-line bg-card p-5" aria-label={domain+' daily and weekly pressure trends'}>
   <div className="flex flex-wrap items-start justify-between gap-3">
    <div>
-    <span className="flex items-center gap-2 text-[10px] font-bold tracking-wider text-sage-700">
-     <Activity size={15}/> TEMPORAL PRESSURE MONITOR
-    </span>
     <h2 className="mt-2 text-xl font-bold">Daily & weekly peaks, trends and criticalities</h2>
     <p className="mt-1 text-xs text-content-soft">Source-backed weather observations, not national {domain==='water'?'water withdrawals (m³)':'electricity demand (MW)'}.</p>
    </div>
