@@ -34,6 +34,7 @@ import { extractBoundsFromGeoJson, type LatLngVertex } from '@/lib/harvest/geojs
 import {
   buildDashboardMapProps,
   DASHBOARD_MAP_SURFACE_MODULES,
+  lateralMapInitialZoom,
   resolveDashboardPageModule,
 } from '@/lib/dashboard/map-navigation'
 
@@ -297,6 +298,7 @@ function SlideFromLeftWorkspace({
           targetFocusToken={targetFocusToken}
           targetZoom={targetZoom}
           targetCropFilter={targetCropFilter}
+          initialZoom={lateralMapInitialZoom(moduleKey)}
           isLateralMode
           lateralPanelOpen={panelVisible}
           onMapClick={undefined}

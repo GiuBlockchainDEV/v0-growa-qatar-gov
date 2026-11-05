@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { buildFarmSearchMapUrl, WATCHTOWER_DEFAULT_URL, canonicalWatchtowerEntry } from '@/lib/dashboard/map-navigation'
+import { buildFarmSearchMapUrl, WATCHTOWER_DEFAULT_URL, canonicalWatchtowerEntry, lateralMapInitialZoom } from '@/lib/dashboard/map-navigation'
 
 describe('buildFarmSearchMapUrl', () => {
   it('opens live map focused on a farm', () => {
@@ -37,4 +37,15 @@ describe('canonical Watchtower landing URL', () => {
     expect(canonicalWatchtowerEntry(new URLSearchParams(), '#watchtower-markets')).toBe('/dashboard?module=watchtower#watchtower-markets')
     expect(canonicalWatchtowerEntry(new URLSearchParams(), '#watchtower-operations')).toBe('/dashboard?module=watchtower#watchtower-operations')
   })
+})
+
+describe('lateral national map zoom',()=>{
+ it('starts all four intelligence side maps at zoom 8',()=>{
+  for(const module of ['data-analytics','weather','water-intelligence','energy-intelligence'])
+   expect(lateralMapInitialZoom(module)).toBe(8)
+ })
+ it('leaves the full live map and other side panels at zoom 10',()=>{
+  for(const module of ['live-map','harvest','production-harvest','rss-feed'])
+   expect(lateralMapInitialZoom(module)).toBe(10)
+ })
 })

@@ -135,6 +135,7 @@ export function SatelliteMap({
   targetCropFilter = null,
   targetFocusToken = null,
   targetZoom,
+  initialZoom = DEFAULT_ZOOM,
   isLateralMode = false,
   lateralPanelOpen = false,
   onMapClick: onMapClickProp,
@@ -1024,7 +1025,7 @@ export function SatelliteMap({
   }, [customPoints, isGrowaAdmin, loadCustomPointsFromDb, targetPointId])
 
   const resolvedTargetZoom =
-    resolvedTargetFarm || explicitTargetPoint ? targetZoom ?? DEFAULT_FARM_ZOOM : DEFAULT_ZOOM
+    resolvedTargetFarm || explicitTargetPoint ? targetZoom ?? DEFAULT_FARM_ZOOM : initialZoom
   const normalizedCropFilter = polygonCropFilterQuery.trim().toLowerCase()
   const normalizedTargetCropName = targetCropFilter?.trim().toLowerCase() || ''
   const lastAppliedTargetCropRef = useRef<string>('')
@@ -1180,9 +1181,9 @@ export function SatelliteMap({
     if (!mapInstanceRef.current) return
     const recenterLat = explicitTargetPoint?.lat ?? resolvedTargetFarm?.lat ?? QATAR_CENTER.lat
     const recenterLng = explicitTargetPoint?.lng ?? resolvedTargetFarm?.lng ?? QATAR_CENTER.lng
-    const recenterZoom = explicitTargetPoint || resolvedTargetFarm ? resolvedTargetZoom : DEFAULT_ZOOM
+    const recenterZoom = explicitTargetPoint || resolvedTargetFarm ? resolvedTargetZoom : initialZoom
     mapInstanceRef.current.flyTo([recenterLat, recenterLng], recenterZoom, { duration: 1.5 })
-  }, [explicitTargetPoint, resolvedTargetFarm, resolvedTargetZoom])
+  }, [explicitTargetPoint, resolvedTargetFarm, resolvedTargetZoom, initialZoom])
 
   const clearCoordinatePin = useCallback(() => {
     coordinateMarkerRef.current?.remove?.()
@@ -1250,7 +1251,7 @@ export function SatelliteMap({
       leafletRef.current = L
       const createdMap = L.map(mapRef.current, {
         center: [QATAR_CENTER.lat, QATAR_CENTER.lng],
-        zoom: DEFAULT_ZOOM,
+        zoom: initialZoom,
         zoomControl: false,
         attributionControl: false,
       }) as MapController

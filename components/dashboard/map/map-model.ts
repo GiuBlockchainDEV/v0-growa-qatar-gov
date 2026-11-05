@@ -62,6 +62,7 @@ export interface SatelliteMapProps {
   targetCropFilter?: string | null
   targetFocusToken?: string | null
   targetZoom?: number
+  initialZoom?: number
   isLateralMode?: boolean
   lateralPanelOpen?: boolean
   onMapClick?: (coords: { lat: number; lng: number }) => void

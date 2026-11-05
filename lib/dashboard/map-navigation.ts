@@ -207,3 +207,12 @@ export function buildDashboardMapProps(searchParams: URLSearchParams) {
     targetZoom,
   }
 }
+
+/** Wider initial national context in the four requested dashboard side maps.
+ * Farm/point focus and URL deep-links remain handled independently. */
+const WIDE_QATAR_LATERAL_MODULES=new Set([
+  'data-analytics','weather','water-intelligence','energy-intelligence',
+])
+export function lateralMapInitialZoom(moduleKey:string):number{
+ return WIDE_QATAR_LATERAL_MODULES.has(moduleKey)?8:10
+}
