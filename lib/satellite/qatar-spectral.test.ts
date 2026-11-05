@@ -47,7 +47,29 @@ describe('Qatar nationwide Microsoft Planetary Computer spectral imagery',()=>{
    scene('cloudy','T39RXK','2026-10-13T00:00:00Z',75),
    scene('another','T39RXK','2026-10-10T00:00:00Z',12),
   ],'ndmi',12)
-  expect(selected.map(x=>x.id)).toEqual(['another','latest'])
+  expect(selected.map(x=>x.id)).toEqual(['old','another','latest'])
+  expect(selected.filter(x=>x.tile==='T39RXJ')).toHaveLength(2)
+ })
+ it('prioritizes national coverage before including backup scenes for a tile',()=>{
+  const make=(id:string,tile:string,date:string)=>({
+    id,bbox:[50.8,24.5,51.4,25.8],assets:{B08:{},B04:{},B11:{}},
+    properties:{datetime:date,'eo:cloud_cover':5,'s2:mgrs_tile':tile},
+  })
+  const items=[
+    make('A3','A','2026-11-03T12:00:00Z'),
+    make('A2','A','2026-11-02T12:00:00Z'),
+    make('A1','A','2026-11-01T12:00:00Z'),
+    make('A0','A','2026-10-31T12:00:00Z'),
+    make('B2','B','2026-11-01T12:00:00Z'),
+    make('B1','B','2026-10-31T12:00:00Z'),
+  ]
+  const two=selectQatarSentinelScenes(items,'ndvi',2)
+  expect(two.map(x=>x.id)).toContain('A3')
+  expect(two.map(x=>x.id)).toContain('B2')
+  const full=selectQatarSentinelScenes(items,'ndvi',18)
+  expect(full.filter(x=>x.tile==='A')).toHaveLength(3)
+  expect(full.filter(x=>x.tile==='B')).toHaveLength(2)
+  expect(full.map(x=>x.id)).not.toContain('A0')
  })
  it('only shows the controls on the Live Map and preserves all other map contexts',()=>{
   const page=read('app/dashboard/page.tsx')
