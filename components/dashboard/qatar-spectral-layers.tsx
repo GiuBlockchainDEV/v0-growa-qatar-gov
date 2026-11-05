@@ -9,7 +9,7 @@ import {QATAR_SPECTRAL_BBOX,SPECTRAL_INDEX_CONFIG,
  type SpectralIndex,type SpectralTile} from '@/lib/satellite/qatar-spectral'
 import {clipTileToQatar} from '@/lib/satellite/qatar-clip'
 import {
- blendSpectralPixels,tileScenePixelBox,intersectsPixelTile,
+ blendSpectralPixels,tileScenePixelBox,intersectsPixelTile,superResolveSpectralTile2x,
 } from '@/lib/satellite/qatar-raster-composite'
 
 type TilePayload={
@@ -151,6 +151,8 @@ function validTiles(payload:TilePayload):Array<SpectralTile&{cloudCover?:number}
 export function QatarSpectralLayers({map}:{map:MapController|null}){
  const [index,setIndex]=useState<SpectralIndex|null>(null)
  const [opacity,setOpacity]=useState(.7)
+ const [superResolution,setSuperResolution]=useState(false)
+ const superResolutionRef=useRef(false)
  const [payload,setPayload]=useState<TilePayload|null>(null)
  const [busy,setBusy]=useState(false)
  const [rendered,setRendered]=useState(false)
@@ -158,6 +160,10 @@ export function QatarSpectralLayers({map}:{map:MapController|null}){
  const [retry,setRetry]=useState(0)
  const overlay=useRef<GridLayer|null>(null)
  const detailOverlay=useRef<GridLayer|null>(null)
+ useEffect(()=>{
+  superResolutionRef.current=superResolution
+  detailOverlay.current?.redraw()
+ },[superResolution])
 
  useEffect(()=>{
   if(!index){
@@ -216,9 +222,16 @@ export function QatarSpectralLayers({map}:{map:MapController|null}){
    const imagery=validTiles(payload)
    const Raster=L.GridLayer.extend({
     createTile(coords:L.Coords,done:(error:Error|null,tile:HTMLElement)=>void){
+     // Overview remains a native 256px tile. Detail can render a 512px
+     // internal canvas while occupying the same 256 CSS pixels in Leaflet.
+     // The interpolation is visual only, never a new geophysical sample.
+     const enhanced=superResolutionRef.current&&coords.z>=SPECTRAL_DETAIL_ZOOM
+     const renderedSize=enhanced?TILE_SIZE*2:TILE_SIZE
      const canvas=document.createElement('canvas')
-     canvas.width=TILE_SIZE
-     canvas.height=TILE_SIZE
+     canvas.width=renderedSize
+     canvas.height=renderedSize
+     canvas.style.width=TILE_SIZE+'px'
+     canvas.style.height=TILE_SIZE+'px'
      const context=canvas.getContext('2d')
      if(!context){
       done(new Error('Canvas rendering is unavailable'),canvas)
@@ -261,20 +274,22 @@ export function QatarSpectralLayers({map}:{map:MapController|null}){
         blendSpectralPixels(successful.map(x=>({
          rgba:x.pixels,box:x.box,cloudCover:x.cloudCover,
         })),TILE_SIZE,52)
-       const source=context.createImageData(TILE_SIZE,TILE_SIZE)
-       source.data.set(pixels)
+       const renderedPixels=enhanced?superResolveSpectralTile2x(pixels,TILE_SIZE):pixels
+       const source=context.createImageData(renderedSize,renderedSize)
+       source.data.set(renderedPixels)
        // putImageData deliberately ignores canvas clipping in the Canvas2D
        // standard. Draw the image from an offscreen canvas AFTER clipping,
        // otherwise even a valid mosaic leaks outside Qatar's boundary.
        const sourceCanvas=document.createElement('canvas')
-       sourceCanvas.width=TILE_SIZE;sourceCanvas.height=TILE_SIZE
+       sourceCanvas.width=renderedSize;sourceCanvas.height=renderedSize
        const inner=sourceCanvas.getContext('2d')
        if(!inner)throw Error('Unable to prepare spectral image')
        inner.putImageData(source,0,0)
        context.save()
        try{
+        if(enhanced)context.scale(2,2)
         clipTileToQatar(context,project)
-        context.drawImage(sourceCanvas,0,0)
+        context.drawImage(sourceCanvas,0,0,TILE_SIZE,TILE_SIZE)
        }finally{
         context.restore()
        }
@@ -398,6 +413,19 @@ export function QatarSpectralLayers({map}:{map:MapController|null}){
    <div className="mt-1 grid grid-cols-5 gap-1 text-center text-[9px] font-semibold tabular-nums text-content-soft">
     {spectralRange.map((value,i)=><span key={i}>{value}</span>)}
    </div>
+   <div className="mt-2 flex items-center justify-between gap-3">
+    <label className="flex items-center gap-2 text-[10px] font-semibold text-content">
+     <input type="checkbox" checked={superResolution}
+      onChange={event=>setSuperResolution(event.target.checked)}
+      aria-label="2x visual super-resolution"
+      className="h-3.5 w-3.5 accent-sage-700"/>
+     Visual super-resolution 2×
+    </label>
+    <span className="text-[9px] text-content-soft">Detail zoom only</span>
+   </div>
+   {superResolution&&<p className="mt-1 text-[9px] leading-4 text-content-soft">
+    Display-only edge-preserving interpolation; not a measured increase in Sentinel-2 spatial resolution or NDVI/NDMI precision.
+   </p>}
    <p className="mt-1 text-[9px] leading-4 text-content-soft">
     {index==='ndvi'?'NDVI · Sentinel-2 observations with original color scale −0.20…0.90.':'Enhanced NDMI contrast · clipped color scale −0.35…0.35, with original Sentinel-2 index values. NDMI is not soil moisture.'}
    </p>
