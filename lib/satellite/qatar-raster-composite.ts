@@ -153,3 +153,44 @@ export function superResolveSpectralTile2x(
  }
  return output
 }
+
+/** Display-only adaptive unsharp mask. Source index measurements stay unchanged.
+ * Alpha and no-data pixels remain untouched. Never use for quantitative maps. */
+export function enhanceSpectralVisualDetail(
+ rgba:Uint8ClampedArray,size=256,strength=1.7,
+):Uint8ClampedArray{
+ if(!Number.isInteger(size)||size<1||size>1024||
+  rgba.length!==size*size*4||!Number.isFinite(strength)||
+  strength<0||strength>3)throw Error('Invalid enhancement input')
+ const out=new Uint8ClampedArray(rgba)
+ if(strength===0||size===1)return out
+ for(let y=0;y<size;y++)for(let x=0;x<size;x++){
+  const p=(y*size+x)*4
+  if(rgba[p+3]===0)continue
+  const sum=[0,0,0],minimum=[255,255,255],maximum=[0,0,0]
+  let weight=0
+  for(let dy=-1;dy<=1;dy++)for(let dx=-1;dx<=1;dx++){
+   const xx=Math.max(0,Math.min(size-1,x+dx))
+   const yy=Math.max(0,Math.min(size-1,y+dy))
+   const q=(yy*size+xx)*4,alpha=rgba[q+3]/255
+   if(!alpha)continue
+   weight+=alpha
+   for(let c=0;c<3;c++){
+    sum[c]+=rgba[q+c]*alpha
+    minimum[c]=Math.min(minimum[c],rgba[q+c])
+    maximum[c]=Math.max(maximum[c],rgba[q+c])
+   }
+  }
+  if(weight<=1)continue
+  for(let c=0;c<3;c++){
+   const original=rgba[p+c],range=maximum[c]-minimum[c]
+   if(range<4)continue
+   const delta=Math.max(-38,Math.min(38,
+      (original-sum[c]/weight)*strength*Math.min(1,range/32)))
+   // Bounded overshoot is deliberately visual, never a new index value.
+   out[p+c]=Math.max(0,Math.min(255,
+     Math.max(minimum[c]-12,Math.min(maximum[c]+12,original+delta))))
+  }
+ }
+ return out
+}
