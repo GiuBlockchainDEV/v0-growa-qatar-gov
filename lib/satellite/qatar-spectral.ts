@@ -127,3 +127,25 @@ export function selectQatarSentinelScenes(
  // remains transparent rather than being interpolated or invented.
  return selected.sort((a,b)=>a.sceneDate.localeCompare(b.sceneDate))
 }
+
+/** Re-render a validated, source-matched Sentinel-2 tile as a grayscale B08
+ * guidance image for SFIM + HPA visual fusion. Same scene/mosaic/timestamp
+ * and same tile coordinates as the NDVI/NDMI base. Not a PAN sensor band.
+ *
+ * PNG values are an 8-bit display representation of NIR reflectance; this
+ * helper must NEVER be used to calculate numeric vegetation indices.
+ */
+export function nirGuideTileUrl(sourceTemplate:string):string|null{
+ if(!isMicrosoftTileUrl(sourceTemplate))return null
+ const url=new URL(sourceTemplate)
+ url.searchParams.delete('assets')
+ url.searchParams.delete('expression')
+ url.searchParams.delete('rescale')
+ url.searchParams.delete('colormap_name')
+ url.searchParams.delete('colormap')
+ url.searchParams.append('assets','B08')
+ url.searchParams.set('rescale','0,10000')
+ url.searchParams.set('colormap_name','gray')
+ url.searchParams.set('tile_format','png')
+ return isMicrosoftTileUrl(url.toString())?url.toString():null
+}

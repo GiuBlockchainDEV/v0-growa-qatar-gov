@@ -4,13 +4,12 @@ import {useEffect,useRef,useState} from 'react'
 import {Layers3,RefreshCw} from 'lucide-react'
 import type {GridLayer,GridLayerOptions} from 'leaflet'
 import type {MapController} from '@/components/dashboard/map/map-model'
-import {QATAR_SPECTRAL_BBOX,SPECTRAL_INDEX_CONFIG,
+import {QATAR_SPECTRAL_BBOX,SPECTRAL_INDEX_CONFIG,nirGuideTileUrl,
  SPECTRAL_OVERVIEW_ZOOM,SPECTRAL_DETAIL_ZOOM,SPECTRAL_DETAIL_START_ZOOM,
  type SpectralIndex,type SpectralTile} from '@/lib/satellite/qatar-spectral'
 import {clipTileToQatar} from '@/lib/satellite/qatar-clip'
 import {
- blendSpectralPixels,tileScenePixelBox,intersectsPixelTile,superResolveSpectralTile2x,
- enhanceSpectralVisualDetail,
+ blendSpectralPixels,tileScenePixelBox,intersectsPixelTile,sfimHpaSpectralVisualFusion,
 } from '@/lib/satellite/qatar-raster-composite'
 
 type TilePayload={
@@ -152,8 +151,9 @@ function validTiles(payload:TilePayload):Array<SpectralTile&{cloudCover?:number}
 export function QatarSpectralLayers({map}:{map:MapController|null}){
  const [index,setIndex]=useState<SpectralIndex|null>(null)
  const [opacity,setOpacity]=useState(.7)
- const [superResolution,setSuperResolution]=useState(false)
- const superResolutionRef=useRef(false)
+ const [sfimHpaEnabled,setSfimHpaEnabled]=useState(true)
+ const sfimHpaRef=useRef(true)
+ const [nirGuidanceUsed,setNirGuidanceUsed]=useState(false)
  const [payload,setPayload]=useState<TilePayload|null>(null)
  const [busy,setBusy]=useState(false)
  const [rendered,setRendered]=useState(false)
@@ -162,10 +162,11 @@ export function QatarSpectralLayers({map}:{map:MapController|null}){
  const overlay=useRef<GridLayer|null>(null)
  const detailOverlay=useRef<GridLayer|null>(null)
  useEffect(()=>{
-  superResolutionRef.current=superResolution
+  sfimHpaRef.current=sfimHpaEnabled
+  setNirGuidanceUsed(false)
   overlay.current?.redraw()
   detailOverlay.current?.redraw()
- },[superResolution])
+ },[sfimHpaEnabled])
 
  useEffect(()=>{
   if(!index){
@@ -224,17 +225,12 @@ export function QatarSpectralLayers({map}:{map:MapController|null}){
    const imagery=validTiles(payload)
    const Raster=L.GridLayer.extend({
     createTile(coords:L.Coords,done:(error:Error|null,tile:HTMLElement)=>void){
-     // Overview remains a native 256px tile. Detail can render a 512px
-     // internal canvas while occupying the same 256 CSS pixels in Leaflet.
-     // The interpolation is visual only, never a new geophysical sample.
-     const enhancementOn=superResolutionRef.current
-     const enhanced=enhancementOn&&coords.z>=SPECTRAL_DETAIL_ZOOM
-     const renderedSize=enhanced?TILE_SIZE*2:TILE_SIZE
+     // A stable 256px canvas is always shown immediately using actual index
+     // imagery. B08 guided SFIM+HPA repaints it progressively when available.
+     const guidanceWanted=sfimHpaRef.current
      const canvas=document.createElement('canvas')
-     canvas.width=renderedSize
-     canvas.height=renderedSize
-     canvas.style.width=TILE_SIZE+'px'
-     canvas.style.height=TILE_SIZE+'px'
+     canvas.width=TILE_SIZE
+     canvas.height=TILE_SIZE
      const context=canvas.getContext('2d')
      if(!context){
       done(new Error('Canvas rendering is unavailable'),canvas)
@@ -277,27 +273,48 @@ export function QatarSpectralLayers({map}:{map:MapController|null}){
         blendSpectralPixels(successful.map(x=>({
          rgba:x.pixels,box:x.box,cloudCover:x.cloudCover,
         })),TILE_SIZE,52)
-       const optimizedPixels=enhancementOn?enhanceSpectralVisualDetail(pixels,TILE_SIZE):pixels
-       const renderedPixels=enhanced?superResolveSpectralTile2x(optimizedPixels,TILE_SIZE):optimizedPixels
-       const source=context.createImageData(renderedSize,renderedSize)
-       source.data.set(renderedPixels)
-       // putImageData deliberately ignores canvas clipping in the Canvas2D
-       // standard. Draw the image from an offscreen canvas AFTER clipping,
-       // otherwise even a valid mosaic leaks outside Qatar's boundary.
-       const sourceCanvas=document.createElement('canvas')
-       sourceCanvas.width=renderedSize;sourceCanvas.height=renderedSize
-       const inner=sourceCanvas.getContext('2d')
-       if(!inner)throw Error('Unable to prepare spectral image')
-       inner.putImageData(source,0,0)
-       context.save()
-       try{
-        if(enhanced)context.scale(2,2)
-        clipTileToQatar(context,project)
-        context.drawImage(sourceCanvas,0,0,TILE_SIZE,TILE_SIZE)
-       }finally{
-        context.restore()
+       const paint=(rgba:Uint8ClampedArray)=>{
+        if(disposed||controller.signal.aborted)return
+        const source=context.createImageData(TILE_SIZE,TILE_SIZE)
+        source.data.set(rgba)
+        const sourceCanvas=document.createElement('canvas')
+        sourceCanvas.width=TILE_SIZE;sourceCanvas.height=TILE_SIZE
+        const inner=sourceCanvas.getContext('2d')
+        if(!inner)throw Error('Unable to prepare spectral image')
+        inner.putImageData(source,0,0)
+        context.clearRect(0,0,TILE_SIZE,TILE_SIZE)
+        context.save()
+        try{
+         clipTileToQatar(context,project)
+         context.drawImage(sourceCanvas,0,0,TILE_SIZE,TILE_SIZE)
+        }finally{context.restore()}
        }
+       // Finish the Leaflet tile immediately, before loading supplementary
+       // near-infrared guidance. This prevents screen flicker and blank zooms.
+       paint(pixels)
        done(null,canvas)
+       if(guidanceWanted){
+        void (async()=>{
+         const guidance=await Promise.allSettled(successful.map(async item=>{
+          const from=available.find(a=>a.box===item.box)
+          if(!from)return null
+          const template=nirGuideTileUrl(from.scene.url)
+          if(!template)return null
+          const nir=await loadRasterPixelData(tileUrl(template,coords),controller.signal)
+          return {rgba:nir,box:item.box,cloudCover:item.cloudCover}
+         }))
+         if(disposed||controller.signal.aborted||!sfimHpaRef.current)return
+         const good=guidance.flatMap(entry=>
+          entry.status==='fulfilled'&&entry.value?[entry.value]:[])
+         if(!good.length)return
+         const guide=payload.mode==='mosaic'?good[0].rgba:
+          blendSpectralPixels(good,TILE_SIZE,52)
+         if(!guide.some((value,i)=>i%4===3&&value>0))return
+         const fused=sfimHpaSpectralVisualFusion(pixels,guide,TILE_SIZE)
+         paint(fused)
+         setNirGuidanceUsed(true)
+        })().catch(()=>undefined)
+       }
       }catch(error){
        done(error instanceof Error?error:new Error('Raster compositing failed'),canvas)
       }
@@ -419,16 +436,19 @@ export function QatarSpectralLayers({map}:{map:MapController|null}){
    </div>
    <div className="mt-2 flex items-center justify-between gap-3">
     <label className="flex items-center gap-2 text-[10px] font-semibold text-content">
-     <input type="checkbox" checked={superResolution}
-      onChange={event=>setSuperResolution(event.target.checked)}
-      aria-label="Enhanced 2x spectral detail"
+     <input type="checkbox" checked={sfimHpaEnabled}
+      onChange={event=>setSfimHpaEnabled(event.target.checked)}
+      aria-label="SFIM and HPA Sentinel-2 B08 spatial guidance"
       className="h-3.5 w-3.5 accent-sage-700"/>
-     Enhanced spectral detail 2×
+     SFIM + HPA
     </label>
-    <span className="text-[9px] text-content-soft">All zooms · 2× close-up</span>
+    <span className="text-[9px] text-content-soft">B08 guided · all zooms</span>
    </div>
-   {superResolution&&<p className="mt-1 text-[9px] leading-4 text-content-soft">
-    Edge-aware local contrast at every zoom; 2× visual reconstruction at close zoom. No new Sentinel-2 measurements or numerical precision.
+   {sfimHpaEnabled&&<p className="mt-1 text-[9px] leading-4 text-content-soft">
+    {nirGuidanceUsed?
+     'SFIM + HPA active. Same-scene Sentinel-2 B08 guidance improves displayed detail; numerical NDVI/NDMI remains unchanged.':
+     'Displaying the original index while B08 guidance loads. If unavailable, the original imagery is preserved.'}
+    {' '}B08 is 10 m, B11 is 20 m; this is not a new measured 5 m product.
    </p>}
    <p className="mt-1 text-[9px] leading-4 text-content-soft">
     {index==='ndvi'?'NDVI · Sentinel-2 observations with original color scale −0.20…0.90.':'Enhanced NDMI contrast · clipped color scale −0.35…0.35, with original Sentinel-2 index values. NDMI is not soil moisture.'}

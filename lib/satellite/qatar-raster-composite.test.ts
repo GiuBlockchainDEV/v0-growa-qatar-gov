@@ -1,5 +1,5 @@
 import {describe,it,expect} from 'vitest'
-import {blendSpectralPixels,tileScenePixelBox,intersectsPixelTile,superResolveSpectralTile2x,enhanceSpectralVisualDetail} from './qatar-raster-composite'
+import {blendSpectralPixels,tileScenePixelBox,intersectsPixelTile,sfimHpaSpectralVisualFusion} from './qatar-raster-composite'
 
 function filled(size:number,r:number,g:number,b:number){
  const rgba=new Uint8ClampedArray(size*size*4)
@@ -48,72 +48,48 @@ describe('Single-layer Qatar STAC composite',()=>{
 })
 
 
-describe('2x visual edge-preserving spectral reconstruction',()=>{
- it('preserves original samples and a flat index color at twice the pixel count',()=>{
-  const input=filled(4,20,110,70)
-  const enhanced=superResolveSpectralTile2x(input,4)
-  expect(enhanced).toHaveLength(8*8*4)
-  for(let y=0;y<8;y++)for(let x=0;x<8;x++){
-   expect(pixel(enhanced,8,x,y)).toEqual([20,110,70,255])
-  }
-  for(let y=0;y<4;y++)for(let x=0;x<4;x++){
-   expect(pixel(enhanced,8,x*2,y*2)).toEqual(pixel(input,4,x,y))
-  }
- })
- it('keeps all missing or transparent satellite pixels transparent',()=>{
-  const input=filled(4,180,40,90)
-  for(let y=0;y<4;y++)for(let x=2;x<4;x++)
-   input[(y*4+x)*4+3]=0
-  const enhanced=superResolveSpectralTile2x(input,4)
-  for(let y=0;y<8;y++)for(let x=4;x<8;x++)
-   expect(pixel(enhanced,8,x,y)[3]).toBe(0)
-  expect(pixel(enhanced,8,3,3)[3]).toBe(0)
-  expect(pixel(enhanced,8,2,2)[3]).toBe(255)
- })
- it('limits color overshoot across sharp NDVI/NDMI boundaries',()=>{
-  const input=filled(4,15,30,220)
-  for(let y=0;y<4;y++)for(let x=2;x<4;x++){
-   const p=(y*4+x)*4
-   input[p]=240;input[p+1]=80;input[p+2]=15
-  }
-  const enhanced=superResolveSpectralTile2x(input,4)
-  for(let i=0;i<enhanced.length;i+=4){
-   if(enhanced[i+3]===0)continue
-   expect(enhanced[i]).toBeGreaterThanOrEqual(15)
-   expect(enhanced[i]).toBeLessThanOrEqual(240)
-   expect(enhanced[i+1]).toBeGreaterThanOrEqual(30)
-   expect(enhanced[i+1]).toBeLessThanOrEqual(80)
-   expect(enhanced[i+2]).toBeGreaterThanOrEqual(15)
-   expect(enhanced[i+2]).toBeLessThanOrEqual(220)
-  }
- })
- it('rejects invalid buffer sizes instead of painting fabricated imagery',()=>{
-  expect(()=>superResolveSpectralTile2x(new Uint8ClampedArray(3),4)).toThrow('Invalid spectral tile')
-  expect(()=>superResolveSpectralTile2x(new Uint8ClampedArray(0),0)).toThrow()
- })
-})
 
-
-describe('adaptive mask-aware spectral visual sharpening',()=>{
- it('changes color boundaries at native zoom rather than just resampling',()=>{
-  const src=filled(7,20,20,30)
-  for(let y=0;y<7;y++)for(let x=3;x<7;x++){
-   const p=(y*7+x)*4
-   src[p]=100;src[p+1]=200;src[p+2]=110
+describe('Sentinel-2 B08 guided SFIM + HPA false-color fusion',()=>{
+ it('preserves original false colors with uniform guidance',()=>{
+  const source=filled(7,180,70,20)
+  const guide=filled(7,130,130,130)
+  const fused=sfimHpaSpectralVisualFusion(source,guide,7)
+  expect([...fused]).toEqual([...source])
+ })
+ it('injects detail from high-frequency NIR guidance with source alpha unchanged',()=>{
+  const size=9
+  const source=filled(size,130,90,60)
+  const guide=filled(size,115,115,115)
+  for(let y=1;y<8;y++)for(let x=4;x<8;x++){
+   const p=(y*size+x)*4
+   guide[p]=210;guide[p+1]=210;guide[p+2]=210
   }
-  const result=enhanceSpectralVisualDetail(src,7)
-  expect([...result].some((v,i)=>v!==src[i])).toBe(true)
-  expect(pixel(result,7,2,3)[0]).toBeLessThan(pixel(src,7,2,3)[0])
-  expect(pixel(result,7,3,3)[0]).toBeGreaterThan(pixel(src,7,3,3)[0])
+  const fused=sfimHpaSpectralVisualFusion(source,guide,size)
+  expect(fused).toHaveLength(source.length)
+  expect([...fused].some((v,i)=>i%4!==3&&v!==source[i])).toBe(true)
+  for(let i=3;i<fused.length;i+=4)expect(fused[i]).toBe(source[i])
+  // The bright B08 edge should also brighten some source luminance.
+  expect(pixel(fused,size,4,4)[0]).toBeGreaterThan(pixel(source,size,4,4)[0])
  })
- it('does not fill no-data and leaves uniform valid colors alone',()=>{
-  const src=filled(7,100,100,100)
-  for(let y=0;y<7;y++)for(let x=5;x<7;x++)src[(y*7+x)*4+3]=0
-  expect([...enhanceSpectralVisualDetail(src,7)]).toEqual([...src])
+ it('never fills no-data in the index or in the NIR guidance',()=>{
+  const size=7,source=filled(size,100,160,80),guide=filled(size,120,120,120)
+  for(let y=0;y<size;y++)for(let x=3;x<size;x++){
+   const p=(y*size+x)*4
+   source[p+3]=0
+  }
+  for(let y=0;y<size;y++)for(let x=0;x<2;x++){
+   const p=(y*size+x)*4
+   guide[p+3]=0
+  }
+  const fused=sfimHpaSpectralVisualFusion(source,guide,size)
+  for(let i=0;i<fused.length;i+=4){
+   expect(fused[i+3]).toBe(source[i+3])
+   if(source[i+3]===0||guide[i+3]===0)
+    expect([...fused.slice(i,i+4)]).toEqual([...source.slice(i,i+4)])
+  }
  })
- it('is a no-op when disabled and validates dimensions',()=>{
-  const src=filled(4,10,80,120)
-  expect([...enhanceSpectralVisualDetail(src,4,0)]).toEqual([...src])
-  expect(()=>enhanceSpectralVisualDetail(new Uint8ClampedArray(3),4)).toThrow()
+ it('rejects buffer mismatch rather than inventing spectral pixels',()=>{
+  expect(()=>sfimHpaSpectralVisualFusion(new Uint8ClampedArray(4),new Uint8ClampedArray(3),1)).toThrow()
+  expect(()=>sfimHpaSpectralVisualFusion(new Uint8ClampedArray(16),new Uint8ClampedArray(16),0)).toThrow()
  })
 })

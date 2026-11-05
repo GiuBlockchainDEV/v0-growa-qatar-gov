@@ -3,7 +3,7 @@ import {readFileSync} from 'node:fs'
 import {join} from 'node:path'
 import {
  QATAR_SPECTRAL_BBOX,qatarMosaicSearch,spectralTileParams,
- isMicrosoftTileUrl,SPECTRAL_INDEX_CONFIG,selectQatarSentinelScenes,
+ isMicrosoftTileUrl,SPECTRAL_INDEX_CONFIG,selectQatarSentinelScenes,nirGuideTileUrl,
  SPECTRAL_OVERVIEW_ZOOM,SPECTRAL_DETAIL_ZOOM,SPECTRAL_DETAIL_START_ZOOM,
 } from './qatar-spectral'
 const read=(p:string)=>readFileSync(join(process.cwd(),p),'utf8')
@@ -36,6 +36,19 @@ describe('Qatar nationwide Microsoft Planetary Computer spectral imagery',()=>{
   expect(isMicrosoftTileUrl(base.replace('planetarycomputer.microsoft.com','other.example'))).toBe(false)
   expect(isMicrosoftTileUrl('javascript:alert(1)')).toBe(false)
   expect(isMicrosoftTileUrl('https://planetarycomputer.microsoft.com/api/data/v1/mosaic/info')).toBe(false)
+ })
+
+ it('derives validated source-matched B08 guidance without cross-origin data substitution',()=>{
+  const base='https://planetarycomputer.microsoft.com/api/data/v1/item/tiles/WebMercatorQuad/{z}/{x}/{y}@1x.png?collection=sentinel-2-l2a&item=example-1&assets=B08&assets=B11&expression=(B08-B11)/(B08+B11)&rescale=-0.35,0.35&colormap_name=rdbu&asset_as_band=true'
+  const template=nirGuideTileUrl(base)
+  expect(template).not.toBeNull()
+  const parsed=new URL(template!)
+  expect(parsed.searchParams.getAll('assets')).toEqual(['B08'])
+  expect(parsed.searchParams.has('expression')).toBe(false)
+  expect(parsed.searchParams.get('rescale')).toBe('0,10000')
+  expect(parsed.searchParams.get('colormap_name')).toBe('gray')
+  expect(parsed.searchParams.get('item')).toBe('example-1')
+  expect(nirGuideTileUrl(base.replace('planetarycomputer.microsoft.com','untrusted.example'))).toBeNull()
  })
  it('selects recent cloud-screened Sentinel-2 scenes by MGRS region',()=>{
   const scene=(id:string,tile:string,date:string,cloud:number)=>({
@@ -94,14 +107,12 @@ describe('Qatar nationwide Microsoft Planetary Computer spectral imagery',()=>{
   expect(widget).toContain('maxNativeZoom:SPECTRAL_DETAIL_ZOOM')
   expect(widget).toContain('minZoom:SPECTRAL_DETAIL_START_ZOOM')
   expect(widget).toContain('detailOverlay.current?.remove()')
-  expect(widget).toContain("superResolutionRef.current&&coords.z>=SPECTRAL_DETAIL_ZOOM")
-  expect(widget).toContain('superResolveSpectralTile2x(pixels,TILE_SIZE)')
+  expect(widget).toContain('sfimHpaSpectralVisualFusion(pixels,guide,TILE_SIZE)')
+  expect(widget).toContain('nirGuideTileUrl(item.scene.url)')
   expect(widget).toContain('detailOverlay.current?.redraw()')
-  expect(widget).toContain('Enhanced spectral detail 2×')
   expect(widget).toContain('overlay.current?.redraw()')
-  expect(widget).toContain('enhanceSpectralVisualDetail(pixels,TILE_SIZE)')
-  expect(widget).toContain('No new Sentinel-2 measurements or numerical precision')
-  expect(widget).toContain("if(enhanced)context.scale(2,2)")
+  expect(widget).toContain('SFIM + HPA')
+  expect(widget).toContain('context.drawImage(sourceCanvas,0,0,TILE_SIZE,TILE_SIZE)')
   expect(widget).toContain('cachedRaster(url)')
   expect(widget).toContain('rememberRaster(url,pixels)')
   expect(widget).toContain('keepBuffer:8')

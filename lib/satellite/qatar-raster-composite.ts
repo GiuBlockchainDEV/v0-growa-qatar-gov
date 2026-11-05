@@ -87,110 +87,70 @@ export function intersectsPixelTile(box:SpectralPixelBox,size=256):boolean{
  return box.right>0&&box.bottom>0&&box.left<size&&box.top<size
 }
 
-/**
- * 2× *visual* spectral reconstruction, using a separable cubic kernel with
- * contrast limiting to avoid false-color ringing/halos. No ML inference,
- * new Sentinel-2 observations, or increase in geophysical spatial resolution.
- *
- * Transparencies are a strict valid-data mask: interpolated pixels are NEVER
- * opaque if either adjacent original observation is missing. The source
- * samples remain identical at even/even output coordinates. In particular,
- * this must not turn an unobserved farm into a colored NDVI/NDMI value.
- */
-export function superResolveSpectralTile2x(
- rgba:Uint8ClampedArray,size=256,
-):Uint8ClampedArray{
- if(!Number.isInteger(size)||size<1||size>1024||
-  rgba.length!==size*size*4)throw Error('Invalid spectral tile dimensions')
- const doubled=size*2
- const horizontal=new Uint8ClampedArray(doubled*size*4)
- const output=new Uint8ClampedArray(doubled*doubled*4)
- // Midpoint cubic: (-a+9b+9c-d)/16, clamped between b and c so
- // false-color ramps stay monotonic and cloud/no-data edges do not halo.
- const mid=(a:number,b:number,c:number,d:number)=>
-  Math.max(Math.min(b,c),Math.min(Math.max(b,c),
-   (-a+9*b+9*c-d)/16))
- for(let y=0;y<size;y++){
-  const row=y*size*4
-  const wideRow=y*doubled*4
-  for(let x=0;x<size;x++){
-   const p=row+x*4
-   const q=wideRow+x*8
-   horizontal.set(rgba.subarray(p,p+4),q)
-   const next=x<size-1?p+4:p
-   if(rgba[p+3]===0||rgba[next+3]===0)continue
-   const left=x>0?p-4:p
-   const right=x+2<size?p+8:next
-   for(let c=0;c<4;c++){
-    horizontal[q+4+c]=c===3?
-      (rgba[p+3]+rgba[next+3])/2:
-      mid(rgba[left+3]?rgba[left+c]:rgba[p+c],
-          rgba[p+c],rgba[next+c],
-          rgba[right+3]?rgba[right+c]:rgba[next+c])
-   }
-  }
- }
- for(let y=0;y<size;y++){
-  const row=y*doubled*4
-  const outRow=y*2*doubled*4
-  output.set(horizontal.subarray(row,row+doubled*4),outRow)
-  const next=y<size-1?row+doubled*4:row
-  const prev=y>0?row-doubled*4:row
-  const after=y+2<size?row+2*doubled*4:next
-  for(let x=0;x<doubled;x++){
-   const p=row+x*4
-   const n=next+x*4
-   const q=outRow+doubled*4+x*4
-   if(horizontal[p+3]===0||horizontal[n+3]===0)continue
-   for(let c=0;c<4;c++){
-    output[q+c]=c===3?
-      (horizontal[p+3]+horizontal[n+3])/2:
-      mid(horizontal[prev+x*4+3]?horizontal[prev+x*4+c]:horizontal[p+c],
-          horizontal[p+c],horizontal[n+c],
-          horizontal[after+x*4+3]?horizontal[after+x*4+c]:horizontal[n+c])
-   }
-  }
- }
- return output
-}
 
-/** Display-only adaptive unsharp mask. Source index measurements stay unchanged.
- * Alpha and no-data pixels remain untouched. Never use for quantitative maps. */
-export function enhanceSpectralVisualDetail(
- rgba:Uint8ClampedArray,size=256,strength=1.7,
+/**
+ * B08-guided SFIM + HPA for false-color NDVI/NDMI display only.
+ *
+ * Guide P is a same-acquisition near-infrared (B08) rendered grayscale tile.
+ * LP(P) is a 5x5 spatial low-pass. At each valid pixel:
+ *   SFIM = I * clamp(P / LP(P), 0.62, 1.38)
+ *   HPA  = SFIM + alpha * (P - LP(P))
+ * where I is the original false-color luminance, NOT an index measurement.
+ * The reconstructed intensity modulates RGB with a bounded, hue-preserving
+ * ratio. This is legitimate SFIM/HPA signal fusion on display luminance,
+ * NOT physical pan-sharpening of raw B11 reflectance or 5 m NDVI/NDMI.
+ *
+ * Both source and guidance masks are mandatory. We never create new colored
+ * pixels, grow edges into nodata, or change numeric band/index values.
+ */
+export function sfimHpaSpectralVisualFusion(
+ source:Uint8ClampedArray,
+ nirGuide:Uint8ClampedArray,
+ size=256,
 ):Uint8ClampedArray{
  if(!Number.isInteger(size)||size<1||size>1024||
-  rgba.length!==size*size*4||!Number.isFinite(strength)||
-  strength<0||strength>3)throw Error('Invalid enhancement input')
- const out=new Uint8ClampedArray(rgba)
- if(strength===0||size===1)return out
+   source.length!==size*size*4||nirGuide.length!==source.length)
+   throw Error('Invalid SFIM+HPA tile buffers')
+ const out=new Uint8ClampedArray(source)
+ if(size<2)return out
+ const pixels=size*size
+ const guidance=new Float32Array(pixels)
+ const valid=new Uint8Array(pixels)
+ for(let i=0;i<pixels;i++){
+  const p=i*4
+  if(source[p+3]<8||nirGuide[p+3]<8)continue
+  valid[i]=1
+  guidance[i]=(nirGuide[p]+nirGuide[p+1]+nirGuide[p+2])/(3*255)
+ }
+ const radius=2
  for(let y=0;y<size;y++)for(let x=0;x<size;x++){
-  const p=(y*size+x)*4
-  if(rgba[p+3]===0)continue
-  const sum=[0,0,0],minimum=[255,255,255],maximum=[0,0,0]
-  let weight=0
-  for(let dy=-1;dy<=1;dy++)for(let dx=-1;dx<=1;dx++){
-   const xx=Math.max(0,Math.min(size-1,x+dx))
+  const i=y*size+x,p=i*4
+  if(!valid[i])continue
+  let total=0,count=0
+  // Mask-normalized low-pass avoids inventing texture across satellite gaps.
+  for(let dy=-radius;dy<=radius;dy++)for(let dx=-radius;dx<=radius;dx++){
    const yy=Math.max(0,Math.min(size-1,y+dy))
-   const q=(yy*size+xx)*4,alpha=rgba[q+3]/255
-   if(!alpha)continue
-   weight+=alpha
-   for(let c=0;c<3;c++){
-    sum[c]+=rgba[q+c]*alpha
-    minimum[c]=Math.min(minimum[c],rgba[q+c])
-    maximum[c]=Math.max(maximum[c],rgba[q+c])
-   }
+   const xx=Math.max(0,Math.min(size-1,x+dx))
+   const q=yy*size+xx
+   if(!valid[q])continue
+   total+=guidance[q];count++
   }
-  if(weight<=1)continue
-  for(let c=0;c<3;c++){
-   const original=rgba[p+c],range=maximum[c]-minimum[c]
-   if(range<4)continue
-   const delta=Math.max(-38,Math.min(38,
-      (original-sum[c]/weight)*strength*Math.min(1,range/32)))
-   // Bounded overshoot is deliberately visual, never a new index value.
-   out[p+c]=Math.max(0,Math.min(255,
-     Math.max(minimum[c]-12,Math.min(maximum[c]+12,original+delta))))
-  }
+  if(count<4)continue
+  const P=guidance[i],P_low=total/count
+  if(P_low<0.025)continue
+  const I=(.2126*source[p]+.7152*source[p+1]+.0722*source[p+2])/255
+  if(I<0.01)continue
+  // SFIM multiplicative modulation. Ratio limits guard against extreme
+  // values around dark water and low-information desert pixels.
+  const ratio=Math.max(.62,Math.min(1.38,P/P_low))
+  const sfim=I*ratio
+  // HPA high-pass detail injection. Guard values to avoid chromatic halos.
+  const highPass=Math.max(-.18,Math.min(.18,P-P_low))
+  const hpa=sfim+highPass*.72
+  const gain=Math.max(.65,Math.min(1.35,hpa/I))
+  for(let c=0;c<3;c++)out[p+c]=Math.max(0,Math.min(255,
+    Math.round(source[p+c]*gain)))
+  // out[p+3] remains exactly the source alpha.
  }
  return out
 }
