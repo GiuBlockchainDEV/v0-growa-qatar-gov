@@ -10,6 +10,7 @@ import {QATAR_SPECTRAL_BBOX,SPECTRAL_INDEX_CONFIG,
 import {clipTileToQatar} from '@/lib/satellite/qatar-clip'
 import {
  blendSpectralPixels,tileScenePixelBox,intersectsPixelTile,superResolveSpectralTile2x,
+ enhanceSpectralVisualDetail,
 } from '@/lib/satellite/qatar-raster-composite'
 
 type TilePayload={
@@ -162,6 +163,7 @@ export function QatarSpectralLayers({map}:{map:MapController|null}){
  const detailOverlay=useRef<GridLayer|null>(null)
  useEffect(()=>{
   superResolutionRef.current=superResolution
+  overlay.current?.redraw()
   detailOverlay.current?.redraw()
  },[superResolution])
 
@@ -225,7 +227,8 @@ export function QatarSpectralLayers({map}:{map:MapController|null}){
      // Overview remains a native 256px tile. Detail can render a 512px
      // internal canvas while occupying the same 256 CSS pixels in Leaflet.
      // The interpolation is visual only, never a new geophysical sample.
-     const enhanced=superResolutionRef.current&&coords.z>=SPECTRAL_DETAIL_ZOOM
+     const enhancementOn=superResolutionRef.current
+     const enhanced=enhancementOn&&coords.z>=SPECTRAL_DETAIL_ZOOM
      const renderedSize=enhanced?TILE_SIZE*2:TILE_SIZE
      const canvas=document.createElement('canvas')
      canvas.width=renderedSize
@@ -274,7 +277,8 @@ export function QatarSpectralLayers({map}:{map:MapController|null}){
         blendSpectralPixels(successful.map(x=>({
          rgba:x.pixels,box:x.box,cloudCover:x.cloudCover,
         })),TILE_SIZE,52)
-       const renderedPixels=enhanced?superResolveSpectralTile2x(pixels,TILE_SIZE):pixels
+       const optimizedPixels=enhancementOn?enhanceSpectralVisualDetail(pixels,TILE_SIZE):pixels
+       const renderedPixels=enhanced?superResolveSpectralTile2x(optimizedPixels,TILE_SIZE):optimizedPixels
        const source=context.createImageData(renderedSize,renderedSize)
        source.data.set(renderedPixels)
        // putImageData deliberately ignores canvas clipping in the Canvas2D
@@ -417,14 +421,14 @@ export function QatarSpectralLayers({map}:{map:MapController|null}){
     <label className="flex items-center gap-2 text-[10px] font-semibold text-content">
      <input type="checkbox" checked={superResolution}
       onChange={event=>setSuperResolution(event.target.checked)}
-      aria-label="2x visual super-resolution"
+      aria-label="Enhanced 2x spectral detail"
       className="h-3.5 w-3.5 accent-sage-700"/>
-     Visual super-resolution 2×
+     Enhanced spectral detail 2×
     </label>
-    <span className="text-[9px] text-content-soft">Detail zoom only</span>
+    <span className="text-[9px] text-content-soft">All zooms · 2× close-up</span>
    </div>
    {superResolution&&<p className="mt-1 text-[9px] leading-4 text-content-soft">
-    Display-only edge-preserving interpolation; not a measured increase in Sentinel-2 spatial resolution or NDVI/NDMI precision.
+    Edge-aware local contrast at every zoom; 2× visual reconstruction at close zoom. No new Sentinel-2 measurements or numerical precision.
    </p>}
    <p className="mt-1 text-[9px] leading-4 text-content-soft">
     {index==='ndvi'?'NDVI · Sentinel-2 observations with original color scale −0.20…0.90.':'Enhanced NDMI contrast · clipped color scale −0.35…0.35, with original Sentinel-2 index values. NDMI is not soil moisture.'}
