@@ -1,5 +1,5 @@
 import {describe,it,expect} from 'vitest'
-import {blendSpectralPixels,tileScenePixelBox,intersectsPixelTile,superResolveSpectralTile2x} from './qatar-raster-composite'
+import {blendSpectralPixels,tileScenePixelBox,intersectsPixelTile,superResolveSpectralTile2x,enhanceSpectralVisualDetail} from './qatar-raster-composite'
 
 function filled(size:number,r:number,g:number,b:number){
  const rgba=new Uint8ClampedArray(size*size*4)
@@ -90,5 +90,30 @@ describe('2x visual edge-preserving spectral reconstruction',()=>{
  it('rejects invalid buffer sizes instead of painting fabricated imagery',()=>{
   expect(()=>superResolveSpectralTile2x(new Uint8ClampedArray(3),4)).toThrow('Invalid spectral tile')
   expect(()=>superResolveSpectralTile2x(new Uint8ClampedArray(0),0)).toThrow()
+ })
+})
+
+
+describe('adaptive mask-aware spectral visual sharpening',()=>{
+ it('changes color boundaries at native zoom rather than just resampling',()=>{
+  const src=filled(7,20,20,30)
+  for(let y=0;y<7;y++)for(let x=3;x<7;x++){
+   const p=(y*7+x)*4
+   src[p]=100;src[p+1]=200;src[p+2]=110
+  }
+  const result=enhanceSpectralVisualDetail(src,7)
+  expect([...result].some((v,i)=>v!==src[i])).toBe(true)
+  expect(pixel(result,7,2,3)[0]).toBeLessThan(pixel(src,7,2,3)[0])
+  expect(pixel(result,7,3,3)[0]).toBeGreaterThan(pixel(src,7,3,3)[0])
+ })
+ it('does not fill no-data and leaves uniform valid colors alone',()=>{
+  const src=filled(7,100,100,100)
+  for(let y=0;y<7;y++)for(let x=5;x<7;x++)src[(y*7+x)*4+3]=0
+  expect([...enhanceSpectralVisualDetail(src,7)]).toEqual([...src])
+ })
+ it('is a no-op when disabled and validates dimensions',()=>{
+  const src=filled(4,10,80,120)
+  expect([...enhanceSpectralVisualDetail(src,4,0)]).toEqual([...src])
+  expect(()=>enhanceSpectralVisualDetail(new Uint8ClampedArray(3),4)).toThrow()
  })
 })
