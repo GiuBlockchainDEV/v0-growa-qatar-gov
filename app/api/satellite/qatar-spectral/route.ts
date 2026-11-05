@@ -178,7 +178,9 @@ export async function GET(request:Request){
  }
  try{
   const payload=await pending
-  completed.set(index,{value:payload,until:Date.now()+3*60*60*1000})
+  // Tile templates may contain provider-issued signed query parameters.
+  // Avoid reusing stale source URLs for three hours.
+  completed.set(index,{value:payload,until:Date.now()+20*60*1000})
   return json(payload)
  }catch(error){
   const detail=error instanceof Error?error.message:'Unknown satellite service failure'
