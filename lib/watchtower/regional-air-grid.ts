@@ -1,6 +1,6 @@
-/** Bounded, cacheable ADSB.lol geographic tile requests.
- * A whole 60-circle scan is split into six independent 10-circle batches
- * so a regional outage never blocks the remainder or the aircraft type feed. */
+/** Real ADSB.lol geographic queries, with targeted Saudi/Oman/Yemen airports
+ * first and the full 60-circle Egypt-to-Pakistan geographic grid afterward.
+ * Public receiver coverage and provider rate limits remain independent. */
 import {mergeAssets,parseAircraft} from './global-tracking'
 import {REGIONAL_AIR_BATCH_COUNT,REGIONAL_AIR_CENTERS,type RegionalAirBatch} from './regional-air-shared'
 
@@ -41,6 +41,7 @@ async function collect(batch:number):Promise<RegionalAirBatch>{
     centers:centers.length,succeeded:0,failed:centers.length,
     failureCodes:{disabled:centers.length},circles:centers.map(c=>({
       lat:c.lat,lon:c.lon,count:0,status:'failed' as const,code:'disabled',
+      hub:c.hub,region:c.region,
     })),
     latestObservationAt:null,assets:[],note:'ADSB.lol disabled on server.',
   }
@@ -54,11 +55,13 @@ async function collect(batch:number):Promise<RegionalAirBatch>{
       const assets=await fetchCircle(center.lat,center.lon)
       hits.push(assets)
       succeeded++
-      circles.push({lat:center.lat,lon:center.lon,count:assets.length,status:'ok'})
+      circles.push({lat:center.lat,lon:center.lon,count:assets.length,status:'ok',
+        hub:center.hub,region:center.region})
     }catch(error){
       const code=failureCode(error)
       failureCodes[code]=(failureCodes[code]??0)+1
-      circles.push({lat:center.lat,lon:center.lon,count:0,status:'failed',code})
+      circles.push({lat:center.lat,lon:center.lon,count:0,status:'failed',code,
+        hub:center.hub,region:center.region})
     }
   }
   const assets=mergeAssets(hits.flat())
@@ -86,7 +89,7 @@ export async function getRegionalAirBatch(batch:number):Promise<RegionalAirBatch
   pending.set(batch,promise)
   try{
     const value=await promise
-    cache.set(batch,{value,expires:Date.now()+(value.succeeded?120000:30000)})
+    cache.set(batch,{value,expires:Date.now()+(value.failed?25000:120000)})
     return value
   }finally{pending.delete(batch)}
 }

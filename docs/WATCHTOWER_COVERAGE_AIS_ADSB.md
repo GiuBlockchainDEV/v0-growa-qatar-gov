@@ -5,11 +5,15 @@ Iran, Pakistan and adjacent waters. Map area coverage is distinct from
 the existence of real source observations.
 
 ## Aviation
-ADSB.lol /v2/lat/{lat}/lon/{lon}/dist/250, with 60 circles on a 6x10 grid.
+ADSB.lol /v2/lat/{lat}/lon/{lon}/dist/250: first 10 dedicated hub queries
+(Riyadh, Sana'a, Muscat, Jeddah, Aden, Dammam, Salalah, Abha, Jazan and
+Duqm), followed by the original 60 geographic circles on a 6x10 grid.
 The largest distance from a grid point to a sample point in the requested
-box is below 250 nautical miles. Six independent cached server batches,
-two concurrent browser requests, five concurrent upstream source requests
-per batch. Five-minute client update, two-minute server cache.
+box is below 250 nautical miles. Fourteen cached server batches of five geographic queries,
+two browser batch requests in parallel, with five serialized provider queries
+per batch. Five-minute client update, two-minute clean-batch cache and
+shorter retry on partial source errors. ADSB.lol applies dynamic rate limits;
+not all hub requests will necessarily succeed.
 Every aircraft must have a real source-observed position and timestamp.
 A successful circle query does not guarantee ADS-B receiver coverage.
 

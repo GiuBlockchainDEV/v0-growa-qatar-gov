@@ -18,7 +18,8 @@ import {visibleUnderwayVessel,visibleObservedVessel} from '@/lib/watchtower/visi
 import {sparseAreaDemoVessels} from '@/lib/watchtower/demo-vessels'
 import type {IpcRiskSnapshot} from '@/lib/watchtower/ipc-food-security'
 import type {PublicFoodSnapshot} from '@/lib/watchtower/public-food-intelligence'
-import {REGIONAL_AIR_BATCH_COUNT,type RegionalAirBatch} from '@/lib/watchtower/regional-air-shared'
+import {REGIONAL_AIR_BATCH_COUNT,REGIONAL_AIR_CENTERS,REGIONAL_AIR_PRIORITY_HUBS,
+ type RegionalAirBatch} from '@/lib/watchtower/regional-air-shared'
 import {REGIONAL_WATCHTOWER_VIEW} from '@/lib/watchtower/map-viewport'
 import type { GlobalTrackingMapProps } from './global-tracking-map'
 import {mergeTrackingUpdate,mergeFlightItineraries,type RouteLookupResponse} from '@/lib/watchtower/tracking-merge'
@@ -542,6 +543,19 @@ export function GlobalWatchtower() {
     return [...aircraft,...vessels]
   },[openSea,globalAis,openWaters,snapshot,maritimeFeed,gccRadar,regionalAir])
   const cargoCandidateCount=allAssets.filter(a=>a.kind==='aircraft'&&inside(a)&&a.cargo!=='unverified').length
+  // Successful geographic queries are not evidence of receiving all flights.
+  // Distinguish source gaps from genuinely received observations per country.
+  const targetedAirCoverage=useMemo(()=>{
+    const queried=regionalAir.flatMap(b=>b.circles)
+    return (['Saudi Arabia','Oman','Yemen'] as const).map(region=>{
+      const hubs=REGIONAL_AIR_PRIORITY_HUBS.filter(h=>h.region===region)
+      const answers=hubs.map(h=>queried.find(c=>c.hub===h.id))
+      const observed=allAssets.filter(a=>a.kind==='aircraft'&&hubs.some(h=>
+        separationKm(a,{lat:h.lat,lon:h.lon})<=250*1.852)).length
+      return {region,received:answers.filter(Boolean).length,
+        ok:answers.filter(a=>a?.status==='ok').length,expected:hubs.length,observed}
+    })
+  },[regionalAir,allAssets])
   const corridorCounts=useMemo(()=>{
     const areas=[
       {id:'suez',name:'Suez / Port Said',south:29.35,west:31.9,north:31.65,east:33.8},
@@ -805,11 +819,18 @@ export function GlobalWatchtower() {
           </p>
           {openSeaError&&<p>{openSeaError}</p>}
           <p><strong>Regional ADS-B grid:</strong> {regionalAir.length}/{REGIONAL_AIR_BATCH_COUNT} batches received,
-            {' '}{regionalAir.reduce((n,b)=>n+b.succeeded,0)}/60 search circles responding,
+            {' '}{regionalAir.reduce((n,b)=>n+b.succeeded,0)}/{REGIONAL_AIR_CENTERS.length} search circles responding,
             {' '}{regionalAir.reduce((n,b)=>n+b.failed,0)} source errors,
             {' '}{regionalAirFailedBatches.length} batch requests failed.
             {' '}{regionalAirLoading?'Loading remaining areas.':''}
           </p>
+          <p><strong>Saudi / Oman / Yemen ADS-B hubs:</strong> actual provider positions only.</p>
+          {targetedAirCoverage.map(area=><p key={area.region}>
+            <strong>{area.region}:</strong> {area.observed} received aircraft observations
+            within monitored airport-radius areas; {area.ok}/{area.expected} hub queries responding
+            {area.received<area.expected?' (remaining hubs pending)':''}.
+            {area.ok<area.received?' Some hub calls failed; traffic may be missing.':''}
+          </p>)}
           <p><strong>ADS-B errors:</strong> {Object.entries(regionalAir.reduce<Record<string,number>>(
             (errors,batch)=>{
               for(const [code,n] of Object.entries(batch.failureCodes??{}))

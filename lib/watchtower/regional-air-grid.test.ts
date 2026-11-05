@@ -1,5 +1,6 @@
 import {describe,it,expect} from 'vitest'
-import {REGIONAL_AIR_CENTERS,REGIONAL_AIR_BATCH_COUNT,REGIONAL_AIR_BOUNDS} from './regional-air-shared'
+import {REGIONAL_AIR_CENTERS,REGIONAL_AIR_BATCH_COUNT,REGIONAL_AIR_BOUNDS,
+ REGIONAL_AIR_PRIORITY_HUBS} from './regional-air-shared'
 
 const nm=(latA:number,lonA:number,latB:number,lonB:number)=>{
   const rad=Math.PI/180,a=latA*rad,b=latB*rad
@@ -9,8 +10,8 @@ const nm=(latA:number,lonA:number,latB:number,lonB:number)=>{
 }
 describe('Geographic coverage of the full Watchtower screenshot',()=>{
   it('covers the complete Egypt-to-Pakistan rectangle with real 250 NM queries',()=>{
-    expect(REGIONAL_AIR_CENTERS).toHaveLength(60)
-    expect(REGIONAL_AIR_BATCH_COUNT).toBe(12)
+    expect(REGIONAL_AIR_CENTERS).toHaveLength(70)
+    expect(REGIONAL_AIR_BATCH_COUNT).toBe(14)
     for(const center of REGIONAL_AIR_CENTERS){
       expect(center.lat).toBeGreaterThanOrEqual(7)
       expect(center.lat).toBeLessThanOrEqual(42)
@@ -28,9 +29,20 @@ describe('Geographic coverage of the full Watchtower screenshot',()=>{
     const priority=REGIONAL_AIR_CENTERS.filter(c=>c.batch<2)
     expect(priority).toHaveLength(10)
     expect(priority.some(c=>c.lat>=20&&c.lat<=30&&c.lon>=49&&c.lon<=61)).toBe(true)
-    expect(new Set(REGIONAL_AIR_CENTERS.map(c=>c.index)).size).toBe(60)
+    expect(new Set(REGIONAL_AIR_CENTERS.map(c=>c.index)).size).toBe(70)
   })
-  it('splits the area into twelve serialized five-query batches',()=>{
+  it('prioritizes genuine Saudi, Yemeni and Omani positions before generic grid scans',()=>{
+    const leading=REGIONAL_AIR_CENTERS.slice(0,10)
+    expect(REGIONAL_AIR_PRIORITY_HUBS).toHaveLength(10)
+    expect(leading.map(c=>c.hub)).toEqual(REGIONAL_AIR_PRIORITY_HUBS.map(h=>h.id))
+    for(const region of ['Saudi Arabia','Yemen','Oman']){
+      expect(leading.filter(c=>c.region===region).length).toBeGreaterThanOrEqual(2)
+      expect(leading.slice(0,5).some(c=>c.region===region)).toBe(true)
+    }
+    expect(REGIONAL_AIR_CENTERS.filter(c=>!c.hub)).toHaveLength(60)
+    expect(new Set(leading.map(c=>c.lat+':'+c.lon)).size).toBe(10)
+  })
+  it('splits the area into fourteen serialized five-query batches',()=>{
     for(let batch=0;batch<REGIONAL_AIR_BATCH_COUNT;batch++)
       expect(REGIONAL_AIR_CENTERS.filter(c=>c.batch===batch)).toHaveLength(5)
   })
