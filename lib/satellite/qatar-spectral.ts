@@ -75,7 +75,7 @@ export type StacSceneFeature={
  assets?:Record<string,unknown>
 }
 export function selectQatarSentinelScenes(
- features:readonly StacSceneFeature[],index:SpectralIndex,max=12,
+ features:readonly StacSceneFeature[],index:SpectralIndex,max=18,
 ):SentinelScene[]{
  const required=SPECTRAL_INDEX_CONFIG[index].bands
  const available:SentinelScene[]=[]
@@ -98,13 +98,27 @@ export function selectQatarSentinelScenes(
    bbox,sceneDate:acquisition.slice(0,10),cloudCover:cloud})
  }
  available.sort((a,b)=>b.sceneDate.localeCompare(a.sceneDate)||a.cloudCover-b.cloudCover)
- const seen=new Set<string>()
- const selected:SentinelScene[]=[]
+ // A single scene per MGRS tile frequently leaves valid Qatar pixels blank
+ // because of clouds, data gaps, scene-edge footprints or failed image tiles.
+ // Take up to THREE separately acquired observations per tile. Select one
+ // from every available MGRS tile first before adding second/third choices,
+ // so dense source coverage in one part of Qatar never crowds out another.
+ const grouped=new Map<string,SentinelScene[]>()
  for(const scene of available){
-  if(seen.has(scene.tile))continue
-  seen.add(scene.tile)
-  selected.push(scene)
-  if(selected.length>=Math.max(1,Math.min(max,20)))break
+  const group=grouped.get(scene.tile)??[]
+  if(group.length<3)group.push(scene)
+  grouped.set(scene.tile,group)
  }
+ const selected:SentinelScene[]=[]
+ const limit=Math.max(1,Math.min(max,24))
+ for(let depth=0;depth<3&&selected.length<limit;depth++){
+  for(const group of grouped.values()){
+   const scene=group[depth]
+   if(scene)selected.push(scene)
+   if(selected.length===limit)break
+  }
+ }
+ // The browser blends only actual returned Sentinel-2 pixels. Missing data
+ // remains transparent rather than being interpolated or invented.
  return selected.sort((a,b)=>a.sceneDate.localeCompare(b.sceneDate))
 }
