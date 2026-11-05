@@ -14,6 +14,7 @@ import {MONITORED_MARITIME_PORTS,type GccRadarSnapshot} from '@/lib/watchtower/m
 import type {HormuzNowFeed} from '@/lib/watchtower/hormuz-now'
 import type {OpenSeaFeedSnapshot} from '@/lib/watchtower/openseafeed'
 import type {OpenWatersSnapshot} from '@/lib/watchtower/open-waters-ais'
+import type {OpenSkySnapshot} from '@/lib/watchtower/opensky-regional'
 import {visibleUnderwayVessel,visibleObservedVessel} from '@/lib/watchtower/visible-vessels'
 import {sparseAreaDemoVessels} from '@/lib/watchtower/demo-vessels'
 import type {IpcRiskSnapshot} from '@/lib/watchtower/ipc-food-security'
@@ -63,6 +64,7 @@ export function GlobalWatchtower() {
   const [openWatersError,setOpenWatersError]=useState('')
   const [freightFlightsOnly,setFreightFlightsOnly]=useState(false)
   const [regionalAir,setRegionalAir]=useState<RegionalAirBatch[]>([])
+  const [openSkyAir,setOpenSkyAir]=useState<OpenSkySnapshot|null>(null)
   const [regionalAirLoading,setRegionalAirLoading]=useState(false)
   const [regionalAirFailedBatches,setRegionalAirFailedBatches]=useState<number[]>([])
   const [maritimeError,setMaritimeError]=useState('')
@@ -203,6 +205,37 @@ export function GlobalWatchtower() {
     const visible=()=>{if(!document.hidden)void load()}
     document.addEventListener('visibilitychange',visible)
     return()=>{active=false;controller.abort();clearInterval(interval)
+      document.removeEventListener('visibilitychange',visible)}
+  },[refresh])
+  // Independent OpenSky source for Saudi/Oman/Yemen coverage.
+  // Provider availability and real position timestamps are never inferred.
+  useEffect(()=>{
+    let active=true
+    const controller=new AbortController()
+    const load=async()=>{
+      if(!active||document.hidden||pausedRef.current)return
+      try{
+        const response=await fetch('/api/watchtower/opensky-region',{
+          cache:'no-store',
+          signal:AbortSignal.any([controller.signal,AbortSignal.timeout(17000)]),
+        })
+        if(!response.ok)throw Error('OpenSky HTTP '+response.status)
+        const body=await response.json() as OpenSkySnapshot
+        if(body.source!=='OpenSky Network'||!Array.isArray(body.assets))
+          throw Error('Invalid OpenSky response')
+        if(active)setOpenSkyAir(body)
+      }catch(error){
+        if(active&&!controller.signal.aborted)
+          setOpenSkyAir({source:'OpenSky Network',state:'unavailable',
+            checkedAt:new Date().toISOString(),assets:[],
+            detail:error instanceof Error?error.message:'OpenSky unavailable'})
+      }
+    }
+    void load()
+    const timer=setInterval(()=>void load(),30*60000)
+    const visible=()=>{if(!document.hidden)void load()}
+    document.addEventListener('visibilitychange',visible)
+    return()=>{active=false;controller.abort();clearInterval(timer)
       document.removeEventListener('visibilitychange',visible)}
   },[refresh])
   // IPC assessments cover assessed countries worldwide. Their aggregate
@@ -515,7 +548,7 @@ export function GlobalWatchtower() {
   const allAssets=useMemo(()=>{
     const incoming=[
       ...(openSea?.assets??[]),...(globalAis?.assets??[]),...(openWaters?.assets??[]),...(snapshot?.assets??[]),
-      ...regionalAir.flatMap(batch=>batch.assets),
+      ...regionalAir.flatMap(batch=>batch.assets),...(openSkyAir?.assets??[]),
       ...(maritimeFeed?.assets??[]),...(gccRadar?.assets??[]),
     ]
     // Regional AIS can contain >1,500 actual ship positions. Do not impose
@@ -541,7 +574,7 @@ export function GlobalWatchtower() {
       ...aircraftCandidates.filter(a=>a.lat<7||a.lat>42||a.lon<25||a.lon>80).slice(0,450),
     ]
     return [...aircraft,...vessels]
-  },[openSea,globalAis,openWaters,snapshot,maritimeFeed,gccRadar,regionalAir])
+  },[openSea,globalAis,openWaters,snapshot,maritimeFeed,gccRadar,regionalAir,openSkyAir])
   const cargoCandidateCount=allAssets.filter(a=>a.kind==='aircraft'&&inside(a)&&a.cargo!=='unverified').length
   // Successful geographic queries are not evidence of receiving all flights.
   // Distinguish source gaps from genuinely received observations per country.
@@ -825,6 +858,7 @@ export function GlobalWatchtower() {
             {' '}{regionalAirLoading?'Loading remaining areas.':''}
           </p>
           <p><strong>Saudi / Oman / Yemen ADS-B hubs:</strong> actual provider positions only.</p>
+          <p><strong>Independent OpenSky source:</strong> {openSkyAir?.state??'loading'} · {openSkyAir?.assets.length??'N/A'} observed aircraft. {openSkyAir?.detail??''}</p>
           {targetedAirCoverage.map(area=><p key={area.region}>
             <strong>{area.region}:</strong> {area.observed} received aircraft observations
             within monitored airport-radius areas; {area.ok}/{area.expected} hub queries responding
