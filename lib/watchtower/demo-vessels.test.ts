@@ -45,7 +45,7 @@ describe('clearly separated demonstration ships',()=>{
     const markers=DEMO_VESSEL_MARKERS.filter(x=>x.region==='arabian_sea')
     expect(markers).toHaveLength(21)
     expect(markers.every(x=>x.lat>=14&&x.lat<=23.2&&x.lon>=54.2&&x.lon<=74)).toBe(true)
-    expect(new Set(markers.map(x=>x.lat+':'+x.lon)).size).toBe(42)
+    expect(new Set(markers.map(x=>x.lat+':'+x.lon)).size).toBe(21)
     expect(markers.filter(x=>x.lon>=65).length).toBeGreaterThan(5)
   })
   it('keeps real records out of the demo overlay',()=>{
