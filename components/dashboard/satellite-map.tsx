@@ -2308,10 +2308,9 @@ export function SatelliteMap({
             aria-pressed={showFarmOverlays}
             aria-label={showFarmOverlays ? 'Hide farms and polygons' : 'Show farms and polygons'}
             title={showFarmOverlays ? 'Hide farms and polygons' : 'Show farms and polygons'}
-            className="flex min-h-10 items-center justify-center gap-2 rounded-lg border border-line bg-card px-3 text-[12px] font-semibold text-content shadow-panel transition-colors hover:bg-stone-100"
+            className="flex h-10 w-10 items-center justify-center rounded-pill border border-line bg-card text-content shadow-panel transition-colors hover:bg-stone-100"
           >
-            {showFarmOverlays ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-            {showFarmOverlays ? 'Hide farms & polygons' : 'Show farms & polygons'}
+            {showFarmOverlays ? <EyeOff className="h-5 w-5" aria-hidden="true" /> : <Eye className="h-5 w-5" aria-hidden="true" />}
           </button>
         )}
         {isGrowaAdmin && (
