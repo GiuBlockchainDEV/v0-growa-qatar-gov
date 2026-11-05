@@ -1,5 +1,5 @@
 import {describe,it,expect} from 'vitest'
-import {blendSpectralPixels,tileScenePixelBox,intersectsPixelTile} from './qatar-raster-composite'
+import {blendSpectralPixels,tileScenePixelBox,intersectsPixelTile,superResolveSpectralTile2x} from './qatar-raster-composite'
 
 function filled(size:number,r:number,g:number,b:number){
  const rgba=new Uint8ClampedArray(size*size*4)
@@ -44,5 +44,51 @@ describe('Single-layer Qatar STAC composite',()=>{
   expect(b).toEqual({left:500,top:-260,right:520,bottom:-240})
   expect(intersectsPixelTile(b)).toBe(false)
   expect(intersectsPixelTile({left:-5,top:-5,right:20,bottom:20})).toBe(true)
+ })
+})
+
+
+describe('2x visual edge-preserving spectral reconstruction',()=>{
+ it('preserves original samples and a flat index color at twice the pixel count',()=>{
+  const input=filled(4,20,110,70)
+  const enhanced=superResolveSpectralTile2x(input,4)
+  expect(enhanced).toHaveLength(8*8*4)
+  for(let y=0;y<8;y++)for(let x=0;x<8;x++){
+   expect(pixel(enhanced,8,x,y)).toEqual([20,110,70,255])
+  }
+  for(let y=0;y<4;y++)for(let x=0;x<4;x++){
+   expect(pixel(enhanced,8,x*2,y*2)).toEqual(pixel(input,4,x,y))
+  }
+ })
+ it('keeps all missing or transparent satellite pixels transparent',()=>{
+  const input=filled(4,180,40,90)
+  for(let y=0;y<4;y++)for(let x=2;x<4;x++)
+   input[(y*4+x)*4+3]=0
+  const enhanced=superResolveSpectralTile2x(input,4)
+  for(let y=0;y<8;y++)for(let x=4;x<8;x++)
+   expect(pixel(enhanced,8,x,y)[3]).toBe(0)
+  expect(pixel(enhanced,8,3,3)[3]).toBe(0)
+  expect(pixel(enhanced,8,2,2)[3]).toBe(255)
+ })
+ it('limits color overshoot across sharp NDVI/NDMI boundaries',()=>{
+  const input=filled(4,15,30,220)
+  for(let y=0;y<4;y++)for(let x=2;x<4;x++){
+   const p=(y*4+x)*4
+   input[p]=240;input[p+1]=80;input[p+2]=15
+  }
+  const enhanced=superResolveSpectralTile2x(input,4)
+  for(let i=0;i<enhanced.length;i+=4){
+   if(enhanced[i+3]===0)continue
+   expect(enhanced[i]).toBeGreaterThanOrEqual(15)
+   expect(enhanced[i]).toBeLessThanOrEqual(240)
+   expect(enhanced[i+1]).toBeGreaterThanOrEqual(30)
+   expect(enhanced[i+1]).toBeLessThanOrEqual(80)
+   expect(enhanced[i+2]).toBeGreaterThanOrEqual(15)
+   expect(enhanced[i+2]).toBeLessThanOrEqual(220)
+  }
+ })
+ it('rejects invalid buffer sizes instead of painting fabricated imagery',()=>{
+  expect(()=>superResolveSpectralTile2x(new Uint8ClampedArray(3),4)).toThrow('Invalid spectral tile')
+  expect(()=>superResolveSpectralTile2x(new Uint8ClampedArray(0),0)).toThrow()
  })
 })
