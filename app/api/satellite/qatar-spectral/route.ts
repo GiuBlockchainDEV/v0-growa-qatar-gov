@@ -113,7 +113,7 @@ async function stacComposite(index:SpectralIndex,now:Date):Promise<SpectralRespo
    query:search.query,sortby:search.sortby,limit:240,
   }),
  },10500)
- const candidates=selectQatarSentinelScenes(catalogue.features??[],index,12)
+ const candidates=selectQatarSentinelScenes(catalogue.features??[],index,18)
  if(!candidates.length)throw new ProviderError('stac_search',null,
   'no usable low-cloud scenes returned')
  const tiles:SpectralResponse['tiles']=[]
@@ -142,7 +142,8 @@ async function stacComposite(index:SpectralIndex,now:Date):Promise<SpectralRespo
  return response(index,'stac-composite',tiles,
   search.datetime.slice(0,10),now.toISOString().slice(0,10),
   tiles.length+' observed scenes composed per tile with feathered overlaps. '+
-  'Dates may differ and gaps remain transparent; this is not a quantitative, single-date index measurement.')
+  'Up to three authentic scenes per MGRS tile are combined for stronger coverage. ' +
+  'Dates may differ and no-data gaps remain transparent; this is not a quantitative, single-date index measurement.')
 }
 async function resolve(index:SpectralIndex):Promise<SpectralResponse>{
  const now=new Date()
