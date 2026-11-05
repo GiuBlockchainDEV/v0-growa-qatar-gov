@@ -28,29 +28,81 @@ function tileUrl(template:string,coords:{x:number;y:number;z:number}){
  return template.replace(/(?:\{|%7B)(z|x|y)(?:\}|%7D)/gi,(_,axis:string)=>
   String(coords[axis as keyof typeof coords]))
 }
-function loadRasterPixelData(url:string,signal:AbortSignal):Promise<Uint8ClampedArray>{
+/** Bounded concurrent image loads with abort handling and retry on transient failures. */
+const RASTER_MAX_CONCURRENT=6
+let activeRasterLoads=0
+const rasterQueue:Array<()=>void>=[]
+async function withRasterPermit(signal:AbortSignal):Promise<()=>void>{
+ if(signal.aborted)throw Error('Raster request cancelled')
+ if(activeRasterLoads>=RASTER_MAX_CONCURRENT){
+  await new Promise<void>((resolve,reject)=>{
+   const wake=()=>{signal.removeEventListener('abort',cancel);resolve()}
+   const cancel=()=>{
+    const at=rasterQueue.indexOf(wake)
+    if(at>=0)rasterQueue.splice(at,1)
+    reject(Error('Raster request cancelled'))
+   }
+   rasterQueue.push(wake)
+   signal.addEventListener('abort',cancel,{once:true})
+  })
+  if(signal.aborted){
+   const next=rasterQueue.shift()
+   if(next)next()
+   else activeRasterLoads--
+   throw Error('Raster request cancelled')
+  }
+ }else activeRasterLoads++
+ return ()=>{const next=rasterQueue.shift();if(next)next();else activeRasterLoads--}
+}
+function singleRasterLoad(url:string,signal:AbortSignal):Promise<Uint8ClampedArray>{
  return new Promise((resolve,reject)=>{
-  if(signal.aborted){reject(new Error('Raster request cancelled'));return}
+  if(signal.aborted){reject(Error('Raster request cancelled'));return}
   const image=new Image()
   image.crossOrigin='anonymous'
-  const cancel=()=>{image.src='';reject(new Error('Raster request cancelled'))}
+  let complete=false
+  const cleanup=()=>{
+   clearTimeout(timeout)
+   signal.removeEventListener('abort',cancel)
+   image.onload=null;image.onerror=null
+  }
+  const fail=(error:string)=>{
+   if(complete)return
+   complete=true;cleanup();image.src='';reject(Error(error))
+  }
+  const cancel=()=>fail('Raster request cancelled')
+  const timeout=setTimeout(()=>fail('Satellite tile timeout'),10000)
   signal.addEventListener('abort',cancel,{once:true})
-  const dispose=()=>signal.removeEventListener('abort',cancel)
   image.onload=()=>{
-   dispose()
+   if(complete)return
+   complete=true;cleanup()
    try{
-    const sourceCanvas=document.createElement('canvas')
-    sourceCanvas.width=TILE_SIZE
-    sourceCanvas.height=TILE_SIZE
-    const sourceContext=sourceCanvas.getContext('2d',{willReadFrequently:true})
-    if(!sourceContext)throw new Error('Pixel compositing is unsupported')
-    sourceContext.drawImage(image,0,0,TILE_SIZE,TILE_SIZE)
-    resolve(sourceContext.getImageData(0,0,TILE_SIZE,TILE_SIZE).data)
+    const canvas=document.createElement('canvas')
+    canvas.width=TILE_SIZE;canvas.height=TILE_SIZE
+    const ctx=canvas.getContext('2d',{willReadFrequently:true})
+    if(!ctx)throw Error('Pixel compositing is unsupported')
+    ctx.drawImage(image,0,0,TILE_SIZE,TILE_SIZE)
+    resolve(ctx.getImageData(0,0,TILE_SIZE,TILE_SIZE).data)
    }catch(error){reject(error)}
   }
-  image.onerror=()=>{dispose();reject(new Error('Satellite image tile unavailable'))}
+  image.onerror=()=>fail('Satellite image tile unavailable')
   image.src=url
  })
+}
+async function loadRasterPixelData(url:string,signal:AbortSignal):Promise<Uint8ClampedArray>{
+ const release=await withRasterPermit(signal)
+ try{
+  let last:unknown
+  for(let attempt=0;attempt<3;attempt++){
+   if(signal.aborted)throw Error('Raster request cancelled')
+   try{return await singleRasterLoad(url,signal)}
+   catch(error){
+    last=error
+    if(attempt<2&&!signal.aborted)
+      await new Promise<void>(resolve=>setTimeout(resolve,(attempt+1)*400))
+   }
+  }
+  throw last instanceof Error?last:Error('Raster tile unavailable')
+ }finally{release()}
 }
 function validTiles(payload:TilePayload):Array<SpectralTile&{cloudCover?:number}>{
  return payload.mode==='stac-composite'&&payload.tiles.length?
@@ -110,7 +162,7 @@ export function QatarSpectralLayers({map}:{map:MapController|null}){
   let disposed=false
   let layer:GridLayer|null=null
   const controller=new AbortController()
-  let loaded=0,failures=0
+  let loaded=0,failures=0,sceneFailures=0
   void import('leaflet').then(module=>{
    if(disposed)return
    const L=module.default
@@ -155,6 +207,7 @@ export function QatarSpectralLayers({map}:{map:MapController|null}){
         cloudCover:number|undefined
        }>=>x.status==='fulfilled',
       ).map(x=>x.value)
+      if(loadedScenes.some(result=>result.status==='rejected'))sceneFailures++
       if(successful.length===0){
        done(new Error('No Sentinel-2 scene tiles were returned'),canvas)
        return
@@ -206,11 +259,19 @@ export function QatarSpectralLayers({map}:{map:MapController|null}){
    layer.on('tileload',()=>{
     if(!disposed){loaded++;setRendered(true);setBusy(false)}
    })
+   layer.on('load',()=>{
+    if(disposed)return
+    setBusy(false)
+    if(failures||sceneFailures)
+     setError('Partial imagery: '+failures+' missing tile(s), '+
+      sceneFailures+' tile(s) with failed scene requests. Retry imagery to reload.')
+    else setError(null)
+   })
    layer.on('tileerror',()=>{
     failures++
-    if(!disposed&&loaded===0&&failures>=8){
-     setBusy(false)
-     setError('Sentinel-2 imagery tiles are not accessible. Retry the satellite layer.')
+    if(!disposed){
+     setError('Some satellite tiles failed to load. Retry imagery to refresh the coverage.')
+     if(loaded===0&&failures>=8)setBusy(false)
     }
    })
   }).catch(()=>{
