@@ -161,12 +161,23 @@ export function QatarSpectralLayers({map}:{map:MapController|null}){
  const [retry,setRetry]=useState(0)
  const overlay=useRef<GridLayer|null>(null)
  const detailOverlay=useRef<GridLayer|null>(null)
+ const sfimOverviewOverlay=useRef<GridLayer|null>(null)
+ const sfimDetailOverlay=useRef<GridLayer|null>(null)
+ // The original base tiles are never removed or redrawn when switching
+ // fusion on/off: only the already isolated SFIM+HPA overlays change.
  useEffect(()=>{
   sfimHpaRef.current=sfimHpaEnabled
   setNirGuidanceUsed(false)
-  overlay.current?.redraw()
-  detailOverlay.current?.redraw()
- },[sfimHpaEnabled])
+  if(!map)return
+  for(const layer of [sfimOverviewOverlay.current,sfimDetailOverlay.current]){
+   if(!layer)continue
+   if(sfimHpaEnabled){
+    if(!map.hasLayer(layer))layer.addTo(map)
+   }else if(map.hasLayer(layer)){
+    layer.remove()
+   }
+  }
+ },[map,sfimHpaEnabled])
 
  useEffect(()=>{
   if(!index){
@@ -199,14 +210,20 @@ export function QatarSpectralLayers({map}:{map:MapController|null}){
  },[index,retry])
 
  useEffect(()=>{
-  overlay.current?.remove()
+  sfimDetailOverlay.current?.remove()
+  sfimOverviewOverlay.current?.remove()
   detailOverlay.current?.remove()
-  overlay.current=null
+  overlay.current?.remove()
+  sfimDetailOverlay.current=null
+  sfimOverviewOverlay.current=null
   detailOverlay.current=null
+  overlay.current=null
   if(!map||!index||!payload||payload.index!==index)return
   let disposed=false
   let layer:GridLayer|null=null
   let detailLayer:GridLayer|null=null
+  let sfimOverview:GridLayer|null=null
+  let sfimDetail:GridLayer|null=null
   const controller=new AbortController()
   let loaded=0,failures=0,sceneFailures=0
   void import('leaflet').then(module=>{
@@ -223,11 +240,11 @@ export function QatarSpectralLayers({map}:{map:MapController|null}){
     [QATAR_SPECTRAL_BBOX[3],QATAR_SPECTRAL_BBOX[2]],
    )
    const imagery=validTiles(payload)
-   const Raster=L.GridLayer.extend({
+   // Two independent render modes: original imagery always remains beneath
+   // the fused tiles. A fused tile becomes visible ONLY when fully rendered.
+   // This prevents any later unprocessed tile from overwriting SFIM+HPA.
+   const makeRaster=(fusionMode:boolean)=>L.GridLayer.extend({
     createTile(coords:L.Coords,done:(error:Error|null,tile:HTMLElement)=>void){
-     // A stable 256px canvas is always shown immediately using actual index
-     // imagery. B08 guided SFIM+HPA repaints it progressively when available.
-     const guidanceWanted=sfimHpaRef.current
      const canvas=document.createElement('canvas')
      canvas.width=TILE_SIZE
      canvas.height=TILE_SIZE
@@ -289,42 +306,57 @@ export function QatarSpectralLayers({map}:{map:MapController|null}){
          context.drawImage(sourceCanvas,0,0,TILE_SIZE,TILE_SIZE)
         }finally{context.restore()}
        }
-       // Finish the Leaflet tile immediately, before loading supplementary
-       // near-infrared guidance. This prevents screen flicker and blank zooms.
-       paint(pixels)
-       done(null,canvas)
-       if(guidanceWanted){
-        void (async()=>{
-         const guidance=await Promise.allSettled(successful.map(async item=>{
-          const from=available.find(a=>a.box===item.box)
-          if(!from)return null
-          const template=nirGuideTileUrl(from.scene.url)
-          if(!template)return null
-          const nir=await loadRasterPixelData(tileUrl(template,coords),controller.signal)
-          return {rgba:nir,box:item.box,cloudCover:item.cloudCover}
-         }))
-         if(disposed||controller.signal.aborted||!sfimHpaRef.current)return
-         const good=guidance.flatMap(entry=>
-          entry.status==='fulfilled'&&entry.value?[entry.value]:[])
-         if(!good.length)return
-         const guide=payload.mode==='mosaic'?good[0].rgba:
-          blendSpectralPixels(good,TILE_SIZE,52)
-         if(!guide.some((value,i)=>i%4===3&&value>0))return
-         const fused=sfimHpaSpectralVisualFusion(pixels,guide,TILE_SIZE)
-         paint(fused)
-         setNirGuidanceUsed(true)
-        })().catch(()=>undefined)
+       // The original layer finishes immediately; it is never touched by
+       // the guidance requests and stays visible as a dependable fallback.
+       if(!fusionMode){
+        paint(pixels)
+        done(null,canvas)
+        return
        }
+       // A separate upper SFIM+HPA layer waits for the completed fusion
+       // BEFORE Leaflet receives tileReady(). There is no late repaint of
+       // an already registered tile, and the lower original is never erased.
+       const guidance=await Promise.allSettled(successful.map(async item=>{
+        const from=available.find(a=>a.box===item.box)
+        if(!from)return null
+        const template=nirGuideTileUrl(from.scene.url)
+        if(!template)return null
+        const nir=await loadRasterPixelData(tileUrl(template,coords),controller.signal)
+        return {rgba:nir,box:item.box,cloudCover:item.cloudCover}
+       }))
+       if(disposed||controller.signal.aborted)return
+       const good=guidance.flatMap(entry=>
+        entry.status==='fulfilled'&&entry.value?[entry.value]:[])
+       if(!good.length){
+        done(null,canvas) // Transparent fused tile: leave the real base visible.
+        return
+       }
+       const guide=payload.mode==='mosaic'?good[0].rgba:
+        blendSpectralPixels(good,TILE_SIZE,52)
+       if(!guide.some((value,i)=>i%4===3&&value>0)){
+        done(null,canvas)
+        return
+       }
+       const fused=sfimHpaSpectralVisualFusion(pixels,guide,TILE_SIZE)
+       paint(fused)
+       done(null,canvas)
+       setNirGuidanceUsed(true)
       }catch(error){
-       done(error instanceof Error?error:new Error('Raster compositing failed'),canvas)
+       // A failed guidance tile must not blank the original map.
+       if(fusionMode)done(null,canvas)
+       else done(error instanceof Error?error:new Error('Raster compositing failed'),canvas)
       }
      }
      void render().catch(reason=>{
-      if(!disposed)done(reason instanceof Error?reason:new Error('Raster failed'),canvas)
+      if(disposed)return
+      if(fusionMode)done(null,canvas)
+      else done(reason instanceof Error?reason:new Error('Raster failed'),canvas)
      })
      return canvas
     },
    }) as unknown as new(options?:GridLayerOptions)=>GridLayer
+   const Raster=makeRaster(false)
+   const FusedRaster=makeRaster(true)
    // The overview is always resident and uses the SAME source pixels at
    // every map zoom. At close zooms a fixed native-detail grid renders above
    // it; when high-resolution images are pending, the overview stays visible.
@@ -353,7 +385,28 @@ export function QatarSpectralLayers({map}:{map:MapController|null}){
    detailLayer.addTo(map)
    detailLayer.setZIndex(301)
    detailOverlay.current=detailLayer
-   for(const raster of [layer,detailLayer]){
+   sfimOverview=new FusedRaster({
+    ...common,
+    minNativeZoom:SPECTRAL_OVERVIEW_ZOOM,
+    maxNativeZoom:SPECTRAL_OVERVIEW_ZOOM,
+    keepBuffer:8,
+   })
+   sfimOverview.setZIndex(302)
+   sfimOverviewOverlay.current=sfimOverview
+   sfimDetail=new FusedRaster({
+    ...common,
+    minZoom:SPECTRAL_DETAIL_START_ZOOM,
+    minNativeZoom:SPECTRAL_DETAIL_ZOOM,
+    maxNativeZoom:SPECTRAL_DETAIL_ZOOM,
+    keepBuffer:3,
+   })
+   sfimDetail.setZIndex(303)
+   sfimDetailOverlay.current=sfimDetail
+   if(sfimHpaRef.current){
+    sfimOverview.addTo(map)
+    sfimDetail.addTo(map)
+   }
+   for(const raster of [layer,detailLayer,sfimOverview,sfimDetail]){
     raster.on('tileload',()=>{
      if(!disposed){loaded++;setRendered(true);setBusy(false)}
     })
@@ -379,8 +432,12 @@ export function QatarSpectralLayers({map}:{map:MapController|null}){
   return ()=>{
    disposed=true
    controller.abort()
+   sfimDetail?.remove()
+   sfimOverview?.remove()
    detailLayer?.remove()
    layer?.remove()
+   if(sfimDetailOverlay.current===sfimDetail)sfimDetailOverlay.current=null
+   if(sfimOverviewOverlay.current===sfimOverview)sfimOverviewOverlay.current=null
    if(detailOverlay.current===detailLayer)detailOverlay.current=null
    if(overlay.current===layer)overlay.current=null
   }
