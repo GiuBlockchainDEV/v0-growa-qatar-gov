@@ -85,7 +85,7 @@ export function UtilityPressureMonitor({domain}:{domain:UtilityDomain}){
  return <section className="rounded-2xl border border-line bg-card p-5" aria-label={domain+' daily and weekly pressure trends'}>
   <div className="flex flex-wrap items-start justify-between gap-3">
    <div>
-    <h2 className="mt-2 text-xl font-bold">Daily & weekly peaks, trends and criticalities</h2>
+    {domain==='water'&&<h2 className="mt-2 text-xl font-bold">Daily & weekly peaks, trends and criticalities</h2>}
     <p className="mt-1 text-xs text-content-soft">Source-backed weather observations, not national {domain==='water'?'water withdrawals (m³)':'electricity demand (MW)'}.</p>
    </div>
    <div className="flex flex-wrap gap-2">
