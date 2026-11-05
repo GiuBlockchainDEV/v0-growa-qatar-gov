@@ -2,9 +2,9 @@
 
 import {useEffect,useMemo,useState} from 'react'
 import {
- AlertTriangle,ArrowUpRight,BarChart3,CalendarRange,CheckCircle2,
+ AlertTriangle,ArrowUpRight,BarChart3,CheckCircle2,
  ChevronDown,Database,Factory,Globe2,PackageCheck,RefreshCw,
- ShieldAlert,ShieldCheck,SlidersHorizontal,Sparkles,TrendingUp,Truck,
+ ShieldAlert,ShieldCheck,SlidersHorizontal,Sparkles,Truck,
 } from 'lucide-react'
 import {
  USD_QAR_REFERENCE,FERTILIZER_PRODUCTS,DEFAULT_FERTILIZER_STRESS,
@@ -13,7 +13,7 @@ import {
  fertilizerPriceChange,latestFertilizerPrice,modeledDeliveredPrice,
  shortTermRecommendations,emptyStock,
  type FertilizerHorizon,type FertilizerId,type FertilizerPrice,
- type FertilizerProduct,type FertilizerSnapshot,type FertilizerStock,
+ type FertilizerSnapshot,type FertilizerStock,
  type FertilizerStress,type FertilizerRisk,
 } from '@/lib/analytics/qatar-fertilizer'
 const money=(v:number|null|undefined,decimals=0)=>
@@ -41,7 +41,7 @@ function PriceHistory({prices,label}:{prices:FertilizerPrice[];label:string}){
  if(prices.length<2)return <div className="grid min-h-[260px] place-items-center rounded-xl border border-dashed border-line text-center text-xs text-content-soft">
   No comparable historical benchmark for this grade. Enter a supplier quotation.
  </div>
- const [selected,setSelected]=[prices.at(-1)!,()=>undefined] as const
+ const selected=prices.at(-1)!
  const w=780,h=276,left=50,right=758,top=22,bottom=226
  const low=Math.min(...prices.map(x=>x.usdPerTonne)),high=Math.max(...prices.map(x=>x.usdPerTonne))
  const min=Math.max(0,low-(high-low)*.12),max=high+(high-low)*.12
@@ -63,7 +63,7 @@ function PriceHistory({prices,label}:{prices:FertilizerPrice[];label:string}){
     <span className="text-[10px] text-content-soft">FX conversion only, excludes freight</span>
    </div>
   </div>
-  <svg viewBox={\`0 0 \${w} \${h}\`} role="img" aria-label={'Published monthly '+label+' benchmark price trend'}
+  <svg viewBox={'0 0 '+w+' '+h} role="img" aria-label={'Published monthly '+label+' benchmark price trend'}
    className="mt-2 h-auto w-full overflow-visible">
    <defs><linearGradient id={'fert-area-'+label.toLowerCase().replace(/[^a-z]/g,'')} x1="0" y1="0" x2="0" y2="1">
     <stop offset="0%" stopColor="#749b84" stopOpacity=".24"/><stop offset="100%" stopColor="#749b84" stopOpacity=".015"/>
@@ -202,6 +202,7 @@ export function FertilizerIntelligence(){
      note="User-entered scenario inventory only. No verified countrywide fertilizer stock feed." icon={PackageCheck}/>
    </div>
 
+   {loading&&<p className="text-[11px] text-content-soft">Refreshing official Qatar fertilizer trade records…</p>}
    {fetchError&&<div role="alert" className="rounded-xl border border-[#ecc8b8] bg-[#fff7f3] p-3 text-xs text-[#895242]">
     Official Qatar trade endpoint unavailable: {fetchError}. The commodity benchmark display uses the clearly dated static World Bank reference series.
    </div>}
