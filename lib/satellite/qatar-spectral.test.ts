@@ -4,6 +4,7 @@ import {join} from 'node:path'
 import {
  QATAR_SPECTRAL_BBOX,qatarMosaicSearch,spectralTileParams,
  isMicrosoftTileUrl,SPECTRAL_INDEX_CONFIG,selectQatarSentinelScenes,
+ SPECTRAL_OVERVIEW_ZOOM,SPECTRAL_DETAIL_ZOOM,SPECTRAL_DETAIL_START_ZOOM,
 } from './qatar-spectral'
 const read=(p:string)=>readFileSync(join(process.cwd(),p),'utf8')
 describe('Qatar nationwide Microsoft Planetary Computer spectral imagery',()=>{
@@ -87,7 +88,18 @@ describe('Qatar nationwide Microsoft Planetary Computer spectral imagery',()=>{
   expect(widget).toContain("payload.mode==='stac-composite'")
   expect(widget).not.toContain('for(const item of tiles)')
   expect(widget).toContain("('/api/satellite/qatar-spectral?index='+index")
-  expect(widget).toContain('container.style.opacity=String(opacity)')
+  expect(widget).toContain('pane.style.opacity=String(opacity)')
+  expect(widget).toContain('maxNativeZoom:SPECTRAL_OVERVIEW_ZOOM')
+  expect(widget).toContain('minNativeZoom:SPECTRAL_OVERVIEW_ZOOM')
+  expect(widget).toContain('maxNativeZoom:SPECTRAL_DETAIL_ZOOM')
+  expect(widget).toContain('minZoom:SPECTRAL_DETAIL_START_ZOOM')
+  expect(widget).toContain('detailOverlay.current?.remove()')
+  expect(widget).toContain('cachedRaster(url)')
+  expect(widget).toContain('rememberRaster(url,pixels)')
+  expect(widget).toContain('keepBuffer:8')
+  expect(SPECTRAL_OVERVIEW_ZOOM).toBe(10)
+  expect(SPECTRAL_DETAIL_ZOOM).toBe(13)
+  expect(SPECTRAL_DETAIL_START_ZOOM).toBe(13)
  })
  it('does not pretend to have observations on service failure',()=>{
   const api=read('app/api/satellite/qatar-spectral/route.ts')

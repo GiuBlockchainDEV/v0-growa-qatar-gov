@@ -4,6 +4,11 @@
  */
 export const QATAR_SPECTRAL_BBOX=[50.69,24.42,51.73,26.26] as const
 export type SpectralIndex='ndvi'|'ndmi'
+/** Fixed native grids prevent zoom/pan from refetching whole mosaics.
+ * The low-resolution national coverage remains beneath detailed tiles. */
+export const SPECTRAL_OVERVIEW_ZOOM=10
+export const SPECTRAL_DETAIL_ZOOM=13
+export const SPECTRAL_DETAIL_START_ZOOM=13
 export const SPECTRAL_WINDOW_DAYS=120
 export const MOSAIC_API='https://planetarycomputer.microsoft.com/api/data/v1'
 export const SPECTRAL_INDEX_CONFIG={

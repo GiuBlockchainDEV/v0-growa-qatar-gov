@@ -5,6 +5,7 @@ import {Layers3,RefreshCw} from 'lucide-react'
 import type {GridLayer,GridLayerOptions} from 'leaflet'
 import type {MapController} from '@/components/dashboard/map/map-model'
 import {QATAR_SPECTRAL_BBOX,SPECTRAL_INDEX_CONFIG,
+ SPECTRAL_OVERVIEW_ZOOM,SPECTRAL_DETAIL_ZOOM,SPECTRAL_DETAIL_START_ZOOM,
  type SpectralIndex,type SpectralTile} from '@/lib/satellite/qatar-spectral'
 import {clipTileToQatar} from '@/lib/satellite/qatar-clip'
 import {
@@ -23,6 +24,28 @@ type TilePayload={
 const NDVI_COLORS=['#a50026','#f46d43','#ffffbf','#a6d96a','#006837']
 const NDMI_COLORS=['#A50026','#F46D43','#F7F7F7','#64B5D7','#163C8C']
 const TILE_SIZE=256
+const SPECTRAL_PANE='growa-spectral-raster'
+/** Cache successful, source-backed raster pixels across Leaflet tile disposal.
+ * ~180 * 256 * 256 * 4 = 45 MB upper bound; failures are never cached. */
+const MAX_CACHED_RASTERS=180
+const cachedRasters=new Map<string,Uint8ClampedArray>()
+function cachedRaster(url:string):Uint8ClampedArray|undefined{
+ const pixels=cachedRasters.get(url)
+ if(pixels){
+  cachedRasters.delete(url)
+  cachedRasters.set(url,pixels)
+ }
+ return pixels
+}
+function rememberRaster(url:string,pixels:Uint8ClampedArray):void{
+ cachedRasters.delete(url)
+ cachedRasters.set(url,pixels)
+ while(cachedRasters.size>MAX_CACHED_RASTERS){
+  const oldest=cachedRasters.keys().next().value
+  if(!oldest)break
+  cachedRasters.delete(oldest)
+ }
+}
 
 function tileUrl(template:string,coords:{x:number;y:number;z:number}){
  return template.replace(/(?:\{|%7B)(z|x|y)(?:\}|%7D)/gi,(_,axis:string)=>
@@ -89,13 +112,23 @@ function singleRasterLoad(url:string,signal:AbortSignal):Promise<Uint8ClampedArr
  })
 }
 async function loadRasterPixelData(url:string,signal:AbortSignal):Promise<Uint8ClampedArray>{
+ if(signal.aborted)throw Error('Raster request cancelled')
+ const previouslyLoaded=cachedRaster(url)
+ if(previouslyLoaded)return previouslyLoaded
  const release=await withRasterPermit(signal)
  try{
+  // A preceding queued render may already have fetched this identical tile.
+  if(signal.aborted)throw Error('Raster request cancelled')
+  const afterQueue=cachedRaster(url)
+  if(afterQueue)return afterQueue
   let last:unknown
   for(let attempt=0;attempt<3;attempt++){
    if(signal.aborted)throw Error('Raster request cancelled')
-   try{return await singleRasterLoad(url,signal)}
-   catch(error){
+   try{
+    const pixels=await singleRasterLoad(url,signal)
+    rememberRaster(url,pixels)
+    return pixels
+   }catch(error){
     last=error
     if(attempt<2&&!signal.aborted)
       await new Promise<void>(resolve=>setTimeout(resolve,(attempt+1)*400))
@@ -124,6 +157,7 @@ export function QatarSpectralLayers({map}:{map:MapController|null}){
  const [error,setError]=useState<string|null>(null)
  const [retry,setRetry]=useState(0)
  const overlay=useRef<GridLayer|null>(null)
+ const detailOverlay=useRef<GridLayer|null>(null)
 
  useEffect(()=>{
   if(!index){
@@ -157,15 +191,24 @@ export function QatarSpectralLayers({map}:{map:MapController|null}){
 
  useEffect(()=>{
   overlay.current?.remove()
+  detailOverlay.current?.remove()
   overlay.current=null
+  detailOverlay.current=null
   if(!map||!index||!payload||payload.index!==index)return
   let disposed=false
   let layer:GridLayer|null=null
+  let detailLayer:GridLayer|null=null
   const controller=new AbortController()
   let loaded=0,failures=0,sceneFailures=0
   void import('leaflet').then(module=>{
    if(disposed)return
    const L=module.default
+   // A single pane applies the user opacity once to the combined overview
+   // and detail images. This avoids double-blending two spectral layers.
+   const pane=map.getPane(SPECTRAL_PANE)??map.createPane(SPECTRAL_PANE)
+   pane.style.zIndex='350'
+   pane.style.pointerEvents='none'
+   pane.style.opacity=String(opacity)
    const bounds=L.latLngBounds(
     [QATAR_SPECTRAL_BBOX[1],QATAR_SPECTRAL_BBOX[0]],
     [QATAR_SPECTRAL_BBOX[3],QATAR_SPECTRAL_BBOX[2]],
@@ -246,41 +289,63 @@ export function QatarSpectralLayers({map}:{map:MapController|null}){
      return canvas
     },
    }) as unknown as new(options?:GridLayerOptions)=>GridLayer
-   layer=new Raster({
-    bounds,opacity,tileSize:TILE_SIZE,maxZoom:19,maxNativeZoom:14,
+   // The overview is always resident and uses the SAME source pixels at
+   // every map zoom. At close zooms a fixed native-detail grid renders above
+   // it; when high-resolution images are pending, the overview stays visible.
+   // No 18-scene source burst every time the user moves the zoom wheel.
+   const common={
+    bounds,pane:SPECTRAL_PANE,opacity:1,tileSize:TILE_SIZE,
+    maxZoom:19,noWrap:true,updateWhenIdle:true,updateWhenZooming:false,
     attribution:'ESA Sentinel-2 L2A · Microsoft Planetary Computer · Natural Earth',
-    updateWhenIdle:true,keepBuffer:1,
+   }
+   layer=new Raster({
+    ...common,
+    minNativeZoom:SPECTRAL_OVERVIEW_ZOOM,
+    maxNativeZoom:SPECTRAL_OVERVIEW_ZOOM,
+    keepBuffer:8,
    })
    layer.addTo(map)
-   const container=layer.getContainer()
-   if(container)container.style.opacity=String(opacity)
    layer.setZIndex(300)
    overlay.current=layer
-   layer.on('tileload',()=>{
-    if(!disposed){loaded++;setRendered(true);setBusy(false)}
+   detailLayer=new Raster({
+    ...common,
+    minZoom:SPECTRAL_DETAIL_START_ZOOM,
+    minNativeZoom:SPECTRAL_DETAIL_ZOOM,
+    maxNativeZoom:SPECTRAL_DETAIL_ZOOM,
+    keepBuffer:3,
    })
-   layer.on('load',()=>{
-    if(disposed)return
-    setBusy(false)
-    if(failures||sceneFailures)
-     setError('Partial imagery: '+failures+' missing tile(s), '+
-      sceneFailures+' tile(s) with failed scene requests. Retry imagery to reload.')
-    else setError(null)
-   })
-   layer.on('tileerror',()=>{
-    failures++
-    if(!disposed){
-     setError('Some satellite tiles failed to load. Retry imagery to refresh the coverage.')
-     if(loaded===0&&failures>=8)setBusy(false)
-    }
-   })
+   detailLayer.addTo(map)
+   detailLayer.setZIndex(301)
+   detailOverlay.current=detailLayer
+   for(const raster of [layer,detailLayer]){
+    raster.on('tileload',()=>{
+     if(!disposed){loaded++;setRendered(true);setBusy(false)}
+    })
+    raster.on('load',()=>{
+     if(disposed)return
+     setBusy(false)
+     if(failures||sceneFailures)
+      setError('Partial imagery: '+failures+' missing tile(s), '+
+       sceneFailures+' tile(s) with failed scene requests. Retry imagery to reload.')
+     else setError(null)
+    })
+    raster.on('tileerror',()=>{
+     failures++
+     if(!disposed){
+      setError('Some satellite tiles failed to load. Retry imagery to refresh the coverage.')
+      if(loaded===0&&failures>=8)setBusy(false)
+     }
+    })
+   }
   }).catch(()=>{
    if(!disposed){setBusy(false);setError('Satellite compositor could not initialize')}
   })
   return ()=>{
    disposed=true
    controller.abort()
+   detailLayer?.remove()
    layer?.remove()
+   if(detailOverlay.current===detailLayer)detailOverlay.current=null
    if(overlay.current===layer)overlay.current=null
   }
   // Opacity is independent of tile fetching and raster composition.
@@ -288,9 +353,9 @@ export function QatarSpectralLayers({map}:{map:MapController|null}){
  },[map,index,payload])
 
  useEffect(()=>{
-  const container=overlay.current?.getContainer()
-  if(container)container.style.opacity=String(opacity)
- },[opacity,payload])
+  const pane=map?.getPane(SPECTRAL_PANE)
+  if(pane)pane.style.opacity=String(opacity)
+ },[map,opacity,payload])
 
  const toggle=(choice:SpectralIndex|null)=>{
   setIndex(choice===index?null:choice)
