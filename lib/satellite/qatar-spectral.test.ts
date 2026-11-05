@@ -84,7 +84,7 @@ describe('Qatar nationwide Microsoft Planetary Computer spectral imagery',()=>{
   expect(widget).toContain('clipTileToQatar(context')
   expect(widget).toContain('L.GridLayer.extend(')
   expect(widget).toContain('blendSpectralPixels(')
-  expect(widget).toContain('context.drawImage(sourceCanvas,0,0)')
+  expect(widget).toContain('context.drawImage(sourceCanvas,0,0,TILE_SIZE,TILE_SIZE)')
   expect(widget).toContain("payload.mode==='stac-composite'")
   expect(widget).not.toContain('for(const item of tiles)')
   expect(widget).toContain("('/api/satellite/qatar-spectral?index='+index")
