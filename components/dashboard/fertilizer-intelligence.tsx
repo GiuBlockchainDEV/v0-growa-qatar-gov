@@ -292,165 +292,37 @@ export function FertilizerIntelligence(){
     </article>
    </div>
 
+
    <article className="rounded-xl border border-line bg-card p-4 md:p-5">
     <div className="flex flex-wrap items-center justify-between gap-2">
-     <div><span className="text-[10px] font-bold tracking-wider text-content-soft">AVAILABILITY INTELLIGENCE</span>
-      <h3 className="mt-1 text-base font-semibold">Fertilizer supply channels and verification</h3></div>
-     <span className="rounded-full border border-[#d9e4d6] bg-[#f0f5ed] px-3 py-1.5 text-[10px] font-semibold text-[#4b7256]">
-      5 tracked product groups
-     </span>
+     <div>
+      <span className="text-[10px] font-bold tracking-wider text-content-soft">AVAILABILITY INTELLIGENCE</span>
+      <h3 className="mt-1 text-base font-semibold">Supply channels and verification</h3>
+     </div>
+     <span className="rounded-full border border-line px-3 py-1.5 text-[10px] text-content-soft">5 tracked products</span>
     </div>
-    <p className="mt-2 text-[11px] leading-5 text-content-soft">
-     Local production potential and international price visibility are shown separately from ready-to-ship inventory. This matrix never interprets capacity as an available quantity.
-    </p>
+    <p className="mt-2 text-[11px] leading-5 text-content-soft">Production capacity and price benchmarks are not actual inventory or supplier quotations.</p>
     <div className="mt-4 overflow-x-auto">
-     <table className="w-full min-w-[570px] text-left text-[11px]">
-      <thead className="border-b border-line text-[10px] font-bold tracking-wide text-content-soft">
-       <tr><th className="pb-3">FERTILIZER</th><th className="pb-3">SUPPLY CHANNEL</th>
-        <th className="pb-3">PRICE REFERENCE</th><th className="pb-3">PHYSICAL AVAILABILITY</th></tr>
+     <table className="w-full min-w-[580px] text-left text-[11px]">
+      <thead className="border-b border-line text-[10px] text-content-soft">
+       <tr><th className="pb-3">Fertilizer</th><th className="pb-3">Supply channel</th><th className="pb-3">Reference price</th><th className="pb-3">Availability</th></tr>
       </thead>
       <tbody>
        {products.map(product=>{
         const price=latestFertilizerPrice(product)
-        return <tr key={product.id} className="border-b border-line last:border-b-0">
-         <td className="py-3 font-semibold">{product.name}<span className="block text-[9px] font-normal text-content-soft">{product.category}</span></td>
-         <td className="py-3 text-content-soft">
-          {product.id==='urea'?'Domestic production capacity + exports':
-           'Import / distributor channel needs verification'}
-         </td>
-         <td className="py-3 tabular-nums">{price?'
-    <article className="rounded-xl border border-line bg-card p-4 md:p-5">
-     <div className="flex flex-wrap items-center justify-between gap-2">
-      <div className="flex items-center gap-2"><SlidersHorizontal className="text-sage-700" size={19}/>
-       <h3 className="text-base font-semibold">Supply continuity laboratory</h3></div>
-      <button type="button" onClick={()=>{setForm({stock:'',use:'',inbound:'',lead:'',confirmed:false});setStress(DEFAULT_FERTILIZER_STRESS)}}
-       className="text-[11px] font-semibold text-sage-700 underline">Reset model</button>
-     </div>
-     <p className="mt-2 text-[11px] leading-5 text-content-soft">
-      Enter your own verified inventory and consumption. Changes affect scenario mathematics only; nothing is written to national datasets or supplier records.
-     </p>
-     <div className="mt-4 grid grid-cols-2 gap-3">
-      <NumberInput label="STOCK ON HAND" value={form.stock} onChange={v=>setNumber('stock',v)} unit="t" placeholder="Unknown"/>
-      <NumberInput label="WEEKLY CONSUMPTION" value={form.use} onChange={v=>setNumber('use',v)} unit="t/w" placeholder="Unknown"/>
-      <NumberInput label="CONFIRMED INBOUND" value={form.inbound} onChange={v=>setNumber('inbound',v)} unit="t" placeholder="Unknown"/>
-      <NumberInput label="SUPPLIER LEAD TIME" value={form.lead} onChange={v=>setNumber('lead',v)} unit="days" placeholder="Unknown"/>
-     </div>
-     <label className="mt-3 flex items-center gap-2 text-[11px] text-content-soft">
-      <input type="checkbox" checked={form.confirmed}
-       onChange={e=>setForm(prev=>({...prev,confirmed:e.target.checked}))}
-       className="size-4 accent-[#47785a]"/> Only include inbound quantities when a delivery is confirmed
-     </label>
-     <div className="mt-5 border-t border-line pt-4">
-      <h4 className="flex items-center gap-2 text-xs font-semibold"><Truck size={15}/> Stress scenarios</h4>
-      {([
-       ['logisticsDelayDays','Additional logistics delay','days',0,45,1],
-       ['demandShockPct','Demand increase','%',0,60,5],
-       ['priceShockPct','International price shock','%',0,75,5],
-      ] as const).map(([key,label,unit,min,max,step])=><div key={key} className="mt-3">
-       <div className="mb-2 flex justify-between gap-3 text-[11px]">
-        <label htmlFor={'fert-'+key} className="text-content-soft">{label}</label>
-        <strong className="tabular-nums">+{stress[key]} {unit}</strong>
-       </div>
-       <input id={'fert-'+key} type="range" min={min} max={max} step={step}
-        value={stress[key]} onChange={event=>setStress(v=>({...v,[key]:Number(event.target.value)}))}
-        className="w-full accent-[#47785a]"/>
-      </div>)}
-     </div>
-    </article>
-
-    <article className="rounded-xl border border-line bg-card p-4 md:p-5">
-     <div className="flex items-center justify-between gap-2">
-      <div className="flex items-center gap-2"><Sparkles size={18} className="text-sage-700"/>
-       <h3 className="text-base font-semibold">Decision intelligence</h3></div>
-      <span className="rounded-full border border-line px-2 py-1 text-[10px] text-content-soft">Rules + evidence</span>
-     </div>
-     <p className="mt-2 text-[11px] text-content-soft">Actionable screening of procurement exposure. Each finding is traceable to the user scenario or public commodity references.</p>
-     <div className="mt-4 space-y-2">
-      {actions.map((action,i)=><div key={i} className="rounded-xl border border-line bg-background p-3">
-       <div className="flex items-center gap-2 text-xs font-semibold">
-        {action.priority==='critical'?<ShieldAlert size={16} className="text-[#b65742]"/>:
-         action.priority==='watch'?<AlertTriangle size={16} className="text-[#b88b2e]"/>:
-         <ShieldCheck size={16} className="text-[#5d876c]"/>}
-        {action.title}
-       </div>
-       <p className="mt-1.5 text-[11px] leading-5 text-content-soft">{action.detail}</p>
-      </div>)}
-     </div>
-     <div className="mt-4 grid grid-cols-3 gap-2">
-      {assessed.map(x=><button key={x.days} type="button" onClick={()=>setHorizon(x.days)}
-       aria-pressed={horizon===x.days}
-       className={'rounded-xl border p-2 text-left '+(horizon===x.days?'border-[#618c76] bg-[#e8f3ea]':'border-line')}>
-       <span className="block text-[9px] font-bold text-content-soft">{x.days} D</span>
-       <span className={'mt-1 inline-flex rounded-full border px-2 py-0.5 text-[9px] font-bold uppercase '+tone(x.result.risk)}>
-        {x.result.risk}</span>
-       <span className="mt-1 block truncate text-xs tabular-nums">
-        {x.result.shortfallTonnes===null?'Inventory unknown':money(x.result.shortfallTonnes,1)+' t deficit'}
-       </span>
-      </button>)}
-     </div>
-     <div className="mt-4 rounded-lg border border-line bg-background p-3 text-[11px] leading-5">
-      <strong className="block">Horizon analysis · {horizon} days</strong>
-      <span className="text-content-soft">{focused.result.reason}</span>
-      {focused.result.balanceTonnes!==null&&<div className="mt-1 font-semibold tabular-nums">
-       Modeled closing balance: {money(focused.result.balanceTonnes,1)} tonnes</div>}
-     </div>
-    </article>
-   </div>
-
-   <article className="rounded-xl border border-line bg-background p-4 md:p-5">
-    <div className="flex flex-wrap items-center justify-between gap-3">
-     <div><span className="text-[10px] font-bold tracking-wider text-content-soft">NATIONAL SUPPLY INTELLIGENCE</span>
-      <h3 className="mt-1 text-lg font-semibold">Production capacity ≠ domestic availability</h3></div>
-     <button type="button" onClick={()=>setExpanded(!expanded)} aria-expanded={expanded}
-      className="flex items-center gap-2 rounded-lg border border-line bg-card px-3 py-2 text-xs">
-      {expanded?'Less evidence':'View source evidence'} <ChevronDown size={13} className={expanded?'rotate-180':''}/></button>
-    </div>
-    <div className="mt-4 grid gap-3 md:grid-cols-3">
-     <div className="rounded-lg border border-line bg-card p-4">
-      <Factory size={18} className="text-sage-700"/>
-      <strong className="mt-2 block text-lg">QAFCO · 5.6M t/y</strong>
-      <p className="mt-1 text-[11px] leading-5 text-content-soft">Published design capacity for urea, not inventory, domestic allocation or today's production.</p>
-     </div>
-     <div className="rounded-lg border border-line bg-card p-4">
-      <Globe2 size={18} className="text-sage-700"/>
-      <strong className="mt-2 block text-lg">{trade?.exportsQar!==null&&trade?.exportsQar!==undefined?compact(trade.exportsQar)+' QAR':'N/A'}</strong>
-      <p className="mt-1 text-[11px] leading-5 text-content-soft">Annual export value {trade?.year??'unavailable'}. Cannot be converted to fertilizer tonnage without product-level unit values.</p>
-     </div>
-     <div className="rounded-lg border border-line bg-card p-4">
-      <PackageCheck size={18} className="text-sage-700"/>
-      <strong className="mt-2 block text-lg">Stock unverified</strong>
-      <p className="mt-1 text-[11px] leading-5 text-content-soft">National warehouse inventories, fertilizer mix, committed imports and delivery ETAs need connected operational sources.</p>
-     </div>
-    </div>
-    {expanded&&<div className="mt-4 grid gap-2 rounded-xl border border-line bg-card p-4 text-[11px] leading-5">
-     <p><strong>World price series:</strong> Oct 2026 · World Bank Pink Sheet. FOB Middle East / US Gulf / CFR Brazil bases are not interchangeable with Qatar landed prices.</p>
-     <p><strong>Qatar trade:</strong> {snapshot?.tradeDetail??'Loading official annual source.'}</p>
-     <p><strong>QAFCO:</strong> Official urea nameplate capacity; domestic supply not reported.</p>
-     <div className="flex flex-wrap gap-4">
-      <a target="_blank" rel="noopener noreferrer" className="text-sage-700 underline" href={WORLD_BANK_FERTILIZER_SOURCE}>World Bank sources</a>
-      <a target="_blank" rel="noopener noreferrer" className="text-sage-700 underline" href={QATAR_FERTILIZER_TRADE_SOURCE}>Qatar fertilizer trade</a>
-      <a target="_blank" rel="noopener noreferrer" className="text-sage-700 underline" href={snapshot?.production.sourceUrl??'https://www.qafco.qa/en/our-plants/'}>QAFCO capacity</a>
-     </div>
-    </div>}
-   </article>
-
-   <p className="text-[10px] leading-5 text-content-soft">
-    Source discipline: commodity benchmarks are published monthly reference prices dated October 2026, not real-time quotes. Risk scores are relative screening indices, not probabilities. Stock scenarios exist only in the browser and are not persisted. Neither QAFCO nominal capacity nor annual trade values establish fertilizer immediately available in Qatar.
-   </p>
-  </div>
- </section>
-}
-+money(price.usdPerTonne,1)+'/t':'Supplier quotation needed'}
-          <span className="block text-[9px] text-content-soft">{price?'Oct 2026 benchmark':'Grade-specific'}</span>
-         </td>
-         <td className="py-3"><span className="inline-flex rounded-full border border-[#eddbbc] bg-[#fff8ec] px-2 py-1 text-[9px] font-bold text-[#906b2a]">Not verified</span></td>
-        </tr>
+        return (
+         <tr key={product.id} className="border-b border-line last:border-b-0">
+          <td className="py-3 font-semibold">{product.name}</td>
+          <td className="py-3 text-content-soft">{product.id==='urea'?'Domestic production / exports':'Import or distributor verification required'}</td>
+          <td className="py-3 tabular-nums">{price?'USD '+money(price.usdPerTonne,1)+'/t':'Supplier quotation required'}</td>
+          <td className="py-3"><span className="rounded-full border border-[#e4d4b9] bg-[#fff7ea] px-2 py-1 text-[10px] text-[#8b6730]">Unverified</span></td>
+         </tr>
+        )
        })}
       </tbody>
      </table>
     </div>
    </article>
-
    <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
     <article className="rounded-xl border border-line bg-card p-4 md:p-5">
      <div className="flex flex-wrap items-center justify-between gap-2">
