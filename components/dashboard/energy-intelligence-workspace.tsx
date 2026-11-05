@@ -5,6 +5,7 @@ import { Bolt, Gauge, LineChart, Zap } from 'lucide-react'
 import { buildGrowaContext } from '@/lib/ai/build-growa-context'
 import { QatarUtilitiesCommand } from '@/components/dashboard/qatar-utilities-command'
 import { UtilityPressureMonitor } from '@/components/dashboard/utility-pressure-monitor'
+import { FertilizerIntelligence } from '@/components/dashboard/fertilizer-intelligence'
 import {
   IntelligenceInvestigationLayout,
   InvestigationContextHeader,
@@ -87,6 +88,7 @@ export function EnergyIntelligenceWorkspace() {
     <IntelligenceWorkspaceRoot layout="scroll">
       <div className="space-y-4 p-4">
         <QatarUtilitiesCommand domain="energy" />
+        <FertilizerIntelligence />
         <UtilityPressureMonitor domain="energy" />
         <details className="rounded-2xl border border-line bg-card">
           <summary className="cursor-pointer px-5 py-4 text-[13px] font-semibold text-sage-700">
