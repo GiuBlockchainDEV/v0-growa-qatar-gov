@@ -162,8 +162,8 @@ async function resolve(index:SpectralIndex):Promise<SpectralResponse>{
 }
 export async function GET(request:Request){
  const raw=new URL(request.url).searchParams.get('index')
- if(raw!=='ndvi'&&raw!=='ndmi')
-  return json({error:'Choose NDVI or NDMI.'},400)
+ if(raw!=='ndvi'&&raw!=='ndmi'&&raw!=='ndsi')
+  return json({error:'Choose NDVI, NDMI or NDSI.'},400)
  const index:SpectralIndex=raw
  const supabase=await createClient()
  const {data:{user},error}=await supabase.auth.getUser()

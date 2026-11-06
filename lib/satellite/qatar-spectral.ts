@@ -3,7 +3,7 @@
  * Microsoft Planetary Computer PgSTAC mosaic + TiTiler API.
  */
 export const QATAR_SPECTRAL_BBOX=[50.69,24.42,51.73,26.26] as const
-export type SpectralIndex='ndvi'|'ndmi'
+export type SpectralIndex='ndvi'|'ndmi'|'ndsi'
 /** Fixed native grids prevent zoom/pan from refetching whole mosaics.
  * The low-resolution national coverage remains beneath detailed tiles. */
 export const SPECTRAL_OVERVIEW_ZOOM=10
@@ -23,6 +23,15 @@ export const SPECTRAL_INDEX_CONFIG={
   expression:'(B08-B11)/(B08+B11)',
   description:'Vegetation canopy moisture proxy · near infrared vs SWIR',
   palette:'rdbu',rescale:'-0.35,0.35',
+ },
+ // Soil salinity NDSI (NOT the Green/SWIR snow index).
+ // This is exactly -NDVI for the same acquisition: a screening proxy,
+ // never a ground-truthed salinity estimate or electrical conductivity.
+ ndsi:{
+  label:'NDSI',bands:['B04','B08'] as const,
+  expression:'(B04-B08)/(B04+B08)',
+  description:'Soil salinity screening proxy · red vs near infrared',
+  palette:'rdylgn_r',rescale:'-0.9,0.2',
  },
 } as const
 export function qatarMosaicSearch(date:Date){
