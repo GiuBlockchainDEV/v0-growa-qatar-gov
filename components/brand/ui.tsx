@@ -31,6 +31,7 @@ import {
   type RefObject,
 } from 'react'
 import { ChevronDown } from 'lucide-react'
+import { createPortal } from 'react-dom'
 import { cn } from '@/lib/utils'
 import { useI18n } from '@/lib/i18n'
 
@@ -760,10 +761,10 @@ export function Modal({
   const box = useRef<HTMLDivElement>(null)
   useDialog(open, onClose, box, { initial })
   if (!open) return null
-  return (
+  return createPortal(
     <div
       className="fixed inset-0 flex items-center justify-center p-4"
-      style={{ background: 'rgba(17,30,19,.45)', zIndex }}
+      style={{ background: 'rgba(17,30,19,.45)', zIndex: Math.max(zIndex, 10000) }}
       onClick={onClose}
       role="presentation"
     >
@@ -793,7 +794,8 @@ export function Modal({
         </div>
         {footer && <div className="mt-7 shrink-0 flex justify-end gap-3">{footer}</div>}
       </div>
-    </div>
+    </div>,
+    document.body,
   )
 }
 
