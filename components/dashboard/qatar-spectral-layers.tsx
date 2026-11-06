@@ -356,6 +356,9 @@ export function QatarSpectralLayers({map}:{map:MapController|null}){
 
  const toggle=(choice:SpectralIndex|null)=>{
   setIndex(choice===index?null:choice)
+  // NDSI is -NDVI, not a calibrated salinity diagnosis. The default
+  // display should not make the country's bare sand look severely saline.
+  setOpacity(choice==='ndsi'?.35:.7)
   setError(null)
  }
  const colors=index==='ndvi'?NDVI_COLORS:index==='ndmi'?NDMI_COLORS:NDSI_COLORS
