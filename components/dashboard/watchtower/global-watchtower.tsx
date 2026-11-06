@@ -132,7 +132,20 @@ export function GlobalWatchtower() {
         })
         if(!response.ok)throw Error('AISStream HTTP '+response.status)
         const data=await response.json() as AisStreamSnapshot
-        if(active)setAisStream(data)
+        if(active)setAisStream(previous=>{
+          // Accumulate actual streamed observations between short Vercel samples.
+          // Without this, each 13.5s poll replaces the prior fleet with a
+          // tiny instantaneous slice. No synthetic vessels or extrapolation.
+          const current=Date.now()
+          const candidates=[...(previous?.assets??[]),...data.assets].filter(asset=>{
+            const age=current-Date.parse(asset.observedAt)
+            return Number.isFinite(age)&&age>=-60000&&age<=10*60000
+          })
+          const unique=mergeAssets(candidates)
+          return {...data,assets:unique,accepted:unique.length,
+            detail:data.detail+' '+unique.length+
+              ' unique source-received positions retained for at most 10 minutes in this browser.'}
+        })
       }catch{
         if(active&&!controller.signal.aborted)setAisStream({
           source:'AISStream.io',state:'unavailable',checkedAt:new Date().toISOString(),
