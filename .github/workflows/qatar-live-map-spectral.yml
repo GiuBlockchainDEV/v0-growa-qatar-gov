@@ -1,0 +1,27 @@
+name: Qatar Live Map spectral verification
+on:
+  pull_request:
+    paths:
+      - 'components/dashboard/qatar-spectral-layers.tsx'
+      - 'lib/satellite/**'
+      - 'app/api/satellite/**'
+      - '.github/workflows/qatar-live-map-spectral.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  verify:
+    name: TypeScript, satellite tests, production build and lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - run: npx tsc --noEmit
+      - run: npx vitest run lib/satellite/qatar-spectral.test.ts lib/satellite/qatar-raster-composite.test.ts lib/satellite/qatar-clip.test.ts
+      - run: npm run build
+      - run: npx eslint lib/satellite/qatar-spectral.ts components/dashboard/qatar-spectral-layers.tsx app/api/satellite/qatar-spectral/route.ts
