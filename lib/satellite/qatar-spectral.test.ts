@@ -24,8 +24,15 @@ describe('Qatar nationwide Microsoft Planetary Computer spectral imagery',()=>{
   expect(spectralTileParams('ndmi').getAll('assets')).toEqual(['B08','B11'])
   expect(SPECTRAL_INDEX_CONFIG.ndsi.expression).toBe('(B04-B08)/(B04+B08)')
   expect(spectralTileParams('ndsi').getAll('assets')).toEqual(['B04','B08'])
-  expect(spectralTileParams('ndsi').get('colormap_name')).toBe('rdylgn_r')
+  expect(spectralTileParams('ndsi').get('colormap_name')).toBe('purples')
   expect(spectralTileParams('ndsi').get('rescale')).toBe('-0.9,0.2')
+  // Visual legend must stay aligned with the actual TiTiler purple ramp,
+  // not merely recolor the UI while leaving the imagery red/green.
+  expect(SPECTRAL_INDEX_CONFIG.ndsi.palette).not.toBe(SPECTRAL_INDEX_CONFIG.ndvi.palette)
+  expect(SPECTRAL_INDEX_CONFIG.ndsi.palette).not.toBe(SPECTRAL_INDEX_CONFIG.ndmi.palette)
+  expect(read('components/dashboard/qatar-spectral-layers.tsx')).toContain(
+   "const NDSI_COLORS=['#fcfbfd','#dadaeb','#9e9ac8','#756bb1','#54278f']")
+
   expect(spectralTileParams('ndvi').get('asset_as_band')).toBe('true')
   expect(spectralTileParams('ndvi').get('rescale')).toBe('-0.2,0.9')
   expect(spectralTileParams('ndmi').get('rescale')).toBe('-0.35,0.35')
