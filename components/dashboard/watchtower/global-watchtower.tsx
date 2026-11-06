@@ -24,10 +24,12 @@ import {REGIONAL_AIR_BATCH_COUNT,REGIONAL_AIR_CENTERS,REGIONAL_AIR_PRIORITY_HUBS
 import {REGIONAL_WATCHTOWER_VIEW} from '@/lib/watchtower/map-viewport'
 import type { GlobalTrackingMapProps } from './global-tracking-map'
 import {AssetObservationCamera} from './asset-observation-camera'
+import type {FirmsSnapshot} from '@/lib/watchtower/firms-hotspots'
 import {contactIntelligence} from '@/lib/watchtower/contact-intelligence'
 import {mergeTrackingUpdate,mergeFlightItineraries,type RouteLookupResponse} from '@/lib/watchtower/tracking-merge'
 import styles from './global-watchtower.module.css'
 const Map = dynamic<GlobalTrackingMapProps>(() => import('./global-tracking-map').then(m => m.GlobalTrackingMap), { ssr: false, loading: () => <div className={styles.map} aria-busy="true" /> })
+const Globe3D=dynamic(()=>import('./watchtower-globe-3d').then(m=>m.WatchtowerGlobe3D),{ssr:false})
 const REGIONS = {
   global: { name: 'Global', lat: 22, lon: 35, zoom: 2, box: [-85, -180, 85, 180] },
   gulf: { name: 'Gulf · Red Sea · Gulf of Aden', ...REGIONAL_WATCHTOWER_VIEW },
@@ -67,6 +69,9 @@ export function GlobalWatchtower() {
   const [freightFlightsOnly,setFreightFlightsOnly]=useState(false)
   const [regionalAir,setRegionalAir]=useState<RegionalAirBatch[]>([])
   const [openSkyAir,setOpenSkyAir]=useState<OpenSkySnapshot|null>(null)
+  const [firms,setFirms]=useState<FirmsSnapshot|null>(null)
+  const [showFires,setShowFires]=useState(false)
+  const [globeMode,setGlobeMode]=useState<'2d'|'3d'>('2d')
   const [regionalAirLoading,setRegionalAirLoading]=useState(false)
   const [regionalAirFailedBatches,setRegionalAirFailedBatches]=useState<number[]>([])
   const [maritimeError,setMaritimeError]=useState('')
@@ -89,6 +94,29 @@ export function GlobalWatchtower() {
   const [selectedId, setSelectedId] = useState<string | null>(null), [sourceId, setSourceId] = useState<string | null>(null)
   const [focus, setFocus] = useState<GlobalTrackingMapProps['focus']>(null)
   const [layers, setLayers] = useState<MapLayers>({ aircraft: true, vessels: true, risks: true, production: true, gateways: true, trails: true, projections: true })
+  // NASA thermal detections are optional. Failure never blocks traffic.
+  useEffect(()=>{
+    let active=true
+    const controller=new AbortController()
+    const load=async()=>{
+      if(!active||document.hidden||pausedRef.current)return
+      try{
+        const response=await fetch('/api/watchtower/firms',{cache:'no-store',signal:controller.signal})
+        if(!response.ok)throw Error('FIRMS HTTP '+response.status)
+        const data=await response.json() as FirmsSnapshot
+        if(active)setFirms(data)
+      }catch{
+        if(active&&!controller.signal.aborted)setFirms({
+          source:'NASA FIRMS',state:'unavailable',checkedAt:new Date().toISOString(),
+          latestObservedAt:null,total:0,detections:[],coverage:'regional',
+          detail:'NASA FIRMS temporarily unavailable. No hot spots are synthesized.',
+        })
+      }
+    }
+    void load()
+    const timer=setInterval(()=>void load(),15*60000)
+    return()=>{active=false;controller.abort();clearInterval(timer)}
+  },[refresh])
   const orgId = organization?.id ?? null, food = posture?.organizationId === orgId ? posture : null
   useEffect(() => { pausedRef.current = paused }, [paused])
   useEffect(() => {
@@ -738,7 +766,9 @@ export function GlobalWatchtower() {
   const nearby = selectedAsset ? allAlerts.filter(a => a.kind === 'hazard' && separationKm(a, selectedAsset) <= 350).slice(0, 3) : []
   const nearGateway = selectedAsset ? [...CHOKEPOINTS].sort((a, b) => separationKm(a, selectedAsset) - separationKm(b, selectedAsset))[0] : null
   return <div id="watchtower-map" ref={root} className={styles.shell} dir={ar ? 'rtl' : 'ltr'}>
-    <Map assets={assets} demoVessels={demoVessels} historyAssets={allAssets} alerts={alerts} riskZones={riskZones} chokepoints={maritimeFeed?.chokepoints??[]} aisRoutes={aisHistory} layers={layers} selectedId={selectedId} onSelect={select} onChokepointClick={chooseChokepoint} focus={focus} now={now} />
+    {globeMode==='2d'
+      ? <Map assets={assets} demoVessels={demoVessels} historyAssets={allAssets} alerts={alerts} riskZones={riskZones} chokepoints={maritimeFeed?.chokepoints??[]} aisRoutes={aisHistory} layers={layers} selectedId={selectedId} onSelect={select} onChokepointClick={chooseChokepoint} focus={focus} now={now} fires={firms?.detections??[]} showFires={showFires} />
+      : <Globe3D assets={assets} fires={firms?.detections??[]} showFires={showFires} focus={focus} onSelect={select}/>}
     <header className={styles.header}>
       <div className={styles.titleRow}>
         <div><div className={styles.eyebrow}>NFII / GLOBAL OPERATING PICTURE</div>
@@ -748,6 +778,7 @@ export function GlobalWatchtower() {
           <span className={styles.badge} data-state={paused || staleSnapshot || !recentCount ? 'offline' : 'recent'}><i />{paused ? 'PAUSED' : staleSnapshot ? 'STALE' : recentCount ? 'RECENT / 60s' : 'NO RECENT TRACKS'}</span>
           <button className={styles.iconButton} aria-label="Toggle map filters" aria-pressed={filtersOpen} onClick={() => { setFiltersOpen(!filtersOpen); if (mobile) setAlertsOpen(false) }}><Layers size={15} /></button>
           <button className={styles.iconButton} aria-label="Toggle alert panel" aria-pressed={alertsOpen} onClick={() => { setAlertsOpen(!alertsOpen); if (mobile) setFiltersOpen(false) }}><AlertTriangle size={15} /></button>
+           <button className={styles.iconButton} aria-label={globeMode==='2d'?'Switch to Cesium 3D globe':'Return to Esri 2D map'} title={globeMode==='2d'?'Cesium 3D globe':'Esri political 2D map'} aria-pressed={globeMode==='3d'} onClick={()=>setGlobeMode(v=>v==='2d'?'3d':'2d')}><Globe2 size={15}/><span className="ml-1 text-[10px]">{globeMode==='2d'?'3D':'2D'}</span></button>
           <button className={styles.iconButton} aria-label={paused ? 'Resume automatic updates' : 'Pause automatic updates'} onClick={() => setPaused(!paused)}>{paused ? <Play size={14} /> : <Pause size={14} />}</button>
           <button className={styles.iconButton} aria-label="Refresh observations" disabled={busy} onClick={() => setRefresh(v => v + 1)}><RefreshCw size={14} className={busy ? 'animate-spin' : ''} /></button>
           <button className={styles.iconButton} aria-label={fullscreen ? 'Exit fullscreen' : 'Enter fullscreen'} onClick={() => void toggleFull()}>{fullscreen ? <Minimize2 size={15} /> : <Maximize2 size={15} />}</button>
@@ -845,6 +876,10 @@ export function GlobalWatchtower() {
         }))}>
         <span><Layers size={13}/>Available routes & tracks</span><i className={styles.switch}/>
       </button>
+       <button className={styles.toggle} aria-pressed={showFires} onClick={()=>setShowFires(v=>!v)}>
+         <span><AlertTriangle size={13}/>NASA FIRMS thermal detections ({firms?.total??'N/A'})</span><i className={styles.switch}/>
+       </button>
+       <p className={styles.controlNote}>VIIRS satellite thermal detections in {firms?.coverage??'the Gulf–South Asia corridor'}; not verified wildfire perimeters, agricultural losses or live footage. {firms?.detail??'Source pending.'}</p>
       <p className={styles.controlNote}>Real ship markers require an actual source-reported position in the last 60 minutes and AIS SOG ≥5.1 kn. Old, undated and unknown-speed fixes are hidden; synthetic vessels are a separately disclosed scenario layer.</p>
       <details className={styles.sourcesDetails}>
         <summary>Data sources & freshness</summary>
@@ -861,6 +896,7 @@ export function GlobalWatchtower() {
             {' '}{regionalAirLoading?'Loading remaining areas.':''}
           </p>
           <p><strong>Saudi / Oman / Yemen ADS-B hubs:</strong> actual provider positions only.</p>
+           <p><strong>NASA FIRMS:</strong> {firms?.state??'loading'} · {firms?.total??'N/A'} thermal detections in {firms?.coverage??'the corridor'} · {firms?.latestObservedAt?utc(firms.latestObservedAt):'no recent provider timestamp'}. {firms?.detail??''}</p>
           <p><strong>Independent OpenSky source:</strong> {openSkyAir?.state??'loading'} · {openSkyAir?.assets.length??'N/A'} observed aircraft. {openSkyAir?.detail??''}</p>
           {targetedAirCoverage.map(area=><p key={area.region}>
             <strong>{area.region}:</strong> {area.observed} received aircraft observations
@@ -915,6 +951,7 @@ export function GlobalWatchtower() {
       </details>
     </aside>
     <div className={styles.feedDock} aria-label="Tracking source status">
+       {firms&&<span className={styles.feedPill} data-state={firms.state}><i/>FIRMS: {firms.state} · {firms.total}</span>}
       {snapshot?.sources.map(source => <button key={source.id} className={styles.feedPill} data-state={source.state} onClick={() => { setSourceId(source.id); setSelectedId(null); setAlertsOpen(true); if (mobile) setFiltersOpen(false) }}><i />{source.name}: {source.state}</button>)}
       {openSea&&<span className={styles.feedPill} data-state={openSea.state}><i/>Regional AIS: {openSea.state} · {openSea.acceptedCount.toLocaleString('en-US')}</span>}
       {globalAis&&<span className={styles.feedPill} data-state={globalAis.state}><i/>Global AIS: {globalAis.state} · {globalAis.accepted.toLocaleString('en-US')}</span>}
@@ -1231,6 +1268,6 @@ export function GlobalWatchtower() {
       </div>
     </aside>
     <div className={styles.legend}><span><Plane size={12} color="var(--growa-sage)" />Aircraft</span><span><Ship size={12} color="var(--growa-ink-600)" />AIS vessel</span><span><AlertTriangle size={12} color="var(--warning-strong)" />Reported risk</span><span><i className={styles.productionRiskSwatch} />Production risk areas ({layers.production?riskZones.length:0})</span><span><i className={styles.routePastLine} />Observed</span><span><i className={styles.routeOriginLine} />From origin (reference)</span><span><i className={styles.routeFutureLine} />To destination (reference)</span></div>
-    <footer className={styles.footer}><span>{busy ? 'UPDATING SOURCES' : snapshot ? 'SNAPSHOT ' + utc(snapshot.generatedAt) : 'CONNECTING TO SOURCES'} / {paused ? 'PAUSED' : 'AUTO 60s'}</span><span>ESRI POLITICAL MAP · ADSB.lol / ODbL 1.0 · regional AIS CC BY 4.0 · OpenSeaFeed · No simulated traffic</span></footer>
+    <footer className={styles.footer}><span>{busy ? 'UPDATING SOURCES' : snapshot ? 'SNAPSHOT ' + utc(snapshot.generatedAt) : 'CONNECTING TO SOURCES'} / {paused ? 'PAUSED' : 'AUTO 60s'}</span><span>{globeMode==='2d'?'ESRI POLITICAL MAP':'CESIUM 3D · ESRI IMAGERY'} · ADSB.lol / ODbL 1.0 · regional AIS · NASA FIRMS optional · observations and separately labeled scenarios</span></footer>
   </div>
 }
