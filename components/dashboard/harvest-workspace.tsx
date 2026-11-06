@@ -22,6 +22,7 @@ import { DashboardQueryLink } from '@/components/dashboard/dashboard-query-link'
 import { GrowaIntelligencePanel } from '@/components/dashboard/growa-intelligence-panel'
 import { HarvestFieldCreatePanel } from '@/components/dashboard/harvest-field-create-panel'
 import { HarvestNationalCommand } from '@/components/dashboard/harvest-national-command'
+import { HarvestFieldCommand } from '@/components/dashboard/harvest-field-command'
 import {
   IntelligenceInvestigationLayout,
   InvestigationContextHeader,
@@ -838,57 +839,10 @@ export function HarvestWorkspace() {
 
   return (
     <IntelligenceWorkspaceRoot ref={workspaceScrollRef} layout="scroll">
-      {isFieldDetailView ? (
-      <InvestigationContextHeader
-        eyebrow={tr('Intelligence · satellite and harvest')}
-        title={
-          isFieldDetailView
-            ? activeField?.name ?? (parcelId ? tr('Loading field…') : tr('Satellite and harvest intelligence'))
-            : tr('Satellite and harvest intelligence')
-        }
-        description={
-          isFieldDetailView && activeField
-            ? `${activeField.crop} · ${formatArea(activeField.area)} · ${activeField.start_date} → ${activeField.harvest_date}`
-            : tr('Satellite-driven crop health, biomass, water productivity and yield outlook connected to national signals.')
-        }
-        icon={Sprout}
-        meta={[
-          {
-            label: tr('View'),
-            value: mode === 'current' ? tr('Observed') : tr('Forecast'),
-            accent: true,
-          },
-          { label: tr('Fields'), value: String(fields.length) },
-          {
-            label: tr('Source'),
-            value: isFieldDetailView && activeField ? tr('Field detail') : tr('National analytics'),
-          },
-          {
-            label: tr('Signals'),
-            value: String(watchtower.signals.length),
-            accent: watchtower.signals.length > 0,
-          },
-        ]}
-      />
-
-      ) : null}
-
       {usingDemoData ? (
         <Notice tone="warning">
           {tr('Demo sample data is active. Configure Harvest API credentials on Vercel to load your real fields (Hassad N, Baladna, mazrati, etc.).')}
         </Notice>
-      ) : null}
-
-      {isFieldDetailView ? (
-        <button
-          type="button"
-          onClick={handleClearFieldSelection}
-          className="g-btn g-btn--secondary self-start"
-          style={{ height: 32, padding: '0 14px', fontSize: 13 }}
-        >
-          <ArrowLeft strokeWidth={1.5} className="h-3.5 w-3.5 rtl:-scale-x-100" />
-          {tr('Back to all fields')}
-        </button>
       ) : null}
 
       <div className="space-y-2">
@@ -1016,295 +970,53 @@ export function HarvestWorkspace() {
 
           <IntelligenceWorkspaceCommand variant="stacked">
           {isFieldDetailView && activeField ? (
-            <IntelligenceCommandLayout
+            <HarvestFieldCommand
               key={activeField.parcel_id}
-              variant="stacked"
-              main={
-            <div className="space-y-4">
-              <IntelligencePanel
-                title={tr('Field overview')}
-                subtitle={tr('KPIs, yield estimate, and field actions')}
-                icon={Sprout}
-              >
-                <div className="space-y-4">
-                  <div className="grid grid-cols-2 gap-2 md:grid-cols-4 xl:grid-cols-7">
-                    {FIELD_KPI_METRICS.map((key) => (
-                      <div key={key} className="rounded-lg border border-line bg-muted px-3 py-2">
-                        <p className="text-[11px] text-content-soft">
-                          {metricLabel(key)}
-                        </p>
-                        <p className="mt-1 text-sm font-medium text-content">
-                          {formatHarvestMetricWithUnit(activeField.metrics?.[key], key)}
-                        </p>
-                      </div>
-                    ))}
-                  </div>
-
-                  <div className="flex flex-wrap items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={() => void runYieldEstimate()}
-                      disabled={yieldLoading || !activeSeasonId}
-                      className="inline-flex items-center gap-2 rounded-pill border border-ink bg-ink px-3 py-2 text-xs font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
-                    >
-                      {yieldLoading ? <Loader2 strokeWidth={1.5} className="h-3.5 w-3.5 animate-spin" /> : <Target strokeWidth={1.5} className="h-3.5 w-3.5" />}
-                      {tr('Estimate yield')}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => void deleteSelectedField()}
-                      disabled={deleteLoading}
-                      className="inline-flex items-center gap-2 rounded-pill border border-critical/30 bg-critical/10 px-3 py-2 text-xs font-medium text-critical disabled:cursor-not-allowed disabled:opacity-50"
-                    >
-                      {deleteLoading ? <Loader2 strokeWidth={1.5} className="h-3.5 w-3.5 animate-spin" /> : <Trash2 strokeWidth={1.5} className="h-3.5 w-3.5" />}
-                      {tr('Delete field')}
-                    </button>
-                  </div>
-
-                  {yieldTask ? (
-                    <div className="rounded-lg border border-line bg-card px-3 py-3 text-xs">
-                      <p className="font-medium text-content">{tr('Yield task: {status}', { status: yieldTask.status })}</p>
-                      {yieldTask.result ? (
-                        <pre className="mt-2 max-h-48 overflow-auto whitespace-pre-wrap text-[11px] text-content-soft">
-                          {JSON.stringify(yieldTask.result, null, 2)}
-                        </pre>
-                      ) : null}
-                    </div>
-                  ) : null}
-                </div>
-              </IntelligencePanel>
-
-              <IntelligencePanel
-                title={tr('Field metric maps')}
-                subtitle={tr('Raster layers overlaid on the map at 50% opacity')}
-                icon={MapIcon}
-              >
-                <div className="space-y-4">
-                  <div className="flex flex-wrap gap-2">
-                    {MAP_METRICS.map((metric) => (
-                      <button
-                        key={metric}
-                        type="button"
-                        onClick={() => selectMapMetric(metric)}
-                        className={`rounded-pill border px-3 py-1.5 text-xs font-medium transition-colors ${
-                          activeMapMetric === metric
-                            ? 'border-ink bg-ink text-white'
-                            : 'border-line bg-card text-content-soft hover:text-content'
-                        }`}
-                      >
-                        {`${metricLabel(metric)} (${HARVEST_METRIC_META[metric].unit})`}
-                      </button>
-                    ))}
-                  </div>
-
-                  <div className="flex flex-wrap items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={() => selectMapGranularity('dekad')}
-                      className={`rounded-pill border px-2.5 py-1 text-[11px] ${
-                        mapGranularity === 'dekad'
-                          ? 'border-ink bg-ink text-white'
-                          : 'border-line text-content-soft'
-                      }`}
-                    >
-                      {tr('Dekad map')}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => selectMapGranularity('season')}
-                      className={`rounded-pill border px-2.5 py-1 text-[11px] ${
-                        mapGranularity === 'season'
-                          ? 'border-ink bg-ink text-white'
-                          : 'border-line text-content-soft'
-                      }`}
-                    >
-                      {tr('Season map')}
-                    </button>
-                    {mapGranularity === 'dekad' ? (
-                      <select
-                        value={selectedPeriod || ''}
-                        onChange={(event) => {
-                          setFieldRaster(null)
-                          setFieldRasterError(null)
-                          dispatchRasterOverlay(null)
-                          updateHarvestMapParams(
-                            buildHarvestMapParamUpdates({
-                              harvestGranularity: 'dekad',
-                              harvestPeriod: event.target.value || null,
-                            })
-                          )
-                        }}
-                        className="rounded-md border border-line bg-card px-2 py-1 text-[11px] text-content"
-                      >
-                        {(fieldStats?.periods || []).map((period) => (
-                          <option key={period.value} value={period.value}>
-                            {period.label}
-                          </option>
-                        ))}
-                      </select>
-                    ) : null}
-                  </div>
-
-                  {activeCollectingTask ? (
-                    <p className="text-sm text-warning-strong">
-                      {tr('Geospatial data collection is still in progress for this field. Satellite layers will appear after the task completes.')}
-                    </p>
-                  ) : null}
-
-                  {fieldStatsError ? (
-                    <p className="text-sm text-warning-strong">{fieldStatsError}</p>
-                  ) : null}
-
-                  {fieldRasterLoading || fieldDetailLoading ? (
-                    <div className="flex items-center gap-2 text-sm text-content-soft">
-                      <Loader2 strokeWidth={1.5} className="h-4 w-4 animate-spin" />
-                      {tr('Loading raster layer on map…')}
-                    </div>
-                  ) : fieldRaster ? (
-                    <div className="space-y-3 rounded-xl border border-sage-300 bg-cream-50 px-3 py-3">
-                      <p className="text-xs text-content">
-                        {tr('{layer} is active on the satellite map at 50% opacity.', {
-                          layer: `${metricLabel(fieldRaster.metric)} (${HARVEST_METRIC_META[fieldRaster.metric].unit})`,
-                        })}
-                      </p>
-                      <div className="flex flex-wrap items-center gap-3 text-[11px] text-content-soft">
-                        <span>{tr('Range: {min} – {max} {unit}', { min: fieldRaster.vmin, max: fieldRaster.vmax, unit: fieldRaster.unit })}</span>
-                        <div className="flex flex-wrap items-center gap-2">
-                          {fieldRaster.legend.map((item) => (
-                            <span key={item.label} className="inline-flex items-center gap-1">
-                              <span
-                                className="inline-block h-2.5 w-2.5 rounded-[1px]"
-                                style={{ backgroundColor: item.color }}
-                              />
-                              {item.label}
-                            </span>
-                          ))}
-                        </div>
-                      </div>
-                    </div>
-                  ) : (
-                    <p className="text-sm text-content-soft">
-                      {fieldRasterError ||
-                        tr('No satellite raster available for this field and metric. Try season map or another metric.')}
-                    </p>
-                  )}
-                </div>
-              </IntelligencePanel>
-
-              <IntelligencePanel
-                title={tr('Field trends')}
-                subtitle={
-                  trendGranularity === 'dekad'
-                    ? tr('Amount added in each dekad for this field')
-                    : tr('Running total of those dekads across the season')
-                }
-                icon={TrendingUp}
-              >
-                <div className="space-y-4">
-                  <div className="flex flex-wrap gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setTrendGranularity('dekad')}
-                      className={`rounded-pill border px-2.5 py-1 text-[11px] ${
-                        trendGranularity === 'dekad'
-                          ? 'border-ink bg-ink text-white'
-                          : 'border-line text-content-soft'
-                      }`}
-                    >
-                      {tr('Dekad trends')}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setTrendGranularity('season')}
-                      className={`rounded-pill border px-2.5 py-1 text-[11px] ${
-                        trendGranularity === 'season'
-                          ? 'border-ink bg-ink text-white'
-                          : 'border-line text-content-soft'
-                      }`}
-                    >
-                      {tr('Season trend')}
-                    </button>
-                  </div>
-
-                  <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
-                    {TREND_METRICS.map((metric) => (
-                      <HarvestTrendBars
-                        key={`${trendGranularity}-${metric}`}
-                        title={`${metricLabel(metric)} (${HARVEST_METRIC_META[metric].unit})`}
-                        metric={metric}
-                        points={fieldTrendSeries[metric] || []}
-                      />
-                    ))}
-                  </div>
-                </div>
-              </IntelligencePanel>
-            </div>
-              }
-              insights={
-                <div className="space-y-4">
-                  <IntelligencePanel
-                    title={tr('Field signals')}
-                    subtitle={tr('Quick read on the active field')}
-                    icon={Activity}
-                  >
-                    <div className="space-y-3 text-xs text-content-soft">
-                      <p>
-                        <span className="font-medium text-content">{activeField.name}</span> ·{' '}
-                        {activeField.crop} · {formatArea(activeField.area)}
-                      </p>
-                      <div className="grid grid-cols-2 gap-2">
-                        {FIELD_KPI_METRICS.slice(0, 4).map((key) => (
-                          <div key={key} className="rounded-lg border border-line bg-muted px-2.5 py-2">
-                            <p className="text-[11px] ">{tr(HARVEST_METRIC_META[key].shortLabel)}</p>
-                            <p className="mt-1 text-sm font-medium text-content">
-                              {formatHarvestMetricWithUnit(activeField.metrics?.[key], key)}
-                            </p>
-                          </div>
-                        ))}
-                      </div>
-                      {fieldRaster ? (
-                        <p>
-                          {tr('Active map layer: {layer} ({min}–{max} {unit})', {
-                            layer: metricLabel(fieldRaster.metric),
-                            min: fieldRaster.vmin,
-                            max: fieldRaster.vmax,
-                            unit: fieldRaster.unit,
-                          })}
-                        </p>
-                      ) : (
-                        <p>{tr('No satellite raster loaded yet. Select a metric to enable map analysis.')}</p>
-                      )}
-                      {activeCollectingTask ? (
-                        <p className="text-warning-strong">{tr('Geospatial collection still in progress.')}</p>
-                      ) : null}
-                    </div>
-                  </IntelligencePanel>
+              field={activeField}
+              seasonId={activeSeasonId}
+              mode={mode}
+              demo={usingDemoData}
+              activeMapMetric={activeMapMetric}
+              mapGranularity={mapGranularity}
+              selectedPeriod={selectedPeriod}
+              stats={fieldStats}
+              statsError={fieldStatsError}
+              statsLoading={fieldDetailLoading}
+              raster={fieldRaster}
+              rasterError={fieldRasterError}
+              rasterLoading={fieldRasterLoading}
+              collecting={Boolean(activeCollectingTask)}
+              trendGranularity={trendGranularity}
+              trendSeries={fieldTrendSeries}
+              yieldTask={yieldTask}
+              yieldLoading={yieldLoading}
+              deleteLoading={deleteLoading}
+              onBack={handleClearFieldSelection}
+              onSelectMapMetric={selectMapMetric}
+              onSelectMapGranularity={selectMapGranularity}
+              onSelectPeriod={(period) => {
+                setFieldRaster(null)
+                setFieldRasterError(null)
+                dispatchRasterOverlay(null)
+                updateHarvestMapParams(buildHarvestMapParamUpdates({
+                  harvestGranularity: 'dekad',
+                  harvestPeriod: period || null,
+                }))
+              }}
+              onSetTrendGranularity={setTrendGranularity}
+              onEstimateYield={() => void runYieldEstimate()}
+              onDelete={() => void deleteSelectedField()}
+              intelligence={
+                <div className="grid gap-4">
                   <IntelligenceInvestigationLayout
                     sectionScrollable={false}
-                    signals={
-                      <IntelligenceWatchtowerSignals
-                        signals={watchtower.signals}
-                        loading={watchtower.loading}
-                        module="harvest"
-                      />
-                    }
-                    forecast={
-                      <IntelligenceWatchtowerForecast
-                        outlook={watchtower.outlook}
-                        loading={watchtower.loading}
-                        domain="production"
-                      />
-                    }
-                    actions={
-                      <IntelligenceModuleActions
-                        module="harvest"
-                        mapLayers={['crop-health', 'harvest-forecast', 'fields']}
-                      />
-                    }
+                    signals={<IntelligenceWatchtowerSignals signals={watchtower.signals} loading={watchtower.loading} module="harvest" />}
+                    forecast={<IntelligenceWatchtowerForecast outlook={watchtower.outlook} loading={watchtower.loading} domain="production" />}
+                    actions={<IntelligenceModuleActions module="harvest" mapLayers={['crop-health', 'harvest-forecast', 'fields']} />}
                   />
+                  <GrowaIntelligencePanel module="harvest" context={growaContext} />
                 </div>
               }
-              assistant={<GrowaIntelligencePanel module="harvest" context={growaContext} />}
             />
           ) : null}
 
