@@ -28,7 +28,7 @@ export async function GET(request:Request){
  endpoint.searchParams.set('include','location,player,urls,images')
  endpoint.searchParams.set('limit','25')
  try{
-  const response=await fetch(endpoint,{headers:{'x-windy-key':key,Accept:'application/json'},
+  const response=await fetch(endpoint,{headers:{'x-windy-api-key':key,Accept:'application/json'},
    cache:'no-store',signal:AbortSignal.timeout(11500)})
   if(!response.ok)throw Error('Webcam provider HTTP '+response.status)
   const payload:unknown=await response.json()
