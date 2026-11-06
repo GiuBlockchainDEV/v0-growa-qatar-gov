@@ -1,7 +1,7 @@
 import {mergeAssets,type TrackingAsset} from './global-tracking'
 /**
  * Bounded AISStream sampling for Vercel functions.
- * An 8-second sample is NOT a persistent live AIS subscription.
+ * A short bounded sample is NOT a persistent live AIS subscription.
  * Production continuous ingestion requires a durable off-Vercel receiver.
  */
 export type AisStreamSnapshot={
@@ -15,9 +15,9 @@ const SUBSCRIPTION_AREAS=[
  [[7,62],[30,81]], // Arabian Sea east, Karachi and Indian Ocean north
 ]
 const POSITION_TYPES=['PositionReport','StandardClassBPositionReport','ExtendedClassBPositionReport'] as const
-const MAX_SAMPLE_MS=8500
+const MAX_SAMPLE_MS=13500
 const MAX_ACCEPTED=1800
-const CACHE_MS=5*60_000
+const CACHE_MS=90_000
 let cached:{until:number;value:AisStreamSnapshot}|null=null
 let pending:Promise<AisStreamSnapshot>|null=null
 const obj=(raw:unknown):Record<string,unknown>=>raw&&typeof raw==='object'&&!Array.isArray(raw)?raw as Record<string,unknown>:{}
@@ -28,9 +28,9 @@ export function parseAisStreamMessage(raw:unknown,receivedAt=Date.now()):Trackin
  const body=obj(obj(envelope.Message)[type]),meta=obj(envelope.MetaData)
  const mmsi=String(meta.MMSI??body.UserID??'')
  if(!/^[1-9]\d{8}$/.test(mmsi))return null
- const lat=num(body.Latitude)??num(meta.latitude)
- const lon=num(body.Longitude)??num(meta.longitude)
- const sog=num(body.Sog),cog=num(body.Cog),heading=num(body.TrueHeading)
+ const lat=num(body.Latitude)??num(meta.latitude)??num(meta.Latitude)
+ const lon=num(body.Longitude)??num(meta.longitude)??num(meta.Longitude)
+ const sog=num(body.Sog)??num(body.SOG),cog=num(body.Cog)??num(body.COG),heading=num(body.TrueHeading)??num(body.Heading)
  if(lat===null||lon===null||Math.abs(lat)>85||Math.abs(lon)>180)return null
  // The operational map intentionally removes stationary and port ships.
  if(sog===null||sog<5.1||sog>55)return null
@@ -45,7 +45,7 @@ export function parseAisStreamMessage(raw:unknown,receivedAt=Date.now()):Trackin
   source:'AISStream.io (short sample)',sourceUrl:'https://aisstream.io/',
   type:'AIS position report, vessel class unverified',cargo:'unverified',
   destination:null,foodCargoVerified:false,
-  observationBasis:hasFixTime?'position_report':'snapshot_poll'}
+  observationBasis:hasFixTime?'position_report':'receipt_time'}
 }
 async function collect(key:string):Promise<AisStreamSnapshot>{
  const checkedAt=new Date().toISOString()
@@ -63,7 +63,7 @@ async function collect(key:string):Promise<AisStreamSnapshot>{
    resolve({source:'AISStream.io',state:connected?'partial':'unavailable',
     checkedAt,assets,received,accepted:assets.length,
     detail:connected
-     ?'Bounded 8.5-second AISStream WebSocket sample; '+received+
+     ?'Bounded 13.5-second AISStream WebSocket sample; '+received+
        ' position frames received, '+assets.length+
        ' unique underway ship fixes. This is NOT continuous coverage or a live voyage history.'
      :'AISStream connection unavailable'+(errorText?' ('+errorText+')':'')+
@@ -80,18 +80,28 @@ async function collect(key:string):Promise<AisStreamSnapshot>{
     }))
    })
    socket.addEventListener('message',event=>{
-    if(done||typeof event.data!=='string'||event.data.length>160000)return
+    if(done)return
+    void (async()=>{
     try{
-     const raw=JSON.parse(event.data) as unknown
+     // Node WebSocket can dispatch text, Blob or ArrayBuffer. All are valid
+     // JSON frame transports; a binary frame is not automatically a bad fix.
+     let payload:string
+     if(typeof event.data==='string')payload=event.data
+     else if(event.data instanceof ArrayBuffer)payload=new TextDecoder().decode(event.data)
+     else if(typeof Blob!=='undefined'&&event.data instanceof Blob)payload=await event.data.text()
+     else return
+     if(done||payload.length>160000)return
+     const raw=JSON.parse(payload) as unknown
      const t=obj(raw).MessageType
      if(typeof t!=='string'||!POSITION_TYPES.includes(t as typeof POSITION_TYPES[number]))return
      received++
      const item=parseAisStreamMessage(raw)
-     if(item&&byId.size<MAX_ACCEPTED){
+     if(item&&(byId.size<MAX_ACCEPTED||byId.has(item.id))){
       const old=byId.get(item.id)
       if(!old||item.observedAt>old.observedAt)byId.set(item.id,item)
      }
     }catch{/* malformed messages are not valid fixes */}
+    })()
    })
    socket.addEventListener('error',()=>{errorText='WebSocket transport error'})
    socket.addEventListener('close',()=>finish())
