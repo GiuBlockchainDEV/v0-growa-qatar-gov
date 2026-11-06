@@ -1,6 +1,6 @@
 'use client'
 import {useEffect,useRef,useState} from 'react'
-import L from 'leaflet'
+import type * as Leaflet from 'leaflet'
 import {Camera,Compass,ExternalLink,Eye,MapPinned,RefreshCw,Satellite,Ship,Plane} from 'lucide-react'
 import type {TrackingAsset} from '@/lib/watchtower/global-tracking'
 import type {PublicCameraResult} from '@/lib/watchtower/public-cameras'
@@ -17,8 +17,8 @@ const readable=(stamp:string)=>Number.isFinite(Date.parse(stamp))?
  */
 export function AssetObservationCamera({asset}:{asset:TrackingAsset}){
  const node=useRef<HTMLDivElement>(null)
- const map=useRef<L.Map|null>(null)
- const marker=useRef<L.Marker|null>(null)
+ const map=useRef<Leaflet.Map|null>(null)
+ const marker=useRef<Leaflet.Marker|null>(null)
  const [follow,setFollow]=useState(true)
  const [open,setOpen]=useState(false)
  const [cameraStatus,setCameraStatus]=useState<PublicCameraResult|null>(null)
@@ -26,21 +26,33 @@ export function AssetObservationCamera({asset}:{asset:TrackingAsset}){
  const [selectedCamera,setSelectedCamera]=useState<string|null>(null)
  const [refresh,setRefresh]=useState(0)
  useEffect(()=>{
-  if(!open||!node.current||map.current)return
-  const instance=L.map(node.current,{zoomControl:false,attributionControl:true,
-   scrollWheelZoom:false,doubleClickZoom:false,dragging:true,keyboard:false,
-   preferCanvas:true,
-  }).setView([asset.lat,asset.lon],asset.kind==='aircraft'?9:12)
-  L.tileLayer(ESRI_IMAGERY,{attribution:imageryAttribution,maxZoom:19,maxNativeZoom:18,
-   updateWhenIdle:true,keepBuffer:1}).addTo(instance)
-  const icon=L.divIcon({className:'',html:'<span style="display:block;width:16px;height:16px;border:3px solid #EEF4C9;background:#111E13;border-radius:50%;box-shadow:0 0 0 5px #111E1340"></span>',
-   iconSize:[16,16],iconAnchor:[8,8]})
-  marker.current=L.marker([asset.lat,asset.lon],{icon,keyboard:false}).addTo(instance)
-  L.control.zoom({position:'topright'}).addTo(instance)
-  map.current=instance
-  const timeout=window.setTimeout(()=>instance.invalidateSize(),30)
-  return()=>{window.clearTimeout(timeout);instance.remove();map.current=null;marker.current=null}
- // Reinitialize only when panel opens or asset switches, never on each fix.
+  if(!open||!node.current)return
+  let cancelled=false
+  let instance:Leaflet.Map|null=null
+  let timer:ReturnType<typeof setTimeout>|undefined
+  void import('leaflet').then(({default:L})=>{
+   if(cancelled||!node.current)return
+   instance=L.map(node.current,{zoomControl:false,attributionControl:true,
+    scrollWheelZoom:false,doubleClickZoom:false,dragging:true,keyboard:false,
+    preferCanvas:true,
+   }).setView([asset.lat,asset.lon],asset.kind==='aircraft'?9:12)
+   L.tileLayer(ESRI_IMAGERY,{attribution:imageryAttribution,maxZoom:19,maxNativeZoom:18,
+    updateWhenIdle:true,keepBuffer:1}).addTo(instance)
+   const icon=L.divIcon({className:'',
+    html:'<span style="display:block;width:16px;height:16px;border:3px solid #EEF4C9;background:#111E13;border-radius:50%;box-shadow:0 0 0 5px #111E1340"></span>',
+    iconSize:[16,16],iconAnchor:[8,8]})
+   marker.current=L.marker([asset.lat,asset.lon],{icon,keyboard:false}).addTo(instance)
+   L.control.zoom({position:'topright'}).addTo(instance)
+   map.current=instance
+   timer=setTimeout(()=>instance?.invalidateSize(),30)
+  }).catch(()=>{/* Basemap unavailable: retain contact and camera evidence. */})
+  return()=>{
+   cancelled=true
+   if(timer)clearTimeout(timer)
+   instance?.remove()
+   map.current=null;marker.current=null
+  }
+ // Reinitialize only when panel opens or selected asset changes.
  // eslint-disable-next-line react-hooks/exhaustive-deps
  },[open,asset.id])
  useEffect(()=>{
