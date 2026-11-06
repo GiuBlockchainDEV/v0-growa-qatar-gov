@@ -78,7 +78,10 @@ export function WatchtowerGlobe3D({assets,fires,showFires,focus,onSelect,selecte
     else if(id.startsWith('risk-zone:')&&layerRef.current.production){
       const raw=id.slice('risk-zone:'.length)
       const last=raw.lastIndexOf(':')
-      if(last>0)onSelectRef.current(raw.slice(0,last))
+      if(last>0){
+        const related=raw.slice(0,last)
+        onSelectRef.current(related)
+      }
     }
     else if(id.startsWith('risk-alert:')&&layerRef.current.risks)
       onSelectRef.current(id.slice('risk-alert:'.length))
