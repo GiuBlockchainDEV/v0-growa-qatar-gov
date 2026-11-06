@@ -187,7 +187,8 @@ export function AssetObservationCamera({asset,onFocus}:{asset:TrackingAsset;onFo
      {tileState==='satellite'?'SATELLITE IMAGERY':tileState==='reference'?'TOPOGRAPHIC MAP (SATELLITE UNAVAILABLE)':'SATELLITE IMAGE NOT AVAILABLE'} · NOT LIVE FOOTAGE
     </div>
    </div>}
-   {view!=='cameras'&&<div className="flex flex-wrap items-center justify-between gap-2">
+   {view!=='cameras'&&<>
+   <div className="flex flex-wrap items-center justify-between gap-2">
     <div className="flex items-center gap-1.5 text-[10px] text-content-soft">
      {asset.kind==='aircraft'?<Plane size={14}/>:<Ship size={14}/>}
      Last observed {readable(asset.observedAt)}
@@ -205,7 +206,7 @@ export function AssetObservationCamera({asset,onFocus}:{asset:TrackingAsset;onFo
      <Eye size={13} className="mb-1"/>Observation
      <strong className="block text-xs text-content">{asset.lat.toFixed(4)}°, {asset.lon.toFixed(4)}°</strong>
     </div>
-   </div>}
+   </div></>}
    <div className="flex flex-wrap justify-between gap-2">
     <button type="button" onClick={onFocus}
      className="g-btn g-btn--outline inline-flex items-center gap-2 text-[10px]">
