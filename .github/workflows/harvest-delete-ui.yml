@@ -1,0 +1,26 @@
+name: Harvest field delete verification
+on:
+  pull_request:
+    paths:
+      - 'components/dashboard/harvest-field-command.tsx'
+      - 'components/dashboard/harvest-workspace.tsx'
+      - 'lib/harvest/field-command-ui.test.ts'
+      - '.github/workflows/harvest-delete-ui.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - run: npx tsc --noEmit
+      - run: npx vitest run lib/harvest/field-command-ui.test.ts
+      - run: npm run build
+      - run: npx eslint components/dashboard/harvest-field-command.tsx components/dashboard/harvest-workspace.tsx
