@@ -1,6 +1,8 @@
 'use client'
 
 import {useEffect,useMemo,useState} from 'react'
+import { StatusDot, SegmentedToggle } from '@/components/brand/ui'
+import { CardHeader } from '@/components/brand/layout'
 import {
  Activity,ArrowDownRight,ArrowRight,ArrowUpRight,BarChart3,CalendarDays,
  CheckCircle2,ChevronRight,Clock3,Database,Factory,FlaskConical,Globe2,
@@ -66,26 +68,20 @@ const presets=[
 ] as const
 
 function SourceChip({children,kind='source'}:{children:React.ReactNode;kind?:'source'|'model'|'gap'}){
- const classes=kind==='source'?'border-[#b3dbb9]/40 bg-white/10 text-white/90':
-  kind==='model'?'border-[#cfdfd2] bg-[#edf5ec] text-[#427459]':
-  'border-[#e6d5b8] bg-[#fff7e8] text-[#8a6930]'
- return <span className={'inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1.5 text-[10px] font-semibold '+classes}>
-  {kind==='source'?<CheckCircle2 className="size-3.5"/>:
-   kind==='model'?<Activity className="size-3.5"/>:<Info className="size-3.5"/>}
-  {children}
+ return <span className="g-tag g-tag--outline-ink inline-flex items-center gap-2 text-[10px]">
+  <StatusDot size={6} tone={kind==='gap'?'warning':kind==='model'?'good':'neutral'}/>{children}
  </span>
 }
 function SummaryMetric({title,value,sub,icon:Icon,accent=false}:{
  title:string;value:string;sub:string;icon:typeof Activity;accent?:boolean
 }){
- return <div className={'relative overflow-hidden rounded-2xl border p-4 lg:p-5 '+(accent?
-  'border-[#42675a] bg-[#173f36] text-white':'border-line bg-card text-content')}>
-  <div className="flex items-center justify-between gap-2">
-   <span className={'text-[10px] font-bold uppercase tracking-[.12em] '+(accent?'text-[#c6decf]':'text-content-soft')}>{title}</span>
-   <Icon className={'size-4 '+(accent?'text-[#b9dcb9]':'text-[#7e9d83]')}/>
-  </div>
-  <div className="mt-3 text-2xl font-semibold tracking-tight tabular-nums md:text-[27px]">{value}</div>
-  <div className={'mt-2 text-[11px] leading-[1.5] '+(accent?'text-[#c7dbd0]':'text-content-soft')}>{sub}</div>
+ return <div className="growa bg-card border border-line p-4" style={{borderRadius:'var(--radius-xl)'}}>
+  <p className="flex items-center gap-2 text-[12px] text-content-soft">
+   {accent?<StatusDot tone="warning" size={6}/>:<Icon className="size-3.5" strokeWidth={1.5}/>}
+   {title}
+  </p>
+  <p className="growa-figure mt-2 text-content tabular-nums" style={{fontSize:'clamp(20px,1.8vw,28px)'}}>{value}</p>
+  <p className="mt-2 text-[11px] leading-5 text-content-soft">{sub}</p>
  </div>
 }
 function Sparkline({prices,selected=false}:{prices:FertilizerPrice[];selected?:boolean}){
@@ -250,49 +246,51 @@ export function FertilizerIntelligence(){
  const highRiskCount=marketRisks.filter(x=>x.risks[1].risk==='high').length
  const stockReady=stock.stockTonnes!==null&&stock.weeklyUseTonnes!==null&&stock.weeklyUseTonnes>0&&stock.leadDays!==null
 
- return <div className="w-full space-y-5 pb-8 text-content">
-  <header className="relative isolate overflow-hidden rounded-[26px] border border-[#214e43] bg-[#123a31] p-5 text-white shadow-[0_18px_56px_rgba(21,55,43,.13)] md:p-8 lg:p-9">
-   <div aria-hidden="true" className="pointer-events-none absolute inset-0 opacity-50 [background-image:radial-gradient(circle_at_85%_14%,rgba(173,213,169,.32),transparent_34%),radial-gradient(circle_at_10%_110%,rgba(105,167,134,.24),transparent_50%)]"/>
-   <svg aria-hidden="true" className="pointer-events-none absolute -right-24 -top-36 h-[500px] w-[500px] opacity-[.16]" viewBox="0 0 500 500" fill="none">
-    <circle cx="250" cy="250" r="100" stroke="#d0e7c6"/><circle cx="250" cy="250" r="155" stroke="#d0e7c6"/>
-    <circle cx="250" cy="250" r="210" stroke="#d0e7c6"/><circle cx="250" cy="250" r="244" stroke="#d0e7c6" strokeDasharray="5 9"/>
-    {Array.from({length:12},(_,i)=><path key={i} d="M250 0V500" transform={'rotate('+(i*15)+' 250 250)'} stroke="#d0e7c6" strokeOpacity=".3"/>)}
-   </svg>
-   <div className="relative z-10 flex flex-wrap items-start justify-between gap-5">
-    <div className="max-w-2xl">
-     <div className="flex flex-wrap items-center gap-2">
-      <span className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[.2em] text-[#c4dcd0]">
-       <FlaskConical className="size-4"/> Qatar agricultural input intelligence</span>
-      <SourceChip>World Bank · Oct 2026</SourceChip>
-     </div>
-     <h1 className="mt-5 text-[34px] font-bold tracking-tight md:text-[44px]">Fertilizer <span className="text-[#c3e5bf]">Intelligence</span></h1>
-     <p className="mt-3 max-w-xl text-[13px] leading-6 text-[#d4e4db]">
-      A national decision cockpit connecting commodity benchmarks, production capacity, procurement exposure and forward supply scenarios. Evidence first, decisions second.
+ return <div className="growa w-full space-y-4 bg-background pb-8 text-content">
+  <header className="overflow-hidden rounded-[22px] bg-ink text-white shadow-panel">
+   <div className="grid gap-5 bg-[radial-gradient(ellipse_at_85%_10%,rgba(140,177,117,.24),transparent_65%)] p-6 lg:grid-cols-[1.6fr_0.7fr] lg:p-8">
+    <div>
+     <span className="flex items-center gap-2 text-[10px] font-bold tracking-[.15em] text-cream-200">
+      <FlaskConical className="size-4" strokeWidth={1.5}/> GROWA · NATIONAL AGRICULTURAL INPUTS
+     </span>
+     <h1 className="mt-4 text-4xl font-bold tracking-tight sm:text-5xl">
+      Fertilizer <span className="font-normal text-cream-200">Intelligence</span>
+      <span className="mt-1 block text-2xl font-medium sm:text-3xl">Market & supply resilience</span>
+     </h1>
+     <p className="mt-3 max-w-2xl text-xs leading-6 text-cream-100">
+      Commodity reference prices, Qatar supply exposure and explainable procurement scenarios, in one national control room.
      </p>
-     <div className="mt-5 flex flex-wrap gap-2">
-      <SourceChip>3 globally priced references</SourceChip>
-      <SourceChip kind="gap">National inventory not connected</SourceChip>
-      <SourceChip kind="model">30 / 90 / 365-day risk models</SourceChip>
+     <div className="mt-5 flex flex-wrap gap-2 text-[10px]">
+      <span className="rounded-full border border-white/20 px-3 py-2">World Bank · Oct 2026</span>
+      <span className="rounded-full border border-white/20 px-3 py-2">30 / 90 / 365-day outlook</span>
+      <span className="rounded-full border border-white/20 px-3 py-2">Stock not connected</span>
      </div>
     </div>
-    <button type="button" onClick={()=>setReload(n=>n+1)}
-     className="relative z-10 inline-flex items-center gap-2 rounded-xl border border-white/25 bg-white/10 px-3 py-2.5 text-[11px] font-semibold transition hover:bg-white/20"
-     aria-label="Refresh fertilizer source data">
-     <RefreshCw className={'size-4 '+(loading?'animate-spin':'')}/> Refresh sources
-    </button>
+    <div className="rounded-2xl border border-white/20 bg-white/5 p-5">
+     <span className="text-[10px] font-bold tracking-wider text-cream-200">NATIONAL MARKET REFERENCE</span>
+     <strong className="growa-figure mt-3 block text-cream" style={{fontSize:'var(--text-display-3)'}}>
+      {avg===null?'Awaiting reference':'$'+money(avg,1)}
+     </strong>
+     <p className="mt-2 text-xs text-cream-100">USD / tonne · three international benchmarks</p>
+     <p className="mt-2 text-[11px] text-cream-100">Not a Qatar landed price or verified domestic sale.</p>
+     <button type="button" onClick={()=>setReload(n=>n+1)}
+      className="g-btn g-btn--outline-inverse mt-4 inline-flex items-center gap-2" aria-label="Refresh fertilizer source data">
+      <RefreshCw className={'size-4 '+(loading?'animate-spin':'')} strokeWidth={1.5}/> Refresh sources
+     </button>
+    </div>
    </div>
-   <div className="relative z-10 mt-7 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+   <div className="grid border-t border-white/20 bg-white/5 sm:grid-cols-2 xl:grid-cols-4">
     {[
-     {label:'Market reference basket',value:avg===null?'Reference pending':'$'+money(avg,1)+'/t',hint:'Mean of 3 unlike benchmarks · not a local quote',icon:Wallet},
-     {label:'QAFCO urea capacity',value:concise(snapshot?.production.capacityTonnesPerYear??5_600_000)+' t/year',hint:'Nominal production capacity · not available stock',icon:Factory},
-     {label:'Published market coverage',value:hasPrice+'/'+products.length+' grades',hint:'Comparable World Bank monthly benchmarks',icon:BarChart3},
-     {label:'Verified national inventory',value:verifiedStockCount+' connected',hint:'No warehouse-level stock source linked',icon:PackageCheck},
-    ].map(item=><div key={item.label} className="rounded-2xl border border-white/20 bg-white/[.085] p-4 backdrop-blur-sm">
-     <div className="flex items-center justify-between text-[10px] font-bold uppercase tracking-[.10em] text-[#cbdfd4]">
-      {item.label}<item.icon className="size-4 text-[#b9d8be]"/>
-     </div>
-     <strong className="mt-3 block text-[24px] font-semibold tabular-nums tracking-tight">{item.value}</strong>
-     <p className="mt-1 text-[10px] leading-5 text-[#bfd5c7]">{item.hint}</p>
+     {label:'QAFCO UREA CAPACITY',value:concise(snapshot?.production.capacityTonnesPerYear??5_600_000)+' t/y',hint:'Nominal, not on-hand stock',icon:Factory},
+     {label:'PRICE COVERAGE',value:hasPrice+'/'+products.length+' grades',hint:'Monthly World Bank benchmarks',icon:BarChart3},
+     {label:'NATIONAL STOCK FEED',value:'Not connected',hint:'Availability unverified',icon:PackageCheck},
+     {label:'SCREENING HORIZON',value:'30 · 90 · 365 d',hint:'Modeled risk, not observed outages',icon:Activity},
+    ].map(item=><div key={item.label} className="min-w-0 border-b border-white/15 p-4 sm:border-e xl:border-b-0">
+     <span className="flex items-center gap-2 text-[10px] font-bold tracking-wide text-cream-200">
+      <item.icon className="size-3.5" strokeWidth={1.5}/>{item.label}
+     </span>
+     <strong className="growa-figure mt-2 block text-cream tabular-nums" style={{fontSize:'clamp(19px,2vw,27px)'}}>{item.value}</strong>
+     <small className="mt-1 block text-[10px] text-cream-100">{item.hint}</small>
     </div>)}
    </div>
   </header>
@@ -320,11 +318,9 @@ export function FertilizerIntelligence(){
       <h2 className="mt-1 text-xl font-bold">Fertilizer price discovery</h2>
       <p className="mt-1 text-[11px] text-content-soft">Select a fertilizer to inspect observed benchmarks and source basis.</p>
      </div>
-     <div className="flex gap-1 rounded-xl border border-line bg-background p-1">
-      {(['USD','QAR'] as const).map(c=><button type="button" key={c} aria-pressed={currency===c}
-       className={'rounded-lg px-3 py-1.5 text-xs font-bold '+(currency===c?'bg-[#1e5141] text-white':'text-content-soft')}
-       onClick={()=>setCurrency(c)}>{c}</button>)}
-     </div>
+     <SegmentedToggle ariaLabel="Price currency" size="sm"
+      options={[{value:'USD',label:'USD'},{value:'QAR',label:'QAR'}]}
+      value={currency} onChange={setCurrency}/>
     </div>
     <div className="mt-5 grid grid-cols-2 gap-2 md:grid-cols-3 2xl:grid-cols-5">
      {products.map(p=>{
@@ -369,11 +365,9 @@ export function FertilizerIntelligence(){
     </div>
     <div className="mt-5 flex items-center justify-between gap-2">
      <h3 className="text-xs font-bold">Historical price chart</h3>
-     <div className="flex gap-1 rounded-lg border border-line bg-background p-1">
-      {([3,6,12] as const).map(value=><button key={value} type="button" aria-pressed={period===value}
-       onClick={()=>setPeriod(value)} className={'rounded-md px-2.5 py-1.5 text-[10px] font-semibold '+(
-        period===value?'bg-[#dfeae0] text-[#2e6a4a]':'text-content-soft')}>{value} mo</button>)}
-     </div>
+     <SegmentedToggle ariaLabel="Historical chart range" size="sm"
+      options={[{value:3,label:'3 mo'},{value:6,label:'6 mo'},{value:12,label:'12 mo'}]}
+      value={period} onChange={setPeriod}/>
     </div>
     <div className="mt-3"><MarketChart product={selected} currency={currency} range={period}/></div>
     <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-line pt-3 text-[10px] text-content-soft">
