@@ -166,9 +166,17 @@ export function HarvestFieldCommand({
       <span className="rounded-full border border-white/25 px-3 py-1.5 text-[10px]">{demo?'Sample field record':'Harvest API · field record'}</span>
       <span className="rounded-full border border-white/25 px-3 py-1.5 text-[10px]">{rasterReady?'Spectral map available':collecting?'Raster collection running':'Spectral map pending'}</span>
      </div>
-     <button type="button" onClick={onBack} className="g-btn g-btn--outline-inverse mt-5 inline-flex items-center gap-2">
-      <ArrowLeft size={14}/> Back to all fields
-     </button>
+     <div className="mt-5 flex flex-wrap items-center gap-2">
+      <button type="button" onClick={onBack} className="g-btn g-btn--outline-inverse inline-flex items-center gap-2">
+       <ArrowLeft size={14}/> Back to all fields
+      </button>
+      <button type="button" onClick={onDelete} disabled={deleteLoading}
+       aria-label={'Delete field '+field.name}
+       className="inline-flex min-h-10 items-center gap-2 rounded-full border border-[#DDB8B0] bg-[#FEF1EE] px-4 py-2 text-xs font-semibold text-[#9E3E30] transition-colors hover:border-[#A8392B] hover:bg-[#FBE3DE] disabled:cursor-not-allowed disabled:opacity-50">
+       {deleteLoading?<Loader2 size={14} className="animate-spin"/>:<Trash2 size={14}/>}
+       {deleteLoading?'Deleting field…':'Delete field'}
+      </button>
+     </div>
     </div>
     <div className="rounded-xl border border-white/20 bg-white/5 p-5">
      <p className="text-[10px] font-bold tracking-wider text-cream-200">SEASON PLANNING WINDOW</p>
@@ -292,15 +300,9 @@ export function HarvestFieldCommand({
       <pre className="mt-3 max-h-52 overflow-auto whitespace-pre-wrap break-words text-[10px] text-content-soft">{JSON.stringify(yieldTask.result,null,2)}</pre>
      </details>}
     </div>
-    <details className="mt-4 border-t border-dotted border-line pt-3">
-     <summary className="cursor-pointer text-[11px] font-semibold text-content-soft">Field management</summary>
-     <p className="mt-2 text-[11px] leading-5 text-content-soft">Removing a field affects its Harvest registration and requires confirmation.</p>
-     <button type="button" onClick={onDelete} disabled={deleteLoading}
-      className="mt-3 inline-flex items-center gap-2 rounded-full border border-critical/30 bg-critical/10 px-3 py-2 text-xs font-semibold text-critical disabled:opacity-50">
-      {deleteLoading?<Loader2 size={14} className="animate-spin"/>:<Trash2 size={14}/>}
-      Delete field
-     </button>
-    </details>
+    <p className="mt-4 border-t border-dotted border-line pt-3 text-[11px] leading-5 text-content-soft">
+     Delete the field using the button near its name. Confirmation is required; this action affects its Harvest registration.
+    </p>
    </Card>
   </div>
   <Card icon={Database} title="Field data lineage & confidence" subtitle="What is reported, what is modeled, and what is still missing.">
