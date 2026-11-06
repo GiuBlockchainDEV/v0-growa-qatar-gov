@@ -1,0 +1,33 @@
+name: Watchtower integration verification
+on:
+  pull_request:
+    paths:
+      - 'components/dashboard/watchtower/**'
+      - 'lib/watchtower/**'
+      - 'app/api/watchtower/**'
+      - '.github/workflows/watchtower-integration.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    name: TypeScript + focused Watchtower tests + Next production build
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - name: TypeScript
+        run: npx tsc --noEmit
+      - name: Focused source-integrity tests
+        run: npx vitest run lib/watchtower/firms-hotspots.test.ts lib/watchtower/aisstream-snapshot.test.ts lib/watchtower/opensky-regional.test.ts lib/watchtower/gods-eye-integration.test.ts
+      - name: Production build
+        run: npm run build
+      - name: Lint changed integration files
+        run: npx eslint components/dashboard/watchtower/watchtower-globe-3d.tsx components/dashboard/watchtower/global-watchtower.tsx components/dashboard/watchtower/global-tracking-map.tsx lib/watchtower/firms-hotspots.ts lib/watchtower/aisstream-snapshot.ts lib/watchtower/opensky-regional.ts app/api/watchtower/firms/route.ts app/api/watchtower/aisstream-sample/route.ts
