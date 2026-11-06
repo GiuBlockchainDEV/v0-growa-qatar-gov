@@ -23,6 +23,7 @@ type TilePayload={
 }
 const NDVI_COLORS=['#a50026','#f46d43','#ffffbf','#a6d96a','#006837']
 const NDMI_COLORS=['#A50026','#F46D43','#F7F7F7','#64B5D7','#163C8C']
+const NDSI_COLORS=['#006837','#a6d96a','#ffffbf','#f46d43','#a50026']
 const TILE_SIZE=256
 const SPECTRAL_PANE='growa-spectral-raster'
 /** Cache successful, source-backed raster pixels across Leaflet tile disposal.
@@ -142,7 +143,7 @@ function validTiles(payload:TilePayload):Array<SpectralTile&{cloudCover?:number}
   payload.tiles:[{url:payload.url,bbox:[...QATAR_SPECTRAL_BBOX],sceneDate:payload.endDate}]
 }
 
-/** Two stable native-grid layers for Qatar NDVI / NDMI presentation.
+/** Stable native-grid layers for Qatar NDVI / NDMI / NDSI presentation.
  * PgSTAC renders a single mosaic directly. When PgSTAC fails,
  * actual Sentinel-2 scene images are alpha-composited per output
  * canvas tile in WebMercator coordinates; scene boundaries are feathered.
@@ -357,8 +358,8 @@ export function QatarSpectralLayers({map}:{map:MapController|null}){
   setIndex(choice===index?null:choice)
   setError(null)
  }
- const colors=index==='ndvi'?NDVI_COLORS:NDMI_COLORS
- const spectralRange=index==='ndvi'?['−0.20','0.08','0.35','0.63','0.90']:['≤−0.35','−0.18','0','0.18','≥0.35']
+ const colors=index==='ndvi'?NDVI_COLORS:index==='ndmi'?NDMI_COLORS:NDSI_COLORS
+ const spectralRange=index==='ndvi'?['−0.20','0.08','0.35','0.63','0.90']:index==='ndmi'?['≤−0.35','−0.18','0','0.18','≥0.35']:['≤−0.90','−0.63','−0.35','−0.08','≥0.20']
  return <div className="absolute start-1/2 top-4 z-[1150] w-[min(33rem,calc(100%-7rem))] -translate-x-1/2 rounded-xl border border-line bg-card/95 p-3 shadow-panel backdrop-blur-md"
   role="group" aria-label="Qatar-wide satellite spectral indices">
   <div className="flex items-center justify-between gap-2">
@@ -370,8 +371,8 @@ export function QatarSpectralLayers({map}:{map:MapController|null}){
     SENTINEL-2 · MICROSOFT PLANETARY COMPUTER
    </span>
   </div>
-  <div className="mt-2 grid grid-cols-3 gap-2">
-   {([null,'ndvi','ndmi'] as const).map(choice=><button
+  <div className="mt-2 grid grid-cols-4 gap-2">
+   {([null,'ndvi','ndmi','ndsi'] as const).map(choice=><button
     key={choice??'off'} type="button" onClick={()=>toggle(choice)}
     aria-pressed={index===choice}
     className={'rounded-lg border px-3 py-2 text-[11px] font-semibold transition-colors '+
@@ -395,7 +396,9 @@ export function QatarSpectralLayers({map}:{map:MapController|null}){
     {spectralRange.map((value,i)=><span key={i}>{value}</span>)}
    </div>
    <p className="mt-1 text-[9px] leading-4 text-content-soft">
-    {index==='ndvi'?'NDVI · Sentinel-2 observations with original color scale −0.20…0.90.':'Enhanced NDMI contrast · clipped color scale −0.35…0.35, with original Sentinel-2 index values. NDMI is not soil moisture.'}
+    {index==='ndvi'?'NDVI · Sentinel-2 observations with original color scale −0.20…0.90.':
+      index==='ndmi'?'Enhanced NDMI contrast · clipped color scale −0.35…0.35, with original Sentinel-2 index values. NDMI is not soil moisture.':
+      'NDSI (salinity screening variant) = (B04−B08)/(B04+B08) = −NDVI. Warm colors indicate higher index values, NOT confirmed salt concentrations. Vegetation and bare soil strongly influence this proxy.'}
    </p>
    <p role="status" className="mt-2 text-[10px] leading-4 text-content-soft">
     {error?'Satellite service: '+error:
@@ -410,7 +413,7 @@ export function QatarSpectralLayers({map}:{map:MapController|null}){
     {payload?.mode==='stac-composite'?
      'Single geographically masked visual composite. Scene colors are feathered; dates may vary, and this is not a quantitative index measurement.':
      'Single Qatar-clipped mosaic. Dates, clouds and no-data coverage may vary.'}
-    {' '}NDMI is not soil moisture.
+    {' '}{index==='ndsi'?'NDSI is not a measured soil salinity value (dS/m).':'NDMI is not measured soil moisture.'}
    </p>
    {error&&<button type="button" onClick={()=>setRetry(x=>x+1)}
     className="mt-2 inline-flex items-center gap-1 text-[10px] font-semibold text-sage-700 underline">
