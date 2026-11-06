@@ -11,7 +11,7 @@ export type TrackingAsset = {
   chokepointId?: import('./data-tracking-net').ChokepointId
   hubId?: import('./myshiptracking-gcc-shared').GccHubId
   /** Distinguishes a per-ship timestamp from a dataset-level last poll. */
-  observationBasis?: 'position_report' | 'snapshot_poll' | 'webpage_capture'
+  observationBasis?: 'position_report' | 'receipt_time' | 'snapshot_poll' | 'webpage_capture'
 }
 export type MapAlert = {
   id: string; kind: 'hazard' | 'aviation' | 'maritime' | 'food'; title: string

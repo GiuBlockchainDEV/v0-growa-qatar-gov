@@ -132,7 +132,20 @@ export function GlobalWatchtower() {
         })
         if(!response.ok)throw Error('AISStream HTTP '+response.status)
         const data=await response.json() as AisStreamSnapshot
-        if(active)setAisStream(data)
+        if(active)setAisStream(previous=>{
+          // Accumulate actual streamed observations between short Vercel samples.
+          // Without this, each 13.5s poll replaces the prior fleet with a
+          // tiny instantaneous slice. No synthetic vessels or extrapolation.
+          const current=Date.now()
+          const candidates=[...(previous?.assets??[]),...data.assets].filter(asset=>{
+            const age=current-Date.parse(asset.observedAt)
+            return Number.isFinite(age)&&age>=-60000&&age<=10*60000
+          })
+          const unique=mergeAssets(candidates)
+          return {...data,assets:unique,accepted:unique.length,
+            detail:data.detail+' '+unique.length+
+              ' unique source-received positions retained for at most 10 minutes in this browser.'}
+        })
       }catch{
         if(active&&!controller.signal.aborted)setAisStream({
           source:'AISStream.io',state:'unavailable',checkedAt:new Date().toISOString(),
@@ -142,7 +155,7 @@ export function GlobalWatchtower() {
       }
     }
     void load()
-    const timer=setInterval(()=>void load(),5*60000)
+    const timer=setInterval(()=>void load(),90_000)
     return()=>{active=false;controller.abort();clearInterval(timer)}
   },[refresh])
   const orgId = organization?.id ?? null, food = posture?.organizationId === orgId ? posture : null
@@ -290,7 +303,7 @@ export function GlobalWatchtower() {
       }
     }
     void load()
-    const timer=setInterval(()=>void load(),30*60000)
+    const timer=setInterval(()=>void load(),120_000)
     const visible=()=>{if(!document.hidden)void load()}
     document.addEventListener('visibilitychange',visible)
     return()=>{active=false;controller.abort();clearInterval(timer)
@@ -633,6 +646,18 @@ export function GlobalWatchtower() {
     ]
     return [...aircraft,...vessels]
   },[openSea,globalAis,openWaters,snapshot,maritimeFeed,gccRadar,regionalAir,openSkyAir,aisStream])
+  // Per-provider visibility funnel: differentiate source observations from filters.
+  const providerAudit=useMemo(()=>[
+    {name:'AISStream',rows:aisStream?.assets??[]},
+    {name:'OpenSky',rows:openSkyAir?.assets??[]},
+  ].map(({name,rows})=>{
+    const regional=rows.filter(inside)
+    const displayed=regional.filter(a=>a.kind==='aircraft'
+      ?(!freightFlightsOnly||a.cargo!=='unverified')
+      :visibleUnderwayVessel(a,now)&&(shipView!=='cargoMoving'||a.cargo==='ais_cargo_class'))
+    return {name,received:rows.length,regional:regional.length,
+      qualified:displayed.length,filtered:regional.length-displayed.length}
+  }),[aisStream,openSkyAir,inside,freightFlightsOnly,shipView,now])
   const cargoCandidateCount=allAssets.filter(a=>a.kind==='aircraft'&&inside(a)&&a.cargo!=='unverified').length
   // Successful geographic queries are not evidence of receiving all flights.
   // Distinguish source gaps from genuinely received observations per country.
@@ -803,7 +828,7 @@ export function GlobalWatchtower() {
   return <div id="watchtower-map" ref={root} className={styles.shell} dir={ar ? 'rtl' : 'ltr'}>
     {globeMode==='2d'
       ? <Map assets={assets} demoVessels={demoVessels} historyAssets={allAssets} alerts={alerts} riskZones={riskZones} chokepoints={maritimeFeed?.chokepoints??[]} aisRoutes={aisHistory} layers={layers} selectedId={selectedId} onSelect={select} onChokepointClick={chooseChokepoint} focus={focus} now={now} fires={firms?.detections??[]} showFires={showFires} />
-      : <Globe3D assets={assets} fires={firms?.detections??[]} showFires={showFires} focus={focus} onSelect={select}/>}
+      : <Globe3D assets={assets} fires={firms?.detections??[]} showFires={showFires} focus={focus} selectedId={selectedId} onSelect={select}/>}
     <header className={styles.header}>
       <div className={styles.titleRow}>
         <div><div className={styles.eyebrow}>NFII / GLOBAL OPERATING PICTURE</div>
@@ -932,6 +957,12 @@ export function GlobalWatchtower() {
           </p>
           <p><strong>Saudi / Oman / Yemen ADS-B hubs:</strong> actual provider positions only.</p>
            <p><strong>NASA FIRMS:</strong> {firms?.state??'loading'} · {firms?.total??'N/A'} thermal detections in {firms?.coverage??'the corridor'} · {firms?.latestObservedAt?utc(firms.latestObservedAt):'no recent provider timestamp'}. {firms?.detail??''}</p>
+           {providerAudit.map(feed=><p key={feed.name}>
+             <strong>{feed.name} observation funnel:</strong> {feed.received} provider positions
+             {' · '}{feed.regional} in the chosen map region
+             {' · '}{feed.qualified} passing movement and type filters.
+             {feed.filtered>0?' '+feed.filtered+' filtered out.':''}
+           </p>)}
           <p><strong>Independent OpenSky source:</strong> {openSkyAir?.state??'loading'} · {openSkyAir?.assets.length??'N/A'} observed aircraft. {openSkyAir?.detail??''}</p>
           {targetedAirCoverage.map(area=><p key={area.region}>
             <strong>{area.region}:</strong> {area.observed} received aircraft observations
@@ -993,6 +1024,7 @@ export function GlobalWatchtower() {
       {globalAis&&<span className={styles.feedPill} data-state={globalAis.state}><i/>Global AIS: {globalAis.state} · {globalAis.accepted.toLocaleString('en-US')}</span>}
        {aisStream&&<span className={styles.feedPill} data-state={aisStream.state}><i/>AISStream: {aisStream.state} · {aisStream.accepted} fixes</span>}
       {openWaters&&<span className={styles.feedPill} data-state={openWaters.state}><i/>Offshore AIS: {openWaters.state} · {openWaters.vessels}</span>}
+       {openSkyAir&&<span className={styles.feedPill} data-state={openSkyAir.state}><i/>OpenSky: {openSkyAir.state} · {openSkyAir.assets.length}</span>}
       <span className={styles.feedPill} data-state={regionalAir.some(b=>b.succeeded>0)?'partial':'unavailable'}>
         <i/>ADS-B area: {regionalAir.reduce((n,b)=>n+b.succeeded,0)}/60 circles</span>
       {maritimeFeed&&<span className={styles.feedPill} data-state={maritimeFeed.assets.length?'partial':'unavailable'}>
