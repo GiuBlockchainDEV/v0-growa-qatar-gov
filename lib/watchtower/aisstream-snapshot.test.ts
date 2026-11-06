@@ -18,6 +18,6 @@ describe('AISStream short-burst parser',()=>{
    Message:{PositionReport:{Latitude:99,Longitude:51,Sog:10}}}
   expect(parseAisStreamMessage(x,now)).toBeNull()
   const y={...x,Message:{PositionReport:{Latitude:25,Longitude:51,Sog:10}}}
-  expect(parseAisStreamMessage(y,now)?.observationBasis).toBe('snapshot_poll')
+  expect(parseAisStreamMessage(y,now)?.observationBasis).toBe('receipt_time')
  })
 })
