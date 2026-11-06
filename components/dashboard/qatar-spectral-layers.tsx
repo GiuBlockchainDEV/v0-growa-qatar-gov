@@ -23,7 +23,7 @@ type TilePayload={
 }
 const NDVI_COLORS=['#a50026','#f46d43','#ffffbf','#a6d96a','#006837']
 const NDMI_COLORS=['#A50026','#F46D43','#F7F7F7','#64B5D7','#163C8C']
-const NDSI_COLORS=['#006837','#a6d96a','#ffffbf','#f46d43','#a50026']
+const NDSI_COLORS=['#fcfbfd','#dadaeb','#9e9ac8','#756bb1','#54278f']
 const TILE_SIZE=256
 const SPECTRAL_PANE='growa-spectral-raster'
 /** Cache successful, source-backed raster pixels across Leaflet tile disposal.
