@@ -46,12 +46,12 @@ export function cameraDistanceKm(lat:number,lon:number,targetLat:number,targetLo
 }
 export function parseNearbyPublicCameras(raw:unknown,lat:number,lon:number,radiusKm=80):NearbyPublicCamera[]{
  if(!validCameraCoordinates(lat,lon))return []
- const data=obj(raw),rows=Array.isArray(data.webcams)?data.webcams:[]
+ const data=obj(raw),rows=Array.isArray(raw)?raw:Array.isArray(data.webcams)?data.webcams:[]
  const mapped:NearbyPublicCamera[]=[]
  const seen=new Set<string>()
  for(const candidate of rows.slice(0,50)){
   const row=obj(candidate)
-  if(row.status!=='active')continue
+  if(row.status&&row.status!=='active')continue
   const location=obj(row.location),pLat=number(location.latitude),pLon=number(location.longitude)
   if(pLat===null||pLon===null||!validCameraCoordinates(pLat,pLon))continue
   const distanceKm=cameraDistanceKm(lat,lon,pLat,pLon)
@@ -59,9 +59,10 @@ export function parseNearbyPublicCameras(raw:unknown,lat:number,lon:number,radiu
   const id=String(row.webcamId??'')
   if(!/^\d{1,15}$/.test(id)||seen.has(id))continue
   const player=obj(row.player),urls=obj(row.urls),images=obj(row.images)
-  const liveUrl=publicCameraUrl(player.live)
-  const dayUrl=publicCameraUrl(player.day)
-  const detailUrl=publicCameraUrl(urls.detail)
+  const livePlayer=obj(player.live),dayPlayer=obj(player.day)
+  const liveUrl=livePlayer.available===true?publicCameraUrl(livePlayer.embed):null
+  const dayUrl=publicCameraUrl(dayPlayer.embed)
+  const detailUrl=publicCameraUrl(urls.detail??urls.current)
   if(!detailUrl||(!liveUrl&&!dayUrl))continue
   const current=obj(images.current)
   const imageUrl=publicCameraUrl(current.preview)||publicCameraUrl(current.icon)
