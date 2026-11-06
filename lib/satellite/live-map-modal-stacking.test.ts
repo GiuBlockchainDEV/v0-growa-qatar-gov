@@ -20,7 +20,7 @@ describe('Live Map modal stacking and honest NDSI presentation',()=>{
   const layer=read('components/dashboard/qatar-spectral-layers.tsx')
   expect(config).toContain("description:'NDSI spectral contrast · NOT measured soil salinity'")
   expect(config).toContain("palette:'purples',rescale:'-0.1,0.7'")
-  expect(layer).toContain("setOpacity(choice==='ndsi'?.35:.7)")
+  expect(layer).toContain("setOpacity(choice==='ndsi'?.65:.7)")
   expect(layer).toContain('Sand and bare soil are not classified as saline.')
   expect(layer).toContain('Bare sand can have positive values without being saline.')
  })
