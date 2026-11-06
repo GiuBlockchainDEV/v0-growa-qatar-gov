@@ -828,7 +828,7 @@ export function GlobalWatchtower() {
   return <div id="watchtower-map" ref={root} className={styles.shell} dir={ar ? 'rtl' : 'ltr'}>
     {globeMode==='2d'
       ? <Map assets={assets} demoVessels={demoVessels} historyAssets={allAssets} alerts={alerts} riskZones={riskZones} chokepoints={maritimeFeed?.chokepoints??[]} aisRoutes={aisHistory} layers={layers} selectedId={selectedId} onSelect={select} onChokepointClick={chooseChokepoint} focus={focus} now={now} fires={firms?.detections??[]} showFires={showFires} />
-      : <Globe3D assets={assets} fires={firms?.detections??[]} showFires={showFires} focus={focus} selectedId={selectedId} onSelect={select}/>}
+      : <Globe3D assets={assets} fires={firms?.detections??[]} showFires={showFires} focus={focus} selectedId={selectedId} riskZones={riskZones} alerts={alerts} layers={layers} chokepoints={maritimeFeed?.chokepoints??[]} onSelect={select} onChokepointClick={chooseChokepoint}/>}
     <header className={styles.header}>
       <div className={styles.titleRow}>
         <div><div className={styles.eyebrow}>NFII / GLOBAL OPERATING PICTURE</div>
