@@ -312,15 +312,12 @@ export function FertilizerIntelligence(){
 
   <section className="grid gap-4 xl:grid-cols-[minmax(0,1.55fr)_minmax(320px,1fr)]">
    <article data-famiglia="monitoraggio" className="growa min-w-0 rounded-2xl border border-line bg-card p-4 md:p-6">
-    <div className="flex flex-wrap items-start justify-between gap-3">
-     <div>
-      <div className="text-[10px] font-bold uppercase tracking-wider text-sage-700">01 / Market terminal</div>
-      <h2 className="mt-1 text-xl font-bold">Fertilizer price discovery</h2>
-      <p className="mt-1 text-[11px] text-content-soft">Select a fertilizer to inspect observed benchmarks and source basis.</p>
-     </div>
-     <SegmentedToggle ariaLabel="Price currency" size="sm"
-      options={[{value:'USD',label:'USD'},{value:'QAR',label:'QAR'}]}
-      value={currency} onChange={setCurrency}/>
+    <div className="-m-4 mb-4 md:-m-6 md:mb-5">
+     <CardHeader icon={BarChart3} title="Fertilizer price discovery"
+      subtitle="01 · Market terminal · Select a fertilizer to inspect source-linked benchmarks."
+      actions={<SegmentedToggle ariaLabel="Price currency" size="sm"
+       options={[{value:'USD',label:'USD'},{value:'QAR',label:'QAR'}]}
+       value={currency} onChange={setCurrency}/>}/>
     </div>
     <div className="mt-5 grid grid-cols-2 gap-2 md:grid-cols-3 2xl:grid-cols-5">
      {products.map(p=>{
@@ -379,11 +376,10 @@ export function FertilizerIntelligence(){
    </article>
 
    <article data-famiglia="monitoraggio" className="growa min-w-0 rounded-2xl border border-line bg-card p-4 md:p-6">
-    <div className="text-[10px] font-bold uppercase tracking-wider text-sage-700">02 / Forward risk intelligence</div>
-    <h2 className="mt-1 text-xl font-bold">Exposure radar</h2>
-    <p className="mt-2 text-[11px] leading-5 text-content-soft">
-     Explainable scenario score from 0–100. It is a screening index, not the probability of a disruption.
-    </p>
+    <div className="-m-4 mb-4 md:-m-6 md:mb-5">
+     <CardHeader icon={ShieldAlert} title="Exposure radar"
+      subtitle="02 · Forward risk intelligence · Explainable 0–100 screening index, not a disruption probability."/>
+    </div>
     <div className="mt-4 grid grid-cols-3 gap-2">
      {horizons.map(h=><button key={h.days} type="button" aria-pressed={horizon===h.days} onClick={()=>setHorizon(h.days)}
       className={'rounded-xl border p-3 text-center transition-colors '+(horizon===h.days?'border-line-accent bg-cream-50':'border-line bg-muted')}>
@@ -430,14 +426,11 @@ export function FertilizerIntelligence(){
    </article>
   </section>
 
-  <section className="rounded-2xl border border-line bg-card p-4 md:p-6">
-   <div className="flex flex-wrap items-start justify-between gap-3">
-    <div>
-     <div className="text-[10px] font-bold uppercase tracking-wider text-sage-700">03 / National vulnerability matrix</div>
-     <h2 className="mt-1 text-xl font-bold">Risk horizon heatmap</h2>
-     <p className="mt-1 text-[11px] text-content-soft">Compare all tracked fertilizer groups under your active what-if assumptions.</p>
-    </div>
-    <SourceChip kind="model">Rules-based, not incident reports</SourceChip>
+  <section data-famiglia="monitoraggio" className="growa rounded-2xl border border-line bg-card p-4 md:p-6">
+   <div className="-m-4 mb-4 md:-m-6 md:mb-5">
+    <CardHeader icon={Activity} title="Risk horizon heatmap"
+     subtitle="03 · National vulnerability · Compare all five fertilizer groups under the selected scenario."
+     actions={<SourceChip kind="model">Rules-based screening</SourceChip>}/>
    </div>
    <div className="mt-5 overflow-x-auto">
     <div className="min-w-[680px]">
@@ -467,12 +460,9 @@ export function FertilizerIntelligence(){
 
   <section className="grid gap-4 xl:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)]">
    <article data-famiglia="monitoraggio" className="growa rounded-2xl border border-line bg-card p-4 md:p-6">
-    <div className="flex flex-wrap items-center justify-between gap-2">
-     <div>
-      <div className="text-[10px] font-bold uppercase tracking-wider text-sage-700">04 / Scenario laboratory</div>
-      <h2 className="mt-1 text-xl font-bold">Stress-test supply continuity</h2>
-     </div>
-     <SlidersHorizontal className="size-5 text-sage-700"/>
+    <div className="-m-4 mb-4 md:-m-6 md:mb-5">
+     <CardHeader icon={SlidersHorizontal} title="Stress-test supply continuity"
+      subtitle="04 · Scenario laboratory · Change input assumptions to explore possible outcomes."/>
     </div>
     <p className="mt-2 text-[11px] leading-5 text-content-soft">
      All numbers below are your inputs or hypothetical shocks. Inputs are scoped to {selected.name}, kept in this browser session, and never written to national inventory records.
@@ -515,12 +505,9 @@ export function FertilizerIntelligence(){
    </article>
 
    <article data-famiglia="monitoraggio" className="growa rounded-2xl border border-line bg-card p-4 md:p-6">
-    <div className="flex flex-wrap items-center justify-between gap-2">
-     <div>
-      <div className="text-[10px] font-bold uppercase tracking-wider text-sage-700">05 / Decision room</div>
-      <h2 className="mt-1 text-xl font-bold">Supply outlook & actions</h2>
-     </div>
-     <Sparkles className="size-5 text-sage-700"/>
+    <div className="-m-4 mb-4 md:-m-6 md:mb-5">
+     <CardHeader icon={Sparkles} title="Supply outlook & actions"
+      subtitle="05 · Decision room · Evidence-linked procurement checks and scenarios."/>
     </div>
     <div className="mt-4 flex items-center gap-2">
      <SourceChip kind="model">Explainable rules engine</SourceChip>
@@ -564,18 +551,13 @@ export function FertilizerIntelligence(){
    </article>
   </section>
 
-  <section className="rounded-2xl border border-line bg-card p-4 md:p-6">
-   <div className="flex flex-wrap items-start justify-between gap-3">
-    <div>
-     <div className="text-[10px] font-bold uppercase tracking-wider text-sage-700">06 / Availability intelligence</div>
-     <h2 className="mt-1 text-xl font-bold">Where availability is proven, and where it is not</h2>
-     <p className="mt-1 text-[11px] text-content-soft">Production, trade and warehouse stock are three separate layers of evidence.</p>
-    </div>
-    <button type="button" onClick={()=>setSourceExpanded(value=>!value)}
-     aria-expanded={sourceExpanded}
-     className="inline-flex items-center gap-1.5 rounded-xl border border-line px-3 py-2 text-xs font-semibold hover:bg-cream-50">
-     <Database className="size-4"/> {sourceExpanded?'Hide evidence':'Inspect sources'}
-    </button>
+  <section data-famiglia="monitoraggio" className="growa rounded-2xl border border-line bg-card p-4 md:p-6">
+   <div className="-m-4 mb-4 md:-m-6 md:mb-5">
+    <CardHeader icon={Database} title="Where availability is proven, and where it is not"
+     subtitle="06 · Availability intelligence · Capacity, annual trade and on-hand stock are different evidence."
+     actions={<button type="button" onClick={()=>setSourceExpanded(value=>!value)}
+      aria-expanded={sourceExpanded} className="g-btn g-btn--outline inline-flex items-center gap-2">
+      {sourceExpanded?'Hide evidence':'Inspect sources'}</button>}/>
    </div>
    <div className="mt-5 grid gap-3 md:grid-cols-3">
     <div className="rounded-xl border border-line bg-cream-50 p-4">
