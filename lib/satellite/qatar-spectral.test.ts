@@ -5,6 +5,7 @@ import {
  QATAR_SPECTRAL_BBOX,qatarMosaicSearch,spectralTileParams,
  isMicrosoftTileUrl,SPECTRAL_INDEX_CONFIG,selectQatarSentinelScenes,
  SPECTRAL_OVERVIEW_ZOOM,SPECTRAL_DETAIL_ZOOM,SPECTRAL_DETAIL_START_ZOOM,
+ NDSI_CONTRAST_RANGES,DEFAULT_NDSI_CONTRAST,parseNdsiContrast,
 } from './qatar-spectral'
 const read=(p:string)=>readFileSync(join(process.cwd(),p),'utf8')
 describe('Qatar nationwide Microsoft Planetary Computer spectral imagery',()=>{
@@ -26,6 +27,15 @@ describe('Qatar nationwide Microsoft Planetary Computer spectral imagery',()=>{
   expect(spectralTileParams('ndsi').getAll('assets')).toEqual(['B04','B08'])
   expect(spectralTileParams('ndsi').get('colormap_name')).toBe('purples')
   expect(spectralTileParams('ndsi').get('rescale')).toBe('-0.1,0.7')
+  expect(DEFAULT_NDSI_CONTRAST).toBe('detail')
+  expect(spectralTileParams('ndsi','overview').get('rescale')).toBe('-0.1,0.7')
+  expect(spectralTileParams('ndsi','detail').get('rescale')).toBe('-0.15,0.25')
+  expect(spectralTileParams('ndsi','strong').get('rescale')).toBe('-0.08,0.16')
+  expect(NDSI_CONTRAST_RANGES.detail.min).toBeLessThan(NDSI_CONTRAST_RANGES.detail.max)
+  expect(parseNdsiContrast(null)).toBe('detail')
+  expect(parseNdsiContrast('bogus')).toBeNull()
+  expect(spectralTileParams('ndvi','strong').get('rescale')).toBe('-0.2,0.9')
+
   // Visual legend must stay aligned with the actual TiTiler purple ramp,
   // not merely recolor the UI while leaving the imagery red/green.
   expect(SPECTRAL_INDEX_CONFIG.ndsi.palette).not.toBe(SPECTRAL_INDEX_CONFIG.ndvi.palette)
@@ -93,7 +103,15 @@ describe('Qatar nationwide Microsoft Planetary Computer spectral imagery',()=>{
   expect(widget).toContain("([null,'ndvi','ndmi','ndsi'] as const)")
   expect(widget).toContain("index==='ndmi'?NDMI_COLORS:NDSI_COLORS")
   expect(widget).toContain('Sand and bare soil are not classified as saline')
-  expect(widget).toContain("setOpacity(choice==='ndsi'?.35:.7)")
+  expect(widget).toContain("setOpacity(choice==='ndsi'?.65:.7)")
+  expect(widget).toContain('NDSI contrast · same scale throughout Qatar')
+  expect(widget).toContain("setContrast(choice)")
+  expect(widget).toContain("'&contrast='+contrast")
+  expect(widget).toContain('const ndsiRange=Array.from({length:5}')
+  const api=read('app/api/satellite/qatar-spectral/route.ts')
+  expect(api).toContain('const cacheKey=index')
+  expect(api).toContain("parseNdsiContrast(requestedContrast)")
+
   expect(widget).toContain('setIndex(choice===index?null:choice)')
   expect(widget).toContain('overlay.current?.remove()')
   expect(widget).toContain('clipTileToQatar(context')

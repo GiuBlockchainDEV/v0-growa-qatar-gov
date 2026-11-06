@@ -2,7 +2,8 @@ import {NextResponse} from 'next/server'
 import {createClient} from '@/lib/supabase/server'
 import {
  MOSAIC_API,STAC_API,QATAR_SPECTRAL_BBOX,qatarMosaicSearch,
- spectralTileParams,isMicrosoftTileUrl,selectQatarSentinelScenes,
+ spectralTileParams,isMicrosoftTileUrl,selectQatarSentinelScenes,parseNdsiContrast,
+ type NdsiContrast,
  type SpectralIndex,type SpectralTile,type StacSceneFeature,
 } from '@/lib/satellite/qatar-spectral'
 
@@ -31,8 +32,8 @@ class ProviderError extends Error{
    (reason?' ('+reason+')':''))
  }
 }
-const completed=new Map<SpectralIndex,{until:number;value:SpectralResponse}>()
-const inFlight=new Map<SpectralIndex,Promise<SpectralResponse>>()
+const completed=new Map<string,{until:number;value:SpectralResponse}>()
+const inFlight=new Map<string,Promise<SpectralResponse>>()
 const json=(value:unknown,status=200)=>NextResponse.json(value,{
  status,headers:{'Cache-Control':'private, no-store'},
 })
@@ -54,9 +55,9 @@ async function apiJson<T>(url:string,stage:Stage,init?:RequestInit,timeoutMs=800
  try{return await res.json() as T}
  catch{throw new ProviderError(stage,res.status,'invalid JSON response')}
 }
-function appendParams(base:string,index:SpectralIndex,sceneId?:string):string{
+function appendParams(base:string,index:SpectralIndex,contrast:NdsiContrast,sceneId?:string):string{
  const url=new URL(base)
- spectralTileParams(index).forEach((value,key)=>url.searchParams.append(key,value))
+ spectralTileParams(index,contrast).forEach((value,key)=>url.searchParams.append(key,value))
  if(sceneId)url.searchParams.set('item',sceneId)
  return url.toString()
 }
@@ -71,7 +72,7 @@ function response(
   cloudCoverThreshold:35,notice,
  }
 }
-async function tryRegisteredMosaic(index:SpectralIndex,now:Date):Promise<SpectralResponse>{
+async function tryRegisteredMosaic(index:SpectralIndex,contrast:NdsiContrast,now:Date):Promise<SpectralResponse>{
  const search=qatarMosaicSearch(now)
  const registered=await apiJson<MosaicRegistration>(MOSAIC_API+'/mosaic/register','register',{
   method:'POST',headers:{'Content-Type':'application/json'},
@@ -89,7 +90,7 @@ async function tryRegisteredMosaic(index:SpectralIndex,now:Date):Promise<Spectra
    parsed.pathname.startsWith('/api/data/v1/mosaic/')&&
    parsed.pathname.endsWith('/tilejson.json'))tilejsonUrl=returned
  }
- const jsonData=await apiJson<TileJson>(appendParams(tilejsonUrl,index),
+ const jsonData=await apiJson<TileJson>(appendParams(tilejsonUrl,index,contrast),
   'mosaic_tilejson',undefined,9000)
  const url=jsonData.tiles?.[0]
  if(!url||!isMicrosoftTileUrl(url))
@@ -104,7 +105,7 @@ async function tryRegisteredMosaic(index:SpectralIndex,now:Date):Promise<Spectra
  * If PgSTAC is overloaded, retrieve actual Sentinel-2 item tile URLs and
  * let ONE Leaflet canvas layer feather/composite them per map tile.
  */
-async function stacComposite(index:SpectralIndex,now:Date):Promise<SpectralResponse>{
+async function stacComposite(index:SpectralIndex,contrast:NdsiContrast,now:Date):Promise<SpectralResponse>{
  const search=qatarMosaicSearch(now)
  const catalogue=await apiJson<StacSearch>(STAC_API+'/search','stac_search',{
   method:'POST',headers:{'Content-Type':'application/json'},
@@ -124,7 +125,7 @@ async function stacComposite(index:SpectralIndex,now:Date):Promise<SpectralRespo
   const batch=candidates.slice(at,at+6)
   const results=await Promise.allSettled(batch.map(async scene=>{
    const tilejson=await apiJson<TileJson>(
-    appendParams(MOSAIC_API+'/item/tilejson.json',index,scene.id),
+    appendParams(MOSAIC_API+'/item/tilejson.json',index,contrast,scene.id),
     'stac_tilejson',undefined,8000)
    const url=tilejson.tiles?.[0]
    if(!url||!isMicrosoftTileUrl(url))
@@ -145,15 +146,15 @@ async function stacComposite(index:SpectralIndex,now:Date):Promise<SpectralRespo
   'Up to three authentic scenes per MGRS tile are combined for stronger coverage. ' +
   'Dates may differ and no-data gaps remain transparent; this is not a quantitative, single-date index measurement.')
 }
-async function resolve(index:SpectralIndex):Promise<SpectralResponse>{
+async function resolve(index:SpectralIndex,contrast:NdsiContrast):Promise<SpectralResponse>{
  const now=new Date()
  let firstFailure:unknown
- try{return await tryRegisteredMosaic(index,now)}
+ try{return await tryRegisteredMosaic(index,contrast,now)}
  catch(error){
   firstFailure=error
   console.warn('[Qatar Spectral] PgSTAC mosaic unavailable',error)
  }
- try{return await stacComposite(index,now)}
+ try{return await stacComposite(index,contrast,now)}
  catch(error){
   const first=firstFailure instanceof Error?firstFailure.message:'mosaic unavailable'
   const second=error instanceof Error?error.message:'STAC fallback unavailable'
@@ -165,22 +166,28 @@ export async function GET(request:Request){
  if(raw!=='ndvi'&&raw!=='ndmi'&&raw!=='ndsi')
   return json({error:'Choose NDVI, NDMI or NDSI.'},400)
  const index:SpectralIndex=raw
+ const requestedContrast=new URL(request.url).searchParams.get('contrast')
+ const parsedContrast=parseNdsiContrast(requestedContrast)
+ if(index==='ndsi'&&!parsedContrast)
+  return json({error:'Choose overview, detail or strong contrast.'},400)
+ const contrast:NdsiContrast=index==='ndsi'?(parsedContrast??'overview'):'overview'
+ const cacheKey=index+':'+contrast
  const supabase=await createClient()
  const {data:{user},error}=await supabase.auth.getUser()
  if(error||!user)
   return json({error:'Sign in to view satellite imagery.'},401)
- const ready=completed.get(index)
+ const ready=completed.get(cacheKey)
  if(ready&&ready.until>Date.now())return json(ready.value)
- let pending=inFlight.get(index)
+ let pending=inFlight.get(cacheKey)
  if(!pending){
-  pending=resolve(index)
-  inFlight.set(index,pending)
+  pending=resolve(index,contrast)
+  inFlight.set(cacheKey,pending)
  }
  try{
   const payload=await pending
   // Tile templates may contain provider-issued signed query parameters.
   // Avoid reusing stale source URLs for three hours.
-  completed.set(index,{value:payload,until:Date.now()+20*60*1000})
+  completed.set(cacheKey,{value:payload,until:Date.now()+20*60*1000})
   return json(payload)
  }catch(error){
   const detail=error instanceof Error?error.message:'Unknown satellite service failure'
@@ -190,6 +197,6 @@ export async function GET(request:Request){
    detail,retryable:true,
   },503)
  }finally{
-  if(inFlight.get(index)===pending)inFlight.delete(index)
+  if(inFlight.get(cacheKey)===pending)inFlight.delete(cacheKey)
  }
 }

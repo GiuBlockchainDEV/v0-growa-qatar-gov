@@ -6,7 +6,8 @@ import type {GridLayer,GridLayerOptions} from 'leaflet'
 import type {MapController} from '@/components/dashboard/map/map-model'
 import {QATAR_SPECTRAL_BBOX,SPECTRAL_INDEX_CONFIG,
  SPECTRAL_OVERVIEW_ZOOM,SPECTRAL_DETAIL_ZOOM,SPECTRAL_DETAIL_START_ZOOM,
- type SpectralIndex,type SpectralTile} from '@/lib/satellite/qatar-spectral'
+ NDSI_CONTRAST_RANGES,DEFAULT_NDSI_CONTRAST,
+ type NdsiContrast,type SpectralIndex,type SpectralTile} from '@/lib/satellite/qatar-spectral'
 import {clipTileToQatar} from '@/lib/satellite/qatar-clip'
 import {
  blendSpectralPixels,tileScenePixelBox,intersectsPixelTile,
@@ -151,6 +152,7 @@ function validTiles(payload:TilePayload):Array<SpectralTile&{cloudCover?:number}
  */
 export function QatarSpectralLayers({map}:{map:MapController|null}){
  const [index,setIndex]=useState<SpectralIndex|null>(null)
+ const [contrast,setContrast]=useState<NdsiContrast>(DEFAULT_NDSI_CONTRAST)
  const [opacity,setOpacity]=useState(.7)
  const [payload,setPayload]=useState<TilePayload|null>(null)
  const [busy,setBusy]=useState(false)
@@ -166,7 +168,8 @@ export function QatarSpectralLayers({map}:{map:MapController|null}){
   }
   const controller=new AbortController()
   setPayload(null);setError(null);setBusy(true);setRendered(false)
-  void fetch('/api/satellite/qatar-spectral?index='+index,{
+  void fetch('/api/satellite/qatar-spectral?index='+index+
+   (index==='ndsi'?'&contrast='+contrast:''),{
    signal:controller.signal,cache:'no-store',
   }).then(async response=>{
    const body=await response.json() as Partial<TilePayload>&{error?:string;detail?:string}
@@ -187,7 +190,7 @@ export function QatarSpectralLayers({map}:{map:MapController|null}){
    }
   })
   return ()=>controller.abort()
- },[index,retry])
+ },[index,contrast,retry])
 
  useEffect(()=>{
   detailOverlay.current?.remove()
@@ -358,11 +361,14 @@ export function QatarSpectralLayers({map}:{map:MapController|null}){
   setIndex(choice===index?null:choice)
   // NDSI is -NDVI, not a calibrated salinity diagnosis. The default
   // display should not make the country's bare sand look severely saline.
-  setOpacity(choice==='ndsi'?.35:.7)
+  setOpacity(choice==='ndsi'?.65:.7)
   setError(null)
  }
  const colors=index==='ndvi'?NDVI_COLORS:index==='ndmi'?NDMI_COLORS:NDSI_COLORS
- const spectralRange=index==='ndvi'?['−0.20','0.08','0.35','0.63','0.90']:index==='ndmi'?['≤−0.35','−0.18','0','0.18','≥0.35']:['≤−0.10','0.10','0.30','0.50','≥0.70']
+ const ndsiStretch=NDSI_CONTRAST_RANGES[contrast]
+ const ndsiRange=Array.from({length:5},(_,i)=>
+  (ndsiStretch.min+(ndsiStretch.max-ndsiStretch.min)*i/4).toFixed(2))
+ const spectralRange=index==='ndvi'?['−0.20','0.08','0.35','0.63','0.90']:index==='ndmi'?['≤−0.35','−0.18','0','0.18','≥0.35']:ndsiRange
  return <div className="absolute start-1/2 top-4 z-[1150] w-[min(33rem,calc(100%-7rem))] -translate-x-1/2 rounded-xl border border-line bg-card/95 p-3 shadow-panel backdrop-blur-md"
   role="group" aria-label="Qatar-wide satellite spectral indices">
   <div className="flex items-center justify-between gap-2">
@@ -385,6 +391,21 @@ export function QatarSpectralLayers({map}:{map:MapController|null}){
    </button>)}
   </div>
   {index&&<>
+   {index==='ndsi'&&<div className="mt-2">
+    <span className="text-[10px] font-semibold text-content-soft">NDSI contrast · same scale throughout Qatar</span>
+    <div className="mt-1 grid grid-cols-3 gap-1" role="group" aria-label="NDSI contrast">
+     {(['overview','detail','strong'] as const).map(choice=><button
+      key={choice} type="button" onClick={()=>setContrast(choice)}
+      aria-pressed={contrast===choice}
+      className={'rounded-md border px-2 py-1.5 text-[10px] font-semibold '+
+       (contrast===choice?'border-ink bg-ink text-white':'border-line bg-background text-content hover:bg-cream-100')}>
+      {NDSI_CONTRAST_RANGES[choice].label}
+     </button>)}
+    </div>
+    <p className="mt-1 text-[9px] leading-4 text-content-soft">
+     Fixed display stretches only. Detail and high contrast may clip extremes; neither indicates salt concentration.
+    </p>
+   </div>}
    <div className="mt-2 flex items-center justify-between gap-2">
     <span className="text-[10px] text-content-soft">{SPECTRAL_INDEX_CONFIG[index].description}</span>
     <span className="text-[10px] font-semibold tabular-nums text-content">{Math.round(opacity*100)}%</span>
@@ -401,7 +422,7 @@ export function QatarSpectralLayers({map}:{map:MapController|null}){
    <p className="mt-1 text-[9px] leading-4 text-content-soft">
     {index==='ndvi'?'NDVI · Sentinel-2 observations with original color scale −0.20…0.90.':
       index==='ndmi'?'Enhanced NDMI contrast · clipped color scale −0.35…0.35, with original Sentinel-2 index values. NDMI is not soil moisture.':
-      'NDSI spectral contrast = (B04−B08)/(B04+B08) = −NDVI. Bare sand can have positive values without being saline. Purple indicates index contrast, NEVER confirmed salinity or soil EC. The display range is intentionally unsaturated around bare-soil values.'}
+      'NDSI spectral contrast = (B04−B08)/(B04+B08) = −NDVI. Bare sand can have positive values without being saline. Purple indicates index contrast, NEVER confirmed salinity or soil EC. Use Overview for the full range or Detail / High contrast for clearer relative differences. These fixed scales cannot identify salinity without soil EC.'}
    </p>
    <p role="status" className="mt-2 text-[10px] leading-4 text-content-soft">
     {error?'Satellite service: '+error:

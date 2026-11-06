@@ -4,6 +4,20 @@
  */
 export const QATAR_SPECTRAL_BBOX=[50.69,24.42,51.73,26.26] as const
 export type SpectralIndex='ndvi'|'ndmi'|'ndsi'
+export type NdsiContrast='overview'|'detail'|'strong'
+/** Fixed nationally comparable display stretches, not calibrated salinity classes.
+ * Narrower ranges amplify real satellite contrast and clip values outside
+ * the stretch; no pixel or soil-property information is invented. */
+export const NDSI_CONTRAST_RANGES={
+ overview:{label:'Overview',rescale:'-0.1,0.7',min:-0.1,max:0.7},
+ detail:{label:'Detail',rescale:'-0.15,0.25',min:-0.15,max:0.25},
+ strong:{label:'High contrast',rescale:'-0.08,0.16',min:-0.08,max:0.16},
+} as const
+export const DEFAULT_NDSI_CONTRAST:NdsiContrast='detail'
+export function parseNdsiContrast(input:string|null):NdsiContrast|null{
+ if(input===null)return DEFAULT_NDSI_CONTRAST
+ return input==='overview'||input==='detail'||input==='strong'?input:null
+}
 /** Fixed native grids prevent zoom/pan from refetching whole mosaics.
  * The low-resolution national coverage remains beneath detailed tiles. */
 export const SPECTRAL_OVERVIEW_ZOOM=10
@@ -48,13 +62,13 @@ export function qatarMosaicSearch(date:Date){
   metadata:{type:'mosaic'},
  }
 }
-export function spectralTileParams(index:SpectralIndex):URLSearchParams{
+export function spectralTileParams(index:SpectralIndex,contrast:NdsiContrast='overview'):URLSearchParams{
  const config=SPECTRAL_INDEX_CONFIG[index]
  const params=new URLSearchParams()
  for(const band of config.bands)params.append('assets',band)
  params.set('expression',config.expression)
  params.set('asset_as_band','true')
- params.set('rescale',config.rescale)
+ params.set('rescale',index==='ndsi'?NDSI_CONTRAST_RANGES[contrast].rescale:config.rescale)
  params.set('colormap_name',config.palette)
  params.set('tile_format','png')
  params.set('collection','sentinel-2-l2a')
