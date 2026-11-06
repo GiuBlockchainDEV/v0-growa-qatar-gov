@@ -11,8 +11,12 @@ export function visibleObservedVessel(asset:TrackingAsset,now=Date.now()):boolea
   if(asset.kind!=='vessel'||
     asset.observationBasis==='webpage_capture'||
     asset.observationBasis==='snapshot_poll')return false
+  // A just-received live WebSocket message is a real observation even when
+  // the AIS payload lacks a trustworthy ship GPS fix timestamp.
+  // Keep the receipt-time qualifier visible, and apply a tighter age limit.
   const age=now-Date.parse(asset.observedAt)
-  return Number.isFinite(age)&&age>=-60000&&age<=MAX_MAPPED_VESSEL_AGE_MS
+  const limit=asset.observationBasis==='receipt_time'?10*60000:MAX_MAPPED_VESSEL_AGE_MS
+  return Number.isFinite(age)&&age>=-60000&&age<=limit
 }
 
 export function visibleUnderwayVessel(asset:TrackingAsset,now=Date.now()):boolean{
