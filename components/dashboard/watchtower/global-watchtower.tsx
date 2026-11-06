@@ -25,6 +25,7 @@ import {REGIONAL_WATCHTOWER_VIEW} from '@/lib/watchtower/map-viewport'
 import type { GlobalTrackingMapProps } from './global-tracking-map'
 import {AssetObservationCamera} from './asset-observation-camera'
 import type {FirmsSnapshot} from '@/lib/watchtower/firms-hotspots'
+import type {AisStreamSnapshot} from '@/lib/watchtower/aisstream-snapshot'
 import {contactIntelligence} from '@/lib/watchtower/contact-intelligence'
 import {mergeTrackingUpdate,mergeFlightItineraries,type RouteLookupResponse} from '@/lib/watchtower/tracking-merge'
 import styles from './global-watchtower.module.css'
@@ -70,6 +71,7 @@ export function GlobalWatchtower() {
   const [regionalAir,setRegionalAir]=useState<RegionalAirBatch[]>([])
   const [openSkyAir,setOpenSkyAir]=useState<OpenSkySnapshot|null>(null)
   const [firms,setFirms]=useState<FirmsSnapshot|null>(null)
+  const [aisStream,setAisStream]=useState<AisStreamSnapshot|null>(null)
   const [showFires,setShowFires]=useState(false)
   const [globeMode,setGlobeMode]=useState<'2d'|'3d'>('2d')
   const [regionalAirLoading,setRegionalAirLoading]=useState(false)
@@ -115,6 +117,32 @@ export function GlobalWatchtower() {
     }
     void load()
     const timer=setInterval(()=>void load(),15*60000)
+    return()=>{active=false;controller.abort();clearInterval(timer)}
+  },[refresh])
+  // Short, cached AISStream sampling, not a persistent Vercel WebSocket.
+  // An off-Vercel collector is needed for true continuous live vessel tracking.
+  useEffect(()=>{
+    let active=true
+    const controller=new AbortController()
+    const load=async()=>{
+      if(!active||document.hidden||pausedRef.current)return
+      try{
+        const response=await fetch('/api/watchtower/aisstream-sample',{
+          cache:'no-store',signal:controller.signal,
+        })
+        if(!response.ok)throw Error('AISStream HTTP '+response.status)
+        const data=await response.json() as AisStreamSnapshot
+        if(active)setAisStream(data)
+      }catch{
+        if(active&&!controller.signal.aborted)setAisStream({
+          source:'AISStream.io',state:'unavailable',checkedAt:new Date().toISOString(),
+          assets:[],received:0,accepted:0,
+          detail:'AISStream sampling unavailable; existing independent ship feeds are unaffected.',
+        })
+      }
+    }
+    void load()
+    const timer=setInterval(()=>void load(),5*60000)
     return()=>{active=false;controller.abort();clearInterval(timer)}
   },[refresh])
   const orgId = organization?.id ?? null, food = posture?.organizationId === orgId ? posture : null
@@ -577,7 +605,7 @@ export function GlobalWatchtower() {
   }, [region])
   const allAssets=useMemo(()=>{
     const incoming=[
-      ...(openSea?.assets??[]),...(globalAis?.assets??[]),...(openWaters?.assets??[]),...(snapshot?.assets??[]),
+      ...(aisStream?.assets??[]),...(openSea?.assets??[]),...(globalAis?.assets??[]),...(openWaters?.assets??[]),...(snapshot?.assets??[]),
       ...regionalAir.flatMap(batch=>batch.assets),...(openSkyAir?.assets??[]),
       ...(maritimeFeed?.assets??[]),...(gccRadar?.assets??[]),
     ]
@@ -604,7 +632,7 @@ export function GlobalWatchtower() {
       ...aircraftCandidates.filter(a=>a.lat<7||a.lat>42||a.lon<25||a.lon>80).slice(0,450),
     ]
     return [...aircraft,...vessels]
-  },[openSea,globalAis,openWaters,snapshot,maritimeFeed,gccRadar,regionalAir,openSkyAir])
+  },[openSea,globalAis,openWaters,snapshot,maritimeFeed,gccRadar,regionalAir,openSkyAir,aisStream])
   const cargoCandidateCount=allAssets.filter(a=>a.kind==='aircraft'&&inside(a)&&a.cargo!=='unverified').length
   // Successful geographic queries are not evidence of receiving all flights.
   // Distinguish source gaps from genuinely received observations per country.
@@ -919,6 +947,7 @@ export function GlobalWatchtower() {
             a.name+': '+a.state+' ('+a.vessels+' positions'+(a.reason?', '+a.reason:'')+')').join(' · ')||
             (openWaters?.state==='unconfigured'?'Commercial access not configured':'Pending area coverage')}.
           </p>
+           <p><strong>AISStream direct sample:</strong> {aisStream?.state??'loading'} · {aisStream?.accepted??'N/A'} unique underway vessels · {aisStream?.detail??'Short source sampling pending.'}</p>
           <p><strong>Red Sea / Arabian Sea / Indian Ocean AIS:</strong> {openWaters?.state??'loading'}.
             {' '}{openWaters?.vessels??'N/A'} source-observed vessels across
             {' '}{openWaters?.areas.filter(a=>a.state==='available').length??0}/17 regions.
@@ -955,6 +984,7 @@ export function GlobalWatchtower() {
       {snapshot?.sources.map(source => <button key={source.id} className={styles.feedPill} data-state={source.state} onClick={() => { setSourceId(source.id); setSelectedId(null); setAlertsOpen(true); if (mobile) setFiltersOpen(false) }}><i />{source.name}: {source.state}</button>)}
       {openSea&&<span className={styles.feedPill} data-state={openSea.state}><i/>Regional AIS: {openSea.state} · {openSea.acceptedCount.toLocaleString('en-US')}</span>}
       {globalAis&&<span className={styles.feedPill} data-state={globalAis.state}><i/>Global AIS: {globalAis.state} · {globalAis.accepted.toLocaleString('en-US')}</span>}
+       {aisStream&&<span className={styles.feedPill} data-state={aisStream.state}><i/>AISStream: {aisStream.state} · {aisStream.accepted} fixes</span>}
       {openWaters&&<span className={styles.feedPill} data-state={openWaters.state}><i/>Offshore AIS: {openWaters.state} · {openWaters.vessels}</span>}
       <span className={styles.feedPill} data-state={regionalAir.some(b=>b.succeeded>0)?'partial':'unavailable'}>
         <i/>ADS-B area: {regionalAir.reduce((n,b)=>n+b.succeeded,0)}/60 circles</span>
