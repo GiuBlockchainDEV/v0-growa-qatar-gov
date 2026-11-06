@@ -26,7 +26,7 @@ jobs:
       - name: TypeScript
         run: npx tsc --noEmit
       - name: Focused source-integrity tests
-        run: npx vitest run lib/watchtower/firms-hotspots.test.ts lib/watchtower/aisstream-snapshot.test.ts lib/watchtower/opensky-regional.test.ts lib/watchtower/gods-eye-integration.test.ts
+        run: npx vitest run lib/watchtower/globe-risk-geometry.test.ts lib/watchtower/firms-hotspots.test.ts lib/watchtower/aisstream-snapshot.test.ts lib/watchtower/opensky-regional.test.ts lib/watchtower/gods-eye-integration.test.ts
       - name: Production build
         run: npm run build
       - name: Lint changed integration files
