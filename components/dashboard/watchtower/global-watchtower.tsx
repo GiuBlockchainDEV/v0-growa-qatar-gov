@@ -23,6 +23,8 @@ import {REGIONAL_AIR_BATCH_COUNT,REGIONAL_AIR_CENTERS,REGIONAL_AIR_PRIORITY_HUBS
  type RegionalAirBatch} from '@/lib/watchtower/regional-air-shared'
 import {REGIONAL_WATCHTOWER_VIEW} from '@/lib/watchtower/map-viewport'
 import type { GlobalTrackingMapProps } from './global-tracking-map'
+import {AssetObservationCamera} from './asset-observation-camera'
+import {contactIntelligence} from '@/lib/watchtower/contact-intelligence'
 import {mergeTrackingUpdate,mergeFlightItineraries,type RouteLookupResponse} from '@/lib/watchtower/tracking-merge'
 import styles from './global-watchtower.module.css'
 const Map = dynamic<GlobalTrackingMapProps>(() => import('./global-tracking-map').then(m => m.GlobalTrackingMap), { ssr: false, loading: () => <div className={styles.map} aria-busy="true" /> })
@@ -654,6 +656,7 @@ export function GlobalWatchtower() {
   const visibleSignals=riskPanelFilter==='ipc'?0:displayedRiskAlerts.length
 
   const selectedAsset = allAssets.find(a => a.id === selectedId), selectedAlert = allAlerts.find(a => a.id === selectedId)
+  const contact = selectedAsset ? contactIntelligence(selectedAsset,now) : null
   const selectedProductionZone=(productionRisk?.zones??[]).find(zone=>zone.id===selectedId)
   // Load a bounded selection of real 7-day AIS tracks separately from ship
   // positions. A failed trace request must never hide a vessel icon.
@@ -977,6 +980,23 @@ export function GlobalWatchtower() {
             [selectedAsset.kind === 'aircraft' ? 'Altitude' : 'AIS destination', selectedAsset.kind === 'aircraft' ? (selectedAsset.altitudeFt === null ? 'Unknown' : selectedAsset.altitudeFt.toLocaleString() + ' ft') : selectedAsset.destination ?? 'Not reported'],
           ].map(([title, value]) => <div key={title}><span>{title}</span><strong>{value}</strong></div>)}</div>
           <p>{selectedAsset.lat.toFixed(4)}, {selectedAsset.lon.toFixed(4)} / {utc(selectedAsset.observedAt)}</p>
+          <AssetObservationCamera key={selectedAsset.id} asset={selectedAsset}/>
+          {contact&&<section className={styles.routeDetail} aria-label="Geospatial contact intelligence">
+            <h3>Geospatial Contact Intelligence</h3>
+            <p>Source age: <strong>{contact.ageMinutes===null?'Unverified':Math.abs(contact.ageMinutes)+' min'}</strong>
+              {' '}· {contact.freshness.toUpperCase()} · {contact.heading}</p>
+            <p>Geographic route screening: <strong>{contact.route==='plausible_geography'?
+              'Within reference corridor':contact.route==='off_reference_corridor'?
+              'Outside reference corridor':'Unassessed'}</strong>.</p>
+            {contact.routeDistanceKm!==null&&contact.routeDeviationKm!==null&&
+              <p>Airport/port reference: {contact.routeDistanceKm.toLocaleString('en-US')} km;
+                {' '}geodesic deviation {contact.routeDeviationKm.toLocaleString('en-US')} km.
+                Not a verified route.</p>}
+            {contact.closestGateway&&<p>Nearest monitored gateway: <strong>{contact.closestGateway.name}</strong>,
+              {' '}{contact.closestGateway.distanceKm.toLocaleString('en-US')} km.
+              Proximity alone is not evidence of passage.</p>}
+            {contact.notes.map(note=><p key={note} className={styles.hint}>{note}</p>)}
+          </section>
           <div className={styles.routeDetail}>
             <h3>Origin → Destination</h3>
             {selectedAsset.itinerary ? <>
