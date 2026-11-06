@@ -75,8 +75,11 @@ export function WatchtowerGlobe3D({assets,fires,showFires,focus,onSelect,selecte
     const id=picked?.id?.id
     if(typeof id!=='string')return
     if(id.startsWith('asset:'))onSelectRef.current(id.slice(6))
-    else if(id.startsWith('risk-zone:')&&layerRef.current.production)
-      onSelectRef.current(id.slice('risk-zone:'.length))
+    else if(id.startsWith('risk-zone:')&&layerRef.current.production){
+      const raw=id.slice('risk-zone:'.length)
+      const last=raw.lastIndexOf(':')
+      if(last>0)onSelectRef.current(raw.slice(0,last))
+    }
     else if(id.startsWith('risk-alert:')&&layerRef.current.risks)
       onSelectRef.current(id.slice('risk-alert:'.length))
     else if(id.startsWith('gateway:')&&layerRef.current.gateways){
