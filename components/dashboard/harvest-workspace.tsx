@@ -21,6 +21,7 @@ import {
 import { DashboardQueryLink } from '@/components/dashboard/dashboard-query-link'
 import { GrowaIntelligencePanel } from '@/components/dashboard/growa-intelligence-panel'
 import { HarvestFieldCreatePanel } from '@/components/dashboard/harvest-field-create-panel'
+import { HarvestNationalCommand } from '@/components/dashboard/harvest-national-command'
 import {
   IntelligenceInvestigationLayout,
   InvestigationContextHeader,
@@ -962,23 +963,20 @@ export function HarvestWorkspace() {
         <>
           {!isFieldDetailView ? (
             <>
-            <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
-              {headlineMetrics.map((metric, index) => {
-                const meta = HARVEST_METRIC_META[metric.key]
-                const icons = [Droplets, Leaf, TrendingUp, Target]
-                const Icon = icons[index] || Activity
-                return (
-                  <IntelligenceKpiCard
-                    key={metric.key}
-                    label={tr(meta.label)}
-                    value={formatHarvestMetricWithUnit(metric.value, metric.key, { agg: metric.agg })}
-                    icon={Icon}
-                    accent={index === 0}
-                    tone={index === 2 ? 'sky' : 'default'}
-                  />
-                )
-              })}
-            </div>
+            <HarvestNationalCommand
+              analytics={analytics}
+              fields={fields}
+              points={timeseriesPoints}
+              mode={mode}
+              demo={usingDemoData}
+              collectingIds={collectingTasks.map(entry => entry.parcel_id)}
+              onSelectField={selectField}
+            />
+            <details className="rounded-2xl border border-line bg-card">
+              <summary className="cursor-pointer px-4 py-3 text-xs font-semibold text-sage-700">
+                Watchtower signals, outlook and operational actions
+              </summary>
+              <div className="p-4">
             <IntelligenceInvestigationLayout
               sectionScrollable={false}
               whatChanged={<IntelligenceWatchtowerChanges changes={watchtower.changes} loading={watchtower.loading} />}
@@ -1004,6 +1002,8 @@ export function HarvestWorkspace() {
                 />
               }
             />
+              </div>
+            </details>
             </>
           ) : null}
 
