@@ -3,7 +3,7 @@ import {readFileSync} from 'node:fs'
 import {join} from 'node:path'
 import {
  QATAR_SPECTRAL_BBOX,qatarMosaicSearch,spectralTileParams,
- isMicrosoftTileUrl,SPECTRAL_INDEX_CONFIG,selectQatarSentinelScenes,nirGuideTileUrl,
+ isMicrosoftTileUrl,SPECTRAL_INDEX_CONFIG,selectQatarSentinelScenes,
  SPECTRAL_OVERVIEW_ZOOM,SPECTRAL_DETAIL_ZOOM,SPECTRAL_DETAIL_START_ZOOM,
 } from './qatar-spectral'
 const read=(p:string)=>readFileSync(join(process.cwd(),p),'utf8')
@@ -38,18 +38,6 @@ describe('Qatar nationwide Microsoft Planetary Computer spectral imagery',()=>{
   expect(isMicrosoftTileUrl('https://planetarycomputer.microsoft.com/api/data/v1/mosaic/info')).toBe(false)
  })
 
- it('derives validated source-matched B08 guidance without cross-origin data substitution',()=>{
-  const base='https://planetarycomputer.microsoft.com/api/data/v1/item/tiles/WebMercatorQuad/{z}/{x}/{y}@1x.png?collection=sentinel-2-l2a&item=example-1&assets=B08&assets=B11&expression=(B08-B11)/(B08+B11)&rescale=-0.35,0.35&colormap_name=rdbu&asset_as_band=true'
-  const template=nirGuideTileUrl(base)
-  expect(template).not.toBeNull()
-  const parsed=new URL(template!)
-  expect(parsed.searchParams.getAll('assets')).toEqual(['B08'])
-  expect(parsed.searchParams.has('expression')).toBe(false)
-  expect(parsed.searchParams.get('rescale')).toBe('0,10000')
-  expect(parsed.searchParams.get('colormap_name')).toBe('gray')
-  expect(parsed.searchParams.get('item')).toBe('example-1')
-  expect(nirGuideTileUrl(base.replace('planetarycomputer.microsoft.com','untrusted.example'))).toBeNull()
- })
  it('selects recent cloud-screened Sentinel-2 scenes by MGRS region',()=>{
   const scene=(id:string,tile:string,date:string,cloud:number)=>({
    id,bbox:[50.8,25.1,51.4,25.7],assets:{B08:{},B04:{},B11:{}},
@@ -94,12 +82,6 @@ describe('Qatar nationwide Microsoft Planetary Computer spectral imagery',()=>{
   expect(widget).toContain("([null,'ndvi','ndmi'] as const)")
   expect(widget).toContain('setIndex(choice===index?null:choice)')
   expect(widget).toContain('overlay.current?.remove()')
-  expect(widget).toContain('const Raster=makeRaster(false)')
-  expect(widget).toContain('const FusedRaster=makeRaster(true)')
-  expect(widget).toContain('sfimOverview.setZIndex(302)')
-  expect(widget).toContain('sfimDetail.setZIndex(303)')
-  expect(widget).toContain('if(!fusionMode)')
-  expect(widget).toContain('done(null,canvas) // Transparent fused tile')
   expect(widget).toContain('clipTileToQatar(context')
   expect(widget).toContain('L.GridLayer.extend(')
   expect(widget).toContain('blendSpectralPixels(')
@@ -113,15 +95,14 @@ describe('Qatar nationwide Microsoft Planetary Computer spectral imagery',()=>{
   expect(widget).toContain('maxNativeZoom:SPECTRAL_DETAIL_ZOOM')
   expect(widget).toContain('minZoom:SPECTRAL_DETAIL_START_ZOOM')
   expect(widget).toContain('detailOverlay.current?.remove()')
-  expect(widget).toContain('sfimHpaSpectralVisualFusion(pixels,guide,TILE_SIZE)')
-  expect(widget).toContain('nirGuideTileUrl(item.scene.url)')
-  expect(widget).toContain('sfimOverviewOverlay.current')
-  expect(widget).toContain('sfimDetailOverlay.current')
-  expect(widget).toContain('if(!map.hasLayer(layer))layer.addTo(map)')
-  expect(widget).not.toContain('overlay.current?.redraw()')
-  expect(widget).not.toContain('detailOverlay.current?.redraw()')
-  expect(widget).toContain('SFIM + HPA')
-  expect(widget).toContain('context.drawImage(sourceCanvas,0,0,TILE_SIZE,TILE_SIZE)')
+  expect(widget).toContain('const Raster=L.GridLayer.extend({')
+  expect(widget).toContain('for(const raster of [layer,detailLayer])')
+  expect(widget).toContain('detailOverlay.current?.remove()')
+  expect(widget).not.toContain('SFIM + HPA')
+  expect(widget).not.toContain('sfimHpaSpectralVisualFusion')
+  expect(widget).not.toContain('nirGuideTileUrl')
+  expect(widget).not.toContain('FusedRaster')
+  expect(widget).not.toContain('sfimOverviewOverlay')
   expect(widget).toContain('cachedRaster(url)')
   expect(widget).toContain('rememberRaster(url,pixels)')
   expect(widget).toContain('keepBuffer:8')
