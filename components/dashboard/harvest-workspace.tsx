@@ -773,16 +773,22 @@ export function HarvestWorkspace() {
   }, [clearFieldSelection, dispatchRasterOverlay])
 
   const deleteSelectedField = useCallback(async () => {
-    if (!activeField?.parcel_id) return
+    if (!activeField?.parcel_id || deleteLoading) return
+    const parcelToDelete = activeField.parcel_id
     const confirmed = await confirmDialog(
-      tr('Delete field "{name}"? This action cannot be undone.', { name: activeField.name })
+      tr('Permanently delete field "{name}" (ID: {id}) from Harvest? Associated Harvest records may be removed. This cannot be undone.', {
+        name: activeField.name,
+        id: parcelToDelete,
+      })
     )
     if (!confirmed) return
 
     setDeleteLoading(true)
+    setError(null)
     try {
-      const response = await fetch(`/api/harvest/entity/${activeField.parcel_id}`, {
+      const response = await fetch(`/api/harvest/entity/${encodeURIComponent(parcelToDelete)}`, {
         method: 'DELETE',
+        cache: 'no-store',
       })
       const payload = await response.json().catch(() => ({}))
       if (!response.ok) {
@@ -797,7 +803,7 @@ export function HarvestWorkspace() {
     } finally {
       setDeleteLoading(false)
     }
-  }, [activeField, handleClearFieldSelection, refreshWorkspace, confirmDialog, tr])
+  }, [activeField, deleteLoading, handleClearFieldSelection, refreshWorkspace, confirmDialog, tr])
 
   const runYieldEstimate = useCallback(async () => {
     if (!activeField?.parcel_id || !activeSeasonId) return
