@@ -93,6 +93,7 @@ describe('Qatar nationwide Microsoft Planetary Computer spectral imagery',()=>{
   expect(widget).toContain("([null,'ndvi','ndmi','ndsi'] as const)")
   expect(widget).toContain("index==='ndmi'?NDMI_COLORS:NDSI_COLORS")
   expect(widget).toContain('Sand and bare soil are not classified as saline')
+  expect(widget).toContain("setOpacity(choice==='ndsi'?.35:.7)")
   expect(widget).toContain('setIndex(choice===index?null:choice)')
   expect(widget).toContain('overlay.current?.remove()')
   expect(widget).toContain('clipTileToQatar(context')
