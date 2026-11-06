@@ -72,9 +72,9 @@ export function HarvestNationalCommand({analytics,fields,points,mode,demo,collec
   ...(summary.highestDeficit?[{title:'Relative water-deficit watch',detail:summary.highestDeficit.name+' has the highest reported RWD. Verify field conditions.',warning:false}]:[]),
   ...(summary.lowestProductivity?[{title:'Water productivity review',detail:summary.lowestProductivity.name+' has the lowest recorded BWP. Compare similar crops.',warning:false}]:[]),
  ]
- return <div className="space-y-4">
+ return <div className="@container space-y-4">
   <header className="overflow-hidden rounded-2xl bg-ink text-white shadow-panel">
-   <div className="grid gap-5 bg-[radial-gradient(ellipse_at_90%_5%,rgba(140,177,117,.24),transparent_65%)] p-6 lg:grid-cols-[1.6fr_.8fr] lg:p-8">
+   <div className="grid gap-5 bg-[radial-gradient(ellipse_at_90%_5%,rgba(140,177,117,.24),transparent_65%)] p-6 @4xl:grid-cols-[1.6fr_.8fr] @4xl:p-8">
     <div>
      <p className="flex items-center gap-2 text-[10px] font-bold tracking-wider text-cream-200"><Sprout size={15}/> GROWA · AGRICULTURAL PRODUCTION INTELLIGENCE</p>
      <h2 className="mt-4 text-4xl font-semibold tracking-tight sm:text-5xl">Harvest <span className="font-light text-cream-200">Command Center</span></h2>
@@ -95,13 +95,13 @@ export function HarvestNationalCommand({analytics,fields,points,mode,demo,collec
     </div>
    </div>
   </header>
-  <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+  <div className="grid gap-3 @lg:grid-cols-2 @4xl:grid-cols-4">
    <Metric label="Total biomass product" icon={Leaf} value={biomass?formatHarvestMetricWithUnit(biomass.value,'tbp',{agg:biomass.agg}):'Not reported'} note="TBP · modeled biomass, not confirmed harvest tonnage"/>
    <Metric label="Water consumption" icon={Droplets} value={water?formatHarvestMetricWithUnit(water.value,'aeti',{agg:water.agg}):'Not reported'} note="AETI · source-reported field aggregate"/>
    <Metric label="Biomass water productivity" icon={TrendingUp} value={productivity?formatHarvestMetricWithUnit(productivity.value,'bwp',{agg:productivity.agg}):'Not reported'} note="BWP · not marketable yield per cubic metre"/>
    <Metric label="Evidence completeness" icon={Target} value={summary.completeFields+'/'+summary.fieldCount} note="Fields with all three metrics: AETI, TBP and BWP"/>
   </div>
-  <div className="grid gap-4 xl:grid-cols-[minmax(0,1.3fr)_minmax(300px,.8fr)]">
+  <div className="grid gap-4 @5xl:grid-cols-[minmax(0,1.3fr)_minmax(300px,.8fr)]">
    <Card icon={Droplets} title="Water use timeline" subtitle="Source-backed AETI observations by dekad."><WaterTrend key={mode} points={points}/></Card>
    <Card icon={Layers3} title="Crop portfolio" subtitle="Crop mix by declared hectares. Select a crop to filter the ranking.">
     {summary.crops.length?<div className="space-y-3">
@@ -123,7 +123,7 @@ export function HarvestNationalCommand({analytics,fields,points,mode,demo,collec
     </div>:<p className="text-xs text-content-soft">No connected crop records available.</p>}
    </Card>
   </div>
-  <div className="grid gap-4 xl:grid-cols-[minmax(0,1.2fr)_minmax(300px,1fr)]">
+  <div className="grid gap-4 @5xl:grid-cols-[minmax(0,1.2fr)_minmax(300px,1fr)]">
    <Card icon={BarChart3} title="Field performance explorer" subtitle="Select a field to open its seasonal map and metrics."
     actions={<select value={rankingMetric} onChange={e=>setRankingMetric(e.target.value as RankKey)}
      aria-label="Field performance metric" className="rounded-lg border border-line bg-card px-3 py-2 text-xs">
@@ -148,7 +148,7 @@ export function HarvestNationalCommand({analytics,fields,points,mode,demo,collec
     </div>
    </Card>
   </div>
-  <div className="grid gap-4 xl:grid-cols-2">
+  <div className="grid gap-4 @5xl:grid-cols-2">
    <Card icon={CalendarDays} title="Harvest planning calendar" subtitle="Expected harvest dates, not validated harvest operations.">
     <div className="space-y-2">
      {summary.upcoming.slice(0,6).map(field=><button key={field.parcel_id+'-'+field.harvest_date} type="button"
