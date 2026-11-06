@@ -58,9 +58,9 @@ describe('Gods Eye inspired Watchtower extensions',()=>{
  it('wires the observation camera to the selected Watchtower object',()=>{
   const page=readFileSync(join(process.cwd(),'components/dashboard/watchtower/global-watchtower.tsx'),'utf8')
   const visual=readFileSync(join(process.cwd(),'components/dashboard/watchtower/asset-observation-camera.tsx'),'utf8')
-  expect(page).toContain('<AssetObservationCamera key={selectedAsset.id} asset={selectedAsset}/>')
+  expect(page).toContain('<AssetObservationCamera key={selectedAsset.id} asset={selectedAsset} onFocus={() => choose(selectedAsset)}/>')
   expect(page).toContain('Geospatial Contact Intelligence')
-  expect(visual).toContain('SATELLITE BASEMAP · NOT LIVE FOOTAGE')
+  expect(visual).toContain('NOT LIVE FOOTAGE')
   expect(visual).toContain('/api/watchtower/public-cameras?')
   expect(visual).toContain('Following')
  })

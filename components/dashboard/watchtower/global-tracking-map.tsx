@@ -10,12 +10,14 @@ import styles from './global-watchtower.module.css'
 import { getWorldFillZoom, REGIONAL_WATCHTOWER_VIEW } from '@/lib/watchtower/map-viewport'
 import { makeAirGreatCircle } from '@/lib/nfii/logistics-route-geometry'
 import type {ProductionRiskZone} from '@/lib/watchtower/production-risk'
+import type {FirmsDetection} from '@/lib/watchtower/firms-hotspots'
 import { captureObservedPositions, automaticRouteEvidence, worldCopyPolyline, type TrackPoint } from '@/lib/watchtower/route-geometry'
 import {visibleUnderwayVessel} from '@/lib/watchtower/visible-vessels'
 export type GlobalTrackingMapProps = {
   assets: TrackingAsset[]; demoVessels: readonly DemoVessel[]; historyAssets: TrackingAsset[]; alerts: MapAlert[]; riskZones: ProductionRiskZone[]; chokepoints: ChokepointReport[]; aisRoutes: AISRoute[]; layers: MapLayers; selectedId: string | null
   onSelect: (id: string) => void; onChokepointClick: (id: ChokepointId) => void; now: number
   focus: { lat: number; lon: number; zoom: number; token: number } | null
+  fires?:readonly FirmsDetection[]; showFires?:boolean
 }
 /**
  * ESRI political/administrative basemap for global food-security analysis.
@@ -33,7 +35,7 @@ const ESRI_ATTRIBUTION =
 const MARKER = { aircraft: '#EEF4C9', vessel: '#A2B78C', critical: '#A8392B', attention: '#C9A227', ink: '#111E13', cream: '#EEF4C9' }
 
 const label = (value: string) => { const node = document.createElement('span'); node.textContent = value; return node }
-export function GlobalTrackingMap({ assets, demoVessels, historyAssets, alerts, riskZones, chokepoints, aisRoutes, layers, selectedId, onSelect, onChokepointClick, focus, now }: GlobalTrackingMapProps) {
+export function GlobalTrackingMap({ assets, demoVessels, historyAssets, alerts, riskZones, chokepoints, aisRoutes, layers, selectedId, onSelect, onChokepointClick, focus, now, fires=[], showFires=false }: GlobalTrackingMapProps) {
   const host = useRef<HTMLDivElement>(null), mapRef = useRef<L.Map | null>(null), graphics = useRef<L.LayerGroup | null>(null), productionGraphics = useRef<L.LayerGroup | null>(null)
   const history = useRef(new Map<string, TrackPoint[]>()), select = useRef(onSelect), selectChokepoint = useRef(onChokepointClick)
   const [revision, setRevision] = useState(0), [tileError, setTileError] = useState(false)
@@ -271,6 +273,19 @@ export function GlobalTrackingMap({ assets, demoVessels, historyAssets, alerts, 
         }
       }
     }
+    if(showFires){
+      for(const fire of fires){
+        if(!bounds.contains([fire.lat,fire.lon]))continue
+        const strong=fire.frp!==null&&fire.frp>=50
+        const color=strong?'#B4533B':'#C38A3E'
+        const point=L.circleMarker([fire.lat,fire.lon],{
+          radius:strong?5:3,color,weight:1,fillColor:color,fillOpacity:.65,
+          interactive:true,
+        })
+        point.bindTooltip(label('NASA FIRMS / '+fire.source+' · satellite thermal detection · '+fire.observedAt+' · FRP '+(fire.frp===null?'N/A':fire.frp+' MW')+' · NOT a verified wildfire'),{className:styles.riskTooltip})
+        point.addTo(group)
+      }
+    }
     if (layers.risks) for (const alert of alerts) {
       const color = alert.severity === 'high' ? MARKER.critical : MARKER.attention
       L.circleMarker([alert.lat, alert.lon], { radius: alert.id === selectedId ? 11 : 7, color, weight: 2, fillColor: color, fillOpacity: 0.35 })
@@ -351,7 +366,7 @@ export function GlobalTrackingMap({ assets, demoVessels, historyAssets, alerts, 
         }
       }
     }
-  }, [assets, demoVessels, historyAssets, alerts, chokepoints, aisRoutes, layers, selectedId, now, revision])
+  }, [assets, demoVessels, historyAssets, alerts, chokepoints, aisRoutes, layers, selectedId, now, revision, fires, showFires])
   return <><div ref={host} className={styles.map} role="region" aria-label="Interactive Esri political world map with country borders, regions, aircraft, vessels and food-production risk areas" />
     {point && <output className={styles.coordinateReadout} aria-label="Selected map coordinates">
       {point.lat.toFixed(5)}°, {point.lon.toFixed(5)}°

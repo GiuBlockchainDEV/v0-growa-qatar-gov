@@ -30,17 +30,45 @@ export function parseOpenSky(raw:unknown,now=Date.now()):TrackingAsset[]{
  }
  return mergeAssets(result)
 }
+let bearer:{token:string;until:number}|null=null
+let authPending:Promise<string|null>|null=null
+async function getOpenSkyBearer():Promise<string|null>{
+ const id=process.env.OPENSKY_CLIENT_ID?.trim()
+ const secret=process.env.OPENSKY_CLIENT_SECRET?.trim()
+ if(!id||!secret)return null
+ if(bearer&&Date.now()<bearer.until-60000)return bearer.token
+ if(authPending)return authPending
+ authPending=(async()=>{
+  const response=await fetch('https://auth.opensky-network.org/auth/realms/opensky-network/protocol/openid-connect/token',{
+   method:'POST',
+   headers:{'Content-Type':'application/x-www-form-urlencoded'},
+   body:new URLSearchParams({grant_type:'client_credentials',client_id:id,client_secret:secret}),
+   signal:AbortSignal.timeout(9000),cache:'no-store',
+  })
+  if(!response.ok)throw Error('OpenSky OAuth HTTP '+response.status)
+  const raw=await response.json() as {access_token?:unknown;expires_in?:unknown}
+  if(typeof raw.access_token!=='string'||!raw.access_token)throw Error('Invalid OpenSky token')
+  const lifetime=typeof raw.expires_in==='number'&&Number.isFinite(raw.expires_in)?raw.expires_in:300
+  bearer={token:raw.access_token,until:Date.now()+Math.max(60,lifetime)*1000}
+  return bearer.token
+ })()
+ try{return await authPending}finally{authPending=null}
+}
 async function read():Promise<OpenSkySnapshot>{
  const checkedAt=new Date().toISOString()
  try{
   const url='https://opensky-network.org/api/states/all?lamin=11&lomin=35&lamax=33&lomax=63'
-  const response=await fetch(url,{signal:AbortSignal.timeout(10000),next:{revalidate:1800}})
-  if(!response.ok)throw Error('HTTP '+response.status)
+  const credentialsConfigured=Boolean(process.env.OPENSKY_CLIENT_ID?.trim()&&process.env.OPENSKY_CLIENT_SECRET?.trim())
+  const token=credentialsConfigured?await getOpenSkyBearer():null
+  const response=await fetch(url,{headers:token?{Authorization:'Bearer '+token}:{},
+    signal:AbortSignal.timeout(10000),cache:'no-store'})
+  if(!response.ok)throw Error('OpenSky HTTP '+response.status)
   const body=await response.text()
   if(body.length>5000000)throw Error('Large response')
   const assets=parseOpenSky(JSON.parse(body) as unknown)
   return {source:'OpenSky Network',state:'partial',checkedAt,assets,
-   detail:'Second source, reported positions only; aircraft class and cargo not verified.'}
+   detail:(token?'Authenticated OpenSky OAuth2 observations. ':'Anonymous OpenSky observations. ')+
+    'Reported aircraft positions only; aircraft cargo and manifests not verified.'}
  }catch(error){
   return {source:'OpenSky Network',state:'unavailable',checkedAt,assets:[],
    detail:'Source unavailable ('+(error instanceof Error?error.message:'network error')+
