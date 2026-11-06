@@ -59,10 +59,13 @@ export function parseNearbyPublicCameras(raw:unknown,lat:number,lon:number,radiu
   const id=String(row.webcamId??'')
   if(!/^\d{1,15}$/.test(id)||seen.has(id))continue
   const player=obj(row.player),urls=obj(row.urls),images=obj(row.images)
+  // Windy V3 provides player.day / player.live as URL strings;
+  // accept object-shaped legacy entries only for compatibility.
   const livePlayer=obj(player.live),dayPlayer=obj(player.day)
-  const liveUrl=livePlayer.available===true?publicCameraUrl(livePlayer.embed):null
-  const dayUrl=publicCameraUrl(dayPlayer.embed)
-  const detailUrl=publicCameraUrl(urls.detail??urls.current)
+  const liveUrl=publicCameraUrl(typeof player.live==='string'?player.live:
+    livePlayer.available===true?livePlayer.embed:null)
+  const dayUrl=publicCameraUrl(typeof player.day==='string'?player.day:dayPlayer.embed)
+  const detailUrl=publicCameraUrl(urls.detail)
   if(!detailUrl||(!liveUrl&&!dayUrl))continue
   const current=obj(images.current)
   const imageUrl=publicCameraUrl(current.preview)||publicCameraUrl(current.icon)
