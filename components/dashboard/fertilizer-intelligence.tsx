@@ -27,10 +27,10 @@ const RISK_LABEL:Record<FertilizerRisk,string>={
  normal:'Low pressure',watch:'Watch',high:'Elevated',unassessed:'Needs evidence',
 }
 const RISK_COLOR:Record<FertilizerRisk,string>={
- normal:'bg-[#e6f0e9] text-[#2c684a] border-[#c8dacc]',
- watch:'bg-[#fff4de] text-[#87601c] border-[#e8d39f]',
- high:'bg-[#fae6df] text-[#a44834] border-[#e9bdb2]',
- unassessed:'bg-[#f3f1eb] text-[#655f55] border-[#d9d5c8]',
+ normal:'bg-cream-50 text-sage-700 border-line',
+ watch:'bg-[var(--warning-soft)] text-[var(--warning-strong)] border-line',
+ high:'bg-muted text-critical border-line',
+ unassessed:'bg-background text-content-soft border-line',
 }
 const money=(value:number,digits=0)=>
  value.toLocaleString('en-US',{minimumFractionDigits:digits,maximumFractionDigits:digits})
@@ -90,21 +90,21 @@ function Sparkline({prices,selected=false}:{prices:FertilizerPrice[];selected?:b
  const low=Math.min(...values),high=Math.max(...values),d=Math.max(1,high-low)
  const points=prices.map((x,i)=>[4+i/(prices.length-1)*(w-8),h-5-(x.usdPerTonne-low)/d*(h-12)])
  return <svg viewBox={'0 0 '+w+' '+h} className="h-10 w-full" aria-hidden="true">
-  <polyline points={points.map(p=>p.join(',')).join(' ')} fill="none" stroke={selected?'#2c6956':'#92ad9a'} strokeWidth="2.3" strokeLinecap="round" strokeLinejoin="round"/>
-  <circle cx={points.at(-1)![0]} cy={points.at(-1)![1]} r="3.5" fill={selected?'#2c6956':'#92ad9a'}/>
+  <polyline points={points.map(p=>p.join(',')).join(' ')} fill="none" stroke={selected?'var(--chart-1)':'var(--growa-stone-500)'} strokeWidth="2.3" strokeLinecap="round" strokeLinejoin="round"/>
+  <circle cx={points.at(-1)![0]} cy={points.at(-1)![1]} r="3.5" fill={selected?'var(--chart-1)':'var(--growa-stone-500)'}/>
  </svg>
 }
 function MarketChart({product,currency,range}:{product:FertilizerProduct;currency:'USD'|'QAR';range:3|6|12}){
  const prices=product.prices.slice(-range)
  const scale=currency==='QAR'?USD_QAR_REFERENCE:1
- if(prices.length<2)return <div className="grid min-h-[280px] place-items-center rounded-2xl border border-dashed border-[#d7ddd2] bg-[#f7f8f4] p-6 text-center">
+ if(prices.length<2)return <div className="grid min-h-[280px] place-items-center rounded-2xl border border-dashed border-line bg-background p-6 text-center">
   <div className="max-w-sm">
-   <div className="mx-auto flex size-12 items-center justify-center rounded-xl bg-[#e6eee5] text-[#49715c]"><Database className="size-6"/></div>
+   <div className="mx-auto flex size-12 items-center justify-center rounded-xl bg-muted text-sage-700"><Database className="size-6"/></div>
    <h4 className="mt-4 text-base font-bold text-content">Grade-specific quotation required</h4>
    <p className="mt-2 text-xs leading-6 text-content-soft">
     This product has no comparable published World Bank benchmark. Its chart will display supplier quotes once a specification, delivery basis and price are available. We do not substitute a made-up product price.
    </p>
-   <a href="/dashboard/procurement" className="mt-3 inline-flex items-center gap-1.5 text-xs font-bold text-[#49715c] underline underline-offset-2">
+   <a href="/dashboard/procurement" className="mt-3 inline-flex items-center gap-1.5 text-xs font-bold text-sage-700 underline underline-offset-2">
     Open procurement <ArrowUpRight className="size-3.5"/></a>
   </div>
  </div>
@@ -122,23 +122,23 @@ function MarketChart({product,currency,range}:{product:FertilizerProduct;currenc
  return <div className="min-w-0">
   <svg viewBox={'0 0 '+width+' '+height} role="img" aria-label={product.name+' monthly World Bank benchmark trend, '+currency+' per tonne'} className="h-auto w-full">
    <defs><linearGradient id={id} x1="0" y1="0" x2="0" y2="1">
-    <stop offset="0%" stopColor="#648e71" stopOpacity=".27"/>
-    <stop offset="100%" stopColor="#648e71" stopOpacity=".015"/>
+    <stop offset="0%" stopColor="var(--chart-1)" stopOpacity=".27"/>
+    <stop offset="100%" stopColor="var(--chart-1)" stopOpacity=".015"/>
    </linearGradient></defs>
    {[0,.25,.5,.75,1].map((f,i)=><g key={i}>
-    <line x1={left} y1={top+f*(bottom-top)} x2={right} y2={top+f*(bottom-top)} stroke="#6c8274" strokeOpacity=".18" strokeDasharray="4 5"/>
-    <text x={left-9} y={top+f*(bottom-top)+4} fill="#63776a" textAnchor="end" fontSize="11">
+    <line x1={left} y1={top+f*(bottom-top)} x2={right} y2={top+f*(bottom-top)} stroke="var(--border-default)" strokeOpacity=".18" strokeDasharray="4 5"/>
+    <text x={left-9} y={top+f*(bottom-top)+4} fill="var(--text-secondary)" textAnchor="end" fontSize="11">
      {money(topValue-f*(topValue-bottomValue))}</text>
    </g>)}
    <polygon points={area} fill={'url(#'+id+')'}/>
-   <polyline points={line} fill="none" stroke="#42765c" strokeWidth="3.7" strokeLinecap="round" strokeLinejoin="round"/>
+   <polyline points={line} fill="none" stroke="var(--growa-sage)" strokeWidth="3.7" strokeLinecap="round" strokeLinejoin="round"/>
    {prices.map((price,i)=><g key={price.month}>
     <circle cx={coords[i][0]} cy={coords[i][1]} r={i===prices.length-1?5:3.3}
-     fill={i===prices.length-1?'#1e5743':'#8bab95'} stroke="#fafdf9" strokeWidth="1.5">
+     fill={i===prices.length-1?'var(--growa-ink)':'var(--chart-1)'} stroke="var(--surface-card)" strokeWidth="1.5">
      <title>{price.month}: {money(price.usdPerTonne*scale,1)} {currency}/t</title>
     </circle>
     {(i===0||i===Math.round((prices.length-1)/2)||i===prices.length-1)&&
-     <text x={coords[i][0]} y={height-14} textAnchor={i===0?'start':i===prices.length-1?'end':'middle'} fill="#65756b" fontSize="11">
+     <text x={coords[i][0]} y={height-14} textAnchor={i===0?'start':i===prices.length-1?'end':'middle'} fill="var(--text-secondary)" fontSize="11">
       {price.month}</text>}
    </g>)}
   </svg>
@@ -154,11 +154,11 @@ function NumericInput({label,value,onChange,unit,placeholder}:{
 }){
  return <label className="block min-w-0">
   <span className="text-[10px] font-bold uppercase tracking-[.08em] text-content-soft">{label}</span>
-  <div className="mt-2 flex overflow-hidden rounded-xl border border-line bg-white focus-within:border-[#73957e] focus-within:ring-1 focus-within:ring-[#73957e]">
+  <div className="mt-2 flex overflow-hidden rounded-xl border border-line bg-white focus-within:border-line-accent focus-within:ring-1 focus-within:ring-sage">
    <input type="number" min="0" step="any" inputMode="decimal" value={value}
     onChange={e=>onChange(e.target.value)} placeholder={placeholder}
     className="min-w-0 w-full bg-transparent px-3 py-2.5 text-sm outline-none"/>
-   <span className="flex items-center border-l border-line bg-[#f8f8f5] px-3 text-[10px] text-content-soft">{unit}</span>
+   <span className="flex items-center border-l border-line bg-muted px-3 text-[10px] text-content-soft">{unit}</span>
   </div>
  </label>
 }
@@ -168,11 +168,11 @@ function ScenarioSlider({id,label,value,max,unit,onChange}:{
  return <div className="space-y-2">
   <div className="flex items-center justify-between gap-2 text-xs">
    <label htmlFor={id} className="font-medium text-content">{label}</label>
-   <strong className="tabular-nums text-[#32684f]">+{money(value)} {unit}</strong>
+   <strong className="tabular-nums text-sage-700">+{money(value)} {unit}</strong>
   </div>
   <input id={id} type="range" min="0" max={max} step={max===45?1:5}
    value={value} onChange={e=>onChange(Number(e.target.value))}
-   className="w-full cursor-pointer accent-[#396b50]"/>
+   className="w-full cursor-pointer accent-sage"/>
  </div>
 }
 export function FertilizerIntelligence(){
@@ -247,7 +247,7 @@ export function FertilizerIntelligence(){
  const stockReady=stock.stockTonnes!==null&&stock.weeklyUseTonnes!==null&&stock.weeklyUseTonnes>0&&stock.leadDays!==null
 
  return <div className="growa w-full space-y-4 bg-background pb-8 text-content">
-  <header className="overflow-hidden rounded-[22px] bg-ink text-white shadow-panel">
+  <header className="overflow-hidden rounded-2xl bg-ink text-white shadow-panel">
    <div className="grid gap-5 bg-[radial-gradient(ellipse_at_85%_10%,rgba(140,177,117,.24),transparent_65%)] p-6 lg:grid-cols-[1.6fr_0.7fr] lg:p-8">
     <div>
      <span className="flex items-center gap-2 text-[10px] font-bold tracking-[.15em] text-cream-200">
@@ -295,7 +295,7 @@ export function FertilizerIntelligence(){
    </div>
   </header>
 
-  {error&&<div role="status" className="flex items-start gap-2 rounded-xl border border-[#e2d1b5] bg-[#fff7e8] p-3 text-[11px] text-[#7b5a25]">
+  {error&&<div role="status" className="flex items-start gap-2 rounded-xl border border-line bg-cream-100 p-3 text-[11px] text-[#7b5a25]">
    <Info className="mt-0.5 size-4 shrink-0"/>
    <p>Qatar trade feed currently unavailable ({error}). Dated global price benchmarks and the local scenario engine remain available. No trade figures are substituted.</p>
   </div>}
@@ -311,10 +311,10 @@ export function FertilizerIntelligence(){
   </section>
 
   <section className="grid gap-4 xl:grid-cols-[minmax(0,1.55fr)_minmax(320px,1fr)]">
-   <article className="min-w-0 rounded-[22px] border border-line bg-card p-4 md:p-6">
+   <article data-famiglia="monitoraggio" className="growa min-w-0 rounded-2xl border border-line bg-card p-4 md:p-6">
     <div className="flex flex-wrap items-start justify-between gap-3">
      <div>
-      <div className="text-[10px] font-bold uppercase tracking-[.14em] text-[#578269]">01 / Market terminal</div>
+      <div className="text-[10px] font-bold uppercase tracking-wider text-sage-700">01 / Market terminal</div>
       <h2 className="mt-1 text-xl font-bold">Fertilizer price discovery</h2>
       <p className="mt-1 text-[11px] text-content-soft">Select a fertilizer to inspect observed benchmarks and source basis.</p>
      </div>
@@ -328,11 +328,11 @@ export function FertilizerIntelligence(){
       const change=fertilizerPriceChange(p)
       const isSelected=p.id===selectedId
       return <button key={p.id} type="button" aria-pressed={isSelected} onClick={()=>setSelectedId(p.id)}
-       className={'flex min-w-0 flex-col rounded-xl border p-3 text-left transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md '+(
-        isSelected?'border-[#6c9678] bg-[#eaf3ec] ring-1 ring-[#6c9678]':'border-line bg-[#f9faf7]')}>
+       className={'flex min-w-0 flex-col rounded-xl border p-3 text-left transition-all duration-200 hover:border-line-accent '+(
+        isSelected?'border-line-accent bg-cream-50 ring-1 ring-sage':'border-line bg-muted')}>
        <div className="flex w-full items-center justify-between gap-1">
         <strong className="truncate text-xs">{p.name}</strong>
-        {isSelected&&<span className="size-1.5 rounded-full bg-[#306847]"/>}
+        {isSelected&&<span className="size-1.5 rounded-full bg-sage"/>}
        </div>
        <div className="mt-1 text-[10px] text-content-soft">{p.formula}</div>
        <div className="mt-3 text-[17px] font-bold tracking-tight tabular-nums">
@@ -340,7 +340,7 @@ export function FertilizerIntelligence(){
        </div>
        <div className="mt-0.5 text-[9px] text-content-soft">{price?currency+'/tonne · Oct 2026':'Grade-specific price'}</div>
        <div className="mt-auto w-full pt-2"><Sparkline prices={p.prices} selected={isSelected}/></div>
-       <div className={'mt-1 flex items-center gap-1 text-[10px] font-bold '+(change!==null&&change>0?'text-[#a16a25]':'text-[#5c856a]')}>
+       <div className={'mt-1 flex items-center gap-1 text-[10px] font-bold '+(change!==null&&change>0?'text-[var(--warning-strong)]':'text-sage-700')}>
         {change!==null&&(change>0?<ArrowUpRight className="size-3.5"/>:<ArrowDownRight className="size-3.5"/>)}
         {change===null?'Quote required':percent(change)}
        </div>
@@ -348,7 +348,7 @@ export function FertilizerIntelligence(){
      })}
     </div>
 
-    <div className="mt-5 flex flex-wrap items-start justify-between gap-3 rounded-xl border border-line bg-[#f8faf7] px-4 py-3">
+    <div className="mt-5 flex flex-wrap items-start justify-between gap-3 rounded-xl border border-line bg-muted px-4 py-3">
      <div>
       <span className="text-[10px] font-bold uppercase tracking-[.12em] text-content-soft">Selected benchmark / {selected.name}</span>
       <div className="mt-1 flex flex-wrap items-baseline gap-2">
@@ -373,45 +373,45 @@ export function FertilizerIntelligence(){
     <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-line pt-3 text-[10px] text-content-soft">
      <span>World Bank Pink Sheet · Oct 2026 · historical global benchmarks</span>
      <a href={selected.sourceUrl} target="_blank" rel="noopener noreferrer"
-      className="inline-flex items-center gap-1 font-semibold text-[#407455] underline underline-offset-2">
+      className="inline-flex items-center gap-1 font-semibold text-sage-700 underline underline-offset-2">
       View source <ArrowUpRight className="size-3.5"/></a>
     </div>
    </article>
 
-   <article className="min-w-0 rounded-[22px] border border-line bg-card p-4 md:p-6">
-    <div className="text-[10px] font-bold uppercase tracking-[.14em] text-[#578269]">02 / Forward risk intelligence</div>
+   <article data-famiglia="monitoraggio" className="growa min-w-0 rounded-2xl border border-line bg-card p-4 md:p-6">
+    <div className="text-[10px] font-bold uppercase tracking-wider text-sage-700">02 / Forward risk intelligence</div>
     <h2 className="mt-1 text-xl font-bold">Exposure radar</h2>
     <p className="mt-2 text-[11px] leading-5 text-content-soft">
      Explainable scenario score from 0–100. It is a screening index, not the probability of a disruption.
     </p>
     <div className="mt-4 grid grid-cols-3 gap-2">
      {horizons.map(h=><button key={h.days} type="button" aria-pressed={horizon===h.days} onClick={()=>setHorizon(h.days)}
-      className={'rounded-xl border p-3 text-center transition-colors '+(horizon===h.days?'border-[#7da385] bg-[#e6f1e8]':'border-line bg-[#f8faf7]')}>
+      className={'rounded-xl border p-3 text-center transition-colors '+(horizon===h.days?'border-line-accent bg-cream-50':'border-line bg-muted')}>
       <span className="block text-[10px] font-semibold text-content-soft">{h.label}</span>
       <strong className="mt-1 block text-2xl tabular-nums">{h.market.score}<span className="text-xs font-normal">/100</span></strong>
       <span className="mt-2 inline-block"><RiskPill risk={h.market.risk}/></span>
      </button>)}
     </div>
-    <div className="relative mt-5 overflow-hidden rounded-2xl border border-[#365b4b] bg-[#173f35] p-5 text-white">
-     <div className="flex items-center justify-between text-[10px] font-bold uppercase tracking-[.12em] text-[#d2e2d6]">
+    <div className="relative mt-5 overflow-hidden rounded-2xl border border-ink bg-ink p-5 text-white">
+     <div className="flex items-center justify-between text-[10px] font-bold uppercase tracking-[.12em] text-cream-200">
       <span>Scenario exposure · {horizon} days</span><Activity className="size-4"/>
      </div>
      <div className="mt-3 flex items-baseline gap-2">
       <strong className="text-4xl font-semibold tabular-nums">{marketScore}</strong>
-      <span className="text-xs text-[#cbded2]">relative points / 100</span>
+      <span className="text-xs text-cream-100">relative points / 100</span>
      </div>
      <div className="mt-4 h-3 overflow-hidden rounded-full bg-white/15">
-      <div className="h-full rounded-full bg-[linear-gradient(90deg,#80a993_0%,#d2aa6b_63%,#c76c54_100%)] transition-[width] duration-500"
+      <div className="h-full rounded-full bg-sage transition-[width] duration-500"
        style={{width:marketScore+'%'}}/>
      </div>
-     <div className="mt-2 flex justify-between text-[9px] text-[#b9d0c0]">
+     <div className="mt-2 flex justify-between text-[9px] text-cream-100">
       <span>Lower screening pressure</span><span>Higher</span>
      </div>
     </div>
     <div className="mt-5 space-y-2">
      <h3 className="text-xs font-bold">Drivers behind the score</h3>
-     {focused.market.drivers.map((driver,i)=><div key={driver} className="flex items-start gap-2 rounded-xl border border-line bg-[#f8faf7] px-3 py-2.5 text-[11px]">
-      <span className="mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full bg-[#e5ede5] text-[9px] font-bold text-[#437152]">{i+1}</span>
+     {focused.market.drivers.map((driver,i)=><div key={driver} className="flex items-start gap-2 rounded-xl border border-line bg-muted px-3 py-2.5 text-[11px]">
+      <span className="mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full bg-cream-100 text-[9px] font-bold text-sage-700">{i+1}</span>
       {driver}
      </div>)}
     </div>
@@ -430,10 +430,10 @@ export function FertilizerIntelligence(){
    </article>
   </section>
 
-  <section className="rounded-[22px] border border-line bg-card p-4 md:p-6">
+  <section className="rounded-2xl border border-line bg-card p-4 md:p-6">
    <div className="flex flex-wrap items-start justify-between gap-3">
     <div>
-     <div className="text-[10px] font-bold uppercase tracking-[.14em] text-[#578269]">03 / National vulnerability matrix</div>
+     <div className="text-[10px] font-bold uppercase tracking-wider text-sage-700">03 / National vulnerability matrix</div>
      <h2 className="mt-1 text-xl font-bold">Risk horizon heatmap</h2>
      <p className="mt-1 text-[11px] text-content-soft">Compare all tracked fertilizer groups under your active what-if assumptions.</p>
     </div>
@@ -446,8 +446,8 @@ export function FertilizerIntelligence(){
      </div>
      {marketRisks.map(({product,risks})=><button type="button" key={product.id} onClick={()=>setSelectedId(product.id)}
       aria-pressed={selectedId===product.id}
-      className={'mt-2 grid w-full grid-cols-[minmax(180px,1.25fr)_repeat(3,minmax(120px,1fr))_minmax(140px,1fr)] items-center gap-2 rounded-xl border p-2 text-left transition-all hover:bg-[#eef4ec] '+(
-       selectedId===product.id?'border-[#7da487] bg-[#f2f7f0]':'border-line bg-[#fafbf8]')}>
+      className={'mt-2 grid w-full grid-cols-[minmax(180px,1.25fr)_repeat(3,minmax(120px,1fr))_minmax(140px,1fr)] items-center gap-2 rounded-xl border p-2 text-left transition-all hover:bg-cream-50 '+(
+       selectedId===product.id?'border-line-accent bg-cream-50':'border-line bg-background')}>
       <div className="min-w-0 px-2">
        <strong className="block text-xs">{product.name}</strong>
        <span className="text-[10px] text-content-soft">{product.category}</span>
@@ -466,13 +466,13 @@ export function FertilizerIntelligence(){
   </section>
 
   <section className="grid gap-4 xl:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)]">
-   <article className="rounded-[22px] border border-line bg-card p-4 md:p-6">
+   <article data-famiglia="monitoraggio" className="growa rounded-2xl border border-line bg-card p-4 md:p-6">
     <div className="flex flex-wrap items-center justify-between gap-2">
      <div>
-      <div className="text-[10px] font-bold uppercase tracking-[.14em] text-[#578269]">04 / Scenario laboratory</div>
+      <div className="text-[10px] font-bold uppercase tracking-wider text-sage-700">04 / Scenario laboratory</div>
       <h2 className="mt-1 text-xl font-bold">Stress-test supply continuity</h2>
      </div>
-     <SlidersHorizontal className="size-5 text-[#6f9479]"/>
+     <SlidersHorizontal className="size-5 text-sage-700"/>
     </div>
     <p className="mt-2 text-[11px] leading-5 text-content-soft">
      All numbers below are your inputs or hypothetical shocks. Inputs are scoped to {selected.name}, kept in this browser session, and never written to national inventory records.
@@ -481,7 +481,7 @@ export function FertilizerIntelligence(){
      {presets.map(p=><button key={p.id} type="button" onClick={()=>applyStress({...p.stress},p.id)}
       aria-pressed={preset===p.id} title={p.detail}
       className={'rounded-xl border px-3 py-3 text-left transition-colors '+(
-       preset===p.id?'border-[#749a7c] bg-[#e6efe5]':'border-line bg-[#f9faf7]')}>
+       preset===p.id?'border-line-accent bg-cream-100':'border-line bg-muted')}>
       <span className="block text-xs font-bold">{p.name}</span>
       <span className="mt-1 block text-[10px] leading-4 text-content-soft">{p.detail}</span>
      </button>)}
@@ -498,7 +498,7 @@ export function FertilizerIntelligence(){
     <div className="flex flex-wrap items-center justify-between gap-3">
      <h3 className="text-sm font-bold">Inventory and confirmed arrivals</h3>
      <button type="button" onClick={()=>setDrafts(prev=>({...prev,[selectedId]:baselineDraft()}))}
-      className="text-[10px] font-semibold text-[#447457] underline underline-offset-2">Clear {selected.name} inputs</button>
+      className="text-[10px] font-semibold text-sage-700 underline underline-offset-2">Clear {selected.name} inputs</button>
     </div>
     <div className="mt-3 grid gap-3 sm:grid-cols-2">
      <NumericInput label="Physical stock" value={selectedDraft.onHand} onChange={v=>updateDraft('onHand',v)} unit="t" placeholder="Enter stock"/>
@@ -506,21 +506,21 @@ export function FertilizerIntelligence(){
      <NumericInput label="Inbound quantity" value={selectedDraft.incoming} onChange={v=>updateDraft('incoming',v)} unit="t" placeholder="Enter order"/>
      <NumericInput label="Supplier lead time" value={selectedDraft.lead} onChange={v=>updateDraft('lead',v)} unit="days" placeholder="Enter lead time"/>
     </div>
-    <label className="mt-4 flex items-start gap-2 rounded-xl border border-line bg-[#f8faf7] p-3 text-[11px]">
-     <input className="mt-0.5 size-4 shrink-0 accent-[#3c7552]" type="checkbox"
+    <label className="mt-4 flex items-start gap-2 rounded-xl border border-line bg-muted p-3 text-[11px]">
+     <input className="mt-0.5 size-4 shrink-0 accent-sage" type="checkbox"
       checked={selectedDraft.confirmed}
       onChange={e=>setDrafts(prev=>({...prev,[selectedId]:{...prev[selectedId],confirmed:e.target.checked}}))}/>
      <span>Count inbound tonnage only if the supplier has confirmed the delivery. An unconfirmed order does not increase the stock forecast.</span>
     </label>
    </article>
 
-   <article className="rounded-[22px] border border-line bg-card p-4 md:p-6">
+   <article data-famiglia="monitoraggio" className="growa rounded-2xl border border-line bg-card p-4 md:p-6">
     <div className="flex flex-wrap items-center justify-between gap-2">
      <div>
-      <div className="text-[10px] font-bold uppercase tracking-[.14em] text-[#578269]">05 / Decision room</div>
+      <div className="text-[10px] font-bold uppercase tracking-wider text-sage-700">05 / Decision room</div>
       <h2 className="mt-1 text-xl font-bold">Supply outlook & actions</h2>
      </div>
-     <Sparkles className="size-5 text-[#658a6b]"/>
+     <Sparkles className="size-5 text-sage-700"/>
     </div>
     <div className="mt-4 flex items-center gap-2">
      <SourceChip kind="model">Explainable rules engine</SourceChip>
@@ -528,7 +528,7 @@ export function FertilizerIntelligence(){
     </div>
     <div className="mt-4 grid grid-cols-3 gap-2">
      {horizons.map(h=><button key={h.days} type="button" onClick={()=>setHorizon(h.days)}
-      className={'rounded-xl border p-3 text-left '+(horizon===h.days?'border-[#719779] bg-[#edf4ed]':'border-line bg-[#f8faf7]')}>
+      className={'rounded-xl border p-3 text-left '+(horizon===h.days?'border-line-accent bg-cream-50':'border-line bg-muted')}>
       <span className="block text-[10px] font-bold">{h.label}</span>
       <span className="mt-2 block"><RiskPill risk={h.inventory.risk}/></span>
       <span className="mt-2 block text-[11px] font-semibold tabular-nums">
@@ -536,21 +536,21 @@ export function FertilizerIntelligence(){
       </span>
      </button>)}
     </div>
-    <div className="mt-4 rounded-2xl border border-[#d8e4d6] bg-[#eff6ef] p-4">
-     <div className="flex items-center gap-2 text-xs font-bold text-[#305d43]"><Target className="size-4"/> Selected horizon · {horizon} days</div>
-     <p className="mt-2 text-[12px] leading-6 text-[#365a44]">{focused.inventory.reason}</p>
-     {stockReady&&focused.inventory.balanceTonnes!==null&&<div className="mt-3 flex items-center justify-between border-t border-[#d1e2d0] pt-3">
-      <span className="text-[11px] text-[#466a50]">Scenario closing balance</span>
+    <div className="mt-4 rounded-2xl border border-line bg-cream-50 p-4">
+     <div className="flex items-center gap-2 text-xs font-bold text-ink"><Target className="size-4"/> Selected horizon · {horizon} days</div>
+     <p className="mt-2 text-[12px] leading-6 text-content">{focused.inventory.reason}</p>
+     {stockReady&&focused.inventory.balanceTonnes!==null&&<div className="mt-3 flex items-center justify-between border-t border-line pt-3">
+      <span className="text-[11px] text-content-soft">Scenario closing balance</span>
       <strong className="text-base tabular-nums">{money(focused.inventory.balanceTonnes,1)} t</strong>
      </div>}
     </div>
     <h3 className="mt-5 text-xs font-bold">Recommended next steps</h3>
     <div className="mt-3 space-y-2">
-     {actions.map((action,i)=><div key={action.title} className="rounded-xl border border-line bg-[#f9faf8] p-3">
+     {actions.map((action,i)=><div key={action.title} className="rounded-xl border border-line bg-background p-3">
       <div className="flex items-start gap-2">
        <span className={'mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-lg '+(
-        action.priority==='critical'?'bg-[#f5e2d8] text-[#a44a38]':
-        action.priority==='watch'?'bg-[#f8edd6] text-[#976b1d]':'bg-[#e4eee4] text-[#427357]')}>
+        action.priority==='critical'?'bg-muted text-critical':
+        action.priority==='watch'?'bg-cream-100 text-[var(--warning-strong)]':'bg-cream-50 text-sage-700')}>
         {action.priority==='critical'?<ShieldAlert className="size-4"/>:
          action.priority==='watch'?<Activity className="size-4"/>:<ShieldCheck className="size-4"/>}
        </span>
@@ -564,33 +564,33 @@ export function FertilizerIntelligence(){
    </article>
   </section>
 
-  <section className="rounded-[22px] border border-line bg-card p-4 md:p-6">
+  <section className="rounded-2xl border border-line bg-card p-4 md:p-6">
    <div className="flex flex-wrap items-start justify-between gap-3">
     <div>
-     <div className="text-[10px] font-bold uppercase tracking-[.14em] text-[#578269]">06 / Availability intelligence</div>
+     <div className="text-[10px] font-bold uppercase tracking-wider text-sage-700">06 / Availability intelligence</div>
      <h2 className="mt-1 text-xl font-bold">Where availability is proven, and where it is not</h2>
      <p className="mt-1 text-[11px] text-content-soft">Production, trade and warehouse stock are three separate layers of evidence.</p>
     </div>
     <button type="button" onClick={()=>setSourceExpanded(value=>!value)}
      aria-expanded={sourceExpanded}
-     className="inline-flex items-center gap-1.5 rounded-xl border border-line px-3 py-2 text-xs font-semibold hover:bg-[#f7faf5]">
+     className="inline-flex items-center gap-1.5 rounded-xl border border-line px-3 py-2 text-xs font-semibold hover:bg-cream-50">
      <Database className="size-4"/> {sourceExpanded?'Hide evidence':'Inspect sources'}
     </button>
    </div>
    <div className="mt-5 grid gap-3 md:grid-cols-3">
-    <div className="rounded-xl border border-[#d7e4d5] bg-[#f0f7ef] p-4">
-     <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[.08em] text-[#52775d]"><Factory className="size-4"/> Production capacity</div>
+    <div className="rounded-xl border border-line bg-cream-50 p-4">
+     <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[.08em] text-sage-700"><Factory className="size-4"/> Production capacity</div>
      <strong className="mt-3 block text-2xl tabular-nums">5.6M t/y</strong>
      <p className="mt-2 text-[11px] leading-5 text-content-soft">QAFCO urea nominal capacity. Not domestic allocations, current production or market stock.</p>
     </div>
-    <div className="rounded-xl border border-line bg-[#f8faf7] p-4">
+    <div className="rounded-xl border border-line bg-muted p-4">
      <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[.08em] text-content-soft"><Globe2 className="size-4"/> Official trade value</div>
      <strong className="mt-3 block text-2xl tabular-nums">{latestTrade?.importsQar===null||latestTrade?.importsQar===undefined?
        'Feed pending':concise(latestTrade.importsQar)+' QAR'}</strong>
      <p className="mt-2 text-[11px] leading-5 text-content-soft">Published imports {latestTrade?.year??'year to verify'}, annual value, not inbound tonnes or immediately available fertilizer.</p>
     </div>
-    <div className="rounded-xl border border-[#e8dcc4] bg-[#fffbf1] p-4">
-     <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[.08em] text-[#8e743f]"><PackageCheck className="size-4"/> National stock visibility</div>
+    <div className="rounded-xl border border-line bg-cream-50 p-4">
+     <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[.08em] text-[var(--warning-strong)]"><PackageCheck className="size-4"/> National stock visibility</div>
      <strong className="mt-3 block text-[21px]">Awaiting integration</strong>
      <p className="mt-2 text-[11px] leading-5 text-content-soft">No connected warehouse inventory or confirmed national delivery data. Model inputs above are illustrative, not reported stock.</p>
     </div>
@@ -618,17 +618,17 @@ export function FertilizerIntelligence(){
      {title:'Qatar MOCI / Open Data',detail:snapshot?.tradeDetail??'Official annual fertilizer trade series; live feed status pending',href:QATAR_FERTILIZER_TRADE_SOURCE},
      {title:'QAFCO production',detail:'Nominal nameplate capacity for urea, not warehouse availability',href:snapshot?.production.sourceUrl??QAFCO_REPORT_URL},
     ].map(item=><a key={item.title} href={item.href} target="_blank" rel="noopener noreferrer"
-     className="group rounded-xl border border-line bg-[#f9faf7] p-4 transition-colors hover:border-[#92af93]">
-     <strong className="flex items-center justify-between gap-2 text-xs">{item.title}<ArrowUpRight className="size-4 text-content-soft group-hover:text-[#437458]"/></strong>
+     className="group rounded-xl border border-line bg-muted p-4 transition-colors hover:border-line-accent">
+     <strong className="flex items-center justify-between gap-2 text-xs">{item.title}<ArrowUpRight className="size-4 text-content-soft group-hover:text-sage-700"/></strong>
      <p className="mt-2 text-[11px] leading-5 text-content-soft">{item.detail}</p>
     </a>)}
    </div>}
   </section>
 
-  <footer className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-line bg-[#f6f8f4] px-4 py-3 text-[10px] leading-5 text-content-soft">
-   <div className="flex items-center gap-2"><ShieldCheck className="size-4 text-[#658875]"/>
+  <footer className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-line bg-background px-4 py-3 text-[10px] leading-5 text-content-soft">
+   <div className="flex items-center gap-2"><ShieldCheck className="size-4 text-sage-700"/>
     Market references, rule-based scenarios and missing operational evidence are explicitly distinguished. No unverified national stock or supplier price is represented as factual.</div>
-   <a className="inline-flex items-center gap-1 font-bold text-[#4b785b] underline underline-offset-2"
+   <a className="inline-flex items-center gap-1 font-bold text-sage-700 underline underline-offset-2"
     href="/dashboard/procurement">Open Procurement <ArrowRight className="size-3.5"/></a>
   </footer>
  </div>
