@@ -33,7 +33,7 @@ describe('Harvest single-field decision cockpit',()=>{
   expect(shell).toContain('encodeURIComponent(parcelToDelete)')
   expect(shell).toContain("method: 'DELETE'")
 
-  expect(field).toContain('Source model response')
+  expect(field).toContain('View source model response')
  })
  it('supports point interaction and distinguishes modeled vs observed data',()=>{
   expect(field).toContain('role="button" tabIndex={0}')
