@@ -655,3 +655,48 @@
   font-size:10px; line-height:1.3; font-weight:800; letter-spacing:.2px;
   pointer-events:none;
 }
+
+
+/* Operational traffic lens: interactive, compact and consistent with Growa. */
+.situationLens {position:absolute;z-index:408;top:182px;inset-inline-start:306px;
+ inset-inline-end:435px;min-width:0;padding:9px 11px;border:1px solid var(--border-default);
+ border-radius:var(--radius-lg);background:rgba(255,255,255,.97);
+ box-shadow:var(--shadow-panel);backdrop-filter:blur(10px);pointer-events:auto}
+.situationHeading {display:flex;align-items:center;justify-content:space-between;gap:8px}
+.situationLabel {display:flex;align-items:center;gap:7px;min-width:0;font-size:10px;color:var(--growa-ink)}
+.situationLabel svg {flex:none;color:var(--growa-sage-700)}
+.situationLabel strong {font-size:10px;letter-spacing:.4px;white-space:nowrap}
+.situationMeta {overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:9px;color:var(--growa-stone-600)}
+.situationToggle {flex:none;padding:3px;border:1px solid var(--border-subtle);
+ border-radius:50%;background:white;cursor:pointer;color:var(--growa-ink)}
+.situationGrid {display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:4px;margin-top:8px}
+.situationCell {display:flex;min-width:0;flex-direction:column;align-items:flex-start;gap:3px;
+ padding:7px;border:1px solid var(--border-subtle);border-radius:var(--radius-sm);
+ background:var(--surface-muted);color:var(--growa-ink);text-align:start;cursor:pointer}
+.situationCell:hover,.situationCell:focus-visible {border-color:var(--growa-sage);background:var(--growa-cream-100)}
+.situationName {overflow:hidden;text-overflow:ellipsis;max-width:100%;white-space:nowrap;font-size:10px;font-weight:650}
+.situationNumbers {display:flex;align-items:center;gap:3px;white-space:nowrap;font-size:11px}
+.situationNumbers svg {color:var(--growa-sage-700)}
+.situationNumbers strong {font-size:19px;line-height:1.2;font-variant-numeric:tabular-nums}
+.situationNumbers small {font-size:9px;color:var(--growa-stone-600)}
+.situationAir {display:flex;align-items:center;gap:3px;font-size:9px;color:var(--growa-stone-600);white-space:nowrap}
+.situationFoot {margin:6px 2px 0;font-size:9px;line-height:1.5;color:var(--growa-stone-600)}
+.gatewayCount strong,.gatewayCount span {display:inline-block;padding:4px 3px;
+ border-block:1px solid var(--growa-sage-300);background:rgba(255,255,255,.96);
+ font-size:10px;color:var(--growa-ink)}
+.gatewayCount strong {border-inline-start:1px solid var(--growa-sage-300);
+ border-radius:7px 0 0 7px;font-variant-numeric:tabular-nums;color:var(--growa-sage-700)}
+.gatewayCount span {border-inline-end:1px solid var(--growa-sage-300);
+ border-radius:0 7px 7px 0;font-size:8px;white-space:nowrap}
+@media(max-width:1350px){
+ .situationLens {inset-inline-start:296px;inset-inline-end:435px;top:178px}
+ .situationGrid {display:flex;overflow-x:auto}
+ .situationCell {flex:0 0 100px}
+ .situationMeta {display:none}
+}
+@media(max-width:1050px){
+ .situationLens {top:auto;bottom:49px;inset-inline-start:14px;inset-inline-end:14px}
+ .situationGrid {display:flex;overflow-x:auto}
+ .situationCell {flex:0 0 110px}
+ .situationFoot {display:none}
+}
