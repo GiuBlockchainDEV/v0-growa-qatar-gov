@@ -838,6 +838,7 @@ export function HarvestWorkspace() {
 
   return (
     <IntelligenceWorkspaceRoot ref={workspaceScrollRef} layout="scroll">
+      {isFieldDetailView ? (
       <InvestigationContextHeader
         eyebrow={tr('Intelligence · satellite and harvest')}
         title={
@@ -869,6 +870,8 @@ export function HarvestWorkspace() {
           },
         ]}
       />
+
+      ) : null}
 
       {usingDemoData ? (
         <Notice tone="warning">
