@@ -11,6 +11,7 @@ import { getWorldFillZoom, REGIONAL_WATCHTOWER_VIEW } from '@/lib/watchtower/map
 import { makeAirGreatCircle } from '@/lib/nfii/logistics-route-geometry'
 import type {ProductionRiskZone} from '@/lib/watchtower/production-risk'
 import { captureObservedPositions, automaticRouteEvidence, worldCopyPolyline, type TrackPoint } from '@/lib/watchtower/route-geometry'
+import {visibleUnderwayVessel} from '@/lib/watchtower/visible-vessels'
 export type GlobalTrackingMapProps = {
   assets: TrackingAsset[]; demoVessels: readonly DemoVessel[]; historyAssets: TrackingAsset[]; alerts: MapAlert[]; riskZones: ProductionRiskZone[]; chokepoints: ChokepointReport[]; aisRoutes: AISRoute[]; layers: MapLayers; selectedId: string | null
   onSelect: (id: string) => void; onChokepointClick: (id: ChokepointId) => void; now: number
@@ -295,8 +296,36 @@ export function GlobalTrackingMap({ assets, demoVessels, historyAssets, alerts, 
         dashArray:point.feed?undefined:'3 4',
       }).bindTooltip(label(title),{className:styles.riskTooltip})
         .on('click',()=>selectChokepoint.current(point.id)).addTo(group)
+      // Selectable geographic activity ring. No extrapolated ships or
+      // false "crossing" events: count only nearby time-qualified fixes.
+      if(['hormuz','bab_el_mandeb','suez'].includes(point.id)&&zoom>=4){
+        const count=assets.filter(a=>visibleUnderwayVessel(a,now)&&
+          Math.abs(a.lat-point.lat)<1.1&&Math.abs(a.lon-point.lon)<1.25).length
+        L.circle([point.lat,point.lon],{
+          radius:point.id==='suez'?60000:105000,
+          color:count?'#6C8952':'#8C9388',
+          weight:1.4,opacity:.65,dashArray:'5 7',
+          fillColor:'#6C8952',fillOpacity:.035,interactive:false,
+        }).addTo(group)
+        const icon=L.divIcon({className:styles.gatewayCount,iconSize:[92,28],iconAnchor:[46,-12],
+          html:'<strong>'+count+'</strong><span> AIS FIXES</span>'})
+        L.marker([point.lat,point.lon],{icon,title:point.label+' observed AIS fixes',keyboard:true,zIndexOffset:450})
+          .bindTooltip(label(point.label+' · '+count+' nearby underway vessel fixes observed within one hour. Not verified transits.'))
+          .on('click',()=>selectChokepoint.current(point.id)).addTo(group)
+      }
     }
     L.marker([QATAR.lat, QATAR.lon], { interactive: false, icon: L.divIcon({ className: styles.qatar, html: '<span></span><b>QATAR</b>', iconSize: [80, 24], iconAnchor: [9, 12] }), zIndexOffset: 800 }).addTo(group)
+    const picked=assets.find(a=>a.id===selectedId)
+    if(picked&&bounds.contains([picked.lat,picked.lon])){
+      L.circleMarker([picked.lat,picked.lon],{
+        radius:23,color:MARKER.cream,weight:2.5,fillColor:MARKER.cream,
+        fillOpacity:.05,interactive:false,
+      }).addTo(group)
+      L.circleMarker([picked.lat,picked.lon],{
+        radius:31,color:MARKER.ink,weight:1.5,opacity:.45,dashArray:'4 6',
+        fillOpacity:0,interactive:false,
+      }).addTo(group)
+    }
     // Display only real observations and origin/destination reference routes.
     // No artificial 20-minute continuation or short screen-length heading
     // dashes in front of aircraft and vessels. Selecting only highlights.
