@@ -712,6 +712,13 @@ export function GlobalWatchtower() {
   const visibleSignals=riskPanelFilter==='ipc'?0:displayedRiskAlerts.length
 
   const selectedAsset = allAssets.find(a => a.id === selectedId), selectedAlert = allAlerts.find(a => a.id === selectedId)
+  // Source-observed nearby aircraft and ships, never synthetic scenario markers.
+  const nearbyContacts=selectedAsset?allAssets
+    .filter(asset=>asset.id!==selectedAsset.id&&
+      (asset.kind==='aircraft'?freshAsset(asset,now):visibleObservedVessel(asset,now))&&
+      separationKm(asset,selectedAsset)<=250)
+    .map(asset=>({asset,distanceKm:Math.round(separationKm(asset,selectedAsset))}))
+    .sort((a,b)=>a.distanceKm-b.distanceKm).slice(0,12):[]
   const contact = selectedAsset ? contactIntelligence(selectedAsset,now) : null
   const selectedProductionZone=(productionRisk?.zones??[]).find(zone=>zone.id===selectedId)
   // Load a bounded selection of real 7-day AIS tracks separately from ship
@@ -1048,6 +1055,18 @@ export function GlobalWatchtower() {
           ].map(([title, value]) => <div key={title}><span>{title}</span><strong>{value}</strong></div>)}</div>
           <p>{selectedAsset.lat.toFixed(4)}, {selectedAsset.lon.toFixed(4)} / {utc(selectedAsset.observedAt)}</p>
           <AssetObservationCamera key={selectedAsset.id} asset={selectedAsset} onFocus={() => choose(selectedAsset)}/>
+          <section className={styles.routeDetail} aria-label="Nearby AIS and ADS-B contacts">
+            <h3>Nearby observed contacts · 250 km</h3>
+            {nearbyContacts.length?<div className="mt-2 space-y-1">
+              {nearbyContacts.map(({asset,distanceKm})=><button type="button" key={asset.id}
+                onClick={()=>choose(asset)}
+                className="flex w-full items-center justify-between gap-2 rounded-md border border-line bg-card px-2 py-2 text-left text-[11px] hover:bg-muted">
+                <span className="min-w-0 truncate font-semibold">{asset.kind==='aircraft'?'AIR':'SEA'} · {asset.label}</span>
+                <span className="shrink-0 text-content-soft">{distanceKm} km</span>
+              </button>)}
+            </div>:<p className={styles.hint}>No sufficiently recent reported AIS/ADS-B contacts within 250 km. This does not prove empty airspace or waters.</p>}
+            <p className={styles.hint}>Great-circle proximity, not collision probability or verified route overlap.</p>
+          </section>
           {contact&&<section className={styles.routeDetail} aria-label="Geospatial contact intelligence">
             <h3>Geospatial Contact Intelligence</h3>
             <p>Source age: <strong>{contact.ageMinutes===null?'Unverified':Math.abs(contact.ageMinutes)+' min'}</strong>
