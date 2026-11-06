@@ -996,7 +996,7 @@ export function GlobalWatchtower() {
               {' '}{contact.closestGateway.distanceKm.toLocaleString('en-US')} km.
               Proximity alone is not evidence of passage.</p>}
             {contact.notes.map(note=><p key={note} className={styles.hint}>{note}</p>)}
-          </section>
+          </section>}
           <div className={styles.routeDetail}>
             <h3>Origin → Destination</h3>
             {selectedAsset.itinerary ? <>
