@@ -25,7 +25,7 @@ describe('Qatar nationwide Microsoft Planetary Computer spectral imagery',()=>{
   expect(SPECTRAL_INDEX_CONFIG.ndsi.expression).toBe('(B04-B08)/(B04+B08)')
   expect(spectralTileParams('ndsi').getAll('assets')).toEqual(['B04','B08'])
   expect(spectralTileParams('ndsi').get('colormap_name')).toBe('purples')
-  expect(spectralTileParams('ndsi').get('rescale')).toBe('-0.9,0.2')
+  expect(spectralTileParams('ndsi').get('rescale')).toBe('-0.1,0.7')
   // Visual legend must stay aligned with the actual TiTiler purple ramp,
   // not merely recolor the UI while leaving the imagery red/green.
   expect(SPECTRAL_INDEX_CONFIG.ndsi.palette).not.toBe(SPECTRAL_INDEX_CONFIG.ndvi.palette)
@@ -92,7 +92,8 @@ describe('Qatar nationwide Microsoft Planetary Computer spectral imagery',()=>{
   expect(map).toContain('spectralEnabled&&<QatarSpectralLayers map={mapForReadout}/>')
   expect(widget).toContain("([null,'ndvi','ndmi','ndsi'] as const)")
   expect(widget).toContain("index==='ndmi'?NDMI_COLORS:NDSI_COLORS")
-  expect(widget).toContain('NDSI is not a measured soil salinity value')
+  expect(widget).toContain('Sand and bare soil are not classified as saline')
+  expect(widget).toContain("setOpacity(choice==='ndsi'?.35:.7)")
   expect(widget).toContain('setIndex(choice===index?null:choice)')
   expect(widget).toContain('overlay.current?.remove()')
   expect(widget).toContain('clipTileToQatar(context')

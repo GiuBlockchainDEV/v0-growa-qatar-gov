@@ -30,8 +30,10 @@ export const SPECTRAL_INDEX_CONFIG={
  ndsi:{
   label:'NDSI',bands:['B04','B08'] as const,
   expression:'(B04-B08)/(B04+B08)',
-  description:'Soil salinity screening proxy · red vs near infrared',
-  palette:'purples',rescale:'-0.9,0.2',
+  description:'NDSI spectral contrast · NOT measured soil salinity',
+  // Presentation-only scale prevents typical bare-sand values near zero
+  // from saturating dark purple. Not a calibrated salinity threshold.
+  palette:'purples',rescale:'-0.1,0.7',
  },
 } as const
 export function qatarMosaicSearch(date:Date){

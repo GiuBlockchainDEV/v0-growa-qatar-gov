@@ -356,10 +356,13 @@ export function QatarSpectralLayers({map}:{map:MapController|null}){
 
  const toggle=(choice:SpectralIndex|null)=>{
   setIndex(choice===index?null:choice)
+  // NDSI is -NDVI, not a calibrated salinity diagnosis. The default
+  // display should not make the country's bare sand look severely saline.
+  setOpacity(choice==='ndsi'?.35:.7)
   setError(null)
  }
  const colors=index==='ndvi'?NDVI_COLORS:index==='ndmi'?NDMI_COLORS:NDSI_COLORS
- const spectralRange=index==='ndvi'?['−0.20','0.08','0.35','0.63','0.90']:index==='ndmi'?['≤−0.35','−0.18','0','0.18','≥0.35']:['≤−0.90','−0.63','−0.35','−0.08','≥0.20']
+ const spectralRange=index==='ndvi'?['−0.20','0.08','0.35','0.63','0.90']:index==='ndmi'?['≤−0.35','−0.18','0','0.18','≥0.35']:['≤−0.10','0.10','0.30','0.50','≥0.70']
  return <div className="absolute start-1/2 top-4 z-[1150] w-[min(33rem,calc(100%-7rem))] -translate-x-1/2 rounded-xl border border-line bg-card/95 p-3 shadow-panel backdrop-blur-md"
   role="group" aria-label="Qatar-wide satellite spectral indices">
   <div className="flex items-center justify-between gap-2">
@@ -398,7 +401,7 @@ export function QatarSpectralLayers({map}:{map:MapController|null}){
    <p className="mt-1 text-[9px] leading-4 text-content-soft">
     {index==='ndvi'?'NDVI · Sentinel-2 observations with original color scale −0.20…0.90.':
       index==='ndmi'?'Enhanced NDMI contrast · clipped color scale −0.35…0.35, with original Sentinel-2 index values. NDMI is not soil moisture.':
-      'NDSI (salinity screening variant) = (B04−B08)/(B04+B08) = −NDVI. Warm colors indicate higher index values, NOT confirmed salt concentrations. Vegetation and bare soil strongly influence this proxy.'}
+      'NDSI spectral contrast = (B04−B08)/(B04+B08) = −NDVI. Bare sand can have positive values without being saline. Purple indicates index contrast, NEVER confirmed salinity or soil EC. The display range is intentionally unsaturated around bare-soil values.'}
    </p>
    <p role="status" className="mt-2 text-[10px] leading-4 text-content-soft">
     {error?'Satellite service: '+error:
@@ -413,7 +416,7 @@ export function QatarSpectralLayers({map}:{map:MapController|null}){
     {payload?.mode==='stac-composite'?
      'Single geographically masked visual composite. Scene colors are feathered; dates may vary, and this is not a quantitative index measurement.':
      'Single Qatar-clipped mosaic. Dates, clouds and no-data coverage may vary.'}
-    {' '}{index==='ndsi'?'NDSI is not a measured soil salinity value (dS/m).':'NDMI is not measured soil moisture.'}
+    {' '}{index==='ndsi'?'Sand and bare soil are not classified as saline. Soil EC sampling is required for salinity mapping.':'NDMI is not measured soil moisture.'}
    </p>
    {error&&<button type="button" onClick={()=>setRetry(x=>x+1)}
     className="mt-2 inline-flex items-center gap-1 text-[10px] font-semibold text-sage-700 underline">

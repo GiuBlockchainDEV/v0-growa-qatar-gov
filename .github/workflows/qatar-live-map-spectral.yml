@@ -3,6 +3,8 @@ on:
   pull_request:
     paths:
       - 'components/dashboard/qatar-spectral-layers.tsx'
+      - 'components/brand/ui.tsx'
+      - 'components/brand/feedback.tsx'
       - 'lib/satellite/**'
       - 'app/api/satellite/**'
       - '.github/workflows/qatar-live-map-spectral.yml'
@@ -22,6 +24,6 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npx tsc --noEmit
-      - run: npx vitest run lib/satellite/qatar-spectral.test.ts lib/satellite/qatar-raster-composite.test.ts lib/satellite/qatar-clip.test.ts
+      - run: npx vitest run lib/satellite/qatar-spectral.test.ts lib/satellite/live-map-modal-stacking.test.ts lib/satellite/qatar-raster-composite.test.ts lib/satellite/qatar-clip.test.ts
       - run: npm run build
-      - run: npx eslint lib/satellite/qatar-spectral.ts components/dashboard/qatar-spectral-layers.tsx app/api/satellite/qatar-spectral/route.ts
+      - run: npx eslint lib/satellite/qatar-spectral.ts components/dashboard/qatar-spectral-layers.tsx components/brand/ui.tsx app/api/satellite/qatar-spectral/route.ts
