@@ -295,7 +295,7 @@ export function FertilizerIntelligence(){
    </div>
   </header>
 
-  {error&&<div role="status" className="flex items-start gap-2 rounded-xl border border-line bg-cream-100 p-3 text-[11px] text-[#7b5a25]">
+  {error&&<div role="status" className="flex items-start gap-2 rounded-xl border border-line bg-cream-100 p-3 text-[11px] text-[var(--warning-strong)]">
    <Info className="mt-0.5 size-4 shrink-0"/>
    <p>Qatar trade feed currently unavailable ({error}). Dated global price benchmarks and the local scenario engine remain available. No trade figures are substituted.</p>
   </div>}
