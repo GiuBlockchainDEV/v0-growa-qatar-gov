@@ -95,8 +95,15 @@ function Sparkline({prices,selected=false}:{prices:FertilizerPrice[];selected?:b
  </svg>
 }
 function MarketChart({product,currency,range}:{product:FertilizerProduct;currency:'USD'|'QAR';range:3|6|12}){
+ const [selectedMonth,setSelectedMonth]=useState<string|null>(null)
  const prices=product.prices.slice(-range)
  const scale=currency==='QAR'?USD_QAR_REFERENCE:1
+ const activeIndex=selectedMonth===null?-1:prices.findIndex(p=>p.month===selectedMonth)
+ const selectedIndex=activeIndex>=0?activeIndex:prices.length-1
+ const selected=prices[selectedIndex]
+ const previous=selectedIndex>0?prices[selectedIndex-1]:null
+ const previousChange=selected&&previous&&previous.usdPerTonne>0?
+  (selected.usdPerTonne-previous.usdPerTonne)/previous.usdPerTonne*100:null
  if(prices.length<2)return <div className="grid min-h-[280px] place-items-center rounded-2xl border border-dashed border-line bg-background p-6 text-center">
   <div className="max-w-sm">
    <div className="mx-auto flex size-12 items-center justify-center rounded-xl bg-muted text-sage-700"><Database className="size-6"/></div>
@@ -119,8 +126,9 @@ function MarketChart({product,currency,range}:{product:FertilizerProduct;currenc
  const line=coords.map(a=>a.join(',')).join(' ')
  const area=line+' '+right+','+bottom+' '+left+','+bottom
  const id='fert-chart-'+product.id
+ const selectedCoordinate=coords[selectedIndex]
  return <div className="min-w-0">
-  <svg viewBox={'0 0 '+width+' '+height} role="img" aria-label={product.name+' monthly World Bank benchmark trend, '+currency+' per tonne'} className="h-auto w-full">
+  <svg viewBox={'0 0 '+width+' '+height} role="group" aria-label={product.name+' monthly World Bank benchmark trend: select a month using mouse or keyboard'} className="h-auto w-full">
    <defs><linearGradient id={id} x1="0" y1="0" x2="0" y2="1">
     <stop offset="0%" stopColor="var(--chart-1)" stopOpacity=".27"/>
     <stop offset="100%" stopColor="var(--chart-1)" stopOpacity=".015"/>
@@ -130,19 +138,45 @@ function MarketChart({product,currency,range}:{product:FertilizerProduct;currenc
     <text x={left-9} y={top+f*(bottom-top)+4} fill="var(--text-secondary)" textAnchor="end" fontSize="11">
      {money(topValue-f*(topValue-bottomValue))}</text>
    </g>)}
-   <polygon points={area} fill={'url(#'+id+')'}/>
-   <polyline points={line} fill="none" stroke="var(--growa-sage)" strokeWidth="3.7" strokeLinecap="round" strokeLinejoin="round"/>
+   <polygon points={area} fill={'url(#'+id+')'} pointerEvents="none"/>
+   <polyline points={line} fill="none" stroke="var(--growa-sage)" strokeWidth="3.7" strokeLinecap="round" strokeLinejoin="round" pointerEvents="none"/>
+   <line x1={selectedCoordinate[0]} x2={selectedCoordinate[0]} y1={top} y2={bottom}
+    stroke="var(--growa-ink)" strokeWidth="1.5" strokeDasharray="4 5" opacity=".55" pointerEvents="none"/>
    {prices.map((price,i)=><g key={price.month}>
-    <circle cx={coords[i][0]} cy={coords[i][1]} r={i===prices.length-1?5:3.3}
-     fill={i===prices.length-1?'var(--growa-ink)':'var(--chart-1)'} stroke="var(--surface-card)" strokeWidth="1.5">
-     <title>{price.month}: {money(price.usdPerTonne*scale,1)} {currency}/t</title>
+    <circle cx={coords[i][0]} cy={coords[i][1]} r={i===selectedIndex?6:3.5}
+     fill={i===selectedIndex?'var(--growa-ink)':'var(--chart-1)'}
+     stroke="var(--surface-card)" strokeWidth="1.5" pointerEvents="none"/>
+    <circle cx={coords[i][0]} cy={coords[i][1]} r="15"
+     fill="transparent" role="button" tabIndex={0}
+     aria-label={'Select '+price.month+', '+money(price.usdPerTonne*scale,1)+' '+currency+' per tonne'}
+     aria-pressed={i===selectedIndex}
+     className="cursor-pointer focus:outline-none focus-visible:stroke-ink focus-visible:stroke-2"
+     onClick={()=>setSelectedMonth(price.month)}
+     onKeyDown={e=>{
+      if(e.key==='Enter'||e.key===' '){e.preventDefault();setSelectedMonth(price.month)}
+      if(e.key==='ArrowRight'&&i<prices.length-1){e.preventDefault();setSelectedMonth(prices[i+1].month);(e.currentTarget.parentElement?.nextElementSibling?.querySelector('[role="button"]') as SVGElement|null)?.focus()}
+      if(e.key==='ArrowLeft'&&i>0){e.preventDefault();setSelectedMonth(prices[i-1].month);(e.currentTarget.parentElement?.previousElementSibling?.querySelector('[role="button"]') as SVGElement|null)?.focus()}
+     }}>
+     <title>{price.month}: {money(price.usdPerTonne*scale,1)} {currency}/t · select to inspect</title>
     </circle>
     {(i===0||i===Math.round((prices.length-1)/2)||i===prices.length-1)&&
-     <text x={coords[i][0]} y={height-14} textAnchor={i===0?'start':i===prices.length-1?'end':'middle'} fill="var(--text-secondary)" fontSize="11">
+     <text x={coords[i][0]} y={height-14} textAnchor={i===0?'start':i===prices.length-1?'end':'middle'} fill="var(--text-secondary)" fontSize="11" pointerEvents="none">
       {price.month}</text>}
    </g>)}
   </svg>
-  <p className="mt-1 text-[10px] leading-4 text-content-soft">Monthly observations only. Interpolating between points is for visual continuity, not weekly price reporting.</p>
+  <div className="mt-2 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-line bg-muted p-3" aria-live="polite">
+   <div>
+    <div className="text-[10px] font-semibold uppercase tracking-wide text-content-soft">Selected observation · {selected.month}</div>
+    <div className="growa-figure mt-1 text-content tabular-nums" style={{fontSize:'var(--text-heading)'}}>
+     {money(selected.usdPerTonne*scale,1)} <span className="text-xs font-normal text-content-soft">{currency}/tonne</span>
+    </div>
+   </div>
+   <div className="text-right">
+    <div className="text-[10px] text-content-soft">Versus previous month</div>
+    <div className="mt-1 text-sm font-semibold tabular-nums">{previousChange===null?'First observation':percent(previousChange)}</div>
+   </div>
+  </div>
+  <p className="mt-2 text-[10px] leading-4 text-content-soft">Click any point, or use Tab and Enter, to inspect its monthly value. Lines connect published monthly observations; they do not represent daily or weekly prices.</p>
  </div>
 }
 function RiskPill({risk}:{risk:FertilizerRisk}){
