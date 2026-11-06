@@ -980,7 +980,7 @@ export function GlobalWatchtower() {
             [selectedAsset.kind === 'aircraft' ? 'Altitude' : 'AIS destination', selectedAsset.kind === 'aircraft' ? (selectedAsset.altitudeFt === null ? 'Unknown' : selectedAsset.altitudeFt.toLocaleString() + ' ft') : selectedAsset.destination ?? 'Not reported'],
           ].map(([title, value]) => <div key={title}><span>{title}</span><strong>{value}</strong></div>)}</div>
           <p>{selectedAsset.lat.toFixed(4)}, {selectedAsset.lon.toFixed(4)} / {utc(selectedAsset.observedAt)}</p>
-          <AssetObservationCamera key={selectedAsset.id} asset={selectedAsset}/>
+          <AssetObservationCamera key={selectedAsset.id} asset={selectedAsset} onFocus={() => choose(selectedAsset)}/>
           {contact&&<section className={styles.routeDetail} aria-label="Geospatial contact intelligence">
             <h3>Geospatial Contact Intelligence</h3>
             <p>Source age: <strong>{contact.ageMinutes===null?'Unverified':Math.abs(contact.ageMinutes)+' min'}</strong>
