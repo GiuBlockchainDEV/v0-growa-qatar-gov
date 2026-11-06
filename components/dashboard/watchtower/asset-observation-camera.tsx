@@ -175,6 +175,10 @@ export function AssetObservationCamera({asset}:{asset:TrackingAsset}){
        <span className="shrink-0 text-sage-700">{camera.liveCapable?'Live-capable':'Timelapse'}</span>
       </button>)}
      </div>:<p className="mt-2 text-[10px] text-content-soft">{cameraStatus?.detail??'Camera source unavailable'}</p>}
+    <p className="mt-2 text-[9px] text-content-soft">
+     Webcams provided by <a href="https://www.windy.com/" target="_blank" rel="noopener noreferrer" className="underline">windy.com</a>.
+     {' '}<a href="https://www.windy.com/webcams/add" target="_blank" rel="noopener noreferrer" className="underline">Add a webcam</a>
+    </p>
     {chosen&&<div className="mt-3 space-y-2">
      <div className="flex flex-wrap items-center justify-between gap-2">
       <strong className="text-[11px]">{chosen.title}</strong>
