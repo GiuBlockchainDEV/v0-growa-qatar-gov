@@ -760,7 +760,7 @@ export function Modal({
 }) {
   const box = useRef<HTMLDivElement>(null)
   useDialog(open, onClose, box, { initial })
-  if (!open) return null
+  if (!open || typeof document === 'undefined') return null
   return createPortal(
     <div
       className="fixed inset-0 flex items-center justify-center p-4"
