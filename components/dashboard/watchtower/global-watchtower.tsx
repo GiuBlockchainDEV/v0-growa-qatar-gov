@@ -24,7 +24,6 @@ import {REGIONAL_AIR_BATCH_COUNT,REGIONAL_AIR_CENTERS,REGIONAL_AIR_PRIORITY_HUBS
 import {REGIONAL_WATCHTOWER_VIEW} from '@/lib/watchtower/map-viewport'
 import type { GlobalTrackingMapProps } from './global-tracking-map'
 import {AssetObservationCamera} from './asset-observation-camera'
-import {TrafficIntelligenceLens} from './traffic-intelligence-lens'
 import {contactIntelligence} from '@/lib/watchtower/contact-intelligence'
 import {mergeTrackingUpdate,mergeFlightItineraries,type RouteLookupResponse} from '@/lib/watchtower/tracking-merge'
 import styles from './global-watchtower.module.css'
@@ -740,11 +739,6 @@ export function GlobalWatchtower() {
   const nearGateway = selectedAsset ? [...CHOKEPOINTS].sort((a, b) => separationKm(a, selectedAsset) - separationKm(b, selectedAsset))[0] : null
   return <div id="watchtower-map" ref={root} className={styles.shell} dir={ar ? 'rtl' : 'ltr'}>
     <Map assets={assets} demoVessels={demoVessels} historyAssets={allAssets} alerts={alerts} riskZones={riskZones} chokepoints={maritimeFeed?.chokepoints??[]} aisRoutes={aisHistory} layers={layers} selectedId={selectedId} onSelect={select} onChokepointClick={chooseChokepoint} focus={focus} now={now} />
-    <TrafficIntelligenceLens assets={allAssets} now={now} onFocus={sector=>{
-      setRegion('global')
-      setFocus({lat:sector.lat,lon:sector.lon,zoom:sector.zoom,token:Date.now()})
-      if(mobile){setAlertsOpen(false);setFiltersOpen(false)}
-    }}/>
     <header className={styles.header}>
       <div className={styles.titleRow}>
         <div><div className={styles.eyebrow}>NFII / GLOBAL OPERATING PICTURE</div>
