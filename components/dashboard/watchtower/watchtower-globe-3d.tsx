@@ -2,6 +2,11 @@
 import {useEffect,useRef,useState} from 'react'
 import type {TrackingAsset} from '@/lib/watchtower/global-tracking'
 import type {FirmsDetection} from '@/lib/watchtower/firms-hotspots'
+import type {ProductionRiskZone} from '@/lib/watchtower/production-risk'
+import type {MapAlert,MapLayers} from '@/lib/watchtower/global-tracking'
+import {TRACKED_CHOKEPOINTS,type ChokepointId,type ChokepointReport} from '@/lib/watchtower/data-tracking-net'
+import {globeRiskParts,hasApproximateRiskRadius} from '@/lib/watchtower/globe-risk-geometry'
+import {MAP_COLORS,SIGNAL_SEVERITY_COLORS} from '@/lib/watchtower/map-layer-colors'
 
 /** Optional 3D situation viewer. Original Growa integration, not an onboard camera.
  * Cesium ion is a browser token: restrict it to this deployment and your assets.
@@ -27,9 +32,11 @@ function loadCesium():Promise<any>{
  }).catch(error=>{loading=null;throw error})
  return loading
 }
-export function WatchtowerGlobe3D({assets,fires,showFires,focus,onSelect,selectedId}:{
+export function WatchtowerGlobe3D({assets,fires,showFires,focus,onSelect,selectedId,riskZones,alerts,layers,chokepoints,onChokepointClick}:{
  assets:TrackingAsset[];fires:readonly FirmsDetection[];showFires:boolean
  selectedId?:string|null
+ riskZones:readonly ProductionRiskZone[];alerts:readonly MapAlert[];layers:MapLayers
+ chokepoints:readonly ChokepointReport[];onChokepointClick:(id:ChokepointId)=>void
  focus:{lat:number;lon:number;zoom:number;token:number}|null
  onSelect:(id:string)=>void
 }){
@@ -38,7 +45,11 @@ export function WatchtowerGlobe3D({assets,fires,showFires,focus,onSelect,selecte
  const [status,setStatus]=useState<'loading'|'ready'|'unavailable'>('loading')
  const [error,setError]=useState('')
  const onSelectRef=useRef(onSelect)
+ const onChokepointRef=useRef(onChokepointClick)
+ const layerRef=useRef(layers)
  useEffect(()=>{onSelectRef.current=onSelect},[onSelect])
+ useEffect(()=>{onChokepointRef.current=onChokepointClick},[onChokepointClick])
+ useEffect(()=>{layerRef.current=layers},[layers])
  useEffect(()=>{
   let cancelled=false
   void loadCesium().then(async C=>{
@@ -62,7 +73,23 @@ export function WatchtowerGlobe3D({assets,fires,showFires,focus,onSelect,selecte
    click.setInputAction((movement:any)=>{
     const picked=v.scene.pick(movement.position)
     const id=picked?.id?.id
-    if(typeof id==='string'&&id.startsWith('asset:'))onSelectRef.current(id.slice(6))
+    if(typeof id!=='string')return
+    if(id.startsWith('asset:'))onSelectRef.current(id.slice(6))
+    else if(id.startsWith('risk-zone:')&&layerRef.current.production){
+      const raw=id.slice('risk-zone:'.length)
+      const last=raw.lastIndexOf(':')
+      if(last>0){
+        const related=raw.slice(0,last)
+        onSelectRef.current(related)
+      }
+    }
+    else if(id.startsWith('risk-alert:')&&layerRef.current.risks)
+      onSelectRef.current(id.slice('risk-alert:'.length))
+    else if(id.startsWith('gateway:')&&layerRef.current.gateways){
+      const gateway=id.slice('gateway:'.length) as ChokepointId
+      if(TRACKED_CHOKEPOINTS.some(point=>point.id===gateway))
+        onChokepointRef.current(gateway)
+    }
    },C.ScreenSpaceEventType.LEFT_CLICK)
    ;(v as any).__growaClick=click
    if(cancelled){click.destroy();v.destroy();viewer.current=null;return}
@@ -89,13 +116,13 @@ export function WatchtowerGlobe3D({assets,fires,showFires,focus,onSelect,selecte
    const aircraft=a.kind==='aircraft'
    const selected=a.id===selectedId
    const altitude=aircraft?Math.max(0,(a.altitudeFt??0)*.3048):0
-   const color=C.Color.fromCssColorString(aircraft?'#FACC15':'#22C55E')
+   const color=C.Color.fromCssColorString(aircraft?'#C9A227':MAP_COLORS.sage300)
    v.entities.add({
     id:'asset:'+a.id,name:a.label,
     position:C.Cartesian3.fromDegrees(a.lon,a.lat,altitude),
     point:{
       pixelSize:selected?12:aircraft?8:7,
-      color,outlineColor:C.Color.fromCssColorString('#172A20'),
+      color,outlineColor:C.Color.fromCssColorString(MAP_COLORS.ink),
       outlineWidth:selected?3:1.5,
       heightReference:aircraft?C.HeightReference.NONE:C.HeightReference.CLAMP_TO_GROUND,
       scaleByDistance:new C.NearFarScalar(15000,1.2,18000000,.65),
@@ -113,6 +140,107 @@ export function WatchtowerGlobe3D({assets,fires,showFires,focus,onSelect,selecte
       ' / not a live video feed',
    })
   }
+  // Area overlays retain the exact 2D geometry/source semantics.
+  // ADM1 outlines are screening regions, NOT observed GDACS impact footprints.
+  // An event with no administrative polygon gets a clearly approximate radius.
+  if(layers.production)for(const zone of riskZones.slice(0,50)){
+    const selected=zone.id===selectedId
+    const tint=zone.severity==='high'?'#B4644A':'#C9A227'
+    const color=C.Color.fromCssColorString(tint)
+    const fill=color.withAlpha(selected?.30:.14)
+    const outline=color.withAlpha(selected?1:.83)
+    const label=zone.name+' · '+zone.driver.toUpperCase()+
+      ' · '+zone.severity.toUpperCase()
+    const explanation=zone.scopeNote+' / '+zone.source+
+      ' / '+(zone.observedAt??'observation date unavailable')
+    const parts=globeRiskParts(zone)
+    if(parts.length){
+      for(const [partIndex,part] of parts.entries()){
+        const makePositions=(ring:readonly [number,number][])=>ring.flatMap(([lon,lat])=>[lon,lat])
+        const hierarchy=new C.PolygonHierarchy(
+          C.Cartesian3.fromDegreesArray(makePositions(part.outer)),
+          part.holes.map(ring=>new C.PolygonHierarchy(
+            C.Cartesian3.fromDegreesArray(makePositions(ring)))),
+        )
+        v.entities.add({
+          id:'risk-zone:'+zone.id+':'+partIndex,name:label,
+          polygon:{
+            hierarchy,material:fill,outline:true,outlineColor:outline,
+            height:0,heightReference:C.HeightReference.CLAMP_TO_GROUND,
+            classificationType:C.ClassificationType.TERRAIN,
+          },
+          description:explanation,
+        })
+      }
+    }else if(hasApproximateRiskRadius(zone)){
+      const lat=zone.center.lat,lon=zone.center.lon
+      const radius=zone.radiusKm!*1000
+      const circumference=2*Math.PI*6378137*Math.cos(lat*Math.PI/180)
+      const deltaLon=radius/circumference*360
+      const deltaLat=radius/111320
+      if(Number.isFinite(deltaLon)&&Number.isFinite(deltaLat)){
+        const ring:number[]=[]
+        for(let i=0;i<64;i++){
+          const theta=2*Math.PI*i/64
+          const sampleLat=lat+Math.sin(theta)*deltaLat
+          const sampleLon=lon+Math.cos(theta)*deltaLon
+          if(Math.abs(sampleLat)>90||Math.abs(sampleLon)>180){ring.length=0;break}
+          ring.push(sampleLon,sampleLat)
+        }
+        if(ring.length>=6)v.entities.add({
+          id:'risk-zone:'+zone.id+':radius',name:label+' · approximate radius',
+          polygon:{
+            hierarchy:C.Cartesian3.fromDegreesArray(ring),material:fill,
+            outline:true,outlineColor:outline,height:0,
+            classificationType:C.ClassificationType.TERRAIN,
+          },
+          description:'Approximate '+zone.radiusKm+
+            ' km event-centred screening radius, NOT an event footprint. '+explanation,
+        })
+      }
+    }
+  }
+  // Event-level alert markers are distinct from administrative screening
+  // regions. Organization-wide food alerts are never depicted as incidents.
+  if(layers.risks)for(const alert of alerts.slice(0,250)){
+    if(alert.source==='Organization food ledger')continue
+    if(!Number.isFinite(alert.lat)||!Number.isFinite(alert.lon)||
+       Math.abs(alert.lat)>85||Math.abs(alert.lon)>180)continue
+    const selected=alert.id===selectedId
+    const tint=alert.severity==='high'?SIGNAL_SEVERITY_COLORS.high:
+      SIGNAL_SEVERITY_COLORS.attention
+    const color=C.Color.fromCssColorString(tint)
+    v.entities.add({
+      id:'risk-alert:'+alert.id,name:alert.title,
+      position:C.Cartesian3.fromDegrees(alert.lon,alert.lat),
+      point:{
+        pixelSize:selected?12:8,color:color.withAlpha(.9),
+        outlineColor:C.Color.fromCssColorString(MAP_COLORS.cream),
+        outlineWidth:selected?3:1.5,
+        heightReference:C.HeightReference.CLAMP_TO_GROUND,
+        disableDepthTestDistance:120000,
+      },
+      description:alert.source+' · '+alert.detail+' · '+alert.locationBasis,
+    })
+  }
+  if(layers.gateways)for(const gateway of TRACKED_CHOKEPOINTS){
+    const observed=chokepoints.find(entry=>entry.id===gateway.id)
+    const covered=observed?.state==='partial'||observed?.state==='stale'
+    const color=C.Color.fromCssColorString(
+      covered?MAP_COLORS.sage:MAP_COLORS.stone500)
+    v.entities.add({
+      id:'gateway:'+gateway.id,name:gateway.label,
+      position:C.Cartesian3.fromDegrees(gateway.lon,gateway.lat),
+      point:{
+        pixelSize:gateway.feed?7:5,color:color.withAlpha(.92),
+        outlineColor:C.Color.fromCssColorString(MAP_COLORS.cream),
+        outlineWidth:1.4,
+        heightReference:C.HeightReference.CLAMP_TO_GROUND,
+      },
+      description:gateway.label+' / '+(observed?.state??'not covered')+
+        ' / source coverage does not prove a safe or open shipping route.',
+    })
+  }
   if(showFires)for(const fire of fires.slice(0,500)){
    v.entities.add({id:'fire:'+fire.id,
     name:'NASA FIRMS satellite thermal detection',
@@ -123,7 +251,7 @@ export function WatchtowerGlobe3D({assets,fires,showFires,focus,onSelect,selecte
    })
   }
   v.scene.requestRender()
- },[assets,fires,showFires,status,selectedId])
+ },[assets,fires,showFires,status,selectedId,riskZones,alerts,layers,chokepoints])
  useEffect(()=>{
   const v=viewer.current,C=window.Cesium
   if(!v||!C||!focus||status!=='ready')return
