@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { useI18n } from '@/lib/i18n'
-import { Maximize2 } from 'lucide-react'
+import { Maximize2, Map as MapIcon, PanelLeft } from 'lucide-react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import {
   SatelliteMap,
@@ -120,6 +120,15 @@ function SlideFromLeftWorkspace({
   const startsWithLateralPanel =
     moduleKey === 'weather' || moduleKey === 'harvest' || moduleKey === 'production-harvest'
   const [panelVisible, setPanelVisible] = useState(startsWithLateralPanel)
+  const [compact, setCompact] = useState(false)
+  const [compactMapOpen, setCompactMapOpen] = useState(false)
+  useEffect(() => {
+    const media = window.matchMedia('(max-width: 1023px)')
+    const update = () => setCompact(media.matches)
+    update()
+    media.addEventListener('change', update)
+    return () => media.removeEventListener('change', update)
+  }, [])
 
   const isHarvestModule = moduleKey === 'harvest' || moduleKey === 'production-harvest'
 
@@ -284,12 +293,12 @@ function SlideFromLeftWorkspace({
   }, [startsWithLateralPanel])
 
   return (
-    <div className="relative h-full w-full overflow-hidden">
+    <div className="relative h-full min-w-0 w-full overflow-hidden">
       <div
         /* Logical insets: in Arabic the panel is on the right and the map
            slides to the left of it. */
         className={`absolute inset-y-0 end-0 z-0 transition-[inset-inline-start] duration-300 ease-out ${
-          panelVisible ? 'start-3/4' : 'start-0'
+          panelVisible && !compact ? 'start-3/4' : 'start-0'
         }`}
       >
         <SatelliteMap
@@ -301,7 +310,7 @@ function SlideFromLeftWorkspace({
           targetCropFilter={targetCropFilter}
           initialZoom={lateralMapInitialZoom(moduleKey)}
           isLateralMode
-          lateralPanelOpen={panelVisible}
+          lateralPanelOpen={panelVisible && !compactMapOpen}
           onMapClick={undefined}
           weatherGridPoints={weatherGridPoints}
           selectedWeatherGridPointId={selectedWeatherGridPointId}
@@ -353,7 +362,7 @@ function SlideFromLeftWorkspace({
         />
       </div>
 
-      {panelVisible &&
+      {panelVisible && !compact &&
         moduleKey !== 'weather' &&
         moduleKey !== 'harvest' &&
         moduleKey !== 'production-harvest' && (
@@ -368,9 +377,22 @@ function SlideFromLeftWorkspace({
           </button>
         )}
 
+      {compact && panelVisible && (
+        <div className="absolute end-3 bottom-[max(1rem,env(safe-area-inset-bottom))] z-[1950]">
+          <button type="button"
+            aria-label={compactMapOpen ? tr('Show dashboard panel') : tr('Show map')}
+            aria-pressed={compactMapOpen}
+            onClick={() => setCompactMapOpen(open => !open)}
+            className="inline-flex min-h-12 items-center gap-2 rounded-full border border-line bg-card px-5 py-3 text-sm font-semibold text-ink shadow-panel">
+            {compactMapOpen ? <PanelLeft size={18} /> : <MapIcon size={18} />}
+            {compactMapOpen ? tr('Show details') : tr('Show map')}
+          </button>
+        </div>
+      )}
       <div
-        className={`pointer-events-auto absolute bottom-0 start-0 top-0 z-[1800] w-3/4 transform transition-transform duration-300 ease-out ${
-          panelVisible ? 'translate-x-0' : '-translate-x-full rtl:translate-x-full'
+        className={`pointer-events-auto absolute bottom-0 start-0 top-0 z-[1800] transform transition-[transform,width] duration-300 ease-out ${
+          compact ? 'w-full ' + (compactMapOpen ? '-translate-x-full rtl:translate-x-full pointer-events-none' : 'translate-x-0')
+            : 'w-3/4 ' + (panelVisible ? 'translate-x-0' : '-translate-x-full rtl:translate-x-full')
         }`}
       >
         {/* The panel is the page: stone-50 surface with white cards on it,
