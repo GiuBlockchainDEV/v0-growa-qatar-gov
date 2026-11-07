@@ -310,7 +310,7 @@ function SlideFromLeftWorkspace({
           targetCropFilter={targetCropFilter}
           initialZoom={lateralMapInitialZoom(moduleKey)}
           isLateralMode
-          lateralPanelOpen={panelVisible && !compactMapOpen}
+          lateralPanelOpen={panelVisible && (!compact || !compactMapOpen)}
           onMapClick={undefined}
           weatherGridPoints={weatherGridPoints}
           selectedWeatherGridPointId={selectedWeatherGridPointId}
