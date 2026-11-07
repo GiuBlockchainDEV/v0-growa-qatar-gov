@@ -1,0 +1,124 @@
+/*
+ * Qatar Government mobile/tablet adaptation.
+ * - Do not scale the entire desktop UI: retain readable text and touch targets.
+ * - Map surfaces remain viewport-bound; content workspaces scroll vertically.
+ * - Tables scroll within their own regions, not the whole document.
+ * - All rules are scoped to the dashboard or narrowly targeted modules,
+ *   so authentication/marketing pages and desktop layouts stay unchanged.
+ */
+
+[data-dashboard-main] {
+  min-width: 0;
+  max-width: 100%;
+  overscroll-behavior: contain;
+}
+[data-dashboard-main] :is(.grid, .flex) > * {
+  min-width: 0;
+}
+[data-dashboard-main] :is(.overflow-x-auto, .overflow-auto) {
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-inline: contain;
+}
+[data-dashboard-main] :is(table, img, canvas) {
+  max-width: 100%;
+}
+[data-dashboard-main] :is(.nfii-panel, .nfii-subpanel, .g-card-corpo) {
+  min-width: 0;
+}
+[data-dashboard-main] :is(.nfii-panel, .g-card-corpo) :is(p, h1, h2, h3, strong) {
+  overflow-wrap: anywhere;
+}
+@media (max-width: 1023px) {
+  [data-dashboard-main] .nfii-command-scope {
+    min-width: 0;
+    max-width: 100%;
+  }
+  [data-dashboard-main] .nfii-command-scope .nfii-table {
+    min-width: 620px;
+  }
+  [data-dashboard-main] .nfii-command-scope :is(.overflow-auto, .overflow-x-auto) {
+    max-width: 100%;
+    overflow-x: auto;
+  }
+  [data-dashboard-main] .nfii-command-scope :is(.nfii-panel, .nfii-subpanel) {
+    max-width: 100%;
+  }
+  [data-dashboard-main] :is(.leaflet-control-zoom a, .leaflet-touch .leaflet-control-zoom a) {
+    min-width: 40px;
+    min-height: 40px;
+    line-height: 40px;
+  }
+  [data-dashboard-main] .leaflet-popup-content-wrapper {
+    max-width: calc(100vw - 30px);
+  }
+  [data-dashboard-main] .leaflet-popup-content {
+    max-width: calc(100vw - 70px);
+    overflow-wrap: anywhere;
+  }
+}
+@media (max-width: 639px) {
+  [data-dashboard-main] {
+    --mobile-horizontal-space: 12px;
+  }
+  [data-dashboard-main] .nfii-command-scope {
+    padding-inline: var(--mobile-horizontal-space);
+  }
+  [data-dashboard-main] .nfii-command-scope .nfii-table {
+    font-size: 12px;
+  }
+  [data-dashboard-main] .nfii-command-scope :is(.nfii-panel, .nfii-subpanel) {
+    border-radius: 10px;
+  }
+  [data-dashboard-main] :is(input:not([type='range']):not([type='checkbox']):not([type='radio']), select, textarea),
+  header.growa input {
+    font-size: 16px;
+  }
+  [data-dashboard-main] :is(button, a, select) {
+    touch-action: manipulation;
+  }
+  [data-dashboard-main] .g-btn {
+    min-height: 42px;
+    height: auto;
+    padding-block: 8px;
+    white-space: normal;
+    text-align: center;
+  }
+  [data-dashboard-main] [data-live-map-spectral] {
+    inset-inline: 8px;
+    width: auto;
+    top: 8px;
+    transform: none;
+    max-height: min(53dvh, 390px);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+  [data-dashboard-main] [data-watchtower-flow-scroll] {
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  [data-dashboard-main] .nfii-command-scope .nfii-kpi {
+    min-width: 0;
+    padding: 12px;
+  }
+  [data-dashboard-main] .nfii-command-scope .nfii-kpi p {
+    overflow-wrap: anywhere;
+  }
+  [data-dashboard-main] .nfii-command-scope .nfii-button {
+    max-width: 100%;
+    min-height: 44px;
+    white-space: normal;
+    text-align: center;
+  }
+  [data-dashboard-main] :is(.rounded-xl, .rounded-2xl) > table {
+    min-width: 620px;
+  }
+  [role='dialog'][aria-modal='true'] {
+    max-width: calc(100vw - 24px);
+    max-height: calc(100dvh - 32px);
+    padding: 16px;
+  }
+}
+@media (max-height: 520px) and (max-width: 1023px) {
+  [data-dashboard-main] [data-live-map-spectral] {
+    max-height: min(65dvh, 280px);
+  }
+}

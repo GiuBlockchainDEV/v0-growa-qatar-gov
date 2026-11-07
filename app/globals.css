@@ -1,6 +1,7 @@
 @import 'tailwindcss';
 @import '../styles/growa/theme.css';
 @import '../styles/nfii-command.css';
+@import '../styles/responsive.css';
 
 /* The app is light-first; `.dark` is no longer applied (providers.tsx
    forces the light theme). The variant stays defined so the existing

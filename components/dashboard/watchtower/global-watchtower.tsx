@@ -161,7 +161,7 @@ export function GlobalWatchtower() {
   const orgId = organization?.id ?? null, food = posture?.organizationId === orgId ? posture : null
   useEffect(() => { pausedRef.current = paused }, [paused])
   useEffect(() => {
-    const media = window.matchMedia('(max-width: 800px)')
+    const media = window.matchMedia('(max-width: 1023px)')
     const resize = () => { setMobile(media.matches); if (media.matches) { setFiltersOpen(false); setAlertsOpen(false) } }
     const screen = () => setFullscreen(document.fullscreenElement === root.current)
     resize(); media.addEventListener('change', resize); document.addEventListener('fullscreenchange', screen)

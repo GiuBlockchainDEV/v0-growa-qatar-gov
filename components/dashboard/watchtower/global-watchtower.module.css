@@ -700,3 +700,77 @@
  .situationCell {flex:0 0 110px}
  .situationFoot {display:none}
 }
+
+
+/* Tablet/phone operational layout. Map remains full-bleed; users open
+ * controls and intelligence as independent scrollable bottom sheets. */
+@media (max-width: 1023px) {
+  .shell { min-height: 0; height: 100%; }
+  .header { padding: 12px 12px 18px; }
+  .titleRow { min-width: 0; align-items: flex-start; gap: 8px; }
+  .titleRow > div:first-child { min-width: 0; flex: 1; }
+  .titleRow h1 { font-size: clamp(15px, 2.5vw, 20px); }
+  .actions { flex: none; justify-content: flex-end; max-width: 55%; }
+  .actions .iconButton { min-height: 42px; min-width: 42px; padding: 8px; }
+  .stats { max-width: 100%; gap: 6px; margin-top: 10px; }
+  .stat { min-width: 0; padding: 8px 9px; }
+  .stat strong { font-size: 19px; }
+  .filters, .alertPanel {
+    top: auto;
+    inset-inline: 10px;
+    bottom: calc(43px + env(safe-area-inset-bottom, 0px));
+    width: auto;
+    max-width: none;
+    max-height: min(69dvh, 680px);
+    border-radius: 16px;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    box-shadow: 0 10px 38px rgba(17,30,19,.22);
+  }
+  .alertPanel { height: min(69dvh, 680px); min-height: 0; }
+  .filters { padding: 13px; }
+  .legend {
+    inset-inline: 10px;
+    bottom: calc(34px + env(safe-area-inset-bottom, 0px));
+    max-width: calc(100% - 20px);
+    padding: 7px 10px;
+    overflow-x: auto;
+    flex-wrap: nowrap;
+    white-space: nowrap;
+    gap: 12px;
+    border-radius: 10px;
+    scrollbar-width: none;
+  }
+  .legend span { flex: none; }
+  .feedDock { display: none; }
+  .coordinateReadout { bottom: 105px; inset-inline-start: 12px; }
+  .statusError { top: 142px; inset-inline: 12px; max-height: 90px; overflow-y: auto; }
+  .footer { min-height: 30px; padding-inline: 10px; padding-bottom: env(safe-area-inset-bottom, 0px); }
+  .situationLens { bottom: 90px; inset-inline: 12px; inset-inline-end: 12px; top: auto; }
+  .situationGrid { display: flex; overflow-x: auto; }
+  .situationCell { flex: 0 0 105px; }
+  .shell :global(.leaflet-control-zoom a) { min-width: 40px; min-height: 40px; line-height: 40px; }
+}
+@media (max-width: 639px) {
+  .header { padding: 9px 9px 14px; }
+  .titleRow { flex-wrap: wrap; gap: 5px; }
+  .titleRow h1 { font-size: 16px; }
+  .eyebrow { font-size: 8px; }
+  .subtitle { display: none; }
+  .actions { max-width: 100%; width: 100%; flex-wrap: nowrap; justify-content: flex-start; overflow-x: auto; scrollbar-width: none; }
+  .actions .iconButton { min-width: 42px; min-height: 42px; flex: none; }
+  .stats { display: flex; overflow-x: auto; gap: 6px; margin-top: 7px; scrollbar-width: none; }
+  .stat { flex: 0 0 132px; min-width: 0; padding: 8px; }
+  .stat small { display: none; }
+  .stat strong { font-size: 18px; }
+  .filters, .alertPanel { inset-inline: 6px; max-height: min(71dvh, 640px); }
+  .alertPanel { height: min(71dvh, 640px); }
+  .situationLens { display: none; }
+  .legend { inset-inline: 6px; max-width: calc(100% - 12px); }
+  .statusError { top: 146px; }
+}
+@media (max-width: 1023px) and (max-height: 520px) {
+  .filters, .alertPanel { max-height: 70dvh; height: auto; }
+  .stats { margin-top: 5px; }
+  .situationLens { display: none; }
+}

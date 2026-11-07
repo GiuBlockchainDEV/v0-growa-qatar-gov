@@ -48,13 +48,14 @@ function DashboardShellContent({
       return next
     })
   }, [])
-  /* Phones: the rail becomes a drawer over the page (with a scrim) instead
-     of eating 80px of a 390px screen. It closes on navigation. */
-  const [isPhone, setIsPhone] = useState(false)
+  /* Both phones AND portrait tablets get a full-width workspace with
+     navigation in an accessible temporary drawer (desktop rail >=1024px).
+     The media query is the same breakpoint as the responsive stylesheet. */
+  const [isCompact, setIsCompact] = useState(false)
   const [drawerOpen, setDrawerOpen] = useState(false)
   useEffect(() => {
-    const query = window.matchMedia('(max-width: 767px)')
-    const update = () => setIsPhone(query.matches)
+    const query = window.matchMedia('(max-width: 1023px)')
+    const update = () => { setIsCompact(query.matches); setDrawerOpen(false) }
     update()
     query.addEventListener('change', update)
     return () => query.removeEventListener('change', update)
@@ -64,12 +65,21 @@ function DashboardShellContent({
   }, [pathname, searchParams])
 
   const handleMenuToggle = useCallback(() => {
-    if (isPhone) setDrawerOpen((open) => !open)
+    if (isCompact) setDrawerOpen((open) => !open)
     else toggleSidebar()
-  }, [isPhone, toggleSidebar])
+  }, [isCompact, toggleSidebar])
+
+  useEffect(() => {
+    if (!isCompact || !drawerOpen) return
+    const onEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setDrawerOpen(false)
+    }
+    document.addEventListener('keydown', onEscape)
+    return () => document.removeEventListener('keydown', onEscape)
+  }, [isCompact, drawerOpen])
 
   // Literal class names so Tailwind generates all of them.
-  const railOffset = isPhone ? 'start-0' : sidebarCollapsed ? 'start-20' : 'start-[15.5rem]'
+  const railOffset = isCompact ? 'start-0' : sidebarCollapsed ? 'start-20' : 'start-[15.5rem]'
 
   const moduleFromHook = searchParams.get('module')
 
@@ -112,23 +122,26 @@ function DashboardShellContent({
   }
 
   return (
-    <div className="growa h-screen w-screen overflow-hidden bg-muted relative">
-      {isPhone && drawerOpen && (
-        <div
-          aria-hidden="true"
-          className="fixed inset-0 z-[2050]"
+    <div data-dashboard-shell className="growa relative h-dvh min-h-0 w-full overflow-hidden bg-muted">
+      {isCompact && drawerOpen && (
+        <button
+          type="button"
+          aria-label={tr('Close navigation')}
+          className="fixed inset-0 z-[2050] cursor-default"
           style={{ background: 'rgba(17,30,19,.45)' }}
           onClick={() => setDrawerOpen(false)}
         />
       )}
       <PlatformSidebar
-        collapsed={isPhone ? false : sidebarCollapsed}
-        drawer={isPhone ? (drawerOpen ? 'open' : 'closed') : undefined}
+        collapsed={isCompact ? false : sidebarCollapsed}
+        drawer={isCompact ? (drawerOpen ? 'open' : 'closed') : undefined}
+        onClose={() => setDrawerOpen(false)}
+        onNavigate={() => setDrawerOpen(false)}
       />
 
       <DashboardHeader
         onMenuToggle={handleMenuToggle}
-        menuOpen={isPhone ? drawerOpen : !sidebarCollapsed}
+        menuOpen={isCompact ? drawerOpen : !sidebarCollapsed}
         sidebarOffsetClassName={railOffset}
         hideBrand
         platformShell
@@ -136,7 +149,8 @@ function DashboardShellContent({
 
       {/* Logical insets: in Arabic the rail and the offset mirror to the right. */}
       <main
-        className={`absolute bottom-0 end-0 top-16 overflow-hidden transition-[inset-inline-start] duration-200 ease-[var(--ease-brand)] ${railOffset}`}
+        data-dashboard-main
+        className={`absolute bottom-0 end-0 top-16 min-w-0 overflow-hidden transition-[inset-inline-start] duration-200 ease-[var(--ease-brand)] ${railOffset}`}
       >
         {children}
       </main>

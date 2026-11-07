@@ -1,0 +1,55 @@
+import {describe,expect,it} from 'vitest'
+import {readFileSync} from 'node:fs'
+import {join} from 'node:path'
+
+const read=(path:string)=>readFileSync(join(process.cwd(),path),'utf8')
+
+describe('Growa Qatar responsive application shell',()=>{
+ it('uses compact drawer navigation on phones AND portrait tablets, with desktop unchanged',()=>{
+  const shell=read('app/dashboard/layout.tsx')
+  const sidebar=read('components/platform/platform-sidebar.tsx')
+  expect(shell).toContain("window.matchMedia('(max-width: 1023px)')")
+  expect(shell).toContain("isCompact ? 'start-0'")
+  expect(shell).toContain('data-dashboard-main')
+  expect(shell).toContain('data-dashboard-shell')
+  expect(shell).toContain('h-dvh')
+  expect(shell).toContain("event.key === 'Escape'")
+  expect(shell).toContain('onNavigate={() => setDrawerOpen(false)}')
+  expect(sidebar).toContain("drawer === 'closed'")
+  expect(sidebar).toContain('aria-hidden={drawer')
+  expect(sidebar).toContain('inert={drawer')
+  expect(sidebar).toContain('onClick={onNavigate}')
+ })
+ it('shows mobile Harvest and Weather map at full size and lets the user return to details',()=>{
+  const page=read('app/dashboard/page.tsx')
+  expect(page).toContain("window.matchMedia('(max-width: 1023px)')")
+  expect(page).toContain('compactMapOpen')
+  expect(page).toContain('setCompactMapOpen(open => !open)')
+  expect(page).toContain("compact ? 'w-full '")
+  expect(page).toContain("panelVisible && !compact ? 'start-3/4' : 'start-0'")
+  expect(page).toContain('lateralPanelOpen={panelVisible && (!compact || !compactMapOpen)}')
+ })
+ it('keeps Watchtower sheets, controls, and data overlays usable on small devices',()=>{
+  const map=read('components/dashboard/watchtower/global-watchtower.tsx')
+  const styles=read('components/dashboard/watchtower/global-watchtower.module.css')
+  expect(map).toContain("window.matchMedia('(max-width: 1023px)')")
+  expect(styles).toContain('@media (max-width: 1023px)')
+  expect(styles).toContain('@media (max-width: 639px)')
+  expect(styles).toContain('overflow-y: auto')
+  expect(styles).toContain('min-height: 42px')
+ })
+ it('contains responsive input, tables, map controls and safe-area rules',()=>{
+  const css=read('styles/responsive.css')
+  const globals=read('app/globals.css')
+  const spectral=read('components/dashboard/qatar-spectral-layers.tsx')
+  const header=read('components/dashboard/header.tsx')
+  expect(globals).toContain("@import '../styles/responsive.css'")
+  expect(css).toContain("[data-dashboard-main]")
+  expect(css).toContain('min-height: 44px')
+  expect(css).toContain("font-size: 16px")
+  expect(css).toContain('overflow-x: auto')
+  expect(css).toContain('env(safe-area-inset-bottom')
+  expect(spectral).toContain('data-live-map-spectral')
+  expect(header).toContain('min-h-11 min-w-11')
+ })
+})

@@ -1,0 +1,38 @@
+name: Qatar responsive UI verification
+on:
+  pull_request:
+    paths:
+      - 'app/dashboard/layout.tsx'
+      - 'app/dashboard/page.tsx'
+      - 'app/globals.css'
+      - 'components/platform/platform-sidebar.tsx'
+      - 'components/dashboard/header.tsx'
+      - 'components/dashboard/watchtower/global-watchtower.tsx'
+      - 'components/dashboard/watchtower/global-watchtower.module.css'
+      - 'components/dashboard/qatar-spectral-layers.tsx'
+      - 'styles/responsive.css'
+      - 'lib/dashboard/responsive-layout.test.ts'
+      - '.github/workflows/responsive-quality.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  verify:
+    name: TypeScript, responsive tests, production build
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - name: TypeScript
+        run: npx tsc --noEmit
+      - name: Responsive UI and navigation assertions
+        run: npx vitest run lib/dashboard/responsive-layout.test.ts lib/dashboard/dashboard-navigation.test.ts lib/watchtower/watchtower-navigation.test.ts
+      - name: Production build
+        run: npm run build
+      - name: Lint updated components
+        run: npx eslint app/dashboard/layout.tsx app/dashboard/page.tsx components/platform/platform-sidebar.tsx components/dashboard/header.tsx components/dashboard/qatar-spectral-layers.tsx components/dashboard/watchtower/global-watchtower.tsx

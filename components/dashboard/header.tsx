@@ -274,16 +274,16 @@ export function DashboardHeader({
     <header
       // One inline-start value only: `start-0` plus an offset class would both
       // set `inset-inline-start` and the stylesheet order would pick one.
-      className={`growa fixed top-0 end-0 z-[1200] h-16 bg-page border-b border-line transition-[inset-inline-start] duration-200 ease-[var(--ease-brand)] ${sidebarOffsetClassName || 'start-0'}`}
+      className={`growa fixed top-0 end-0 z-[1200] h-16 min-w-0 bg-page border-b border-line transition-[inset-inline-start] duration-200 ease-[var(--ease-brand)] ${sidebarOffsetClassName || 'start-0'}`}
     >
-      <div className="flex items-center justify-between h-full px-4 lg:px-6">
+      <div className="flex h-full min-w-0 items-center justify-between gap-2 px-2 sm:px-4 lg:px-6">
         {/* Left - Menu Toggle + Logo */}
-        <div className="flex items-center gap-3">
+        <div className="flex shrink-0 items-center gap-2 sm:gap-3">
           {/* Menu Toggle Button */}
           {!hideMenuToggle ? (
             <button
               onClick={onMenuToggle}
-              className="flex items-center justify-center h-9 w-9 text-stone-600 hover:text-ink transition-colors -ms-2"
+              className="flex min-h-11 min-w-11 items-center justify-center text-stone-600 hover:text-ink transition-colors"
               title={menuOpen ? tr('Collapse menu') : tr('Expand menu')}
               aria-label={menuOpen ? tr('Collapse menu') : tr('Expand menu')}
               aria-expanded={menuOpen}
@@ -303,7 +303,7 @@ export function DashboardHeader({
         </div>
 
         {/* Center - Search */}
-        <div ref={searchContainerRef} className="relative flex-1 max-w-xl mx-4">
+        <div ref={searchContainerRef} className="relative min-w-0 flex-1 max-w-xl mx-1 sm:mx-4">
           <div className="relative group">
             <Search strokeWidth={1.5} aria-hidden="true" className="absolute start-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-content-soft group-focus-within:text-content transition-colors" />
             <input
@@ -347,7 +347,7 @@ export function DashboardHeader({
               role="combobox"
               aria-expanded={shouldShowSearchDropdown}
               aria-autocomplete="list"
-              className="w-full h-10 rounded-lg border border-line-strong bg-card ps-10 pe-20 text-[14px] text-content placeholder:text-content-soft focus:border-sage focus:outline-none transition-colors"
+              className="w-full h-10 min-w-0 rounded-lg border border-line-strong bg-card ps-9 pe-3 sm:pe-20 text-[16px] sm:text-[14px] text-content placeholder:text-content-soft focus:border-sage focus:outline-none transition-colors"
             />
             <div aria-hidden="true" className="absolute end-3 top-1/2 -translate-y-1/2 hidden sm:flex items-center gap-1 text-[10px] text-content-soft">
               <kbd className="px-1.5 py-0.5 bg-muted rounded-xs border border-line">
@@ -400,7 +400,7 @@ export function DashboardHeader({
         {platformShell ? <PlatformShellControls /> : null}
 
         {/* Right - Status, Notifications, Language, User */}
-        <div className="flex items-center gap-2">
+        <div className="flex shrink-0 items-center gap-1 sm:gap-2">
           {!platformShell && (
             <>
               <div className="hidden lg:flex items-center gap-2 h-7 px-3 rounded-pill border border-line-strong">
