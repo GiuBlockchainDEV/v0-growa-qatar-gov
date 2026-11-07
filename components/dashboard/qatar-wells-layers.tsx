@@ -139,7 +139,7 @@ export function QatarWellsLayers({map}:{map:MapController|null}){
   marksRef.current.get(well.id)?.openTooltip()
  }
  return <>
-  <div className="absolute bottom-28 start-4 z-[1200] flex flex-col items-start gap-2">
+  <div data-national-map-wells className="absolute bottom-28 start-4 z-[1200] flex flex-col items-start gap-2">
    {!open&&<button type="button" onClick={()=>setOpen(true)}
     className="flex items-center gap-2 rounded-full border border-line bg-card px-4 py-3 text-[12px] font-semibold text-content shadow-panel hover:bg-cream-100"
     aria-label="Show Qatar wells and groundwater intelligence">

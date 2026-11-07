@@ -1,0 +1,43 @@
+import {describe,it,expect} from 'vitest'
+import {readFileSync} from 'node:fs'
+import {join} from 'node:path'
+const read=(path:string)=>readFileSync(join(process.cwd(),path),'utf8')
+describe('Map-first phone and tablet layouts',()=>{
+ it('Watchtower keeps map primary and moves panels, metrics and actions on demand',()=>{
+  const ui=read('components/dashboard/watchtower/global-watchtower.tsx')
+  const css=read('components/dashboard/watchtower/global-watchtower.module.css')
+  expect(ui).toContain('className={styles.compactMapToolbar}')
+  expect(ui).toContain('className={styles.compactMapHeading}')
+  expect(ui).toContain('data-mobile-open={summaryOpen}')
+  expect(ui).toContain('setSummaryOpen(false)')
+  expect(ui).toContain('aria-expanded={filtersOpen}')
+  expect(ui).toContain('aria-expanded={alertsOpen}')
+  expect(css).toContain('.compactMapToolbar')
+  expect(css).toContain('.stats[data-mobile-open=')
+  expect(css).toContain('.titleRow{display:none}')
+  expect(css).toContain('bottom:calc(111px + env(safe-area-inset-bottom,0px))')
+ })
+ it('National map makes satellite controls collapsible without unmounting selected index',()=>{
+  const spectral=read('components/dashboard/qatar-spectral-layers.tsx')
+  const css=read('styles/responsive.css')
+  expect(spectral).toContain('data-mobile-open={mobileControlsOpen}')
+  expect(spectral).toContain('data-spectral-mobile-toggle')
+  expect(spectral).toContain('aria-expanded={mobileControlsOpen}')
+  expect(spectral).toContain('data-spectral-body')
+  expect(css).toContain("[data-mobile-open='true']")
+  expect(css).toContain('[data-spectral-body]')
+ })
+ it('National Map search, wells and polygon tools remain separate and touch accessible',()=>{
+  const map=read('components/dashboard/satellite-map.tsx')
+  const wells=read('components/dashboard/qatar-wells-layers.tsx')
+  const css=read('styles/responsive.css')
+  expect(map).toContain('data-national-map-surface')
+  expect(map).toContain('data-national-map-tools')
+  expect(map).toContain('data-map-polygon-editor')
+  expect(map).toContain('data-coordinate-search-button')
+  expect(wells).toContain('data-national-map-wells')
+  expect(css).toContain('[data-national-map-surface] [data-national-map-tools] button')
+  expect(css).toContain('min-height: 44px')
+  expect(css).toContain('env(safe-area-inset-bottom')
+ })
+})

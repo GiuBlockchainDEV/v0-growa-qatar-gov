@@ -84,6 +84,7 @@ export function GlobalWatchtower() {
   const [error, setError] = useState(''), [, setFoodError] = useState('')
   const [busy, setBusy] = useState(false), [refresh, setRefresh] = useState(0), [paused, setPaused] = useState(false), [now, setNow] = useState(Date.now)
   const [mobile, setMobile] = useState(false), [filtersOpen, setFiltersOpen] = useState(false), [alertsOpen, setAlertsOpen] = useState(true), [fullscreen, setFullscreen] = useState(false)
+  const [summaryOpen, setSummaryOpen] = useState(false)
   const [query, setQuery] = useState(''), [region, setRegion] = useState<Region>('gulf')
   const [shipView,setShipView]=useState<ShipView>('moving')
   const [showDemoVessels,setShowDemoVessels]=useState(true)
@@ -162,7 +163,7 @@ export function GlobalWatchtower() {
   useEffect(() => { pausedRef.current = paused }, [paused])
   useEffect(() => {
     const media = window.matchMedia('(max-width: 1023px)')
-    const resize = () => { setMobile(media.matches); if (media.matches) { setFiltersOpen(false); setAlertsOpen(false) } }
+    const resize = () => { setMobile(media.matches); if (media.matches) { setFiltersOpen(false); setAlertsOpen(false); setSummaryOpen(false) } }
     const screen = () => setFullscreen(document.fullscreenElement === root.current)
     resize(); media.addEventListener('change', resize); document.addEventListener('fullscreenchange', screen)
     const clock = setInterval(() => setNow(Date.now()), 15000)
@@ -812,7 +813,7 @@ export function GlobalWatchtower() {
   const airSource = snapshot?.sources.find(s => s.id === 'adsb'), seaSource = snapshot?.sources.find(s => s.id === 'ais')
   const known = (state: string | undefined) => state === 'partial' || state === 'available' || state === 'stale'
   const riskReadable = Boolean(snapshot?.sources.some(s => ['gdacs', 'easa', 'hormuz'].includes(s.id) && known(s.state)))
-  const select = useCallback((id: string) => { setSelectedId(id); setSourceId(null); setAlertsOpen(true); if (mobile) setFiltersOpen(false) }, [mobile])
+  const select = useCallback((id: string) => { setSelectedId(id); setSourceId(null); setAlertsOpen(true); if (mobile) { setFiltersOpen(false); setSummaryOpen(false) } }, [mobile])
   const choose = (item: TrackingAsset | MapAlert) => {
     setSelectedIpcId(null)
     if(item.kind!=='aircraft'&&item.kind!=='vessel')setRegion('global')
@@ -824,12 +825,31 @@ export function GlobalWatchtower() {
     catch { setError('Fullscreen is unavailable in this browser. The map still fills the Watchtower workspace.') }
   }
   const nearby = selectedAsset ? allAlerts.filter(a => a.kind === 'hazard' && separationKm(a, selectedAsset) <= 350).slice(0, 3) : []
+  useEffect(() => {
+    if (!mobile) return
+    const onEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setFiltersOpen(false); setAlertsOpen(false); setSummaryOpen(false)
+      }
+    }
+    document.addEventListener('keydown', onEscape)
+    return () => document.removeEventListener('keydown', onEscape)
+  }, [mobile])
   const nearGateway = selectedAsset ? [...CHOKEPOINTS].sort((a, b) => separationKm(a, selectedAsset) - separationKm(b, selectedAsset))[0] : null
   return <div id="watchtower-map" ref={root} className={styles.shell} dir={ar ? 'rtl' : 'ltr'}>
     {globeMode==='2d'
       ? <Map assets={assets} demoVessels={demoVessels} historyAssets={allAssets} alerts={alerts} riskZones={riskZones} chokepoints={maritimeFeed?.chokepoints??[]} aisRoutes={aisHistory} layers={layers} selectedId={selectedId} onSelect={select} onChokepointClick={chooseChokepoint} focus={focus} now={now} fires={firms?.detections??[]} showFires={showFires} />
       : <Globe3D assets={assets} fires={firms?.detections??[]} showFires={showFires} focus={focus} selectedId={selectedId} riskZones={riskZones} alerts={alerts} layers={layers} chokepoints={maritimeFeed?.chokepoints??[]} onSelect={select} onChokepointClick={chooseChokepoint}/>}
     <header className={styles.header}>
+      <div className={styles.compactMapHeading}>
+        <div className={styles.compactMapTitle}>
+          <strong>{tx('Watchtower', 'برج المراقبة')}</strong>
+          <span>{globeMode==='2d'?'ESRI 2D':'CESIUM 3D'}</span>
+        </div>
+        <span className={styles.compactLiveState} data-state={paused||staleSnapshot?'delayed':'live'}>
+          {paused?'Paused':staleSnapshot?'Delayed':busy?'Updating':'Observations'}
+        </span>
+      </div>
       <div className={styles.titleRow}>
         <div><div className={styles.eyebrow}>NFII / GLOBAL OPERATING PICTURE</div>
           <h1>{tx('Food Security Watchtower', '\u0628\u0631\u062c \u0645\u0631\u0627\u0642\u0628\u0629 \u0627\u0644\u0623\u0645\u0646 \u0627\u0644\u063a\u0630\u0627\u0626\u064a')}</h1>
@@ -844,7 +864,7 @@ export function GlobalWatchtower() {
           <button className={styles.iconButton} aria-label={fullscreen ? 'Exit fullscreen' : 'Enter fullscreen'} onClick={() => void toggleFull()}>{fullscreen ? <Minimize2 size={15} /> : <Maximize2 size={15} />}</button>
         </div>
       </div>
-      <div className={styles.stats}>{[
+      <div className={styles.stats} data-mobile-open={summaryOpen}>{[
         { label: 'Aircraft observations', value: (known(airSource?.state)||regionalAir.some(b=>b.succeeded>0)) ? assets.filter(a => a.kind === 'aircraft').length : null, note: freightFlightsOnly?'Possible cargo aircraft, not verified shipments':'Regional ADS-B, all observed classes', icon: Plane },
         { label: 'Vessel observations', value: (openWaters?.state==='available'||openWaters?.state==='partial'||globalAis?.state==='partial'||globalAis?.state==='stale'||openSea?.state==='available'||openSea?.state==='stale'||known(seaSource?.state)||Boolean(maritimeFeed?.chokepoints.some(point=>point.state==='partial'||point.state==='stale'))||Boolean(gccRadar?.configured)) ? assets.filter(a => a.kind === 'vessel').length : null, note: (openWaters?.state==='available'||openWaters?.state==='partial')?'Multi-region Open Waters AIS':globalAis?.state==='partial'?'OpenSeaFeed global AIS + regional sources':openSea?.state==='available'?'hormuz.now regional AIS + other sources':openSea?.state==='stale'?'Regional AIS delayed':maritimeFeed?'data-tracking.net AIS + port samples':'Awaiting regional AIS coverage', icon: Ship },
         { label: 'Worldwide risk reports', value: riskReadable ? externalRiskAlerts.length : null, note: 'Worldwide reports, not viewport-limited', icon: AlertTriangle },
@@ -857,8 +877,42 @@ export function GlobalWatchtower() {
         data-signal={item.label==='Worldwide risk reports'?'risk':item.label==='Countries requiring assistance'?'assistance':'traffic'}>
         <label>{item.label}</label><strong>{count(item.value)}</strong>
         <item.icon size={21} /><small>{item.note}</small>
-      </div>)}</div>
+      </div>)}
+        <div className={styles.compactSummaryFooter}>
+          <p>Map symbols represent source observations and screening areas, not verified shipments or agricultural losses.</p>
+          <div>
+            <button type="button" onClick={()=>setRefresh(v=>v+1)} disabled={busy}>
+              <RefreshCw size={15}/>Refresh
+            </button>
+            <button type="button" onClick={()=>setPaused(v=>!v)}>
+              {paused?<Play size={15}/>:<Pause size={15}/>}
+              {paused?'Resume':'Pause'}
+            </button>
+            <button type="button" onClick={()=>setSummaryOpen(false)}>
+              <X size={15}/>Close
+            </button>
+          </div>
+        </div>
+      </div>
     </header>
+    <nav className={styles.compactMapToolbar} aria-label="Watchtower map tools">
+      <button type="button" aria-label="Map layers and filters" aria-expanded={filtersOpen}
+        aria-pressed={filtersOpen} onClick={()=>{setFiltersOpen(v=>!v);setAlertsOpen(false);setSummaryOpen(false)}}>
+        <Layers size={19}/><span>Layers</span>
+      </button>
+      <button type="button" aria-label="Risks and observations" aria-expanded={alertsOpen}
+        aria-pressed={alertsOpen} onClick={()=>{setAlertsOpen(v=>!v);setFiltersOpen(false);setSummaryOpen(false)}}>
+        <AlertTriangle size={19}/><span>Signals</span>
+      </button>
+      <button type="button" aria-label={globeMode==='2d'?'Open 3D globe':'Open 2D map'}
+        onClick={()=>setGlobeMode(v=>v==='2d'?'3d':'2d')}>
+        <Globe2 size={19}/><span>{globeMode==='2d'?'3D view':'2D view'}</span>
+      </button>
+      <button type="button" aria-label="Watchtower metrics and map status" aria-expanded={summaryOpen}
+        aria-pressed={summaryOpen} onClick={()=>{setSummaryOpen(v=>!v);setFiltersOpen(false);setAlertsOpen(false)}}>
+        <Radio size={19}/><span>Summary</span>
+      </button>
+    </nav>
     {error && <div className={styles.statusError} role="alert">{error}</div>}
     <aside className={`${styles.panel} ${styles.filters} ${filtersOpen ? '' : styles.hidePanel}`} aria-label="Map controls">
       <div className={styles.panelTitle}>

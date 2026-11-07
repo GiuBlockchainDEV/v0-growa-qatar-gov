@@ -1,0 +1,35 @@
+name: Watchtower and National Map responsive verification
+on:
+  pull_request:
+    paths:
+      - 'components/dashboard/watchtower/global-watchtower.tsx'
+      - 'components/dashboard/watchtower/global-watchtower.module.css'
+      - 'components/dashboard/watchtower-workspace.tsx'
+      - 'components/dashboard/satellite-map.tsx'
+      - 'components/dashboard/qatar-spectral-layers.tsx'
+      - 'components/dashboard/qatar-wells-layers.tsx'
+      - 'styles/responsive.css'
+      - 'lib/dashboard/compact-map-layout.test.ts'
+      - '.github/workflows/compact-map-responsive.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - name: TypeScript
+        run: npx tsc --noEmit
+      - name: Map responsive and existing source tests
+        run: npx vitest run lib/dashboard/compact-map-layout.test.ts lib/dashboard/responsive-layout.test.ts lib/satellite/qatar-spectral.test.ts lib/watchtower/map-viewport.test.ts
+      - name: Production build
+        run: npm run build
+      - name: Lint map components
+        run: npx eslint components/dashboard/watchtower/global-watchtower.tsx components/dashboard/watchtower-workspace.tsx components/dashboard/satellite-map.tsx components/dashboard/qatar-spectral-layers.tsx components/dashboard/qatar-wells-layers.tsx
