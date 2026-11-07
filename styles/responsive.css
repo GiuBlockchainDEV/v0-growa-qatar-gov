@@ -239,7 +239,6 @@
        alone does NOT cancel -translate-x-1/2, which clipped this panel. */
     translate: none !important;
     transform: none !important;
-    left: auto;
     isolation: isolate;
   }
   [data-national-map-surface] [data-spectral-mobile-toggle] {
