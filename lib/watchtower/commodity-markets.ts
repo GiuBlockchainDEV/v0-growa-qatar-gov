@@ -68,7 +68,7 @@ export type MarketInstrument={
 export type CommodityMarketsSnapshot={
   generatedAt:string
   frequency:'monthly'
-  source:'IMF Primary Commodity Prices via FRED'
+  source:string
   sourceUrl:'https://fred.stlouisfed.org/'
   fxBasis:'Qatar Central Bank USD/QAR official parity 3.64'
   usdQar:number
@@ -143,6 +143,7 @@ export function toMarketInstrument(
     group:definition.group,benchmark:definition.benchmark,
     seriesId:definition.seriesId,
     sourceUrl:'https://fred.stlouisfed.org/series/'+definition.seriesId,
+    sourceName:'IMF via FRED',
     priceUnit:definition.unit,
     latestDate:last.date,latestNativePrice:last.nativePrice,
     latestUsdTonne:current,latestQarTonne:current*USD_QAR_PEG,
