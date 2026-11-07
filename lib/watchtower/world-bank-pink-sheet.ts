@@ -13,7 +13,7 @@ export const WORLD_BANK_MONTHLY_URL=
 export const WORLD_BANK_LANDING_URL='https://www.worldbank.org/en/research/commodity-markets'
 const MAX_ZIP_BYTES=7_000_000
 const MAX_ENTRY_BYTES=18_000_000
-const MAX_ROWS=1200
+const MAX_ROWS=1500
 type Entry={name:string;method:number;compressed:number;uncompressed:number;offset:number}
 
 function getZipDirectory(zip:Buffer):Map<string,Entry>{
@@ -154,8 +154,15 @@ function unitFactor(unit:string):number|null{
 export function parseWorldBankMonthlySheet(xml:string,shared:readonly string[],now=Date.now()):
  MarketInstrument[]{
  const rows=parseXmlRows(xml,shared)
- // Official workbook: row 5 contains provider codes; row 6 contains units.
- const names=rows.get(5),units=rows.get(6)
+ // Workbook header location can move between monthly releases.
+ let names:Map<string,string>|undefined
+ let units:Map<string,string>|undefined
+ for(let n=1;n<=12;n++){
+  const candidate=rows.get(n)
+  if(candidate&&[...candidate.values()].some(v=>v.trim().toUpperCase()==='MAIZE')){
+   names=candidate;units=rows.get(n+1);break
+  }
+ }
  if(!names||!units)throw Error('Pink Sheet header or units missing')
  const headers=new Map<string,string>()
  for(const [column,value] of names)headers.set(value.trim().toUpperCase(),column)
@@ -170,7 +177,7 @@ export function parseWorldBankMonthlySheet(xml:string,shared:readonly string[],n
   if(factor===null)continue // Never guess the conversion unit.
   const points:Array<{date:string;nativePrice:number}>=[]
   for(const [row,cells] of rows){
-   if(row<=6)continue
+   if(row<=12)continue
    const date=periodDate(cells.get('A')??'')
    if(!date||Date.parse(date+'T00:00:00Z')>now)continue
    const raw=cells.get(column)
