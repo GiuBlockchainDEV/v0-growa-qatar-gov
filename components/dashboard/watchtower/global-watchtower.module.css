@@ -853,6 +853,15 @@
   .alertPanel .scroll{overflow-y:auto;max-height:100%}
   .filters .toggle{min-height:44px}
   .panelTitle .iconButton{min-width:40px;min-height:40px}
+  /* Leaflet zoom, scale and source attribution must not sit underneath
+     the fixed action bar; attribution remains visible for Esri/OSM licensing. */
+  .shell :global(.leaflet-bottom) {
+    bottom:calc(125px + env(safe-area-inset-bottom,0px)) !important;
+  }
+  .shell :global(.leaflet-control-attribution) {
+    max-width:min(45vw,260px);
+    font-size:8px !important;
+  }
   .legend,.feedDock,.situationLens,.coordinateReadout{display:none}
   .scenarioBanner{bottom:calc(117px + env(safe-area-inset-bottom,0px));font-size:9px}
   .footer{min-height:30px;z-index:430}
