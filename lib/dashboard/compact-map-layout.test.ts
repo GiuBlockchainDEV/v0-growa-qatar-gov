@@ -24,6 +24,13 @@ describe('Map-first phone and tablet layouts',()=>{
   expect(spectral).toContain('data-spectral-mobile-toggle')
   expect(spectral).toContain('aria-expanded={mobileControlsOpen}')
   expect(spectral).toContain('data-spectral-body')
+  expect(spectral).toContain('data-expanded={mobileControlsOpen}')
+  expect(spectral).toContain('aria-label="Satellite index selection"')
+  expect(css).toContain("[data-spectral-body][data-expanded='true']")
+  expect(css).toContain('inset-block-start: calc(100% + 9px)')
+  expect(css).toContain('overflow: visible !important')
+  expect(css).toContain('width: calc(100vw - 20px)')
+
   expect(css).toContain("[data-mobile-open='true']")
   expect(css).toContain('[data-spectral-body]')
  })
