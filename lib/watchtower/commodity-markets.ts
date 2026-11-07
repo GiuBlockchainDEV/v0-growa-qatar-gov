@@ -69,7 +69,7 @@ export type CommodityMarketsSnapshot={
   generatedAt:string
   frequency:'monthly'
   source:string
-  sourceUrl:'https://fred.stlouisfed.org/'
+  sourceUrl:string
   fxBasis:'Qatar Central Bank USD/QAR official parity 3.64'
   usdQar:number
   status:'available'|'partial'|'unavailable'
