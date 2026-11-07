@@ -218,3 +218,90 @@
     max-width: 44px;
   }
 }
+
+
+/* National Map spectral layer sheet: a stable trigger never shifts position.
+   The open controls are a separate surface directly below the trigger, not an
+   enlarged button drifting into coordinate search or outside the map. */
+@media (max-width: 1023px) {
+  [data-national-map-surface] [data-live-map-spectral],
+  [data-national-map-surface] [data-live-map-spectral][data-mobile-open='true'] {
+    top: 10px !important;
+    inset-inline-start: 10px !important;
+    inset-inline-end: auto !important;
+    width: min(235px, calc(100% - 86px)) !important;
+    max-width: calc(100% - 86px) !important;
+    max-height: none !important;
+    padding: 0 !important;
+    overflow: visible !important;
+    border-radius: 12px;
+    transform: none !important;
+    isolation: isolate;
+  }
+  [data-national-map-surface] [data-spectral-mobile-toggle] {
+    display: flex;
+    min-width: 0;
+    min-height: 46px;
+    padding: 7px 11px;
+  }
+  [data-national-map-surface] [data-spectral-mobile-toggle] > span:first-child {
+    min-width: 0;
+    flex: 1;
+    overflow: hidden;
+  }
+  [data-national-map-surface] [data-spectral-body] {
+    position: absolute;
+    inset-block-start: calc(100% + 9px);
+    inset-inline-start: 0;
+    width: min(395px, calc(100vw - 24px));
+    max-height: min(65dvh, 520px);
+    padding: 12px;
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    border: 1px solid var(--border-default);
+    border-radius: 14px;
+    background: rgba(255,255,255,.98);
+    box-shadow: 0 12px 36px rgba(17,30,19,.2);
+    backdrop-filter: blur(12px);
+  }
+  [data-national-map-surface] [data-spectral-body][data-expanded='false'] {
+    display: none;
+  }
+  [data-national-map-surface] [data-spectral-body][data-expanded='true'] {
+    display: block;
+  }
+  [data-national-map-surface] [data-spectral-body] > div:first-child {
+    flex-wrap: wrap;
+    gap: 4px 10px;
+  }
+  [data-national-map-surface] [data-spectral-body] > div:first-child span:last-child {
+    font-size: 9px;
+    overflow-wrap: anywhere;
+  }
+  [data-national-map-surface] [data-spectral-body] button {
+    min-width: 0;
+    min-height: 42px;
+    touch-action: manipulation;
+  }
+  [data-national-map-surface] [data-spectral-body] input[type='range'] {
+    min-height: 32px;
+    width: 100%;
+  }
+}
+@media (max-width: 639px) {
+  [data-national-map-surface] [data-live-map-spectral],
+  [data-national-map-surface] [data-live-map-spectral][data-mobile-open='true'] {
+    width: min(215px, calc(100% - 76px)) !important;
+    max-width: calc(100% - 76px) !important;
+  }
+  [data-national-map-surface] [data-spectral-body] {
+    width: calc(100vw - 20px);
+    max-height: min(60dvh, 450px);
+  }
+}
+@media (max-width: 1023px) and (max-height: 520px) {
+  [data-national-map-surface] [data-spectral-body] {
+    max-height: calc(100dvh - 90px);
+  }
+}
