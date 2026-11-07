@@ -255,9 +255,30 @@ export function CommodityMarkets(){
       </div>
     </header>
     <div className={styles.marketNotice}><Info size={15}/><span className={styles.eyebrow}>{MONTHLY_SOURCE}</span>
-      <span>{tx('Global IMF reference averages published monthly via FRED. Not live futures prices, exchange quotes or supplier offers. Prices are not updated every second.',
-        'متوسطات شهرية مرجعية من صندوق النقد الدولي عبر FRED، وليست أسعار العقود الآجلة المباشرة أو عروض الموردين.')}</span>
+      <span>{tx('Free World Bank Pink Sheet + IMF/FRED published monthly prices, plus dated USDA cash-grain reports. Not real-time futures, live supplier offers or landed Qatar purchase prices.',
+        'أسعار شهرية منشورة مجاناً من البنك الدولي وصندوق النقد عبر FRED، وتقارير USDA اليومية. ليست أسعاراً فورية أو عروض موردين.')}</span>
     </div>
+    <section className={styles.dailyReports} aria-label={tx('USDA public daily grain reports','التقارير اليومية العامة للحبوب من USDA')}>
+      <div className={styles.dailyHeading}>
+        <div>
+          <h2>USDA AMS · {tx('Daily grain market reports','تقارير أسواق الحبوب اليومية')}</h2>
+          <p>{tx('Public cash-bid reports: open each original to check the published bids, product grades and delivery terms.', 'تقارير عروض الحبوب المنشورة. افتح المصدر للتحقق من السعر والدرجة وشروط التسليم.')}</p>
+        </div>
+        <span>{marketData?.providerAvailability?.usdaPublishedReports??0}/{marketData?.usdaReports?.length??4} {tx('available','متاح')}</span>
+      </div>
+      <div className={styles.dailyGrid}>
+        {(marketData?.usdaReports??[]).map(report=><a key={report.id}
+          className={styles.dailyCard} href={report.sourceUrl} target="_blank" rel="noopener noreferrer">
+          <strong>{report.title}<ExternalLink size={13}/></strong>
+          <span>{report.reportDate??'Date unavailable'} · {report.status==='published'?'USDA public release':'Source temporarily unavailable'}</span>
+          <small>{report.markets.join(' · ')}</small>
+        </a>)}
+        {!loading&&!marketData?.usdaReports?.length&&<p className={styles.pulseEmpty}>
+          {tx('USDA report listing unavailable. Monthly benchmarks remain independent.', 'تقارير USDA غير متاحة. المؤشرات الشهرية منفصلة.')}
+        </p>}
+      </div>
+      <p className={styles.dailyCaveat}>{tx('USDA report dates are not numeric prices. No bid values are extracted from PDFs or substituted for international monthly benchmarks.', 'تواريخ نشر التقارير ليست أسعاراً رقمية ولا تُستخدم أسعار PDF بدلاً من المؤشرات الشهرية.')}</p>
+    </section>
     {error&&<div className={styles.error} role="alert">{error}
       <button type="button" onClick={()=>setRefresh(v=>v+1)}>{tx('Retry','إعادة المحاولة')}</button>
     </div>}
@@ -296,7 +317,7 @@ export function CommodityMarkets(){
         <div className={styles.pulseMetric}>
           <span>{tx('Verified benchmarks','المؤشرات المؤكدة')}</span>
           <strong>{marketData?marketData.available:'—'}<small> / {marketData?.tracked??COMMODITY_CATALOG.length}</small></strong>
-          <p>{tx('IMF series available','سلاسل صندوق النقد المتاحة')}</p>
+          <p>{tx('World Bank / IMF series available','السلاسل العالمية المتاحة')}</p>
         </div>
         <div className={styles.pulseMetric}>
           <span>{tx('Monthly direction','الاتجاه الشهري')}</span>
@@ -408,8 +429,8 @@ export function CommodityMarkets(){
         </div>
         <div className={styles.sourceBox}>
           <div className={styles.sourceLabel}><Info size={14}/>{tx('SOURCE & FREQUENCY','المصدر والتواتر')}</div>
-          <p>{tx('IMF Primary Commodity Prices, distributed by FRED. Published monthly; not an exchange feed.',
-            'أسعار السلع الأساسية لصندوق النقد الدولي عبر FRED. بيانات شهرية وليست تداولات مباشرة.')}</p>
+          <p>{selected?.sourceName??'IMF via FRED'} · {tx('Published monthly, not an exchange feed.',
+            'بيانات شهرية منشورة وليست تداولات مباشرة.')}</p>
           {selected&&<a href={selected.sourceUrl} target="_blank" rel="noopener noreferrer">
             {tx('Open original series','فتح السلسلة الأصلية')} <ExternalLink size={12}/></a>}
           <small>{tx('FX conversion: 1 USD = 3.64 QAR (QCB parity). All values use USD/t or QAR/t for comparison.',
@@ -555,8 +576,8 @@ export function CommodityMarkets(){
         </section>
       </aside>
     </div>
-    <footer className={styles.footer}><span>{tx('IMF via FRED · Published monthly commodity benchmarks · Not an exchange trading terminal',
-      'صندوق النقد الدولي عبر FRED · بيانات شهرية مرجعية وليست منصة تداول')}</span>
+    <footer className={styles.footer}><span>{tx('World Bank / IMF-FRED · Published monthly benchmarks · USDA public cash-bid reports · Not an exchange terminal',
+      'البنك الدولي / صندوق النقد عبر FRED · تقارير USDA العامة · ليست منصة تداول')}</span>
       <span>{tx('Latest source month:','آخر شهر متاح:')}
         {' '}{marketData?.latestObservationMonth?monthLabel(marketData.latestObservationMonth,language):'N/A'}</span></footer>
   </div>
