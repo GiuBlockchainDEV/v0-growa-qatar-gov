@@ -2296,12 +2296,12 @@ export function SatelliteMap({
   }, [clearFocusParamFromUrl, mapReady, explicitTargetPoint, targetZoom, targetFocusToken])
 
   return (
-    <div className="growa absolute inset-0">
+    <div data-national-map-surface={spectralEnabled || wellsEnabled ? true : undefined} className="growa absolute inset-0">
       <div ref={mapRef} className="h-full w-full" />
       {spectralEnabled&&<QatarSpectralLayers map={mapForReadout}/>}
       {wellsEnabled&&<QatarWellsLayers map={mapForReadout}/>}
 
-      <div className="absolute bottom-6 end-6 z-[1000] flex flex-col gap-2">
+      <div data-national-map-tools className="absolute bottom-6 end-6 z-[1000] flex flex-col gap-2">
         {spectralEnabled && (
           <button
             type="button"
@@ -2378,10 +2378,10 @@ export function SatelliteMap({
       {/* Satellite view signature (Brand Book p.81): the cream mark bare on
           the imagery, then a white pill with the view state. The mark keeps
           its clear space (0.4 × 16px ≈ 6px) through the 12px gap. */}
-      <div className="pointer-events-none absolute bottom-6 start-6 z-[1000] flex items-end gap-3">
+      <div data-national-map-brand className="pointer-events-none absolute bottom-6 start-6 z-[1000] flex items-end gap-3">
         <Logo className="h-4 w-auto text-cream drop-shadow-[0_1px_2px_rgba(17,30,19,.6)]" aria-hidden="true" />
       </div>
-      <div className="absolute bottom-12 start-6 z-[1000] bg-card border border-line px-3.5 py-2 shadow-panel" style={{ borderRadius: 'var(--radius-lg)' }}>
+      <div data-national-map-readout className="absolute bottom-12 start-6 z-[1000] bg-card border border-line px-3.5 py-2 shadow-panel" style={{ borderRadius: 'var(--radius-lg)' }}>
         <div className="text-[12px] text-content-soft">
           {tr('Satellite view · zoom')} <span className="text-content tabular-nums" style={{ fontWeight: 500 }}><ZoomReadout map={mapForReadout} /></span>
         </div>
@@ -2618,7 +2618,7 @@ export function SatelliteMap({
       )}
 
       {isGrowaAdmin && polygonDrawPointId && (
-        <div className="absolute start-4 top-4 z-[1000] w-80 max-h-[calc(100%-2rem)] overflow-y-auto bg-card border border-line p-4" style={{ borderRadius: 'var(--radius-xl)', boxShadow: 'var(--shadow-panel)' }}>
+        <div data-map-polygon-editor className="absolute start-4 top-4 z-[1000] w-80 max-h-[calc(100%-2rem)] overflow-y-auto bg-card border border-line p-4" style={{ borderRadius: 'var(--radius-xl)', boxShadow: 'var(--shadow-panel)' }}>
           <p className="text-[14px] text-content" style={{ fontWeight: 500 }}>{tr('Polygon draft')}</p>
           <p className="mt-0.5 text-[12px] text-content-soft">
             {tr('Vertices:')} <span className="text-content tabular-nums">{draftPolygon.length}</span>
@@ -2803,7 +2803,7 @@ export function SatelliteMap({
           watchtower panel. A round control, like the zoom buttons, opens it. */}
       {coordinateSearchOpen ? (
       <form
-        className={`absolute end-4 z-[1000] w-[min(20rem,calc(100%-2rem))] bg-card border border-line p-4 top-4`}
+        data-coordinate-search className={`absolute end-4 z-[1000] w-[min(20rem,calc(100%-2rem))] bg-card border border-line p-4 top-4`}
         style={{ borderRadius: 'var(--radius-xl)', boxShadow: 'var(--shadow-panel)' }}
         onSubmit={(event) => {
           event.preventDefault()
@@ -2867,7 +2867,7 @@ export function SatelliteMap({
           onClick={() => setCoordinateSearchOpen(true)}
           aria-label={tr('Coordinate search')}
           title={tr('Coordinate search')}
-          className={`absolute end-4 z-[1000] inline-flex h-10 w-10 items-center justify-center rounded-pill border border-line bg-card text-content transition-colors hover:bg-stone-100 top-4`}
+          data-coordinate-search-button className={`absolute end-4 z-[1000] inline-flex h-10 w-10 items-center justify-center rounded-pill border border-line bg-card text-content transition-colors hover:bg-stone-100 top-4`}
           style={{ boxShadow: 'var(--shadow-panel)' }}
         >
           <Search strokeWidth={1.5} className="h-4 w-4" />
