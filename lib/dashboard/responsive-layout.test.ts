@@ -27,7 +27,7 @@ describe('Growa Qatar responsive application shell',()=>{
   expect(page).toContain('setCompactMapOpen(open => !open)')
   expect(page).toContain("compact ? 'w-full '")
   expect(page).toContain("panelVisible && !compact ? 'start-3/4' : 'start-0'")
-  expect(page).toContain('lateralPanelOpen={panelVisible && !compactMapOpen}')
+  expect(page).toContain('lateralPanelOpen={panelVisible && (!compact || !compactMapOpen)}')
  })
  it('keeps Watchtower sheets, controls, and data overlays usable on small devices',()=>{
   const map=read('components/dashboard/watchtower/global-watchtower.tsx')
