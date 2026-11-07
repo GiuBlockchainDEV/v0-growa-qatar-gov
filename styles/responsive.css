@@ -122,3 +122,99 @@
     max-height: min(65dvh, 280px);
   }
 }
+
+
+/* National Map is a map first, not a permanently open desktop control panel.
+   A compact satellite index trigger sits left, coordinate search stays right,
+   and groundwater tools avoid the persistent navigation chrome. */
+@media (max-width: 1023px) {
+  [data-national-map-surface] [data-live-map-spectral] {
+    position: absolute;
+    inset-block-start: 10px;
+    inset-inline-start: 10px;
+    inset-inline-end: auto;
+    width: 174px;
+    max-width: calc(100% - 20px);
+    transform: none;
+    padding: 5px 10px;
+    max-height: none;
+    border-radius: 12px;
+    overflow: hidden;
+  }
+  [data-national-map-surface] [data-live-map-spectral][data-mobile-open='true'] {
+    inset-block-start: 66px;
+    width: min(370px, calc(100% - 20px));
+    max-height: min(68dvh, 560px);
+    padding: 12px;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+  [data-live-map-spectral] [data-spectral-mobile-toggle] {
+    display: flex;
+  }
+  [data-live-map-spectral]:not([data-mobile-open='true']) [data-spectral-body] {
+    display: none;
+  }
+  [data-national-map-surface] [data-national-map-tools] {
+    inset-inline-end: 10px;
+    inset-block-end: calc(14px + env(safe-area-inset-bottom, 0px));
+    gap: 7px;
+    max-height: 55dvh;
+    overflow-y: auto;
+  }
+  [data-national-map-surface] [data-national-map-tools] button {
+    min-width: 44px;
+    min-height: 44px;
+  }
+  [data-national-map-surface] [data-national-map-wells] {
+    inset-inline-start: 10px;
+    bottom: calc(14px + env(safe-area-inset-bottom, 0px));
+    max-width: calc(100% - 85px);
+  }
+  [data-national-map-surface] [data-national-map-wells] > section {
+    width: min(370px, calc(100vw - 32px));
+    max-height: min(68dvh, 560px);
+    overflow-y: auto;
+  }
+  [data-national-map-surface] [data-national-map-wells] > button {
+    min-height: 44px;
+    max-width: 100%;
+  }
+  [data-national-map-surface] [data-national-map-readout],
+  [data-national-map-surface] [data-national-map-brand] {
+    display: none;
+  }
+  [data-national-map-surface] [data-coordinate-search],
+  [data-national-map-surface] [data-coordinate-search-button] {
+    top: 10px;
+    inset-inline-end: 10px;
+  }
+  [data-national-map-surface] [data-map-polygon-editor] {
+    top: 66px;
+    inset-inline-start: 10px;
+    width: min(360px, calc(100% - 20px));
+    max-height: min(66dvh, 540px);
+    overscroll-behavior: contain;
+  }
+}
+@media (max-width: 639px) {
+  [data-national-map-surface] [data-live-map-spectral] {
+    width: min(166px, calc(100% - 74px));
+  }
+  [data-national-map-surface] [data-live-map-spectral][data-mobile-open='true'] {
+    width: calc(100% - 20px);
+    top: 61px;
+    max-height: min(64dvh, 480px);
+  }
+  [data-national-map-surface] [data-national-map-wells] > button {
+    max-width: min(225px, calc(100vw - 82px));
+    padding: 10px 12px;
+    font-size: 11px;
+  }
+  [data-national-map-surface] [data-national-map-tools] {
+    max-height: 50dvh;
+  }
+  [data-national-map-surface] [data-national-map-tools] > button:not([title]) {
+    max-width: 44px;
+  }
+}
