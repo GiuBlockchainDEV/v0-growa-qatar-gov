@@ -379,7 +379,7 @@ export function QatarSpectralLayers({map}:{map:MapController|null}){
    <span className="flex items-center gap-2 text-xs font-semibold text-content">
     <Layers3 size={17} className="text-sage-700"/>
     <span className="truncate">Spectral layers</span>
-    {index&&<span className="rounded bg-cream-100 px-1.5 py-0.5 text-[10px] text-sage-700">{index.toUpperCase()}</span>
+    {index&&<span className="rounded bg-cream-100 px-1.5 py-0.5 text-[10px] text-sage-700">{index.toUpperCase()}</span>}
    </span>
    <span className="shrink-0 text-[11px] font-semibold text-sage-700">{mobileControlsOpen?'Close':'Open'}</span>
   </button>
