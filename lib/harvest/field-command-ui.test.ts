@@ -27,7 +27,13 @@ describe('Harvest single-field decision cockpit',()=>{
   expect(shell).toContain('onBack={handleClearFieldSelection}')
   expect(shell).toContain('<GrowaIntelligencePanel module="harvest" context={growaContext}')
   expect(field).toContain('Yield estimation & field actions')
-  expect(field).toContain('Source model response')
+  expect(field).toContain("aria-label={'Delete field '+field.name}")
+  expect(field).toContain("{deleteLoading?'Deleting field…':'Delete field'}")
+  expect(shell).toContain('Permanently delete field')
+  expect(shell).toContain('encodeURIComponent(parcelToDelete)')
+  expect(shell).toContain("method: 'DELETE'")
+
+  expect(field).toContain('View source model response')
  })
  it('supports point interaction and distinguishes modeled vs observed data',()=>{
   expect(field).toContain('role="button" tabIndex={0}')
