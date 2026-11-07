@@ -373,16 +373,17 @@ export function QatarSpectralLayers({map}:{map:MapController|null}){
  return <div data-live-map-spectral data-mobile-open={mobileControlsOpen} className="absolute start-1/2 top-4 z-[1150] w-[min(33rem,calc(100%-7rem))] -translate-x-1/2 rounded-xl border border-line bg-card/95 p-3 shadow-panel backdrop-blur-md"
   role="group" aria-label="Qatar-wide satellite spectral indices">
   <button type="button" data-spectral-mobile-toggle
-   className="hidden w-full min-h-11 items-center justify-between gap-3 text-start"
+   className="hidden w-full min-h-11 items-center justify-between gap-2 text-start"
    aria-expanded={mobileControlsOpen} aria-controls="national-map-spectral-controls"
    onClick={()=>setMobileControlsOpen(v=>!v)}>
    <span className="flex items-center gap-2 text-xs font-semibold text-content">
     <Layers3 size={17} className="text-sage-700"/>
-    National map · {index?index.toUpperCase():'Satellite indices'}
+    <span className="truncate">Spectral layers</span>
+    {index&&<span className="rounded bg-cream-100 px-1.5 py-0.5 text-[10px] text-sage-700">{index.toUpperCase()}</span>
    </span>
-   <span className="text-[11px] font-semibold text-sage-700">{mobileControlsOpen?'Close':'Layers'}</span>
+   <span className="shrink-0 text-[11px] font-semibold text-sage-700">{mobileControlsOpen?'Close':'Open'}</span>
   </button>
-  <div id="national-map-spectral-controls" data-spectral-body>
+  <div id="national-map-spectral-controls" data-spectral-body data-expanded={mobileControlsOpen}>
   <div className="flex items-center justify-between gap-2">
    <span className="flex items-center gap-2 text-[11px] font-semibold text-content">
     <Layers3 size={15} className="text-sage-700"/>
@@ -392,11 +393,11 @@ export function QatarSpectralLayers({map}:{map:MapController|null}){
     SENTINEL-2 · MICROSOFT PLANETARY COMPUTER
    </span>
   </div>
-  <div className="mt-2 grid grid-cols-4 gap-2">
+  <div className="mt-2 grid grid-cols-4 gap-2" role="group" aria-label="Satellite index selection">
    {([null,'ndvi','ndmi','ndsi'] as const).map(choice=><button
     key={choice??'off'} type="button" onClick={()=>toggle(choice)}
     aria-pressed={index===choice}
-    className={'rounded-lg border px-3 py-2 text-[11px] font-semibold transition-colors '+
+    className={'min-h-10 rounded-lg border px-2 py-2 text-[11px] font-semibold transition-colors '+
      (index===choice?'border-ink bg-ink text-white':
       'border-line bg-background text-content hover:bg-cream-100')}>
     {choice===null?'OFF':choice.toUpperCase()}
