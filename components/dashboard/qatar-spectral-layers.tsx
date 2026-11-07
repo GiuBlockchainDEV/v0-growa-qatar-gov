@@ -370,7 +370,7 @@ export function QatarSpectralLayers({map}:{map:MapController|null}){
  const ndsiRange=Array.from({length:5},(_,i)=>
   (ndsiStretch.min+(ndsiStretch.max-ndsiStretch.min)*i/4).toFixed(2))
  const spectralRange=index==='ndvi'?['−0.20','0.08','0.35','0.63','0.90']:index==='ndmi'?['≤−0.35','−0.18','0','0.18','≥0.35']:ndsiRange
- return <div data-live-map-spectral data-mobile-open={mobileControlsOpen} className="absolute start-1/2 top-4 z-[1150] w-[min(33rem,calc(100%-7rem))] -translate-x-1/2 rounded-xl border border-line bg-card/95 p-3 shadow-panel backdrop-blur-md"
+ return <div data-live-map-spectral data-mobile-open={mobileControlsOpen} className="absolute start-[10px] top-4 z-[1150] w-[min(33rem,calc(100%-7rem))] lg:start-1/2 lg:-translate-x-1/2 rounded-xl border border-line bg-card/95 p-3 shadow-panel backdrop-blur-md"
   role="group" aria-label="Qatar-wide satellite spectral indices">
   <button type="button" data-spectral-mobile-toggle
    className="hidden w-full min-h-11 items-center justify-between gap-2 text-start"

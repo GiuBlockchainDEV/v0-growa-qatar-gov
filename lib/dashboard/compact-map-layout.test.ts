@@ -25,6 +25,13 @@ describe('Map-first phone and tablet layouts',()=>{
   expect(spectral).toContain('aria-expanded={mobileControlsOpen}')
   expect(spectral).toContain('data-spectral-body')
   expect(spectral).toContain('data-expanded={mobileControlsOpen}')
+  // The prior class -translate-x-1/2 shifted the entire mobile panel
+  // outside the screen despite transform:none in responsive.css.
+  expect(spectral).toContain('start-[10px] top-4')
+  expect(spectral).toContain('lg:start-1/2 lg:-translate-x-1/2')
+  expect(spectral).not.toMatch(/\s-translate-x-1\/2\s/)
+  expect(css).toContain('translate: none !important')
+
   expect(spectral).toContain('aria-label="Satellite index selection"')
   expect(css).toContain("[data-spectral-body][data-expanded='true']")
   expect(css).toContain('inset-block-start: calc(100% + 9px)')
