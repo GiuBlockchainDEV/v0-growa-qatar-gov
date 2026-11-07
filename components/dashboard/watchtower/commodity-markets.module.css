@@ -367,3 +367,26 @@
   .tickerItem,.moverCard { transition:none; }
   .tickerItem:hover,.moverCard:hover { transform:none; }
 }
+
+
+/* No-key USDA publication tracker, separate from verified monthly price quotes. */
+.dailyReports{padding:17px 19px;background:var(--surface-card);border:1px solid var(--border-default);border-radius:13px}
+.dailyHeading{display:flex;align-items:flex-start;justify-content:space-between;gap:16px}
+.dailyHeading h2{font-size:15px;font-weight:700;color:var(--growa-ink);line-height:1.35}
+.dailyHeading p{font-size:11px;color:var(--growa-stone-600);line-height:1.55;margin-top:3px}
+.dailyHeading>span{font-size:10px;white-space:nowrap;border-radius:999px;background:var(--growa-cream-100);padding:5px 9px;color:var(--growa-sage-700)}
+.dailyGrid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin-top:12px}
+.dailyCard{border:1px solid var(--border-default);background:#fff;border-radius:9px;padding:11px;display:flex;flex-direction:column;gap:6px;min-width:0;text-decoration:none}
+.dailyCard:hover{border-color:var(--growa-sage)}
+.dailyCard strong{display:flex;align-items:flex-start;justify-content:space-between;gap:7px;font-size:11px;color:var(--growa-ink)}
+.dailyCard strong svg{flex:none}
+.dailyCard span{font-size:10px;color:var(--growa-stone-600)}
+.dailyCard small{font-size:9px;color:var(--growa-sage-700);text-transform:capitalize}
+.dailyCaveat{font-size:10px;line-height:1.5;color:var(--growa-stone-600);margin-top:10px}
+@media(max-width:1100px){.dailyGrid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:620px){
+ .dailyReports{padding:13px 12px}
+ .dailyHeading{flex-wrap:wrap;gap:8px}
+ .dailyGrid{grid-template-columns:minmax(0,1fr)}
+ .dailyCard{min-height:76px}
+}

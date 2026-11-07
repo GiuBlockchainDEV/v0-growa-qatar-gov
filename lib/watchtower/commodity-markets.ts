@@ -50,6 +50,7 @@ export type MarketInstrument={
   benchmark:string
   seriesId:string
   sourceUrl:string
+  sourceName?:string
   priceUnit:PriceUnit
   latestDate:string
   latestNativePrice:number
@@ -67,8 +68,8 @@ export type MarketInstrument={
 export type CommodityMarketsSnapshot={
   generatedAt:string
   frequency:'monthly'
-  source:'IMF Primary Commodity Prices via FRED'
-  sourceUrl:'https://fred.stlouisfed.org/'
+  source:string
+  sourceUrl:string
   fxBasis:'Qatar Central Bank USD/QAR official parity 3.64'
   usdQar:number
   status:'available'|'partial'|'unavailable'
@@ -78,6 +79,15 @@ export type CommodityMarketsSnapshot={
   unavailableIds:string[]
   instruments:MarketInstrument[]
   disclaimer:string
+  providerAvailability?:{
+   worldBank:number;imfFred:number;usdaPublishedReports:number
+  }
+  usdaReports?:Array<{
+   id:number;title:string;markets:readonly string[]
+   reportDate:string|null;sourceUrl:string
+   status:'published'|'unavailable';frequency:'daily'
+  }>
+  sources?:Array<{name:string;url:string;frequency:'monthly'|'daily_reports';note:string}>
 }
 
 export function nativeToUsdPerTonne(value:number,unit:PriceUnit):number{
@@ -142,6 +152,7 @@ export function toMarketInstrument(
     group:definition.group,benchmark:definition.benchmark,
     seriesId:definition.seriesId,
     sourceUrl:'https://fred.stlouisfed.org/series/'+definition.seriesId,
+    sourceName:'IMF via FRED',
     priceUnit:definition.unit,
     latestDate:last.date,latestNativePrice:last.nativePrice,
     latestUsdTonne:current,latestQarTonne:current*USD_QAR_PEG,

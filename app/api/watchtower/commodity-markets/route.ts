@@ -1,6 +1,6 @@
 import {NextResponse} from 'next/server'
 import {createClient} from '@/lib/supabase/server'
-import {getCommodityMarketsSnapshot} from '@/lib/watchtower/commodity-markets'
+import {getPublicCommodityMarketsSnapshot} from '@/lib/watchtower/free-commodity-markets'
 
 export const dynamic='force-dynamic'
 export const runtime='nodejs'
@@ -15,7 +15,7 @@ export async function GET(){
       {error:'Sign in to use commodity market intelligence.'},
       {status:401,headers},
     )
-    return NextResponse.json(await getCommodityMarketsSnapshot(),{headers})
+    return NextResponse.json(await getPublicCommodityMarketsSnapshot(),{headers})
   }catch{
     return NextResponse.json(
       {error:'Commodity benchmarks unavailable. No market prices are simulated.'},

@@ -12,6 +12,7 @@ import { FoodSourceIntake } from '@/components/dashboard/food-source-intake'
 import { CommodityAgentLab } from '@/components/dashboard/commodity-agent-lab'
 import { CommodityBalanceCharts } from '@/components/dashboard/commodity-balance-charts'
 import { CommodityIntelligenceCockpit } from '@/components/dashboard/commodity-intelligence-cockpit'
+import { CommodityPublicPriceCard } from '@/components/dashboard/commodity-public-price-card'
 import { useOperationalContext } from '@/contexts/operational-context-provider'
 import { useCommodityCase } from '@/hooks/use-commodity-case'
 import { useI18n } from '@/lib/i18n'
@@ -171,6 +172,8 @@ export function CommodityWorkspace(){
           {organization?.name&&<span>· {organization.name}</span>}
         </div>
       </section>
+
+      <CommodityPublicPriceCard commodityId={commodity.id}/>
 
       {loading&&<p role="status" className="text-[12px] text-content-soft">
         {tx('Checking available organization sources…','جارٍ التحقق من مصادر المؤسسة…')}
