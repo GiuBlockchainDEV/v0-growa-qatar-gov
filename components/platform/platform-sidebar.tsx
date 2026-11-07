@@ -31,10 +31,14 @@ const AVAILABILITY_TONE: Record<ProductNavItem['availability'], string> = {
 export function PlatformSidebar({
   collapsed = false,
   drawer,
+  onClose,
+  onNavigate,
 }: {
   collapsed?: boolean
-  /** Phone drawer state; undefined on larger screens. */
+  /** Temporary navigation on phone and tablet; undefined on desktop. */
   drawer?: 'open' | 'closed'
+  onClose?: () => void
+  onNavigate?: () => void
 }) {
   const { locale, t, tr } = useI18n()
   const { navigation: nav } = useSharedRoleNavigation()
@@ -92,13 +96,18 @@ export function PlatformSidebar({
       className={cn(
         'growa growa-inverse fixed top-0 start-0 bottom-0 z-[2100] flex flex-col bg-sidebar text-sidebar-foreground',
         'transition-[width,translate] duration-200 ease-[var(--ease-brand)]',
-        collapsed ? 'w-20' : 'w-[15.5rem]',
+        collapsed ? 'w-20' : 'w-[15.5rem] max-w-[calc(100vw-2rem)]',
         drawer === 'closed' && '-translate-x-full rtl:translate-x-full',
         drawer === 'open' && 'shadow-panel-lg'
       )}
       aria-hidden={drawer === 'closed' ? true : undefined}
       inert={drawer === 'closed' ? true : undefined}
     >
+      {drawer === 'open' && <button type="button" onClick={onClose}
+        aria-label={tr('Close navigation')}
+        className="absolute end-3 top-3 z-10 flex h-10 w-10 items-center justify-center rounded-full border border-cream/25 text-cream hover:bg-white/10 lg:hidden">
+        <span aria-hidden="true" className="text-xl leading-none">×</span>
+      </button>}
       {/* The mark sits bare on the ink (no tile, no pill — Brand Book p.22
           forbids enclosing it). Collapsed, only the square of the mark stays,
           as the app icon does. */}
@@ -151,6 +160,7 @@ export function PlatformSidebar({
                   <DashboardQueryLink
                     key={item.key}
                     href={href}
+                    onClick={onNavigate}
                     aria-current={active ? 'page' : undefined}
                     // Icons only: without the name on hover the rail is not navigable.
                     title={collapsed ? `${navItemLabel(item, locale)} · ${availabilityLabel(item.availability)}` : undefined}
