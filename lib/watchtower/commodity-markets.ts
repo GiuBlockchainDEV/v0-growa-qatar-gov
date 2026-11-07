@@ -50,6 +50,7 @@ export type MarketInstrument={
   benchmark:string
   seriesId:string
   sourceUrl:string
+  sourceName?:string
   priceUnit:PriceUnit
   latestDate:string
   latestNativePrice:number
