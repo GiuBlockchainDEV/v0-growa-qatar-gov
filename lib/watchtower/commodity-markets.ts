@@ -79,6 +79,15 @@ export type CommodityMarketsSnapshot={
   unavailableIds:string[]
   instruments:MarketInstrument[]
   disclaimer:string
+  providerAvailability?:{
+   worldBank:number;imfFred:number;usdaPublishedReports:number
+  }
+  usdaReports?:Array<{
+   id:number;title:string;markets:readonly string[]
+   reportDate:string|null;sourceUrl:string
+   status:'published'|'unavailable';frequency:'daily'
+  }>
+  sources?:Array<{name:string;url:string;frequency:'monthly'|'daily_reports';note:string}>
 }
 
 export function nativeToUsdPerTonne(value:number,unit:PriceUnit):number{
